@@ -1,0 +1,1 @@
+"""MAMFast test suite."""

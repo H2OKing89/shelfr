@@ -1,0 +1,86 @@
+# =============================================================================
+# MAMFast Configuration
+# Copy to config.yaml and adjust paths for your setup
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Paths
+# -----------------------------------------------------------------------------
+paths:
+  # Where Libation stores downloaded audiobooks
+  libation_library_root: "/mnt/user/data/audio/audiobooks"
+  
+  # Where we hardlink + stage releases for upload
+  staging_root: "/mnt/user/data/mam-staging"
+  
+  # Where .torrent files are written (must match mkbrr output)
+  torrent_output: "/mnt/user/data/downloads/torrents/torrentfiles"
+  
+  # qBittorrent seed directory (save_path for added torrents)
+  seed_root: "/mnt/user/data/downloads/torrents/qbittorrent/seedvault/mam"
+  
+  # State file for tracking processed releases
+  state_file: "./data/processed.json"
+  
+  # Log file location
+  log_file: "./logs/mamfast.log"
+
+# -----------------------------------------------------------------------------
+# MAM Compliance Rules
+# -----------------------------------------------------------------------------
+mam:
+  # Maximum filename length allowed by MAM
+  max_filename_length: 225
+  
+  # File extensions to include when staging
+  allowed_extensions:
+    - ".m4b"
+    - ".jpg"
+    - ".jpeg"
+    - ".png"
+    - ".pdf"
+    - ".cue"
+
+# -----------------------------------------------------------------------------
+# mkbrr Docker Configuration
+# These should match your existing mkbrr setup
+# -----------------------------------------------------------------------------
+mkbrr:
+  image: "ghcr.io/autobrr/mkbrr"
+  preset: "mam"
+  
+  # Host path that maps to /data inside container
+  host_data_root: "/mnt/user/data"
+  container_data_root: "/data"
+  
+  # Host path for torrent output (maps to /torrentfiles inside container)
+  host_output_dir: "/mnt/user/data/downloads/torrents/torrentfiles"
+  container_output_dir: "/torrentfiles"
+  
+  # mkbrr config directory (contains presets.yaml)
+  host_config_dir: "/mnt/cache/appdata/mkbrr"
+  container_config_dir: "/root/.config/mkbrr"
+
+# -----------------------------------------------------------------------------
+# qBittorrent Behavior
+# -----------------------------------------------------------------------------
+qbittorrent:
+  category: "mam-audiobooks"
+  tags:
+    - "mamfast"
+    - "auto-upload"
+  auto_start: true
+  
+# -----------------------------------------------------------------------------
+# Audnex API (metadata source)
+# -----------------------------------------------------------------------------
+audnex:
+  base_url: "https://api.audnex.us"
+  timeout_seconds: 30
+
+# -----------------------------------------------------------------------------
+# MediaInfo
+# -----------------------------------------------------------------------------
+mediainfo:
+  # Path to mediainfo binary (or just "mediainfo" if in PATH)
+  binary: "mediainfo"
