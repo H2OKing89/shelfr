@@ -145,14 +145,23 @@ def load_settings(
     Load settings from .env and config.yaml files.
 
     Args:
-        env_file: Path to .env file (default: .env in current directory)
+        env_file: Path to .env file (default: .env next to config.yaml, or in current dir)
         config_file: Path to config.yaml (default: config.yaml in current directory)
 
     Returns:
         Populated Settings object
     """
-    # Load .env file
-    env_path = env_file or Path(".env")
+    # Determine config path first
+    config_path = config_file or Path("config.yaml")
+
+    # Load .env file - look next to config.yaml if not specified
+    if env_file:
+        env_path = env_file
+    else:
+        # Try .env next to config.yaml first
+        env_next_to_config = config_path.resolve().parent / ".env"
+        env_path = env_next_to_config if env_next_to_config.exists() else Path(".env")
+
     if env_path.exists():
         load_dotenv(env_path)
     else:
@@ -160,7 +169,6 @@ def load_settings(
         load_dotenv()
 
     # Load config.yaml
-    config_path = config_file or Path("config.yaml")
     yaml_config = load_yaml_config(config_path)
 
     # Base directory for resolving relative paths (parent of config file)
