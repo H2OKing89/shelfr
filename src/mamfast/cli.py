@@ -713,10 +713,20 @@ def main() -> int:
     args = parser.parse_args()
 
     # Setup logging
+    from mamfast.config import reload_settings
     from mamfast.logging_setup import setup_logging
 
     log_level = "DEBUG" if args.verbose else "INFO"
-    setup_logging(log_level=log_level)
+
+    # Try to get log file from config, but don't fail if config isn't available
+    log_file = None
+    try:
+        settings = reload_settings(config_file=args.config)
+        log_file = settings.paths.log_file
+    except Exception:
+        pass  # Config not available yet, just use console logging
+
+    setup_logging(log_level=log_level, log_file=log_file)
 
     # No command given - show help
     if args.command is None:

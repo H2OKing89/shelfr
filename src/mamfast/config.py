@@ -163,14 +163,24 @@ def load_settings(
     config_path = config_file or Path("config.yaml")
     yaml_config = load_yaml_config(config_path)
 
+    # Base directory for resolving relative paths (parent of config file)
+    config_dir = config_path.resolve().parent.parent  # Go up from config/ to project root
+
+    def resolve_path(path_str: str) -> Path:
+        """Resolve a path, making relative paths relative to config directory."""
+        p = Path(path_str)
+        if p.is_absolute():
+            return p
+        return (config_dir / p).resolve()
+
     # Parse paths config
     paths_data = yaml_config.get("paths", {})
     paths = PathsConfig(
         library_root=Path(paths_data.get("library_root", "")),
         torrent_output=Path(paths_data.get("torrent_output", "")),
         seed_root=Path(paths_data.get("seed_root", "")),
-        state_file=Path(paths_data.get("state_file", "./data/processed.json")),
-        log_file=Path(paths_data.get("log_file", "./logs/mamfast.log")),
+        state_file=resolve_path(paths_data.get("state_file", "./data/processed.json")),
+        log_file=resolve_path(paths_data.get("log_file", "./logs/mamfast.log")),
     )
 
     # Parse MAM config
