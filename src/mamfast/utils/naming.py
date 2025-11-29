@@ -43,6 +43,70 @@ HARDCODED_REMOVE_PATTERNS = [
     r"\s*,\s*,\s*",  # Double commas
 ]
 
+# Roles to filter out from author lists (case-insensitive matching)
+# These indicate the person is not the primary author
+AUTHOR_ROLE_FILTERS = [
+    "translator",
+    "illustrator",
+    "editor",
+    "adapter",
+    "contributor",
+    "compiler",
+    "afterword",
+    "foreword",
+    "introduction",
+    "cover design",
+    "cover art",
+    "with ",  # "with John Smith"
+]
+
+
+def is_author_role(name: str) -> bool:
+    """
+    Check if a name string indicates a non-author role.
+
+    Args:
+        name: Author name string (e.g., "Jasmine Bernhardt - translator")
+
+    Returns:
+        True if this is a translator/illustrator/etc., False if primary author
+    """
+    name_lower = name.lower()
+    return any(role in name_lower for role in AUTHOR_ROLE_FILTERS)
+
+
+def filter_authors(authors: list[dict[str, str]]) -> list[dict[str, str]]:
+    """
+    Filter out translators, illustrators, etc. from author list.
+
+    Args:
+        authors: List of author dicts with 'name' key
+
+    Returns:
+        Filtered list containing only primary authors
+    """
+    return [a for a in authors if not is_author_role(a.get("name", ""))]
+
+
+def extract_translator(authors: list[dict[str, str]]) -> str | None:
+    """
+    Extract translator name from author list.
+
+    Args:
+        authors: List of author dicts with 'name' key
+
+    Returns:
+        Translator name if found, None otherwise
+    """
+    for author in authors:
+        name = author.get("name", "")
+        name_lower = name.lower()
+        if "translator" in name_lower:
+            # Clean up the name - remove " - translator" suffix
+            cleaned = re.sub(r"\s*-?\s*translator[s]?\s*$", "", name, flags=re.IGNORECASE)
+            return cleaned.strip()
+    return None
+
 
 def sanitize_filename(name: str) -> str:
     """

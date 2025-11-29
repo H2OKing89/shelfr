@@ -25,6 +25,7 @@ import httpx
 from jinja2 import Environment, PackageLoader
 
 from mamfast.config import get_settings
+from mamfast.utils.naming import filter_authors
 
 if TYPE_CHECKING:
     from mamfast.models import AudiobookRelease
@@ -247,12 +248,14 @@ def render_bbcode_description(
 
     synopsis = _clean_html(audnex_data.get("summary", ""))
 
-    authors = [a.get("name", "") for a in audnex_data.get("authors", []) if a.get("name")]
+    authors_raw = audnex_data.get("authors", [])
+    authors_filtered = filter_authors(authors_raw)
+    authors = [a.get("name", "") for a in authors_filtered if a.get("name")]
     narrators = [n.get("name", "") for n in audnex_data.get("narrators", []) if n.get("name")]
 
     # Translator detection (look for "translator" in author/narrator names or roles)
     translator = None
-    for author in audnex_data.get("authors", []):
+    for author in authors_raw:
         name = author.get("name", "")
         if "translator" in name.lower():
             translator = name
@@ -667,10 +670,11 @@ def build_mam_json(
     if title:
         mam_json["title"] = title
 
-    # Authors
+    # Authors (filter out translators, illustrators, etc.)
     authors = audnex.get("authors", [])
     if authors:
-        mam_json["authors"] = [a.get("name", "") for a in authors if a.get("name")]
+        filtered_authors = filter_authors(authors)
+        mam_json["authors"] = [a.get("name", "") for a in filtered_authors if a.get("name")]
     elif release.author:
         mam_json["authors"] = [release.author]
 
