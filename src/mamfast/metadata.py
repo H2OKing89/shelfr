@@ -15,11 +15,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from jinja2 import Environment, PackageLoader
 
 from mamfast.config import get_settings
 
@@ -27,6 +30,275 @@ if TYPE_CHECKING:
     from mamfast.models import AudiobookRelease
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# BBCode Description Template
+# =============================================================================
+
+
+@dataclass
+class Chapter:
+    """Chapter info for BBCode template."""
+
+    start: str  # "00:55:52" or "1:30:45"
+    title: str  # "Chapter 2: Wandering Goblin Slayer"
+
+
+def _get_jinja_env() -> Environment:
+    """Get Jinja2 environment with template loader."""
+    return Environment(
+        loader=PackageLoader("mamfast", "templates"),
+        autoescape=False,  # BBCode, not HTML
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+
+
+def _format_duration(seconds: float) -> str:
+    """
+    Format duration in seconds to human readable (e.g., '6h 11m').
+
+    Args:
+        seconds: Duration in seconds
+
+    Returns:
+        Human readable duration string
+    """
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+
+    if hours > 0:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
+
+
+def _format_chapter_time(seconds: float) -> str:
+    """
+    Format chapter timestamp (e.g., '1:30:45' or '00:27').
+
+    Args:
+        seconds: Time in seconds
+
+    Returns:
+        Formatted time string
+    """
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def _parse_chapters_from_mediainfo(mediainfo_data: dict[str, Any]) -> list[Chapter]:
+    """
+    Extract chapter list from MediaInfo JSON.
+
+    Args:
+        mediainfo_data: MediaInfo JSON dict
+
+    Returns:
+        List of Chapter objects
+    """
+    chapters: list[Chapter] = []
+
+    try:
+        media = mediainfo_data.get("media", {})
+        tracks = media.get("track", [])
+
+        # Find the Menu track which contains chapters
+        for track in tracks:
+            if track.get("@type") == "Menu":
+                extra = track.get("extra", {})
+                # Chapter entries look like: "_00_07_35_573": "Chapter 1"
+                chapter_entries = []
+                for key, value in extra.items():
+                    if key.startswith("_") and "_" in key[1:]:
+                        # Parse timestamp: _00_07_35_573 -> 00:07:35.573
+                        parts = key[1:].split("_")
+                        if len(parts) >= 3:
+                            h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
+                            total_seconds = h * 3600 + m * 60 + s
+                            chapter_entries.append((total_seconds, value))
+
+                # Sort by timestamp and convert to Chapter objects
+                chapter_entries.sort(key=lambda x: x[0])
+                for seconds, title in chapter_entries:
+                    chapters.append(
+                        Chapter(
+                            start=_format_chapter_time(seconds),
+                            title=title,
+                        )
+                    )
+                break
+
+    except Exception as e:
+        logger.warning(f"Failed to parse chapters from mediainfo: {e}")
+
+    return chapters
+
+
+def _extract_audio_info(
+    mediainfo_data: dict[str, Any],
+) -> dict[str, str]:
+    """
+    Extract audio/file info from MediaInfo for BBCode template.
+
+    Returns:
+        Dict with container, codec, sample_rate, channels, duration_human
+    """
+    info = {
+        "container": "M4B",
+        "codec": "AAC LC",
+        "sample_rate": "44.1 kHz",
+        "channels": "2",
+        "duration_human": "Unknown",
+    }
+
+    try:
+        media = mediainfo_data.get("media", {})
+        tracks = media.get("track", [])
+
+        for track in tracks:
+            track_type = track.get("@type")
+
+            if track_type == "General":
+                # Duration
+                duration_str = track.get("Duration")
+                if duration_str:
+                    duration = float(duration_str)
+                    info["duration_human"] = _format_duration(duration)
+
+                # Container format
+                fmt = track.get("Format")
+                if fmt:
+                    ext = track.get("FileExtension", "").upper()
+                    info["container"] = ext or fmt
+
+            elif track_type == "Audio":
+                # Codec
+                codec = track.get("Format", "")
+                codec_profile = track.get("Format_AdditionalFeatures", "")
+                bitrate_mode = track.get("BitRate_Mode", "")
+                bitrate = track.get("BitRate", "")
+
+                if codec:
+                    codec_str = codec
+                    if codec_profile:
+                        codec_str += f" {codec_profile}"
+                    if bitrate_mode and bitrate:
+                        br_kb = int(bitrate) // 1000
+                        codec_str += f" ({bitrate_mode} ~{br_kb} kb/s)"
+                    info["codec"] = codec_str
+
+                # Sample rate
+                sample_rate = track.get("SamplingRate")
+                if sample_rate:
+                    sr_khz = float(sample_rate) / 1000
+                    info["sample_rate"] = f"{sr_khz} kHz"
+
+                # Channels
+                channels = track.get("Channels")
+                if channels:
+                    info["channels"] = channels
+
+    except Exception as e:
+        logger.warning(f"Failed to extract audio info from mediainfo: {e}")
+
+    return info
+
+
+def render_bbcode_description(
+    audnex_data: dict[str, Any],
+    mediainfo_data: dict[str, Any] | None = None,
+    asin: str | None = None,
+) -> str:
+    """
+    Render BBCode description from Audnex and MediaInfo data.
+
+    Uses Jinja2 template for the formatting.
+
+    Args:
+        audnex_data: Audnex API response
+        mediainfo_data: MediaInfo JSON (optional)
+        asin: ASIN override (uses audnex_data.asin if not provided)
+
+    Returns:
+        Rendered BBCode description string
+    """
+    env = _get_jinja_env()
+    template = env.get_template("mam_description.j2")
+
+    # Extract data from Audnex
+    title = audnex_data.get("title", "Unknown Title")
+    subtitle = audnex_data.get("subtitle")
+
+    # Only add subtitle if it adds new info (not just "Series, Book N")
+    # Skip if subtitle is like "Series Name, Book N" pattern
+    if subtitle:
+        # Check if subtitle is just "Book N" or "Series, Book N" which is redundant
+        subtitle_lower = subtitle.lower()
+        is_book_pattern = ", book " in subtitle_lower or subtitle_lower.startswith("book ")
+        # Also check if the core series name is already in the title
+        if not is_book_pattern and subtitle not in title:
+            title = f"{title}: {subtitle}"
+
+    synopsis = _clean_html(audnex_data.get("summary", ""))
+
+    authors = [a.get("name", "") for a in audnex_data.get("authors", []) if a.get("name")]
+    narrators = [n.get("name", "") for n in audnex_data.get("narrators", []) if n.get("name")]
+
+    # Translator detection (look for "translator" in author/narrator names or roles)
+    translator = None
+    for author in audnex_data.get("authors", []):
+        name = author.get("name", "")
+        if "translator" in name.lower():
+            translator = name
+            break
+
+    publisher = audnex_data.get("publisherName", "")
+    release_date = audnex_data.get("releaseDate", "")
+    if release_date:
+        # Format: 2025-11-25
+        release_date = release_date[:10] if len(release_date) >= 10 else release_date
+
+    genres = [g.get("name", "") for g in audnex_data.get("genres", []) if g.get("name")]
+    language = audnex_data.get("language", "English")
+    if language:
+        language = language.capitalize()
+
+    book_asin = asin or audnex_data.get("asin", "")
+
+    # Audio info from MediaInfo
+    audio_info = {}
+    chapters: list[Chapter] = []
+    if mediainfo_data:
+        audio_info = _extract_audio_info(mediainfo_data)
+        chapters = _parse_chapters_from_mediainfo(mediainfo_data)
+
+    # Render template
+    description = template.render(
+        title=title,
+        synopsis=synopsis,
+        authors=authors or ["Unknown"],
+        narrators=narrators or ["Unknown"],
+        translator=translator,
+        publisher=publisher,
+        release_date=release_date,
+        genres=genres or ["Audiobook"],
+        language=language,
+        asin=book_asin,
+        container=audio_info.get("container", "M4B"),
+        codec=audio_info.get("codec", "AAC LC"),
+        sample_rate=audio_info.get("sample_rate", "44.1 kHz"),
+        channels=audio_info.get("channels", "2"),
+        duration_human=audio_info.get("duration_human", "Unknown"),
+        chapters=chapters,
+    )
+
+    return str(description).strip()
 
 
 # =============================================================================
@@ -345,8 +617,6 @@ def _clean_html(text: str) -> str:
 
     Simple approach - just strips common HTML tags.
     """
-    import re
-
     # Remove HTML tags
     text = re.sub(r"<[^>]+>", "", text)
     # Decode common entities
@@ -411,10 +681,15 @@ def build_mam_json(
     elif release.narrator:
         mam_json["narrators"] = [release.narrator]
 
-    # Description (summary from Audnex, cleaned of HTML)
-    summary = audnex.get("summary")
-    if summary:
-        mam_json["description"] = _clean_html(summary)
+    # Description - render BBCode using Jinja2 template
+    if audnex:
+        bbcode_description = render_bbcode_description(
+            audnex_data=audnex,
+            mediainfo_data=mediainfo,
+            asin=release.asin,
+        )
+        if bbcode_description:
+            mam_json["description"] = bbcode_description
 
     # Series
     series_list = _build_series_list(audnex)
