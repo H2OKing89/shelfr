@@ -15,9 +15,11 @@ from mamfast.workflow import PipelineResult, full_run, process_single_release
 class TestProcessSingleRelease:
     """Integration tests for processing a single release through the pipeline."""
 
+    @patch("mamfast.workflow.get_settings")
+    @patch("mamfast.workflow.generate_mam_json_for_release")
     @patch("mamfast.workflow.upload_torrent")
     @patch("mamfast.workflow.create_torrent")
-    @patch("mamfast.workflow.fetch_all_metadata")
+    @patch("mamfast.workflow._fetch_metadata_with_retry")
     @patch("mamfast.workflow.stage_release")
     @patch("mamfast.workflow.mark_processed")
     def test_full_pipeline_success(
@@ -27,6 +29,8 @@ class TestProcessSingleRelease:
         mock_metadata: Mock,
         mock_torrent: Mock,
         mock_upload: Mock,
+        mock_mam_json: Mock,
+        mock_settings: Mock,
     ) -> None:
         """Test successful processing of a single release through all steps."""
         # Arrange
@@ -70,6 +74,7 @@ class TestProcessSingleRelease:
             mock_upload.assert_called_once()
             mock_mark_processed.assert_called_once_with(release)
 
+    @patch("mamfast.workflow.get_settings")
     @patch("mamfast.workflow.upload_torrent")
     @patch("mamfast.workflow.create_torrent")
     @patch("mamfast.workflow.stage_release")
@@ -80,6 +85,7 @@ class TestProcessSingleRelease:
         mock_stage: Mock,
         mock_torrent: Mock,
         mock_upload: Mock,
+        mock_settings: Mock,
     ) -> None:
         """Test that pipeline handles torrent creation failure correctly."""
         # Arrange
@@ -115,6 +121,7 @@ class TestProcessSingleRelease:
             # Upload should not be called if torrent creation fails
             mock_upload.assert_not_called()
 
+    @patch("mamfast.workflow.get_settings")
     @patch("mamfast.workflow.upload_torrent")
     @patch("mamfast.workflow.create_torrent")
     @patch("mamfast.workflow.stage_release")
@@ -125,6 +132,7 @@ class TestProcessSingleRelease:
         mock_stage: Mock,
         mock_torrent: Mock,
         mock_upload: Mock,
+        mock_settings: Mock,
     ) -> None:
         """Test that pipeline handles upload failure correctly."""
         # Arrange
@@ -166,6 +174,7 @@ class TestProcessSingleRelease:
 class TestFullPipeline:
     """Integration tests for the full pipeline."""
 
+    @patch("mamfast.workflow.get_settings")
     @patch("mamfast.discovery.get_new_releases")
     @patch("mamfast.workflow.run_liberate")
     @patch("mamfast.workflow.run_scan")
@@ -174,6 +183,7 @@ class TestFullPipeline:
         mock_scan: Mock,
         mock_liberate: Mock,
         mock_get_releases: Mock,
+        mock_settings: Mock,
     ) -> None:
         """Test full run when no new releases are found."""
         # Arrange
@@ -201,6 +211,7 @@ class TestFullPipeline:
         mock_scan.assert_called_once()
         mock_liberate.assert_called_once()
 
+    @patch("mamfast.workflow.get_settings")
     @patch("mamfast.workflow.is_processed")
     @patch("mamfast.workflow.process_single_release")
     @patch("mamfast.discovery.get_new_releases")
@@ -213,6 +224,7 @@ class TestFullPipeline:
         mock_get_releases: Mock,
         mock_process: Mock,
         mock_is_processed: Mock,
+        mock_settings: Mock,
     ) -> None:
         """Test that full run skips already processed releases."""
         # Arrange
@@ -255,6 +267,7 @@ class TestFullPipeline:
         """Test that dry run mode shows what would happen without making changes."""
         # This is a smoke test - just ensure dry run doesn't crash
         with (
+            patch("mamfast.workflow.get_settings"),
             patch("mamfast.workflow.run_scan") as mock_scan,
             patch("mamfast.workflow.run_liberate") as mock_liberate,
             patch("mamfast.discovery.get_new_releases") as mock_releases,
@@ -328,3 +341,261 @@ class TestAtomicStateWrites:
                     loaded = json.load(f)
 
                 assert loaded == state
+
+
+class TestWorkflowSavePathLogic:
+    """Tests for qb_save_path logic in workflow functions."""
+
+    @patch("mamfast.workflow.get_settings")
+    @patch("mamfast.workflow.generate_mam_json_for_release")
+    @patch("mamfast.workflow.upload_torrent")
+    @patch("mamfast.workflow.create_torrent")
+    @patch("mamfast.workflow._fetch_metadata_with_retry")
+    @patch("mamfast.workflow.stage_release")
+    @patch("mamfast.workflow.mark_processed")
+    def test_auto_tmm_enabled_no_save_path(
+        self,
+        mock_mark_processed: Mock,
+        mock_stage: Mock,
+        mock_metadata: Mock,
+        mock_torrent: Mock,
+        mock_upload: Mock,
+        mock_mam_json: Mock,
+        mock_settings: Mock,
+    ) -> None:
+        """Test that save_path is None when auto_tmm is enabled."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            staging_dir = tmppath / "staged"
+            staging_dir.mkdir()
+            torrent_path = tmppath / "test.torrent"
+            torrent_path.touch()
+
+            release = AudiobookRelease(
+                title="Test Book",
+                author="Test Author",
+                asin="B000TEST04",
+                source_dir=tmppath / "source",
+            )
+
+            mock_stage.return_value = staging_dir
+            mock_metadata.return_value = ({"title": "Test"}, {"media": {}})
+
+            mock_torrent_result = MagicMock()
+            mock_torrent_result.success = True
+            mock_torrent_result.torrent_path = torrent_path
+            mock_torrent.return_value = mock_torrent_result
+
+            mock_upload.return_value = True
+
+            # Configure auto_tmm = True
+            mock_settings.return_value.qbittorrent.auto_tmm = True
+            mock_settings.return_value.qbittorrent.save_path = "/some/path"
+
+            result = process_single_release(release)
+
+            assert result.success
+            # Verify upload was called with save_path=None
+            mock_upload.assert_called_once()
+            call_kwargs = mock_upload.call_args[1]
+            assert call_kwargs["save_path"] is None
+
+    @patch("mamfast.workflow.get_settings")
+    @patch("mamfast.workflow.generate_mam_json_for_release")
+    @patch("mamfast.workflow.upload_torrent")
+    @patch("mamfast.workflow.create_torrent")
+    @patch("mamfast.workflow._fetch_metadata_with_retry")
+    @patch("mamfast.workflow.stage_release")
+    @patch("mamfast.workflow.mark_processed")
+    def test_auto_tmm_disabled_with_save_path(
+        self,
+        mock_mark_processed: Mock,
+        mock_stage: Mock,
+        mock_metadata: Mock,
+        mock_torrent: Mock,
+        mock_upload: Mock,
+        mock_mam_json: Mock,
+        mock_settings: Mock,
+    ) -> None:
+        """Test that save_path is constructed when auto_tmm is disabled."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            staging_dir = tmppath / "staged"
+            staging_dir.mkdir()
+            torrent_path = tmppath / "test.torrent"
+            torrent_path.touch()
+
+            release = AudiobookRelease(
+                title="Test Book",
+                author="Test Author",
+                asin="B000TEST05",
+                source_dir=tmppath / "source",
+            )
+
+            mock_stage.return_value = staging_dir
+            mock_metadata.return_value = ({"title": "Test"}, {"media": {}})
+
+            mock_torrent_result = MagicMock()
+            mock_torrent_result.success = True
+            mock_torrent_result.torrent_path = torrent_path
+            mock_torrent.return_value = mock_torrent_result
+
+            mock_upload.return_value = True
+
+            # Configure auto_tmm = False with save_path
+            mock_settings.return_value.qbittorrent.auto_tmm = False
+            mock_settings.return_value.qbittorrent.save_path = "/config/save/path"
+
+            result = process_single_release(release)
+
+            assert result.success
+            # Verify upload was called with constructed save_path
+            mock_upload.assert_called_once()
+            call_kwargs = mock_upload.call_args[1]
+            expected_path = Path("/config/save/path") / staging_dir.name
+            assert call_kwargs["save_path"] == expected_path
+
+    @patch("mamfast.workflow.get_settings")
+    @patch("mamfast.workflow.generate_mam_json_for_release")
+    @patch("mamfast.workflow.upload_torrent")
+    @patch("mamfast.workflow.create_torrent")
+    @patch("mamfast.workflow._fetch_metadata_with_retry")
+    @patch("mamfast.workflow.stage_release")
+    @patch("mamfast.workflow.mark_processed")
+    def test_auto_tmm_disabled_no_save_path_configured(
+        self,
+        mock_mark_processed: Mock,
+        mock_stage: Mock,
+        mock_metadata: Mock,
+        mock_torrent: Mock,
+        mock_upload: Mock,
+        mock_mam_json: Mock,
+        mock_settings: Mock,
+    ) -> None:
+        """Test that save_path is None when auto_tmm is disabled and no path configured."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            staging_dir = tmppath / "staged"
+            staging_dir.mkdir()
+            torrent_path = tmppath / "test.torrent"
+            torrent_path.touch()
+
+            release = AudiobookRelease(
+                title="Test Book",
+                author="Test Author",
+                asin="B000TEST06",
+                source_dir=tmppath / "source",
+            )
+
+            mock_stage.return_value = staging_dir
+            mock_metadata.return_value = ({"title": "Test"}, {"media": {}})
+
+            mock_torrent_result = MagicMock()
+            mock_torrent_result.success = True
+            mock_torrent_result.torrent_path = torrent_path
+            mock_torrent.return_value = mock_torrent_result
+
+            mock_upload.return_value = True
+
+            # Configure auto_tmm = False with empty save_path
+            mock_settings.return_value.qbittorrent.auto_tmm = False
+            mock_settings.return_value.qbittorrent.save_path = ""
+
+            result = process_single_release(release)
+
+            assert result.success
+            # Verify upload was called with save_path=None
+            mock_upload.assert_called_once()
+            call_kwargs = mock_upload.call_args[1]
+            assert call_kwargs["save_path"] is None
+
+
+class TestUploadOnlyPresetStripping:
+    """Tests for preset prefix stripping in upload_only function."""
+
+    @patch("mamfast.workflow.get_settings")
+    @patch("mamfast.workflow.upload_torrent")
+    def test_strips_preset_prefix_from_torrent_name(
+        self,
+        mock_upload: Mock,
+        mock_settings: Mock,
+    ) -> None:
+        """Test that mkbrr preset prefix is stripped from torrent name for save_path."""
+        from mamfast.workflow import upload_only
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+
+            # Create torrent file with preset prefix
+            torrent_file = tmppath / "myanonamouse_My Audiobook [2024].torrent"
+            torrent_file.touch()
+
+            mock_settings.return_value.paths.torrent_output = tmppath
+            mock_settings.return_value.qbittorrent.auto_tmm = False
+            mock_settings.return_value.qbittorrent.save_path = "/data/audiobooks"
+            mock_settings.return_value.mkbrr.preset = "myanonamouse"
+            mock_upload.return_value = True
+
+            upload_only([torrent_file])
+
+            # Verify save_path uses the name without preset prefix
+            call_kwargs = mock_upload.call_args[1]
+            expected_path = Path("/data/audiobooks") / "My Audiobook [2024]"
+            assert call_kwargs["save_path"] == expected_path
+
+    @patch("mamfast.workflow.get_settings")
+    @patch("mamfast.workflow.upload_torrent")
+    def test_no_stripping_when_no_prefix_match(
+        self,
+        mock_upload: Mock,
+        mock_settings: Mock,
+    ) -> None:
+        """Test that name is used as-is when no preset prefix matches."""
+        from mamfast.workflow import upload_only
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+
+            # Create torrent file without preset prefix
+            torrent_file = tmppath / "My Audiobook [2024].torrent"
+            torrent_file.touch()
+
+            mock_settings.return_value.paths.torrent_output = tmppath
+            mock_settings.return_value.qbittorrent.auto_tmm = False
+            mock_settings.return_value.qbittorrent.save_path = "/data/audiobooks"
+            mock_settings.return_value.mkbrr.preset = "myanonamouse"
+            mock_upload.return_value = True
+
+            upload_only([torrent_file])
+
+            # Verify save_path uses the full name (no prefix to strip)
+            call_kwargs = mock_upload.call_args[1]
+            expected_path = Path("/data/audiobooks") / "My Audiobook [2024]"
+            assert call_kwargs["save_path"] == expected_path
+
+    @patch("mamfast.workflow.get_settings")
+    @patch("mamfast.workflow.upload_torrent")
+    def test_auto_tmm_enabled_no_save_path(
+        self,
+        mock_upload: Mock,
+        mock_settings: Mock,
+    ) -> None:
+        """Test that save_path is None when auto_tmm is enabled in upload_only."""
+        from mamfast.workflow import upload_only
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+
+            torrent_file = tmppath / "test.torrent"
+            torrent_file.touch()
+
+            mock_settings.return_value.paths.torrent_output = tmppath
+            mock_settings.return_value.qbittorrent.auto_tmm = True
+            mock_settings.return_value.qbittorrent.save_path = "/data/audiobooks"
+            mock_upload.return_value = True
+
+            upload_only([torrent_file])
+
+            # Verify save_path is None when auto_tmm is enabled
+            call_kwargs = mock_upload.call_args[1]
+            assert call_kwargs["save_path"] is None

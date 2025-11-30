@@ -144,6 +144,10 @@ class TestCreateTorrent:
         mock_settings.target_uid = 99
         mock_settings.target_gid = 100
 
+        # Create the expected torrent file (mkbrr would create this)
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+        expected_torrent.touch()
+
         with (
             patch("subprocess.run", return_value=mock_result),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
@@ -154,6 +158,7 @@ class TestCreateTorrent:
 
         assert result.success is True
         assert result.return_code == 0
+        assert result.torrent_path == expected_torrent
 
     def test_create_torrent_failure(self, tmp_path: Path):
         """Test failed torrent creation."""
@@ -635,3 +640,134 @@ class TestCheckTorrent:
         assert result.success is False
         assert result.return_code == -1
         assert "Check failed" in (result.error or "")
+
+
+class TestTorrentFileDiscoveryWithPresetPrefix:
+    """Tests for torrent file discovery with mkbrr preset prefixes."""
+
+    def test_create_torrent_finds_prefixed_file(self, tmp_path: Path):
+        """Test that create_torrent finds torrent file with preset prefix."""
+        content_dir = tmp_path / "My Audiobook [2024]"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Created torrent"
+        mock_result.stderr = ""
+
+        mock_settings = MagicMock()
+        mock_settings.docker_bin = "/usr/bin/docker"
+        mock_settings.mkbrr.preset = "myanonamouse"
+        mock_settings.mkbrr.host_output_dir = str(output_dir)
+        mock_settings.mkbrr.host_data_root = "/data"
+        mock_settings.mkbrr.container_data_root = "/data"
+        mock_settings.mkbrr.host_config_dir = str(tmp_path)
+        mock_settings.mkbrr.container_config_dir = "/config"
+        mock_settings.mkbrr.container_output_dir = "/torrents"
+        mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
+        mock_settings.target_uid = 99
+        mock_settings.target_gid = 100
+
+        # Create torrent file with preset prefix (what mkbrr actually creates)
+        prefixed_torrent = output_dir / f"myanonamouse_{content_dir.name}.torrent"
+        prefixed_torrent.touch()
+
+        with (
+            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir)
+
+        assert result.success is True
+        assert result.torrent_path == prefixed_torrent
+
+    def test_create_torrent_finds_unprefixed_when_no_prefix_match(self, tmp_path: Path):
+        """Test fallback to unprefixed file when no preset-prefixed file exists."""
+        content_dir = tmp_path / "My Audiobook [2024]"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Created torrent"
+        mock_result.stderr = ""
+
+        mock_settings = MagicMock()
+        mock_settings.docker_bin = "/usr/bin/docker"
+        mock_settings.mkbrr.preset = "mam"
+        mock_settings.mkbrr.host_output_dir = str(output_dir)
+        mock_settings.mkbrr.host_data_root = "/data"
+        mock_settings.mkbrr.container_data_root = "/data"
+        mock_settings.mkbrr.host_config_dir = str(tmp_path)
+        mock_settings.mkbrr.container_config_dir = "/config"
+        mock_settings.mkbrr.container_output_dir = "/torrents"
+        mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
+        mock_settings.target_uid = 99
+        mock_settings.target_gid = 100
+
+        # Create torrent file WITHOUT prefix
+        unprefixed_torrent = output_dir / f"{content_dir.name}.torrent"
+        unprefixed_torrent.touch()
+
+        with (
+            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir)
+
+        assert result.success is True
+        assert result.torrent_path == unprefixed_torrent
+
+    def test_create_torrent_selects_most_recent_when_multiple(self, tmp_path: Path):
+        """Test that most recently modified torrent is selected when multiple exist."""
+        import time
+
+        content_dir = tmp_path / "My Audiobook [2024]"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Created torrent"
+        mock_result.stderr = ""
+
+        mock_settings = MagicMock()
+        mock_settings.docker_bin = "/usr/bin/docker"
+        mock_settings.mkbrr.preset = "mam"
+        mock_settings.mkbrr.host_output_dir = str(output_dir)
+        mock_settings.mkbrr.host_data_root = "/data"
+        mock_settings.mkbrr.container_data_root = "/data"
+        mock_settings.mkbrr.host_config_dir = str(tmp_path)
+        mock_settings.mkbrr.container_config_dir = "/config"
+        mock_settings.mkbrr.container_output_dir = "/torrents"
+        mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
+        mock_settings.target_uid = 99
+        mock_settings.target_gid = 100
+
+        # Create older torrent file
+        older_torrent = output_dir / f"{content_dir.name}.torrent"
+        older_torrent.touch()
+        time.sleep(0.1)  # Ensure different mtime
+
+        # Create newer torrent file with prefix
+        newer_torrent = output_dir / f"mam_{content_dir.name}.torrent"
+        newer_torrent.touch()
+
+        with (
+            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir)
+
+        assert result.success is True
+        assert result.torrent_path == newer_torrent

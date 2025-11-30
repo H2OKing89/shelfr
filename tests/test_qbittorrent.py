@@ -277,6 +277,112 @@ class TestUploadTorrent:
         assert call_kwargs["tags"] is None
 
 
+class TestUploadTorrentAutoTMM:
+    """Tests for auto_tmm functionality in upload_torrent."""
+
+    def test_upload_with_auto_tmm_enabled(self, tmp_path: Path):
+        """Test that save_path is not sent when auto_tmm is enabled."""
+        torrent_file = tmp_path / "test.torrent"
+        torrent_file.write_bytes(b"torrent data")
+
+        mock_client = MagicMock()
+        mock_client.torrents_add.return_value = "Ok."
+        mock_settings = MagicMock()
+        mock_settings.qbittorrent.category = "audiobooks"
+        mock_settings.qbittorrent.tags = ["mam"]
+        mock_settings.qbittorrent.auto_start = True
+        mock_settings.qbittorrent.auto_tmm = True
+        mock_settings.qbittorrent.save_path = "/some/path"
+
+        with (
+            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
+            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
+        ):
+            result = upload_torrent(torrent_path=torrent_file)
+
+        assert result is True
+        call_kwargs = mock_client.torrents_add.call_args[1]
+        assert call_kwargs["use_auto_tmm"] is True
+        assert "save_path" not in call_kwargs
+
+    def test_upload_with_auto_tmm_disabled_explicit_path(self, tmp_path: Path):
+        """Test that explicit save_path is used when auto_tmm is disabled."""
+        torrent_file = tmp_path / "test.torrent"
+        torrent_file.write_bytes(b"torrent data")
+        explicit_path = tmp_path / "explicit"
+
+        mock_client = MagicMock()
+        mock_client.torrents_add.return_value = "Ok."
+        mock_settings = MagicMock()
+        mock_settings.qbittorrent.category = "audiobooks"
+        mock_settings.qbittorrent.tags = ["mam"]
+        mock_settings.qbittorrent.auto_start = True
+        mock_settings.qbittorrent.auto_tmm = False
+        mock_settings.qbittorrent.save_path = "/config/path"
+
+        with (
+            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
+            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
+        ):
+            result = upload_torrent(torrent_path=torrent_file, save_path=explicit_path)
+
+        assert result is True
+        call_kwargs = mock_client.torrents_add.call_args[1]
+        assert call_kwargs["use_auto_tmm"] is False
+        assert call_kwargs["save_path"] == str(explicit_path)
+
+    def test_upload_with_auto_tmm_disabled_config_path(self, tmp_path: Path):
+        """Test that config save_path is used when auto_tmm is disabled and no explicit path."""
+        torrent_file = tmp_path / "test.torrent"
+        torrent_file.write_bytes(b"torrent data")
+
+        mock_client = MagicMock()
+        mock_client.torrents_add.return_value = "Ok."
+        mock_settings = MagicMock()
+        mock_settings.qbittorrent.category = "audiobooks"
+        mock_settings.qbittorrent.tags = ["mam"]
+        mock_settings.qbittorrent.auto_start = True
+        mock_settings.qbittorrent.auto_tmm = False
+        mock_settings.qbittorrent.save_path = "/config/save/path"
+
+        with (
+            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
+            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
+        ):
+            result = upload_torrent(torrent_path=torrent_file)
+
+        assert result is True
+        call_kwargs = mock_client.torrents_add.call_args[1]
+        assert call_kwargs["use_auto_tmm"] is False
+        assert call_kwargs["save_path"] == "/config/save/path"
+
+    def test_upload_with_auto_tmm_disabled_no_path(self, tmp_path: Path):
+        """Test that no save_path is sent when auto_tmm is disabled and no path configured."""
+        torrent_file = tmp_path / "test.torrent"
+        torrent_file.write_bytes(b"torrent data")
+
+        mock_client = MagicMock()
+        mock_client.torrents_add.return_value = "Ok."
+        mock_settings = MagicMock()
+        mock_settings.qbittorrent.category = "audiobooks"
+        mock_settings.qbittorrent.tags = ["mam"]
+        mock_settings.qbittorrent.auto_start = True
+        mock_settings.qbittorrent.auto_tmm = False
+        mock_settings.qbittorrent.save_path = ""  # Empty - no path configured
+
+        with (
+            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
+            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
+        ):
+            result = upload_torrent(torrent_path=torrent_file)
+
+        assert result is True
+        call_kwargs = mock_client.torrents_add.call_args[1]
+        assert call_kwargs["use_auto_tmm"] is False
+        # No save_path sent - qBittorrent uses its default
+        assert "save_path" not in call_kwargs
+
+
 class TestCheckTorrentExistsErrors:
     """Tests for check_torrent_exists error handling."""
 

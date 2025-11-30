@@ -95,7 +95,7 @@ class QBittorrentConfig:
     qBittorrent settings.
 
     Credentials (host, username, password) come from .env file.
-    Other settings (category, tags, auto_start) come from config.yaml.
+    Other settings (category, tags, auto_start, auto_tmm, save_path) come from config.yaml.
     """
 
     host: str = ""  # From .env: QB_HOST
@@ -104,6 +104,8 @@ class QBittorrentConfig:
     category: str = "mam-audiobooks"
     tags: list[str] = field(default_factory=lambda: ["mamfast"])
     auto_start: bool = True
+    auto_tmm: bool = False  # Automatic Torrent Management
+    save_path: str = ""  # Static save path as seen by qBittorrent (container path)
 
 
 @dataclass
@@ -245,7 +247,6 @@ def validate_required_env_vars() -> None:
         "QB_HOST": "qBittorrent Web UI URL (e.g., http://10.1.60.10:8080)",
         "QB_USERNAME": "qBittorrent username",
         "QB_PASSWORD": "qBittorrent password",
-        "MAM_ANNOUNCE_URL": "MAM tracker announce URL",
     }
 
     missing = []
@@ -319,7 +320,10 @@ def validate_settings(settings: Settings) -> list[str]:
 
     # Validate URLs
     validate_url(settings.qbittorrent.host, "QB_HOST")
-    validate_url(settings.mam_announce_url, "MAM_ANNOUNCE_URL")
+
+    # MAM_ANNOUNCE_URL is optional - mkbrr presets typically handle the announce URL
+    if settings.mam_announce_url:
+        validate_url(settings.mam_announce_url, "MAM_ANNOUNCE_URL")
 
     # Validate Audnex API URL
     if settings.audnex.base_url:
@@ -518,6 +522,8 @@ def load_settings(
         category=qb_data.get("category", "mam-audiobooks"),
         tags=qb_data.get("tags", ["mamfast"]),
         auto_start=qb_data.get("auto_start", True),
+        auto_tmm=qb_data.get("auto_tmm", False),
+        save_path=qb_data.get("save_path", ""),
     )
 
     # Parse Audnex config

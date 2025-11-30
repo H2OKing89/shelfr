@@ -47,20 +47,26 @@ def get_client() -> qbittorrentapi.Client:
 
 def upload_torrent(
     torrent_path: Path,
-    save_path: Path,
+    save_path: Path | None = None,
     category: str | None = None,
     tags: list[str] | None = None,
     paused: bool | None = None,
+    use_auto_tmm: bool | None = None,
 ) -> bool:
     """
     Add a torrent file to qBittorrent.
 
+    Save path logic:
+    - If auto_tmm=True: qBittorrent manages paths via category settings (save_path ignored)
+    - If auto_tmm=False: Uses save_path from config (required)
+
     Args:
         torrent_path: Path to .torrent file
-        save_path: Where to save downloaded/seeded content
+        save_path: Where content is located (only used when auto_tmm=False)
         category: Category to assign (default from config)
         tags: Tags to assign (default from config)
         paused: Start paused (default from config)
+        use_auto_tmm: Enable Automatic Torrent Management (default from config)
 
     Returns:
         True if added successfully, False otherwise.
@@ -74,6 +80,8 @@ def upload_torrent(
         tags = settings.qbittorrent.tags
     if paused is None:
         paused = not settings.qbittorrent.auto_start
+    if use_auto_tmm is None:
+        use_auto_tmm = settings.qbittorrent.auto_tmm
 
     if not torrent_path.exists():
         logger.error(f"Torrent file not found: {torrent_path}")
@@ -86,20 +94,42 @@ def upload_torrent(
         with open(torrent_path, "rb") as f:
             torrent_data = f.read()
 
+        # Build add parameters based on auto_tmm setting
+        # Priority: auto_tmm > save_path (if auto_tmm is enabled, save_path is ignored)
+        add_params: dict[str, Any] = {
+            "torrent_files": torrent_data,
+            "category": category,
+            "tags": ",".join(tags) if tags else None,
+            "is_paused": paused,
+            "use_auto_tmm": use_auto_tmm,
+        }
+
+        if use_auto_tmm:
+            # Auto TMM enabled: qBittorrent manages save path via category
+            logger.debug("Auto TMM enabled - qBittorrent will manage save path")
+        else:
+            # Auto TMM disabled: use explicit save_path if provided
+            if save_path is not None:
+                add_params["save_path"] = str(save_path)
+                logger.debug(f"Using explicit save_path: {save_path}")
+            elif settings.qbittorrent.save_path:
+                # Use configured save_path as fallback
+                add_params["save_path"] = settings.qbittorrent.save_path
+                logger.debug(f"Using config save_path: {settings.qbittorrent.save_path}")
+            else:
+                # No save_path configured - let qBittorrent use its default
+                logger.debug("No save_path configured - qBittorrent will use default location")
+
         # Add to qBittorrent
-        result = client.torrents_add(
-            torrent_files=torrent_data,
-            save_path=str(save_path),
-            category=category,
-            tags=",".join(tags) if tags else None,
-            is_paused=paused,
-        )
+        result = client.torrents_add(**add_params)
 
         if result == "Ok.":
             logger.info(f"Added torrent to qBittorrent: {torrent_path.name}")
-            logger.debug(f"  Save path: {save_path}")
             logger.debug(f"  Category: {category}")
             logger.debug(f"  Tags: {tags}")
+            logger.debug(f"  Auto TMM: {use_auto_tmm}")
+            if not use_auto_tmm:
+                logger.debug(f"  Save path: {add_params.get('save_path')}")
             return True
         else:
             logger.warning(f"qBittorrent returned unexpected result: {result}")

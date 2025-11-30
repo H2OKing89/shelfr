@@ -511,24 +511,30 @@ def save_metadata_files(
 def fetch_all_metadata(
     asin: str | None,
     m4b_path: Path | None,
-    output_dir: Path,
+    output_dir: Path | None = None,
+    *,
+    save_intermediate: bool = False,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """
-    Fetch both Audnex and MediaInfo metadata, saving to output directory.
+    Fetch both Audnex and MediaInfo metadata, optionally saving intermediate files.
 
-    This is a convenience function that combines fetch_metadata() and
-    save_metadata_files(). Use the separate functions for more control.
+    By default, this function only fetches metadata without saving files.
+    Set save_intermediate=True to write audnex.json and mediainfo.json to output_dir.
 
     Args:
         asin: Audible ASIN (None to skip Audnex)
         m4b_path: Path to m4b file (None to skip MediaInfo)
-        output_dir: Directory to save JSON files
+        output_dir: Directory to save JSON files (only used if save_intermediate=True)
+        save_intermediate: If True, save audnex.json and mediainfo.json files
 
     Returns:
         Tuple of (audnex_data, mediainfo_data), either may be None on error.
     """
     audnex_data, mediainfo_data = fetch_metadata(asin=asin, m4b_path=m4b_path)
-    save_metadata_files(output_dir, audnex_data=audnex_data, mediainfo_data=mediainfo_data)
+
+    if save_intermediate and output_dir:
+        save_metadata_files(output_dir, audnex_data=audnex_data, mediainfo_data=mediainfo_data)
+
     return audnex_data, mediainfo_data
 
 

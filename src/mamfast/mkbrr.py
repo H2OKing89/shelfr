@@ -198,14 +198,39 @@ def create_torrent(
         )
 
         if result.returncode == 0:
-            # Figure out the output torrent filename
-            # mkbrr uses the content name + .torrent
-            content_name = Path(content_path).name
-            torrent_name = f"{content_name}.torrent"
-            torrent_path = output_dir / torrent_name
-
-            # Fix permissions
+            # Fix permissions first
             fix_torrent_permissions(output_dir)
+
+            # Figure out the output torrent filename
+            # mkbrr may add a preset prefix (e.g., "myanonamouse_") to the filename
+            content_name = Path(content_path).name
+
+            # Look for the actual torrent file - try with and without prefix
+            torrent_path = None
+            possible_patterns = [
+                f"*{content_name}.torrent",  # With any prefix
+                f"{content_name}.torrent",  # Without prefix
+            ]
+
+            for pattern in possible_patterns:
+                matches = list(output_dir.glob(pattern))
+                if matches:
+                    # Take the most recently modified one
+                    torrent_path = max(matches, key=lambda p: p.stat().st_mtime)
+                    break
+
+            if torrent_path is None:
+                # Fallback: find any recently created .torrent file
+                all_torrents = list(output_dir.glob("*.torrent"))
+                if all_torrents:
+                    torrent_path = max(all_torrents, key=lambda p: p.stat().st_mtime)
+
+            if torrent_path is None:
+                return MkbrrResult(
+                    success=False,
+                    return_code=0,
+                    error=f"mkbrr succeeded but torrent file not found in {output_dir}",
+                )
 
             logger.info(f"Torrent created: {torrent_path}")
 
