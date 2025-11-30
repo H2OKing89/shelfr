@@ -10,15 +10,53 @@ from mamfast.discovery import (
     build_release_from_dir,
     extract_asin_from_name,
     find_audiobook_dirs,
+    find_metadata_file,
     get_new_releases,
     get_release_by_asin,
     is_audiobook_dir,
+    is_valid_asin,
     load_metadata_json,
     parse_folder_name,
     print_release_summary,
     scan_library,
 )
 from mamfast.models import AudiobookRelease
+
+
+class TestIsValidAsin:
+    """Tests for ASIN validation."""
+
+    def test_valid_b_prefix_asin(self):
+        """Test valid B-prefix ASIN (Audible format)."""
+        assert is_valid_asin("B09GHD1R2R") is True
+        assert is_valid_asin("B0DSM1KYJ2") is True
+        assert is_valid_asin("B000000000") is True
+
+    def test_valid_isbn_asin(self):
+        """Test valid 10-digit ISBN format."""
+        assert is_valid_asin("1774248182") is True
+        assert is_valid_asin("0123456789") is True
+
+    def test_invalid_too_short(self):
+        """Test invalid ASIN - too short."""
+        assert is_valid_asin("B1234") is False
+        assert is_valid_asin("123456789") is False
+
+    def test_invalid_too_long(self):
+        """Test invalid ASIN - too long."""
+        assert is_valid_asin("B09GHD1R2RX") is False
+        assert is_valid_asin("12345678901") is False
+
+    def test_invalid_format(self):
+        """Test invalid ASIN - wrong format."""
+        assert is_valid_asin("A09GHD1R2R") is False  # Wrong prefix
+        assert is_valid_asin("b09ghd1r2r") is False  # Lowercase
+        assert is_valid_asin("B09GHD-R2R") is False  # Contains hyphen
+
+    def test_none_or_empty(self):
+        """Test None or empty string."""
+        assert is_valid_asin(None) is False
+        assert is_valid_asin("") is False
 
 
 class TestExtractAsin:
@@ -44,6 +82,12 @@ class TestExtractAsin:
         name = "Some Book Without ASIN"
         assert extract_asin_from_name(name) is None
 
+    def test_invalid_asin_still_returned(self):
+        """Test that invalid ASIN is still returned (with warning logged)."""
+        name = "Book Title {ASIN.1234}"  # Too short, invalid format
+        # Still returns it - might be a format we don't know about
+        assert extract_asin_from_name(name) == "1234"
+
 
 class TestParseFolderName:
     """Tests for folder name parsing."""
@@ -54,8 +98,7 @@ class TestParseFolderName:
         result = parse_folder_name(name)
 
         assert result["title"] == "He Who Fights with Monsters"
-        # volume goes into volume2 group when not preceded by " - "
-        assert result["volume2"] == "01" or result["volume"] == "01"
+        assert result["volume"] == "01"
         assert result["year"] == "2021"
         assert result["author"] == "Shirtaloon"
         assert result["asin"] == "1774248182"
@@ -67,8 +110,7 @@ class TestParseFolderName:
         result = parse_folder_name(name)
 
         assert result["title"] == "Some Book"
-        # volume goes into volume2 group when not preceded by " - "
-        assert result["volume2"] == "03" or result["volume"] == "03"
+        assert result["volume"] == "03"
         assert result["year"] == "2020"
         assert result["author"] == "Jane Doe"
         assert result["asin"] == "B001234567"
@@ -76,11 +118,32 @@ class TestParseFolderName:
 
     def test_decimal_volume(self):
         """Test parsing decimal volume number."""
-        name = "Book vol_10.5 (2023) (Author) {ASIN.1234}"
+        name = "Book vol_10.5 (2023) (Author) {ASIN.1234567890}"
         result = parse_folder_name(name)
 
-        # volume goes into volume2 group when not preceded by " - "
-        assert result["volume2"] == "10.5" or result["volume"] == "10.5"
+        assert result["volume"] == "10.5"
+
+    def test_volume_with_dash_prefix(self):
+        """Test parsing volume with ' - vol_XX' format (alternate style)."""
+        name = "Epic Fantasy Series - vol_05 (2022) (Jane Author) {ASIN.B012345678}"
+        result = parse_folder_name(name)
+
+        assert result["title"] == "Epic Fantasy Series"
+        assert result["volume"] == "05"
+        assert result["year"] == "2022"
+        assert result["author"] == "Jane Author"
+        assert result["asin"] == "B012345678"
+
+    def test_minimal_format(self):
+        """Test parsing minimal folder name (just title and ASIN)."""
+        name = "Simple Book Title {ASIN.B09ABCDEFG}"
+        result = parse_folder_name(name)
+
+        assert result["title"] == "Simple Book Title"
+        assert result["volume"] is None
+        assert result["year"] is None
+        assert result["author"] is None
+        assert result["asin"] == "B09ABCDEFG"
 
 
 class TestAsinPattern:
@@ -199,15 +262,56 @@ class TestLoadMetadataJson:
             assert result is None
 
     def test_handles_runtime_minutes(self):
-        """Test parsing runtime minutes."""
+        """Test parsing runtime minutes (Libation uses runtime_length_min)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "metadata.json"
-            meta_path.write_text(json.dumps({"runtimeLengthMin": 420}))
+            meta_path.write_text(json.dumps({"runtime_length_min": 420}))
 
             result = load_metadata_json(meta_path)
 
             assert result is not None
             assert result.runtime_minutes == 420
+
+
+class TestFindMetadataFile:
+    """Tests for find_metadata_file function."""
+
+    def test_finds_metadata_file(self):
+        """Test finding *.metadata.json file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            book_dir = Path(tmpdir)
+            meta_file = book_dir / "Book Title {ASIN.B09TEST123}.metadata.json"
+            meta_file.write_text("{}")
+
+            result = find_metadata_file(book_dir)
+
+            assert result is not None
+            assert result.name == "Book Title {ASIN.B09TEST123}.metadata.json"
+
+    def test_returns_none_when_no_metadata(self):
+        """Test returning None when no *.metadata.json exists."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            book_dir = Path(tmpdir)
+            # Create a regular file, not metadata.json
+            (book_dir / "book.m4b").touch()
+
+            result = find_metadata_file(book_dir)
+
+            assert result is None
+
+    def test_finds_first_when_multiple(self):
+        """Test finding first file when multiple *.metadata.json exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            book_dir = Path(tmpdir)
+            (book_dir / "a.metadata.json").write_text("{}")
+            (book_dir / "b.metadata.json").write_text("{}")
+
+            result = find_metadata_file(book_dir)
+
+            # Should return one of them (order may vary)
+            assert result is not None
+            assert result.suffix == ".json"
+            assert ".metadata" in result.name
 
 
 class TestIsAudiobookDir:
@@ -307,25 +411,26 @@ class TestBuildReleaseFromDir:
             assert len(release.files) >= 1
 
     def test_builds_release_from_metadata_json(self):
-        """Test building release preferring metadata.json."""
+        """Test building release preferring *.metadata.json."""
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_settings = MagicMock()
             mock_settings.paths.library_root = Path(tmpdir)
             mock_settings.mam.allowed_extensions = [".m4b"]
 
             root = Path(tmpdir)
-            book_dir = root / "Author" / "Book"
+            book_dir = root / "Author" / "Book Title {ASIN.B09META123}"
             book_dir.mkdir(parents=True)
             (book_dir / "book.m4b").touch()
 
-            # Add metadata.json
+            # Add *.metadata.json (Libation format)
             meta = {
                 "asin": "B09META123",
                 "title": "Metadata Title",
-                "authors": ["Meta Author"],
-                "narrators": ["Meta Narrator"],
+                "authors": [{"name": "Meta Author"}],
+                "narrators": [{"name": "Meta Narrator"}],
+                "release_date": "2023-01-15",
             }
-            (book_dir / "metadata.json").write_text(json.dumps(meta))
+            (book_dir / "Book Title {ASIN.B09META123}.metadata.json").write_text(json.dumps(meta))
 
             with patch("mamfast.discovery.get_settings", return_value=mock_settings):
                 release = build_release_from_dir(book_dir)
@@ -334,6 +439,7 @@ class TestBuildReleaseFromDir:
             assert release.title == "Metadata Title"
             assert release.author == "Meta Author"
             assert release.narrator == "Meta Narrator"
+            assert release.year == "2023"
 
 
 class TestScanLibrary:

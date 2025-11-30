@@ -36,13 +36,17 @@ logger = logging.getLogger(__name__)
 # Matches: {ASIN.B09GHD1R2R} or [ASIN.1774248182] (both bracket styles)
 ASIN_PATTERN = re.compile(r"[\[{]ASIN\.([^\]}]+)[\]}]")
 
+# ASIN validation: 10 chars - either B + 9 alphanumeric, or 10 digits
+# Audible ASINs are typically B0XXXXXXXX or 10-digit ISBNs
+ASIN_VALID_PATTERN = re.compile(r"^(?:B[0-9A-Z]{9}|[0-9]{10})$")
+
 # Regex to parse folder name components
 # Pattern: Title vol_XX (Year) (Author) {ASIN.XXX} [Source]
 # Also handles [ASIN.XXX] style and [Year] [Author] style
+# Volume can be " - vol_XX" or " vol_XX" (both captured in same group)
 FOLDER_PATTERN = re.compile(
     r"^(?P<title>.+?)"
-    r"(?:\s+-\s+vol_(?P<volume>[\d.]+))?"  # " - vol_XX" style
-    r"(?:\s+vol_(?P<volume2>[\d.]+))?"  # "vol_XX" style (fallback)
+    r"(?:\s+(?:-\s+)?vol_(?P<volume>[\d.]+))?"  # "vol_XX" or " - vol_XX" style
     r"(?:\s+[\[(](?P<year>\d{4})[\])])?"  # (Year) or [Year]
     r"(?:\s+[\[(](?P<author>[^\])]+)[\])])?"  # (Author) or [Author]
     r"(?:\s+[\[{]ASIN\.(?P<asin>[^\]}]+)[\]}])?"  # {ASIN.XXX} or [ASIN.XXX]
@@ -70,6 +74,25 @@ class LibationMetadata:
     raw: dict[str, Any] | None = None
 
 
+def is_valid_asin(asin: str | None) -> bool:
+    """
+    Validate ASIN format.
+
+    Valid ASINs are 10 characters:
+    - B + 9 alphanumeric (e.g., B09GHD1R2R) - Audible format
+    - 10 digits (e.g., 1774248182) - ISBN-10 format
+
+    Args:
+        asin: The ASIN string to validate
+
+    Returns:
+        True if valid ASIN format, False otherwise
+    """
+    if not asin:
+        return False
+    return bool(ASIN_VALID_PATTERN.match(asin))
+
+
 def extract_asin_from_name(name: str) -> str | None:
     """
     Extract ASIN from a folder or file name.
@@ -79,11 +102,20 @@ def extract_asin_from_name(name: str) -> str | None:
         → "1774248182"
         "The Weakest Tamer vol_01 (2025) (Honobonoru500) [ASIN.B0DSM1KYJ2]"
         → "B0DSM1KYJ2"
+
+    Returns:
+        The extracted ASIN if found and valid, None otherwise.
+        Logs a warning if ASIN is found but has invalid format.
     """
-    # ASIN_PATTERN matches both {ASIN.xxx} and [ASIN.xxx] styles
     match = ASIN_PATTERN.search(name)
     if match:
-        return match.group(1)
+        asin = match.group(1)
+        if is_valid_asin(asin):
+            return asin
+        else:
+            logger.warning(f"Found ASIN with invalid format: {asin} in '{name}'")
+            # Still return it - might be a new format we don't know about
+            return asin
     return None
 
 
@@ -108,9 +140,31 @@ def parse_folder_name(name: str) -> dict[str, str | None]:
     }
 
 
+def find_metadata_file(audiobook_dir: Path) -> Path | None:
+    """
+    Find the *.metadata.json file in an audiobook directory.
+
+    Libation creates files like: "BookTitle (Year) (Author) {ASIN.XXX}.metadata.json"
+
+    Returns:
+        Path to metadata file if found, None otherwise.
+    """
+    metadata_files = list(audiobook_dir.glob("*.metadata.json"))
+    if metadata_files:
+        # Usually only one, but take the first if multiple
+        return metadata_files[0]
+    return None
+
+
 def load_metadata_json(metadata_path: Path) -> LibationMetadata | None:
     """
-    Load and parse Libation's metadata.json file.
+    Load and parse Libation's *.metadata.json file.
+
+    The file contains the full Audible API response with fields like:
+    - asin, title, authors, narrators
+    - release_date, runtime_length_min
+    - publisher_name, publisher_summary
+    - category_ladders, ChapterInfo
 
     Returns LibationMetadata object or None if file doesn't exist/is invalid.
     """
@@ -172,20 +226,24 @@ def load_metadata_json(metadata_path: Path) -> LibationMetadata | None:
             metadata.series_name = series.get("name") or series.get("title")
             metadata.series_position = str(series.get("position") or series.get("sequence") or "")
 
-        # Year / Release date
-        year = data.get("year") or data.get("releaseDate") or data.get("release_date")
+        # Year / Release date (Libation uses release_date: "2025-04-16")
+        year = data.get("release_date") or data.get("issue_date") or data.get("year")
         if year:
-            # Could be full date or just year
+            # Extract year from date string like "2025-04-16"
             metadata.year = str(year)[:4] if len(str(year)) >= 4 else str(year)
 
         # Other fields
-        metadata.description = data.get("description") or data.get("summary")
-        metadata.publisher = data.get("publisher") or data.get("Publisher")
-        metadata.language = data.get("language") or data.get("Language")
-
-        runtime = (
-            data.get("runtimeLengthMin") or data.get("runtime_minutes") or data.get("duration")
+        # Libation uses publisher_summary (HTML) and merchandising_summary (plain text)
+        metadata.description = (
+            data.get("publisher_summary")
+            or data.get("merchandising_summary")
+            or data.get("description")
         )
+        metadata.publisher = data.get("publisher_name") or data.get("publisher")
+        metadata.language = data.get("language")  # lowercase in Libation: "english"
+
+        # Runtime (Libation uses runtime_length_min)
+        runtime = data.get("runtime_length_min") or data.get("runtime_minutes")
         if runtime:
             with contextlib.suppress(ValueError, TypeError):
                 metadata.runtime_minutes = int(runtime)
@@ -257,81 +315,68 @@ def build_release_from_dir(audiobook_dir: Path) -> AudiobookRelease:
     """
     Build an AudiobookRelease from an audiobook directory.
 
-    Extracts metadata from:
-    1. metadata.json (if present) - preferred
-    2. Folder name parsing - fallback
+    Metadata priority:
+    1. *.metadata.json (Libation's Audible API cache) - primary source
+    2. Folder name parsing - fallback for ASIN, title, year
+
+    Args:
+        audiobook_dir: Path to the audiobook directory containing .m4b files
+
+    Returns:
+        AudiobookRelease with extracted metadata
     """
     settings = get_settings()
 
-    # Start with folder name parsing
+    # Parse folder name for fallback values
     folder_info = parse_folder_name(audiobook_dir.name)
 
-    # Try to load metadata.json
-    metadata_path = audiobook_dir / "metadata.json"
-    libation_meta = load_metadata_json(metadata_path)
+    # Find and load *.metadata.json (e.g., "BookTitle {ASIN.XXX}.metadata.json")
+    metadata_path = find_metadata_file(audiobook_dir)
+    libation_meta = load_metadata_json(metadata_path) if metadata_path else None
 
-    # Build the release, preferring metadata.json values
+    if libation_meta:
+        logger.debug(f"Loaded metadata from: {metadata_path.name if metadata_path else 'N/A'}")
+    else:
+        logger.warning(f"No *.metadata.json found in {audiobook_dir.name}, using folder name only")
+
+    # Build the release
     release = AudiobookRelease()
     release.source_dir = audiobook_dir
     release.discovered_at = datetime.now()
     release.status = ReleaseStatus.DISCOVERED
 
-    # ASIN (critical identifier)
-    if libation_meta and libation_meta.asin:
-        release.asin = libation_meta.asin
-    else:
-        release.asin = folder_info.get("asin")
+    # ASIN (critical identifier) - prefer metadata, fallback to folder
+    release.asin = (libation_meta.asin if libation_meta else None) or folder_info.get("asin")
 
-    # Title
-    if libation_meta and libation_meta.title:
-        release.title = libation_meta.title
-    else:
-        release.title = folder_info.get("title") or audiobook_dir.name
+    # Title - prefer metadata, fallback to folder
+    release.title = (
+        (libation_meta.title if libation_meta else None)
+        or folder_info.get("title")
+        or audiobook_dir.name
+    )
 
-    # Author
+    # Author - prefer metadata, fallback to folder name
     if libation_meta and libation_meta.authors:
         release.author = libation_meta.authors[0]  # Primary author
     else:
         release.author = folder_info.get("author") or ""
-        # If no author from folder, try parent directory name
-        if not release.author:
-            # Go up to find author dir (skip series dir if present)
-            parent = audiobook_dir.parent
-            grandparent = parent.parent
-            library_root = settings.paths.library_root
 
-            if grandparent != library_root and parent != library_root:
-                # We're in Author/Series/Book structure
-                release.author = grandparent.name
-            elif parent != library_root:
-                # We're in Author/Book structure
-                release.author = parent.name
-
-    # Narrator
+    # Narrator - from metadata only (not in folder name)
     if libation_meta and libation_meta.narrators:
         release.narrator = ", ".join(libation_meta.narrators)
 
-    # Series
+    # Series - prefer metadata, fallback to folder volume number
+    # Note: Audible sometimes misses series info, especially for new releases
     if libation_meta and libation_meta.series_name:
         release.series = libation_meta.series_name
         release.series_position = libation_meta.series_position
-    else:
-        # Try to get series from parent folder name
-        parent = audiobook_dir.parent
-        library_root = settings.paths.library_root
-        if parent != library_root and parent.parent != library_root:
-            # Parent might be series folder
-            release.series = parent.name
+    elif folder_info.get("volume"):
+        # No series name from metadata, but folder has vol_XX
+        # Series name will need to be added manually or from Audnex later
+        release.series_position = folder_info["volume"]
 
-        # Volume from folder name
-        if folder_info.get("volume"):
-            release.series_position = folder_info["volume"]
-
-    # Year
-    if libation_meta and libation_meta.year:
-        release.year = libation_meta.year
-    else:
-        release.year = folder_info.get("year")
+    # Year - prefer metadata, fallback to folder
+    release.year = (libation_meta.year if libation_meta else None) or folder_info.get("year")
 
     # Find files
     allowed_exts = {ext.lower() for ext in settings.mam.allowed_extensions}
