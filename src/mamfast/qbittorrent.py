@@ -106,11 +106,27 @@ def upload_torrent(
             return False
 
     except qbittorrentapi.LoginFailed as e:
-        logger.error(f"qBittorrent login failed: {e}")
+        logger.error(
+            f"qBittorrent login failed: {e}\n"
+            f"Troubleshooting:\n"
+            f"  1. Verify credentials in config/.env:\n"
+            f"     - QB_USERNAME: {settings.qbittorrent.username}\n"
+            f"     - QB_PASSWORD: (check it's set correctly)\n"
+            f"  2. Check if authentication is enabled in qBittorrent WebUI settings\n"
+            f"  3. Try logging in manually: {settings.qbittorrent.host}"
+        )
         return False
 
     except qbittorrentapi.APIConnectionError as e:
-        logger.error(f"qBittorrent connection error: {e}")
+        logger.error(
+            f"qBittorrent connection error: {e}\n"
+            f"Troubleshooting:\n"
+            f"  1. Verify qBittorrent is running\n"
+            f"  2. Check QB_HOST in config/.env: {settings.qbittorrent.host}\n"
+            f"  3. Verify WebUI is enabled in qBittorrent preferences\n"
+            f"  4. Test connectivity: curl {settings.qbittorrent.host}/api/v2/app/version\n"
+            f"  5. Check firewall/network settings"
+        )
         return False
 
     except OSError as e:

@@ -122,6 +122,18 @@ class MediaInfoConfig:
 
 
 @dataclass
+class LibationConfig:
+    """Libation library discovery settings (from config.yaml libation section)."""
+
+    # Regex pattern for parsing folder names: "Title vol_N (YEAR)"
+    folder_pattern: str = r"^(.*?)(?: vol_(\d+))?(?: \((\d{4})\))?$"
+    # Suffix for Libation metadata files
+    metadata_file_suffix: str = ".metadata.json"
+    # Valid ASIN pattern (10 alphanumeric characters)
+    asin_pattern: str = r"^[A-Z0-9]{10}$"
+
+
+@dataclass
 class FiltersConfig:
     """Title filtering settings (from config.yaml filters section)."""
 
@@ -167,8 +179,86 @@ class Settings:
     qbittorrent: QBittorrentConfig
     audnex: AudnexConfig
     mediainfo: MediaInfoConfig
+    libation: LibationConfig
     filters: FiltersConfig
     categories: CategoriesConfig
+
+
+def validate_url(url: str, field_name: str) -> None:
+    """
+    Validate that a URL is well-formed.
+
+    Args:
+        url: URL to validate
+        field_name: Name of the field for error messages
+
+    Raises:
+        ConfigurationError: If URL is invalid
+    """
+    if not url:
+        raise ConfigurationError(f"{field_name} is required but not set")
+
+    if not url.startswith(("http://", "https://")):
+        raise ConfigurationError(
+            f"{field_name} must be a valid URL starting with http:// or https://\n"
+            f"Got: {url}\n"
+            f"Fix: Update {field_name} in config/.env to include the protocol"
+        )
+
+
+def validate_path_exists(path: Path, field_name: str, *, required: bool = True) -> None:
+    """
+    Validate that a path exists.
+
+    Args:
+        path: Path to validate
+        field_name: Name of the field for error messages
+        required: If True, raise error if path doesn't exist
+
+    Raises:
+        ConfigurationError: If path doesn't exist and required=True
+    """
+    if not path or str(path) == ".":
+        if required:
+            raise ConfigurationError(
+                f"{field_name} is required but not set\n"
+                f"Fix: Set {field_name} in config/config.yaml"
+            )
+        return
+
+    if required and not path.exists():
+        raise ConfigurationError(
+            f"{field_name} does not exist: {path}\n"
+            f"Fix: Create the directory or update the path in config/config.yaml\n"
+            f"Example: mkdir -p {path}"
+        )
+
+
+def validate_required_env_vars() -> None:
+    """
+    Validate that all required environment variables are set.
+
+    Raises:
+        ConfigurationError: If required variables are missing
+    """
+    required = {
+        "QB_HOST": "qBittorrent Web UI URL (e.g., http://10.1.60.10:8080)",
+        "QB_USERNAME": "qBittorrent username",
+        "QB_PASSWORD": "qBittorrent password",
+        "MAM_ANNOUNCE_URL": "MAM tracker announce URL",
+    }
+
+    missing = []
+    for var, description in required.items():
+        if not os.getenv(var):
+            missing.append(f"  - {var}: {description}")
+
+    if missing:
+        raise ConfigurationError(
+            "Missing required environment variables in config/.env:\n"
+            + "\n".join(missing)
+            + "\n\nFix: Copy .env.example to config/.env and fill in the values"
+        )
 
 
 def validate_paths(paths: PathsConfig, *, strict: bool = False) -> list[str]:
@@ -191,7 +281,11 @@ def validate_paths(paths: PathsConfig, *, strict: bool = False) -> list[str]:
     if not paths.library_root.exists():
         msg = f"library_root does not exist: {paths.library_root}"
         if strict:
-            raise ConfigurationError(msg)
+            raise ConfigurationError(
+                f"{msg}\n"
+                f"Fix: Create the directory or update library_root in config/config.yaml\n"
+                f"Example: mkdir -p {paths.library_root}"
+            )
         warnings.append(msg)
 
     # These directories will be created if needed, just warn
@@ -201,6 +295,74 @@ def validate_paths(paths: PathsConfig, *, strict: bool = False) -> list[str]:
     ]:
         if path and not path.exists():
             warnings.append(f"{name} does not exist (will be created): {path}")
+
+    return warnings
+
+
+def validate_settings(settings: Settings) -> list[str]:
+    """
+    Comprehensive validation of all settings.
+
+    Args:
+        settings: Settings object to validate
+
+    Returns:
+        List of warning messages (non-fatal issues)
+
+    Raises:
+        ConfigurationError: If critical validation fails
+    """
+    warnings = []
+
+    # Validate required environment variables
+    validate_required_env_vars()
+
+    # Validate URLs
+    validate_url(settings.qbittorrent.host, "QB_HOST")
+    validate_url(settings.mam_announce_url, "MAM_ANNOUNCE_URL")
+
+    # Validate Audnex API URL
+    if settings.audnex.base_url:
+        validate_url(settings.audnex.base_url, "audnex.base_url")
+
+    # Validate critical paths
+    validate_path_exists(settings.paths.library_root, "library_root", required=True)
+
+    # Validate numeric ranges
+    if settings.mam.max_filename_length < 1 or settings.mam.max_filename_length > 255:
+        raise ConfigurationError(
+            f"mam.max_filename_length must be between 1 and 255, got: {settings.mam.max_filename_length}\n"
+            f"Fix: Update mam.max_filename_length in config/config.yaml"
+        )
+
+    if settings.audnex.timeout_seconds < 1 or settings.audnex.timeout_seconds > 300:
+        warnings.append(
+            f"audnex.timeout_seconds is unusual: {settings.audnex.timeout_seconds} "
+            f"(recommended: 10-60 seconds)"
+        )
+
+    # Validate Docker binary exists
+    docker_bin = Path(settings.docker_bin)
+    if not docker_bin.exists() and not docker_bin.is_file():
+        warnings.append(
+            f"Docker binary not found at: {settings.docker_bin}\n"
+            f"Fix: Install Docker or update DOCKER_BIN in config/.env"
+        )
+
+    # Check for empty credentials
+    if not settings.qbittorrent.username or not settings.qbittorrent.password:
+        warnings.append(
+            "qBittorrent credentials are empty. "
+            "Fix: Set QB_USERNAME and QB_PASSWORD in config/.env"
+        )
+
+    # Validate file extensions format
+    for ext in settings.mam.allowed_extensions:
+        if not ext.startswith("."):
+            warnings.append(
+                f"Extension should start with dot: '{ext}' "
+                f"(recommended: '.{ext}')"
+            )
 
     return warnings
 
@@ -372,6 +534,14 @@ def load_settings(
         binary=mediainfo_data.get("binary", "mediainfo"),
     )
 
+    # Parse Libation config
+    libation_data = yaml_config.get("libation", {})
+    libation = LibationConfig(
+        folder_pattern=libation_data.get("folder_pattern", r"^(.*?)(?: vol_(\d+))?(?: \((\d{4})\))?$"),
+        metadata_file_suffix=libation_data.get("metadata_file_suffix", ".metadata.json"),
+        asin_pattern=libation_data.get("asin_pattern", r"^[A-Z0-9]{10}$"),
+    )
+
     # Parse filters config
     filters_data = yaml_config.get("filters", {})
     filters = FiltersConfig(
@@ -405,15 +575,24 @@ def load_settings(
         qbittorrent=qbittorrent,
         audnex=audnex,
         mediainfo=mediainfo,
+        libation=libation,
         filters=filters,
         categories=categories,
     )
 
-    # Validate paths if requested
+    # Comprehensive validation if requested
     if validate:
-        warnings = validate_paths(settings.paths)
-        for warning in warnings:
-            logger.warning(warning)
+        try:
+            warnings = validate_settings(settings)
+            for warning in warnings:
+                logger.warning(warning)
+        except ConfigurationError as e:
+            # Add helpful context to configuration errors
+            raise ConfigurationError(
+                f"Configuration validation failed:\n{e}\n\n"
+                f"Configuration file: {config_path.resolve()}\n"
+                f"Environment file: {env_path if env_path.exists() else 'NOT FOUND'}"
+            ) from None
 
     return settings
 
