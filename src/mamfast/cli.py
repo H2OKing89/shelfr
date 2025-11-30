@@ -296,6 +296,7 @@ def cmd_discover(args: argparse.Namespace) -> int:
     try:
         reload_settings(config_file=args.config)
     except FileNotFoundError as e:
+        set_console_quiet(False)
         fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
@@ -319,6 +320,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     try:
         settings = reload_settings(config_file=args.config)
     except FileNotFoundError as e:
+        set_console_quiet(False)
         fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
@@ -326,6 +328,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     if args.asin:
         release = get_release_by_asin(args.asin)
         if not release:
+            set_console_quiet(False)
             fatal_error(f"Release not found with ASIN: {args.asin}")
             return 1
         releases = [release]
@@ -333,6 +336,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
         releases = get_new_releases()
 
     if not releases:
+        set_console_quiet(False)
         console.print("[success]✓[/] No new releases to prepare")
         return 0
 
@@ -391,6 +395,7 @@ def cmd_metadata(args: argparse.Namespace) -> int:
     try:
         settings = reload_settings(config_file=args.config)
     except FileNotFoundError as e:
+        set_console_quiet(False)
         fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
@@ -400,9 +405,11 @@ def cmd_metadata(args: argparse.Namespace) -> int:
     if args.path:
         target_dir = Path(args.path).resolve()
         if not target_dir.exists():
+            set_console_quiet(False)
             fatal_error(f"Path does not exist: {target_dir}")
             return 1
         if not target_dir.is_dir():
+            set_console_quiet(False)
             fatal_error(f"Path is not a directory: {target_dir}")
             return 1
         staged_dirs = [target_dir]
@@ -410,6 +417,7 @@ def cmd_metadata(args: argparse.Namespace) -> int:
     elif args.asin:
         seed_root = settings.paths.seed_root
         if not seed_root.exists():
+            set_console_quiet(False)
             fatal_error(f"Seed directory does not exist: {seed_root}")
             return 1
 
@@ -427,17 +435,20 @@ def cmd_metadata(args: argparse.Namespace) -> int:
                     break
 
         if not staged_dirs:
+            set_console_quiet(False)
             fatal_error(f"No staged directory found for ASIN: {args.asin}")
             return 1
     else:
         seed_root = settings.paths.seed_root
         if not seed_root.exists():
+            set_console_quiet(False)
             print_warning(f"Seed directory does not exist yet: {seed_root}")
             print_info("Run 'mamfast prepare' first to stage releases.")
             return 0
         staged_dirs = [d for d in seed_root.iterdir() if d.is_dir()]
 
     if not staged_dirs:
+        set_console_quiet(False)
         console.print("[success]✓[/] No releases to process")
         return 0
 
@@ -518,11 +529,13 @@ def cmd_torrent(args: argparse.Namespace) -> int:
     try:
         settings = reload_settings(config_file=args.config)
     except FileNotFoundError as e:
+        set_console_quiet(False)
         fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
     # Check Docker
     if not check_docker_available():
+        set_console_quiet(False)
         fatal_error("Docker is not available", "Ensure Docker is installed and running")
         return 1
 
@@ -530,9 +543,11 @@ def cmd_torrent(args: argparse.Namespace) -> int:
     if args.path:
         target_dir = Path(args.path).resolve()
         if not target_dir.exists():
+            set_console_quiet(False)
             fatal_error(f"Path does not exist: {target_dir}")
             return 1
         if not target_dir.is_dir():
+            set_console_quiet(False)
             fatal_error(f"Path is not a directory: {target_dir}")
             return 1
         staged_dirs = [target_dir]
@@ -540,21 +555,25 @@ def cmd_torrent(args: argparse.Namespace) -> int:
     elif args.asin:
         seed_root = settings.paths.seed_root
         if not seed_root.exists():
+            set_console_quiet(False)
             fatal_error(f"Seed directory does not exist: {seed_root}")
             return 1
         staged_dirs = [d for d in seed_root.iterdir() if d.is_dir() and args.asin in d.name]
         if not staged_dirs:
+            set_console_quiet(False)
             fatal_error(f"No staged directory found for ASIN: {args.asin}")
             return 1
     else:
         seed_root = settings.paths.seed_root
         if not seed_root.exists():
+            set_console_quiet(False)
             print_warning(f"Seed directory does not exist yet: {seed_root}")
             print_info("Run 'mamfast prepare' first to stage releases.")
             return 0
         staged_dirs = [d for d in seed_root.iterdir() if d.is_dir()]
 
     if not staged_dirs:
+        set_console_quiet(False)
         console.print("[success]✓[/] No releases to process")
         return 0
 
@@ -619,12 +638,14 @@ def cmd_upload(args: argparse.Namespace) -> int:
     # Find torrents
     torrent_dir = settings.paths.torrent_output
     if not torrent_dir.exists():
+        set_console_quiet(False)
         fatal_error(f"Torrent directory does not exist: {torrent_dir}")
         return 1
 
     torrent_files = list(torrent_dir.glob("*.torrent"))
 
     if not torrent_files:
+        set_console_quiet(False)
         console.print("[success]✓[/] No torrent files to upload")
         return 0
 
@@ -848,10 +869,6 @@ def main() -> int:
     # Run command
     result: int = args.func(args)
     return result
-
-
-if __name__ == "__main__":
-    sys.exit(main())
 
 
 if __name__ == "__main__":

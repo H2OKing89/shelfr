@@ -96,7 +96,7 @@ def print_dry_run(message: str) -> None:
 
 def print_divider() -> None:
     """Print a horizontal divider."""
-    console.print("─" * 60, style="dim")
+    console.print("─" * min(60, console.width), style="dim")
 
 
 def print_summary(
