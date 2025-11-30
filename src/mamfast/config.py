@@ -1,4 +1,37 @@
-"""Configuration loading from .env and config.yaml."""
+"""
+Configuration loading from .env, config.yaml, and categories.json.
+
+Setting Sources and Precedence
+==============================
+Settings are loaded from three sources:
+
+1. **config.yaml** (highest priority for structured config):
+   - paths: library_root, torrent_output, seed_root, state_file, log_file
+   - mam: max_filename_length, allowed_extensions
+   - mkbrr: image, preset, host_data_root, container_data_root, etc.
+   - qbittorrent: category, tags, auto_start
+   - audnex: base_url, timeout_seconds
+   - mediainfo: binary
+   - filters: remove_phrases, remove_book_numbers, author_map, transliterate_japanese
+   - environment: can override any .env variable (see below)
+
+2. **.env file** (for secrets and environment-specific values):
+   - QB_HOST, QB_USERNAME, QB_PASSWORD (qBittorrent credentials)
+   - MAM_ANNOUNCE_URL (tracker announce URL - secret)
+   - LIBATION_CONTAINER, DOCKER_BIN, TARGET_UID, TARGET_GID
+   - MAMFAST_ENV, LOG_LEVEL
+
+3. **config/categories.json** (MAM category mappings):
+   - Maps genre names to MAM category IDs (e.g., "fantasy" -> 39)
+
+Precedence for environment section: YAML environment > .env file > defaults
+
+Path Resolution
+===============
+- Absolute paths are used as-is
+- Relative paths in config.yaml are resolved relative to project root
+  (parent of config/ directory)
+"""
 
 from __future__ import annotations
 
@@ -15,9 +48,15 @@ from dotenv import load_dotenv
 logger = logging.getLogger(__name__)
 
 
+class ConfigurationError(Exception):
+    """Raised when configuration is invalid."""
+
+    pass
+
+
 @dataclass
 class PathsConfig:
-    """Path configuration settings."""
+    """Path configuration settings (from config.yaml paths section)."""
 
     library_root: Path  # Libation library / staging directory (same in Libation workflow)
     torrent_output: Path
@@ -28,7 +67,7 @@ class PathsConfig:
 
 @dataclass
 class MamConfig:
-    """MAM compliance settings."""
+    """MAM compliance settings (from config.yaml mam section)."""
 
     max_filename_length: int = 225
     allowed_extensions: list[str] = field(
@@ -38,7 +77,7 @@ class MamConfig:
 
 @dataclass
 class MkbrrConfig:
-    """mkbrr Docker configuration."""
+    """mkbrr Docker configuration (from config.yaml mkbrr section)."""
 
     image: str = "ghcr.io/autobrr/mkbrr"
     preset: str = "mam"
@@ -52,11 +91,16 @@ class MkbrrConfig:
 
 @dataclass
 class QBittorrentConfig:
-    """qBittorrent settings."""
+    """
+    qBittorrent settings.
 
-    host: str = ""
-    username: str = ""
-    password: str = ""
+    Credentials (host, username, password) come from .env file.
+    Other settings (category, tags, auto_start) come from config.yaml.
+    """
+
+    host: str = ""  # From .env: QB_HOST
+    username: str = ""  # From .env: QB_USERNAME
+    password: str = ""  # From .env: QB_PASSWORD
     category: str = "mam-audiobooks"
     tags: list[str] = field(default_factory=lambda: ["mamfast"])
     auto_start: bool = True
@@ -64,7 +108,7 @@ class QBittorrentConfig:
 
 @dataclass
 class AudnexConfig:
-    """Audnex API settings."""
+    """Audnex API settings (from config.yaml audnex section)."""
 
     base_url: str = "https://api.audnex.us"
     timeout_seconds: int = 30
@@ -72,14 +116,14 @@ class AudnexConfig:
 
 @dataclass
 class MediaInfoConfig:
-    """MediaInfo settings."""
+    """MediaInfo settings (from config.yaml mediainfo section)."""
 
     binary: str = "mediainfo"
 
 
 @dataclass
 class FiltersConfig:
-    """Title filtering settings."""
+    """Title filtering settings (from config.yaml filters section)."""
 
     # Phrases to remove from titles (case-insensitive)
     remove_phrases: list[str] = field(default_factory=list)
@@ -93,7 +137,7 @@ class FiltersConfig:
 
 @dataclass
 class CategoriesConfig:
-    """MAM category mapping (genre name -> category ID)."""
+    """MAM category mapping (from config/categories.json)."""
 
     # Maps lowercase genre names to MAM category IDs
     genre_map: dict[str, int] = field(default_factory=dict)
@@ -101,16 +145,20 @@ class CategoriesConfig:
 
 @dataclass
 class Settings:
-    """Complete application settings."""
+    """
+    Complete application settings.
 
-    # From .env
-    libation_container: str
-    docker_bin: str
-    target_uid: int
-    target_gid: int
-    mam_announce_url: str
-    env: str
-    log_level: str
+    See module docstring for full documentation of setting sources.
+    """
+
+    # From .env (can be overridden by config.yaml environment section)
+    libation_container: str  # .env: LIBATION_CONTAINER
+    docker_bin: str  # .env: DOCKER_BIN
+    target_uid: int  # .env: TARGET_UID
+    target_gid: int  # .env: TARGET_GID
+    mam_announce_url: str  # .env: MAM_ANNOUNCE_URL
+    env: str  # .env: MAMFAST_ENV
+    log_level: str  # .env: LOG_LEVEL
 
     # From config.yaml
     paths: PathsConfig
@@ -121,6 +169,40 @@ class Settings:
     mediainfo: MediaInfoConfig
     filters: FiltersConfig
     categories: CategoriesConfig
+
+
+def validate_paths(paths: PathsConfig, *, strict: bool = False) -> list[str]:
+    """
+    Validate that required paths exist.
+
+    Args:
+        paths: PathsConfig to validate
+        strict: If True, raise ConfigurationError on validation failure
+
+    Returns:
+        List of warning messages for paths that don't exist
+
+    Raises:
+        ConfigurationError: If strict=True and library_root doesn't exist
+    """
+    warnings = []
+
+    # library_root must exist (source of audiobooks)
+    if not paths.library_root.exists():
+        msg = f"library_root does not exist: {paths.library_root}"
+        if strict:
+            raise ConfigurationError(msg)
+        warnings.append(msg)
+
+    # These directories will be created if needed, just warn
+    for name, path in [
+        ("seed_root", paths.seed_root),
+        ("torrent_output", paths.torrent_output),
+    ]:
+        if path and not path.exists():
+            warnings.append(f"{name} does not exist (will be created): {path}")
+
+    return warnings
 
 
 def _get_env(key: str, default: str | None = None) -> str:
@@ -184,6 +266,8 @@ def load_yaml_config(config_path: Path) -> dict[str, Any]:
 def load_settings(
     env_file: Path | None = None,
     config_file: Path | None = None,
+    *,
+    validate: bool = True,
 ) -> Settings:
     """
     Load settings from .env and config.yaml files.
@@ -191,9 +275,14 @@ def load_settings(
     Args:
         env_file: Path to .env file (default: .env next to config.yaml, or in current dir)
         config_file: Path to config.yaml (default: config.yaml in current directory)
+        validate: If True, validate paths and log warnings (default: True)
 
     Returns:
         Populated Settings object
+
+    Raises:
+        FileNotFoundError: If config file doesn't exist
+        ConfigurationError: If validation fails with strict=True
     """
     # Determine config path first
     config_path = config_file or Path("config.yaml")
@@ -298,7 +387,7 @@ def load_settings(
     # Parse environment section (YAML overrides env vars)
     env_data = yaml_config.get("environment", {})
 
-    return Settings(
+    settings = Settings(
         # Environment: YAML config > env var > default
         libation_container=env_data.get(
             "libation_container", _get_env("LIBATION_CONTAINER", "libation")
@@ -320,6 +409,14 @@ def load_settings(
         categories=categories,
     )
 
+    # Validate paths if requested
+    if validate:
+        warnings = validate_paths(settings.paths)
+        for warning in warnings:
+            logger.warning(warning)
+
+    return settings
+
 
 # Lazy-loaded global settings instance
 _settings: Settings | None = None
@@ -336,8 +433,32 @@ def get_settings() -> Settings:
 def reload_settings(
     env_file: Path | None = None,
     config_file: Path | None = None,
+    *,
+    validate: bool = True,
 ) -> Settings:
-    """Reload settings from files."""
+    """
+    Reload settings from files.
+
+    Useful for testing or when config files have changed.
+
+    Args:
+        env_file: Path to .env file
+        config_file: Path to config.yaml
+        validate: If True, validate paths and log warnings
+
+    Returns:
+        Newly loaded Settings object
+    """
     global _settings
-    _settings = load_settings(env_file, config_file)
+    _settings = load_settings(env_file, config_file, validate=validate)
     return _settings
+
+
+def clear_settings() -> None:
+    """
+    Clear the cached settings instance.
+
+    Useful for testing to ensure a fresh settings load.
+    """
+    global _settings
+    _settings = None

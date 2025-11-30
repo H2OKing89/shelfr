@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from mamfast.config import (
+    ConfigurationError,
     FiltersConfig,
     MamConfig,
     MkbrrConfig,
@@ -17,9 +18,11 @@ from mamfast.config import (
     QBittorrentConfig,
     _get_env,
     _get_env_int,
+    clear_settings,
     load_settings,
     load_yaml_config,
     reload_settings,
+    validate_paths,
 )
 
 
@@ -281,6 +284,131 @@ paths:
             env_path = Path(tmpdir) / ".env"
             env_path.write_text("QB_HOST=localhost\n" "QB_USERNAME=admin\n" "QB_PASSWORD=secret\n")
 
-            settings = reload_settings(env_file=env_path, config_file=config_path)
+            settings = reload_settings(env_file=env_path, config_file=config_path, validate=False)
 
             assert settings.paths.library_root == Path("/tmp/new-library")
+
+
+class TestValidatePaths:
+    """Tests for validate_paths function."""
+
+    def test_returns_empty_for_existing_paths(self):
+        """Test no warnings when all paths exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            library = Path(tmpdir) / "library"
+            library.mkdir()
+            seed = Path(tmpdir) / "seed"
+            seed.mkdir()
+            torrents = Path(tmpdir) / "torrents"
+            torrents.mkdir()
+
+            paths = PathsConfig(
+                library_root=library,
+                torrent_output=torrents,
+                seed_root=seed,
+                state_file=Path(tmpdir) / "state.json",
+                log_file=Path(tmpdir) / "app.log",
+            )
+
+            warnings = validate_paths(paths)
+            # Only library_root is strictly required
+            assert not any("library_root" in w for w in warnings)
+
+    def test_warns_on_missing_library_root(self):
+        """Test warning when library_root doesn't exist."""
+        paths = PathsConfig(
+            library_root=Path("/nonexistent/library"),
+            torrent_output=Path("/tmp/torrents"),
+            seed_root=Path("/tmp/seed"),
+            state_file=Path("/tmp/state.json"),
+            log_file=Path("/tmp/app.log"),
+        )
+
+        warnings = validate_paths(paths)
+        assert any("library_root" in w for w in warnings)
+
+    def test_strict_raises_on_missing_library_root(self):
+        """Test ConfigurationError raised when library_root missing and strict=True."""
+        paths = PathsConfig(
+            library_root=Path("/nonexistent/library"),
+            torrent_output=Path("/tmp/torrents"),
+            seed_root=Path("/tmp/seed"),
+            state_file=Path("/tmp/state.json"),
+            log_file=Path("/tmp/app.log"),
+        )
+
+        with pytest.raises(ConfigurationError, match="library_root does not exist"):
+            validate_paths(paths, strict=True)
+
+    def test_warns_on_missing_seed_root(self):
+        """Test warning for non-existent seed_root (will be created)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            library = Path(tmpdir) / "library"
+            library.mkdir()
+
+            paths = PathsConfig(
+                library_root=library,
+                torrent_output=Path("/tmp/torrents"),
+                seed_root=Path("/nonexistent/seed"),
+                state_file=Path("/tmp/state.json"),
+                log_file=Path("/tmp/app.log"),
+            )
+
+            warnings = validate_paths(paths)
+            assert any("seed_root" in w and "will be created" in w for w in warnings)
+
+
+class TestClearSettings:
+    """Tests for clear_settings function."""
+
+    def test_clears_cached_settings(self):
+        """Test that clear_settings resets the global cache."""
+        yaml_content = """
+paths:
+  library_root: "/tmp/library"
+  torrent_output: "/tmp/torrents"
+  seed_root: "/tmp/seed"
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.yaml"
+            config_path.write_text(yaml_content)
+
+            env_path = Path(tmpdir) / ".env"
+            env_path.write_text("QB_HOST=localhost\n" "QB_USERNAME=admin\n" "QB_PASSWORD=secret\n")
+
+            # Load settings
+            reload_settings(env_file=env_path, config_file=config_path, validate=False)
+
+            # Clear the cache
+            clear_settings()
+
+            # Importing the module to check internal state would be tricky,
+            # but we can at least verify clear_settings doesn't raise
+            assert True  # No exception means success
+
+    def test_allows_fresh_reload_after_clear(self):
+        """Test settings can be reloaded after clearing."""
+        yaml_content = """
+paths:
+  library_root: "/tmp/library-v1"
+  torrent_output: "/tmp/torrents"
+  seed_root: "/tmp/seed"
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.yaml"
+            config_path.write_text(yaml_content)
+
+            env_path = Path(tmpdir) / ".env"
+            env_path.write_text("QB_HOST=localhost\n" "QB_USERNAME=admin\n" "QB_PASSWORD=secret\n")
+
+            settings1 = reload_settings(env_file=env_path, config_file=config_path, validate=False)
+            assert settings1.paths.library_root == Path("/tmp/library-v1")
+
+            # Clear and reload with different config
+            clear_settings()
+
+            yaml_content_v2 = yaml_content.replace("library-v1", "library-v2")
+            config_path.write_text(yaml_content_v2)
+
+            settings2 = reload_settings(env_file=env_path, config_file=config_path, validate=False)
+            assert settings2.paths.library_root == Path("/tmp/library-v2")

@@ -115,7 +115,17 @@ def hardlink_file(src: Path, dst: Path) -> None:
     Create a hardlink from src to dst.
 
     If hardlink fails (e.g., cross-device), falls back to copy.
+
+    Args:
+        src: Source file to link from
+        dst: Destination path for the hardlink
+
+    Raises:
+        FileNotFoundError: If source file does not exist
     """
+    if not src.exists():
+        raise FileNotFoundError(f"Source file does not exist: {src}")
+
     if dst.exists():
         logger.debug(f"  Destination exists, skipping: {dst.name}")
         return

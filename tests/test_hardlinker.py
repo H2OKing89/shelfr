@@ -132,6 +132,15 @@ class TestHardlinkFile:
             assert dst.exists()
             assert dst.read_text() == "test content"
 
+    def test_raises_on_missing_source(self):
+        """Test that FileNotFoundError is raised when source doesn't exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = Path(tmpdir) / "nonexistent.txt"
+            dst = Path(tmpdir) / "dest.txt"
+
+            with pytest.raises(FileNotFoundError, match="Source file does not exist"):
+                hardlink_file(src, dst)
+
 
 class TestShouldIncludeFile:
     """Tests for should_include_file function."""
