@@ -13,6 +13,8 @@ MAM JSON: Fast fillout format for MAM uploads
 
 from __future__ import annotations
 
+import functools
+import html
 import json
 import logging
 import re
@@ -46,8 +48,9 @@ class Chapter:
     title: str  # "Chapter 2: Wandering Goblin Slayer"
 
 
+@functools.lru_cache(maxsize=1)
 def _get_jinja_env() -> Environment:
-    """Get Jinja2 environment with template loader."""
+    """Get Jinja2 environment with template loader (cached)."""
     return Environment(
         loader=PackageLoader("mamfast", "templates"),
         autoescape=False,  # BBCode, not HTML
@@ -457,6 +460,54 @@ def save_mediainfo_json(data: dict[str, Any], output_path: Path) -> None:
 # =============================================================================
 
 
+def fetch_metadata(
+    asin: str | None = None,
+    m4b_path: Path | None = None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """
+    Fetch Audnex and MediaInfo metadata without saving.
+
+    Args:
+        asin: Audible ASIN (None to skip Audnex)
+        m4b_path: Path to m4b file (None to skip MediaInfo)
+
+    Returns:
+        Tuple of (audnex_data, mediainfo_data), either may be None on error.
+    """
+    audnex_data = None
+    mediainfo_data = None
+
+    if asin:
+        audnex_data = fetch_audnex_book(asin)
+
+    if m4b_path and m4b_path.exists():
+        mediainfo_data = run_mediainfo(m4b_path)
+
+    return audnex_data, mediainfo_data
+
+
+def save_metadata_files(
+    output_dir: Path,
+    audnex_data: dict[str, Any] | None = None,
+    mediainfo_data: dict[str, Any] | None = None,
+) -> None:
+    """
+    Save metadata to JSON files in output directory.
+
+    Args:
+        output_dir: Directory to save JSON files
+        audnex_data: Audnex data to save (skipped if None)
+        mediainfo_data: MediaInfo data to save (skipped if None)
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if audnex_data:
+        save_audnex_json(audnex_data, output_dir / "audnex.json")
+
+    if mediainfo_data:
+        save_mediainfo_json(mediainfo_data, output_dir / "mediainfo.json")
+
+
 def fetch_all_metadata(
     asin: str | None,
     m4b_path: Path | None,
@@ -465,92 +516,25 @@ def fetch_all_metadata(
     """
     Fetch both Audnex and MediaInfo metadata, saving to output directory.
 
+    This is a convenience function that combines fetch_metadata() and
+    save_metadata_files(). Use the separate functions for more control.
+
     Args:
         asin: Audible ASIN (None to skip Audnex)
         m4b_path: Path to m4b file (None to skip MediaInfo)
         output_dir: Directory to save JSON files
 
     Returns:
-        Tuple of (audnex_data, mediainfo_data), either may be None.
+        Tuple of (audnex_data, mediainfo_data), either may be None on error.
     """
-    audnex_data = None
-    mediainfo_data = None
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Audnex
-    if asin:
-        audnex_data = fetch_audnex_book(asin)
-        if audnex_data:
-            save_audnex_json(audnex_data, output_dir / "audnex.json")
-
-    # MediaInfo
-    if m4b_path and m4b_path.exists():
-        mediainfo_data = run_mediainfo(m4b_path)
-        if mediainfo_data:
-            save_mediainfo_json(mediainfo_data, output_dir / "mediainfo.json")
-
+    audnex_data, mediainfo_data = fetch_metadata(asin=asin, m4b_path=m4b_path)
+    save_metadata_files(output_dir, audnex_data=audnex_data, mediainfo_data=mediainfo_data)
     return audnex_data, mediainfo_data
 
 
 # =============================================================================
 # MAM JSON Export
 # =============================================================================
-
-# MAM category mapping based on Audnex genres
-MAM_CATEGORY_MAP: dict[str, int] = {
-    # Fiction categories
-    "action & adventure": 1,
-    "art": 2,
-    "biography": 3,
-    "business": 4,
-    "comedy": 5,
-    "computer": 7,
-    "contemporary": 59,
-    "crime": 9,
-    "drama": 60,
-    "education": 11,
-    "fantasy": 13,
-    "food": 14,
-    "health": 16,
-    "historical": 17,
-    "horror": 19,
-    "humor": 20,
-    "juvenile": 23,
-    "language": 24,
-    "lgbtq": 25,
-    "literary classics": 28,
-    "literary fiction": 57,
-    "litrpg": 29,
-    "math": 30,
-    "medicine": 31,
-    "music": 32,
-    "mystery": 34,
-    "nature": 35,
-    "paranormal": 36,
-    "philosophy": 37,
-    "poetry": 38,
-    "politics": 39,
-    "progression fantasy": 58,
-    "reference": 40,
-    "religion": 41,
-    "romance": 42,
-    "science": 44,
-    "science fiction": 45,
-    "sci-fi": 45,
-    "self-help": 46,
-    "sports": 49,
-    "superheroes": 56,
-    "technology": 50,
-    "thriller": 51,
-    "suspense": 51,
-    "travel": 52,
-    "urban fantasy": 53,
-    "western": 54,
-    "young adult": 55,
-    "epic": 13,  # Map Epic to Fantasy
-    "paranormal & urban": 53,  # Urban Fantasy
-}
 
 
 def _map_genres_to_categories(genres: list[dict[str, Any]]) -> list[int]:
@@ -563,15 +547,17 @@ def _map_genres_to_categories(genres: list[dict[str, Any]]) -> list[int]:
     Returns:
         List of unique MAM category IDs
     """
+    settings = get_settings()
+    category_map = settings.categories.genre_map
     categories: set[int] = set()
 
     for genre in genres:
         name = genre.get("name", "").lower()
-        if name in MAM_CATEGORY_MAP:
-            categories.add(MAM_CATEGORY_MAP[name])
+        if name in category_map:
+            categories.add(category_map[name])
         else:
             # Try partial matching
-            for key, cat_id in MAM_CATEGORY_MAP.items():
+            for key, cat_id in category_map.items():
                 if key in name or name in key:
                     categories.add(cat_id)
                     break
@@ -618,17 +604,12 @@ def _clean_html(text: str) -> str:
     """
     Clean HTML tags from description text.
 
-    Simple approach - just strips common HTML tags.
+    Strips HTML tags and decodes HTML entities.
     """
     # Remove HTML tags
     text = re.sub(r"<[^>]+>", "", text)
-    # Decode common entities
-    text = text.replace("&amp;", "&")
-    text = text.replace("&lt;", "<")
-    text = text.replace("&gt;", ">")
-    text = text.replace("&quot;", '"')
-    text = text.replace("&#39;", "'")
-    text = text.replace("&nbsp;", " ")
+    # Decode HTML entities (handles &amp;, &lt;, &#39;, etc.)
+    text = html.unescape(text)
     return text.strip()
 
 

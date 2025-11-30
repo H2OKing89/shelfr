@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -9,6 +11,8 @@ from typing import Any
 
 import yaml
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -88,6 +92,14 @@ class FiltersConfig:
 
 
 @dataclass
+class CategoriesConfig:
+    """MAM category mapping (genre name -> category ID)."""
+
+    # Maps lowercase genre names to MAM category IDs
+    genre_map: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
 class Settings:
     """Complete application settings."""
 
@@ -108,6 +120,7 @@ class Settings:
     audnex: AudnexConfig
     mediainfo: MediaInfoConfig
     filters: FiltersConfig
+    categories: CategoriesConfig
 
 
 def _get_env(key: str, default: str | None = None) -> str:
@@ -124,6 +137,37 @@ def _get_env_int(key: str, default: int) -> int:
     if value is None:
         return default
     return int(value)
+
+
+def _load_categories(config_dir: Path) -> CategoriesConfig:
+    """
+    Load MAM category mapping from config/categories.json.
+
+    Args:
+        config_dir: Project root directory containing config/
+
+    Returns:
+        CategoriesConfig with genre_map populated
+    """
+    categories_path = config_dir / "config" / "categories.json"
+
+    if not categories_path.exists():
+        logger.warning(f"categories.json not found at {categories_path}, using empty map")
+        return CategoriesConfig()
+
+    try:
+        with open(categories_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Filter out comment keys (starting with _) and non-int values
+        genre_map = {k: v for k, v in data.items() if not k.startswith("_") and isinstance(v, int)}
+
+        logger.debug(f"Loaded {len(genre_map)} category mappings from {categories_path}")
+        return CategoriesConfig(genre_map=genre_map)
+
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"Failed to load categories.json: {e}")
+        return CategoriesConfig()
 
 
 def load_yaml_config(config_path: Path) -> dict[str, Any]:
@@ -248,6 +292,9 @@ def load_settings(
         transliterate_japanese=filters_data.get("transliterate_japanese", True),
     )
 
+    # Load categories from config/categories.json
+    categories = _load_categories(config_dir)
+
     # Parse environment section (YAML overrides env vars)
     env_data = yaml_config.get("environment", {})
 
@@ -270,6 +317,7 @@ def load_settings(
         audnex=audnex,
         mediainfo=mediainfo,
         filters=filters,
+        categories=categories,
     )
 
 
