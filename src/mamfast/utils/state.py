@@ -53,14 +53,32 @@ def load_state() -> dict[str, Any]:
 
 
 def save_state(state: dict[str, Any]) -> None:
-    """Save state to the JSON file."""
+    """
+    Save state to the JSON file atomically.
+
+    Uses a temporary file and atomic rename to prevent corruption
+    if the process crashes during write.
+    """
     state_file = _get_state_file()
     state_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(state_file, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2, ensure_ascii=False)
+    # Write to temporary file first
+    temp_file = state_file.with_suffix(".tmp")
 
-    logger.debug(f"Saved state to {state_file}")
+    try:
+        with open(temp_file, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2, ensure_ascii=False)
+
+        # Atomic rename (POSIX guarantee)
+        temp_file.replace(state_file)
+
+        logger.debug(f"Saved state to {state_file}")
+    except Exception as e:
+        # Clean up temp file on error
+        if temp_file.exists():
+            temp_file.unlink()
+        logger.error(f"Failed to save state: {e}")
+        raise
 
 
 def is_processed(identifier: str) -> bool:

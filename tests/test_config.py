@@ -221,13 +221,14 @@ environment:
             # Create .env with required values
             env_path = Path(tmpdir) / ".env"
             env_path.write_text(
-                "QB_HOST=localhost:8080\n"
+                "QB_HOST=http://localhost:8080\n"
                 "QB_USERNAME=admin\n"
                 "QB_PASSWORD=secret\n"
                 "MAM_ANNOUNCE_URL=http://tracker.example.com\n"
             )
 
-            settings = load_settings(env_file=env_path, config_file=config_path)
+            # validate=False since we're testing config loading, not path validation
+            settings = load_settings(env_file=env_path, config_file=config_path, validate=False)
 
             assert settings.paths.library_root == Path("/tmp/library")
             assert settings.mam.max_filename_length == 200
@@ -254,16 +255,27 @@ paths:
             config_path.write_text(yaml_content)
 
             env_path = config_dir / ".env"
-            env_path.write_text("QB_HOST=found\n" "QB_USERNAME=admin\n" "QB_PASSWORD=secret\n")
+            env_path.write_text(
+                "QB_HOST=http://found:8080\n"
+                "QB_USERNAME=admin\n"
+                "QB_PASSWORD=secret\n"
+                "MAM_ANNOUNCE_URL=http://tracker.example.com\n"
+            )
 
             # Clear any existing env vars and reload
             with patch.dict(
-                os.environ, {"QB_HOST": "", "QB_USERNAME": "", "QB_PASSWORD": ""}, clear=False
+                os.environ,
+                {"QB_HOST": "", "QB_USERNAME": "", "QB_PASSWORD": "", "MAM_ANNOUNCE_URL": ""},
+                clear=False,
             ):
-                settings = load_settings(config_file=config_path)
+                # validate=False since we're testing .env discovery, not path validation
+                settings = load_settings(config_file=config_path, validate=False)
 
             # The .env file should have been loaded
-            assert settings.qbittorrent.host in ["found", ""]  # May vary based on test isolation
+            assert settings.qbittorrent.host in [
+                "http://found:8080",
+                "",
+            ]  # May vary based on test isolation
 
 
 class TestReloadSettings:

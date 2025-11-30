@@ -20,6 +20,15 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
+
 from mamfast.config import get_settings
 from mamfast.hardlinker import stage_release
 from mamfast.libation import run_liberate, run_scan
@@ -202,7 +211,19 @@ def process_single_release(
         )
 
         if not mkbrr_result.success:
-            raise RuntimeError(f"mkbrr failed: {mkbrr_result.error}")
+            raise RuntimeError(
+                f"Torrent creation failed for '{staging_dir.name}'\n"
+                f"Error: {mkbrr_result.error}\n"
+                f"\nTroubleshooting:\n"
+                f"  1. Verify mkbrr Docker image is available: {settings.mkbrr.image}\n"
+                f"     Run: docker pull {settings.mkbrr.image}\n"
+                f"  2. Check preset '{settings.mkbrr.preset}' exists in "
+                f"{settings.mkbrr.host_config_dir}/presets.yaml\n"
+                f"  3. Verify path mappings in config.yaml:\n"
+                f"     - host_data_root: {settings.mkbrr.host_data_root}\n"
+                f"     - container_data_root: {settings.mkbrr.container_data_root}\n"
+                f"  4. Check Docker logs: docker logs $(docker ps -lq)"
+            )
 
         release.torrent_path = mkbrr_result.torrent_path
         release.status = ReleaseStatus.TORRENT_CREATED
@@ -214,7 +235,12 @@ def process_single_release(
         logger.debug("Step 4: Uploading to qBittorrent")
 
         if release.torrent_path is None:
-            raise RuntimeError("No torrent path after mkbrr")
+            raise RuntimeError(
+                "Internal error: No torrent path after successful mkbrr creation\n"
+                f"This is a bug. Please report with:\n"
+                f"  - Release: {release.display_name}\n"
+                f"  - mkbrr result: {mkbrr_result}"
+            )
 
         success = _upload_torrent_with_retry(
             torrent_path=release.torrent_path,
@@ -222,7 +248,21 @@ def process_single_release(
         )
 
         if not success:
-            raise RuntimeError("Failed to upload torrent to qBittorrent")
+            qb_host = settings.qbittorrent.host
+            raise RuntimeError(
+                f"Failed to upload torrent to qBittorrent\n"
+                f"Torrent: {release.torrent_path}\n"
+                f"Save path: {staging_dir}\n"
+                f"\nTroubleshooting:\n"
+                f"  1. Verify qBittorrent is running and accessible at {qb_host}\n"
+                f"  2. Check credentials in config/.env:\n"
+                f"     - QB_USERNAME: {settings.qbittorrent.username}\n"
+                f"     - QB_PASSWORD: (check it's correct)\n"
+                f"  3. Verify WebUI is enabled in qBittorrent preferences\n"
+                f"  4. Check qBittorrent logs for errors\n"
+                f"  5. Test connection: curl -u username:password "
+                f"{qb_host}/api/v2/app/version"
+            )
 
         release.status = ReleaseStatus.UPLOADED
 
@@ -357,58 +397,81 @@ def full_run(
     skipped = 0
     settings = get_settings()
 
-    for i, release in enumerate(releases, 1):
-        logger.info(f"[{i}/{len(releases)}] {release.display_name}")
-
-        # Check if already processed
-        identifier = release.asin or str(release.source_dir)
-        if identifier and is_processed(identifier):
-            logger.info("  Skipping (already processed)")
-            skipped += 1
-            continue
-
-        if dry_run:
-            # Show detailed dry-run info for each step
-            logger.info("  [DRY RUN] Steps that would be performed:")
-
-            # Step 1: Stage
-            if release.source_dir:
-                staging_name = release.source_dir.name
-                seed_root = settings.paths.seed_root
-                logger.info(f"    1. STAGE: Hardlink to {seed_root / staging_name}")
-
-            # Step 2: Metadata
-            if not skip_metadata:
-                if release.asin:
-                    logger.info(f"    2. METADATA: Fetch Audnex for ASIN {release.asin}")
-                if release.main_m4b:
-                    logger.info(f"    2. METADATA: Run MediaInfo on {release.main_m4b.name}")
-                logger.info(
-                    f"    2. METADATA: Generate MAM JSON to {settings.paths.torrent_output}"
-                )
-            else:
-                logger.info("    2. METADATA: [SKIPPED]")
-
-            # Step 3: Torrent
-            logger.info(f"    3. TORRENT: Create with preset '{settings.mkbrr.preset}'")
-            logger.info(f"    3. TORRENT: Output to {settings.paths.torrent_output}")
-
-            # Step 4: Upload
-            logger.info(f"    4. UPLOAD: Add to qBittorrent at {settings.qbittorrent.host}")
-            logger.info(f"    4. UPLOAD: Category '{settings.qbittorrent.category}'")
-
-            # Step 5: Mark processed
-            logger.info(f"    5. STATE: Mark {identifier} as processed")
-            continue
-
-        result = process_single_release(
-            release,
-            skip_metadata=skip_metadata,
-            progress_callback=progress_callback,
-            release_index=i,
-            release_total=len(releases),
+    # Create progress bar for processing releases
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TextColumn("({task.completed}/{task.total})"),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+        transient=False,
+    ) as progress:
+        task = progress.add_task(
+            "[cyan]Processing releases...", total=len(releases), visible=not dry_run
         )
-        results.append(result)
+
+        for i, release in enumerate(releases, 1):
+            # Update progress description (truncate long names with ellipsis)
+            name = release.display_name
+            display = f"{name[:50]}..." if len(name) > 50 else name
+            progress.update(task, description=f"[cyan]{display}", visible=not dry_run)
+
+            logger.info(f"[{i}/{len(releases)}] {release.display_name}")
+
+            # Check if already processed
+            identifier = release.asin or str(release.source_dir)
+            if identifier and is_processed(identifier):
+                logger.info("  Skipping (already processed)")
+                skipped += 1
+                progress.advance(task)
+                continue
+
+            if dry_run:
+                # Show detailed dry-run info for each step
+                logger.info("  [DRY RUN] Steps that would be performed:")
+
+                # Step 1: Stage
+                if release.source_dir:
+                    staging_name = release.source_dir.name
+                    seed_root = settings.paths.seed_root
+                    logger.info(f"    1. STAGE: Hardlink to {seed_root / staging_name}")
+
+                # Step 2: Metadata
+                if not skip_metadata:
+                    if release.asin:
+                        logger.info(f"    2. METADATA: Fetch Audnex for ASIN {release.asin}")
+                    if release.main_m4b:
+                        logger.info(f"    2. METADATA: Run MediaInfo on {release.main_m4b.name}")
+                    logger.info(
+                        f"    2. METADATA: Generate MAM JSON to {settings.paths.torrent_output}"
+                    )
+                else:
+                    logger.info("    2. METADATA: [SKIPPED]")
+
+                # Step 3: Torrent
+                logger.info(f"    3. TORRENT: Create with preset '{settings.mkbrr.preset}'")
+                logger.info(f"    3. TORRENT: Output to {settings.paths.torrent_output}")
+
+                # Step 4: Upload
+                logger.info(f"    4. UPLOAD: Add to qBittorrent at {settings.qbittorrent.host}")
+                logger.info(f"    4. UPLOAD: Category '{settings.qbittorrent.category}'")
+
+                # Step 5: Mark processed
+                logger.info(f"    5. STATE: Mark {identifier} as processed")
+                progress.advance(task)
+                continue
+
+            result = process_single_release(
+                release,
+                skip_metadata=skip_metadata,
+                progress_callback=progress_callback,
+                release_index=i,
+                release_total=len(releases),
+            )
+            results.append(result)
+            progress.advance(task)
 
     # -------------------------------------------------------------------------
     # Summary
