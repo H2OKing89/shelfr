@@ -6,11 +6,12 @@ MAM has a 225-character limit on filenames/paths.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import logging
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from mamfast.config import FiltersConfig
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Characters not allowed in filenames (cross-platform safe)
-ILLEGAL_CHARS = r'[<>:"/\\|?*]'
+ILLEGAL_CHARS_PATTERN = re.compile(r'[<>:"/\\|?*]')
 
 # Characters to normalize (replace with space or dash)
 NORMALIZE_MAP = {
@@ -33,40 +34,63 @@ NORMALIZE_MAP = {
     "*": "",
 }
 
-# Hardcoded patterns to always remove (regex patterns)
-HARDCODED_REMOVE_PATTERNS = [
+# Pre-compiled patterns for title filtering (better performance than re-compiling each call)
+# These patterns are always removed from titles
+_COMPILED_REMOVE_PATTERNS: list[re.Pattern[str]] = [
     # "Book 12", "Book XII", "Book: 12" etc - we keep vol_XX instead
-    r"\bBook\s*[:\s]*\d+\b",
-    r"\bBook\s*[:\s]*[IVXLCDM]+\b",
+    re.compile(r"\bBook\s*[:\s]*\d+\b", re.IGNORECASE),
+    re.compile(r"\bBook\s*[:\s]*[IVXLCDM]+\b", re.IGNORECASE),
     # "Vol. 12" or "Volume 12" (but NOT vol_12 which is Libation format)
-    r"\bVol\.\s*\d+\b",
-    r"\bVolume\s*\d+\b",
+    re.compile(r"\bVol\.\s*\d+\b", re.IGNORECASE),
+    re.compile(r"\bVolume\s*\d+\b", re.IGNORECASE),
     # Extra whitespace patterns
-    r"\s*-\s*-\s*",  # Double dashes
-    r"\s*,\s*,\s*",  # Double commas
+    re.compile(r"\s*-\s*-\s*"),  # Double dashes
+    re.compile(r"\s*,\s*,\s*"),  # Double commas
 ]
 
-# Roles to filter out from author lists (case-insensitive matching)
-# These indicate the person is not the primary author
-AUTHOR_ROLE_FILTERS = [
-    "translator",
-    "illustrator",
-    "editor",
-    "adapter",
-    "contributor",
-    "compiler",
-    "afterword",
-    "foreword",
-    "introduction",
-    "cover design",
-    "cover art",
-    "with ",  # "with John Smith"
-]
+# Pre-compiled cleanup patterns
+_WHITESPACE_PATTERN = re.compile(r"\s+")
+_DOUBLE_DASH_PATTERN = re.compile(r"\s*-\s*-\s*")
+_LEADING_DASH_PATTERN = re.compile(r"^\s*-\s*")
+_TRAILING_DASH_PATTERN = re.compile(r"\s*-\s*$")
+_EMPTY_PARENS_PATTERN = re.compile(r"\(\s*\)")
+_EMPTY_BRACKETS_PATTERN = re.compile(r"\[\s*\]")
+_DUPLICATE_VOL_PATTERN = re.compile(r"\b(\d+)\s+vol_\1\b")
+_NON_ASCII_PATTERN = re.compile(r"[^\x00-\x7F]+")
+
+# Author role detection patterns - use word boundaries to avoid false positives
+# e.g., "translator" should match but "John Translator Smith" should NOT match
+# Pattern matches: "- translator", "(translator)", "translator" at end, standalone "translator"
+_ROLE_WORDS = r"translator|illustrator|editor|adapter|contributor|compiler"
+_CREDIT_WORDS = r"afterword|foreword|introduction"
+_AUTHOR_ROLE_PATTERN = re.compile(
+    rf"""
+    (?:
+        \s*-\s*(?:{_ROLE_WORDS})s?\s*$  |           # "- translator" at end
+        \s*\(\s*(?:{_ROLE_WORDS})s?\s*\)  |         # "(translator)"
+        \s*,\s*(?:{_ROLE_WORDS})s?\s*$  |           # ", translator" at end
+        ^\s*(?:{_CREDIT_WORDS})\s+by\s  |           # "Foreword by ..."
+        \s*\(\s*(?:{_CREDIT_WORDS})\s*\)  |         # "(foreword)"
+        \s*-\s*(?:{_CREDIT_WORDS})\s*$  |           # "- foreword" at end
+        \s*-\s*(?:cover\s+design|cover\s+art)\s*$  |  # "- cover design" at end
+        ^with\s                                     # "with John Smith" at start
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 
 def is_author_role(name: str) -> bool:
     """
     Check if a name string indicates a non-author role.
+
+    Uses word-boundary matching to avoid false positives like "John Translator Smith".
+    Only matches patterns like:
+    - "Name - translator"
+    - "Name (illustrator)"
+    - "Name, editor"
+    - "with Name"
+    - "Foreword by Name"
 
     Args:
         name: Author name string (e.g., "Jasmine Bernhardt - translator")
@@ -74,8 +98,7 @@ def is_author_role(name: str) -> bool:
     Returns:
         True if this is a translator/illustrator/etc., False if primary author
     """
-    name_lower = name.lower()
-    return any(role in name_lower for role in AUTHOR_ROLE_FILTERS)
+    return bool(_AUTHOR_ROLE_PATTERN.search(name))
 
 
 def filter_authors(authors: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -125,11 +148,11 @@ def sanitize_filename(name: str) -> str:
     for char, replacement in NORMALIZE_MAP.items():
         result = result.replace(char, replacement)
 
-    # Remove any remaining illegal characters
-    result = re.sub(ILLEGAL_CHARS, "", result)
+    # Remove any remaining illegal characters (using pre-compiled pattern)
+    result = ILLEGAL_CHARS_PATTERN.sub("", result)
 
-    # Collapse multiple spaces
-    result = re.sub(r"\s+", " ", result)
+    # Collapse multiple spaces (using pre-compiled pattern)
+    result = _WHITESPACE_PATTERN.sub(" ", result)
 
     # Strip leading/trailing whitespace and dots
     result = result.strip(". ")
@@ -155,9 +178,9 @@ def filter_title(name: str, remove_phrases: list[str] | None = None) -> str:
     """
     result = name
 
-    # Apply hardcoded regex patterns
-    for pattern in HARDCODED_REMOVE_PATTERNS:
-        result = re.sub(pattern, "", result, flags=re.IGNORECASE)
+    # Apply pre-compiled hardcoded patterns
+    for pattern in _COMPILED_REMOVE_PATTERNS:
+        result = pattern.sub("", result)
 
     # Apply user-configured phrases (case-insensitive)
     if remove_phrases:
@@ -167,22 +190,39 @@ def filter_title(name: str, remove_phrases: list[str] | None = None) -> str:
             result = re.sub(escaped, "", result, flags=re.IGNORECASE)
 
     # Collapse whitespace before duplicate check
-    result = re.sub(r"\s+", " ", result)
+    result = _WHITESPACE_PATTERN.sub(" ", result)
 
     # Remove duplicate number before vol_XX (e.g., "Title 12 vol_12" -> "Title vol_12")
     # Must happen AFTER phrase removal so "12 <phrase> vol_12" -> "12 vol_12" -> "vol_12"
-    result = re.sub(r"\b(\d+)\s+vol_\1\b", r"vol_\1", result)
+    result = _DUPLICATE_VOL_PATTERN.sub(r"vol_\1", result)
 
-    # Clean up whitespace artifacts
-    result = re.sub(r"\s+", " ", result)  # Collapse multiple spaces
-    result = re.sub(r"\s*-\s*-\s*", " - ", result)  # Fix double dashes
-    result = re.sub(r"^\s*-\s*", "", result)  # Remove leading dash
-    result = re.sub(r"\s*-\s*$", "", result)  # Remove trailing dash
-    result = re.sub(r"\(\s*\)", "", result)  # Remove empty parens
-    result = re.sub(r"\[\s*\]", "", result)  # Remove empty brackets
+    # Clean up whitespace artifacts using pre-compiled patterns
+    result = _WHITESPACE_PATTERN.sub(" ", result)  # Collapse multiple spaces
+    result = _DOUBLE_DASH_PATTERN.sub(" - ", result)  # Fix double dashes
+    result = _LEADING_DASH_PATTERN.sub("", result)  # Remove leading dash
+    result = _TRAILING_DASH_PATTERN.sub("", result)  # Remove trailing dash
+    result = _EMPTY_PARENS_PATTERN.sub("", result)  # Remove empty parens
+    result = _EMPTY_BRACKETS_PATTERN.sub("", result)  # Remove empty brackets
     result = result.strip()
 
     return result
+
+
+@functools.lru_cache(maxsize=1)
+def _get_kakasi() -> Any:
+    """
+    Get cached pykakasi instance.
+
+    Returns None if pykakasi is not installed.
+    Caches the instance to avoid repeated imports and initialization.
+    """
+    try:
+        import pykakasi
+
+        return pykakasi.kakasi()
+    except ImportError:
+        logger.debug("pykakasi not installed, Japanese transliteration unavailable")
+        return None
 
 
 def transliterate_text(
@@ -220,16 +260,13 @@ def transliterate_text(
 
     # Try Japanese transliteration if enabled
     if filters.transliterate_japanese:
-        try:
-            import pykakasi
-
-            kks = pykakasi.kakasi()
-
+        kks = _get_kakasi()
+        if kks is not None:
             # Find non-ASCII segments and transliterate them
             def transliterate_segment(match: re.Match[str]) -> str:
                 segment = match.group(0)
                 # Check author_map first (already done above, but for safety)
-                if segment in filters.author_map:
+                if filters.author_map and segment in filters.author_map:
                     return filters.author_map[segment]
                 # Use pykakasi
                 converted = kks.convert(segment)
@@ -237,12 +274,8 @@ def transliterate_text(
                 # Title case for names
                 return romaji.title()
 
-            # Match sequences of non-ASCII characters
-            result = re.sub(r"[^\x00-\x7F]+", transliterate_segment, result)
-
-        except ImportError:
-            # pykakasi not installed, leave as-is
-            logger.debug("pykakasi not installed, skipping Japanese transliteration")
+            # Match sequences of non-ASCII characters (using pre-compiled pattern)
+            result = _NON_ASCII_PATTERN.sub(transliterate_segment, result)
 
     return result
 

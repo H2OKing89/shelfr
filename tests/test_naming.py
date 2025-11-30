@@ -169,6 +169,20 @@ class TestIsAuthorRole:
         assert is_author_role("John Smith") is False
         assert is_author_role("J.R.R. Tolkien") is False
 
+    def test_no_false_positives_on_names(self):
+        """Test names containing role words are NOT filtered (word boundary check)."""
+        # These should NOT be detected as roles - the word appears in the name
+        assert is_author_role("John Translator Smith") is False
+        assert is_author_role("Editor Johnson") is False
+        assert is_author_role("Illustrator Jane") is False
+        assert is_author_role("Afterword Publishing") is False
+
+    def test_detects_foreword_afterword(self):
+        """Test detecting foreword/afterword credits."""
+        assert is_author_role("Charlie (foreword)") is True
+        assert is_author_role("Bob - afterword") is True
+        assert is_author_role("Foreword by Someone") is True
+
 
 class TestExtractTranslator:
     """Tests for translator extraction."""
