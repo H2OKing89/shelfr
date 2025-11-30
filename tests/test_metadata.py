@@ -710,3 +710,234 @@ class TestRunMediainfoEdgeCases:
             result = run_mediainfo(Path(f.name))
 
         assert result is None
+
+
+class TestInferFictionOrNonfiction:
+    """Tests for _infer_fiction_or_nonfiction function."""
+
+    def test_fantasy_genre_returns_fiction(self):
+        """Fantasy genre should return Fiction (1)."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        data = {"genres": [{"name": "Science Fiction & Fantasy"}, {"name": "Fantasy"}]}
+        assert _infer_fiction_or_nonfiction(data) == 1
+
+    def test_fantasy_overrides_wrong_literature_type(self):
+        """Genre detection should override incorrect literatureType."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        data = {
+            "literatureType": "nonfiction",  # Wrong!
+            "genres": [{"name": "Fantasy"}, {"name": "Action & Adventure"}],
+        }
+        assert _infer_fiction_or_nonfiction(data) == 1
+
+    def test_biography_returns_nonfiction(self):
+        """Biography genre should return Non-Fiction (2)."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        data = {"genres": [{"name": "Biographies & Memoirs"}, {"name": "History"}]}
+        assert _infer_fiction_or_nonfiction(data) == 2
+
+    def test_self_help_returns_nonfiction(self):
+        """Self-help genre should return Non-Fiction (2)."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        data = {"genres": [{"name": "Self-Help"}, {"name": "Personal Development"}]}
+        assert _infer_fiction_or_nonfiction(data) == 2
+
+    def test_historical_fiction_returns_fiction(self):
+        """Historical fiction should be detected as Fiction."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        data = {"genres": [{"name": "Historical Fiction"}, {"name": "Romance"}]}
+        assert _infer_fiction_or_nonfiction(data) == 1
+
+    def test_fallback_to_literature_type_fiction(self):
+        """Falls back to literatureType when genres don't match."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        data = {"literatureType": "fiction", "genres": [{"name": "Obscure Genre"}]}
+        assert _infer_fiction_or_nonfiction(data) == 1
+
+    def test_fallback_to_literature_type_nonfiction(self):
+        """Falls back to literatureType when genres don't match."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        data = {"literatureType": "nonfiction", "genres": [{"name": "Obscure Genre"}]}
+        assert _infer_fiction_or_nonfiction(data) == 2
+
+    def test_empty_genres_defaults_to_fiction(self):
+        """Defaults to Fiction when no genres or literatureType."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        data = {"genres": []}
+        assert _infer_fiction_or_nonfiction(data) == 1
+
+    def test_missing_genres_defaults_to_fiction(self):
+        """Defaults to Fiction when genres key is missing."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        data = {}
+        assert _infer_fiction_or_nonfiction(data) == 1
+
+    def test_science_fiction_not_confused_with_science(self):
+        """'Science fiction' should be detected as fiction, not non-fiction."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        data = {"genres": [{"name": "Science Fiction"}]}
+        assert _infer_fiction_or_nonfiction(data) == 1
+
+    def test_word_boundary_matching(self):
+        """Word boundary matching should avoid false positives."""
+        from mamfast.metadata import _infer_fiction_or_nonfiction
+
+        # "urban" shouldn't match in "Suburban Life"
+        data = {"genres": [{"name": "Suburban Life"}]}
+        # This should fall back to default (fiction) since no keywords match
+        assert _infer_fiction_or_nonfiction(data) == 1
+
+
+class TestGetAudiobookCategory:
+    """Tests for _get_audiobook_category function."""
+
+    def test_fantasy_genre_returns_fantasy_category(self):
+        """Fantasy genre should map to 'Audiobooks - Fantasy'."""
+        from mamfast.metadata import _get_audiobook_category
+
+        mock_settings = MagicMock()
+        mock_settings.categories.audiobook_fiction_map = {
+            "fantasy": "Audiobooks - Fantasy",
+        }
+        mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            data = {"genres": [{"name": "Fantasy"}]}
+            result = _get_audiobook_category(data, is_fiction=True)
+
+        assert result == "Audiobooks - Fantasy"
+
+    def test_biography_genre_returns_biographical_category(self):
+        """Biography genre should map to 'Audiobooks - Biographical'."""
+        from mamfast.metadata import _get_audiobook_category
+
+        mock_settings = MagicMock()
+        mock_settings.categories.audiobook_nonfiction_map = {
+            "biography": "Audiobooks - Biographical",
+        }
+        mock_settings.categories.audiobook_defaults = {"nonfiction": "Audiobooks - General Non-Fic"}
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            data = {"genres": [{"name": "Biography"}]}
+            result = _get_audiobook_category(data, is_fiction=False)
+
+        assert result == "Audiobooks - Biographical"
+
+    def test_first_match_wins(self):
+        """First matching keyword in the map should win."""
+        from mamfast.metadata import _get_audiobook_category
+
+        mock_settings = MagicMock()
+        mock_settings.categories.audiobook_fiction_map = {
+            "horror": "Audiobooks - Horror",
+            "thriller": "Audiobooks - Crime/Thriller",
+        }
+        mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            # Horror should win because it comes first in the map
+            data = {"genres": [{"name": "Horror"}, {"name": "Thriller"}]}
+            result = _get_audiobook_category(data, is_fiction=True)
+
+        assert result == "Audiobooks - Horror"
+
+    def test_fallback_to_default_fiction(self):
+        """Falls back to default when no keywords match."""
+        from mamfast.metadata import _get_audiobook_category
+
+        mock_settings = MagicMock()
+        mock_settings.categories.audiobook_fiction_map = {
+            "fantasy": "Audiobooks - Fantasy",
+        }
+        mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            data = {"genres": [{"name": "Obscure Genre"}]}
+            result = _get_audiobook_category(data, is_fiction=True)
+
+        assert result == "Audiobooks - General Fiction"
+
+    def test_fallback_to_default_nonfiction(self):
+        """Falls back to default when no keywords match."""
+        from mamfast.metadata import _get_audiobook_category
+
+        mock_settings = MagicMock()
+        mock_settings.categories.audiobook_nonfiction_map = {
+            "biography": "Audiobooks - Biographical",
+        }
+        mock_settings.categories.audiobook_defaults = {"nonfiction": "Audiobooks - General Non-Fic"}
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            data = {"genres": [{"name": "Obscure Genre"}]}
+            result = _get_audiobook_category(data, is_fiction=False)
+
+        assert result == "Audiobooks - General Non-Fic"
+
+    def test_empty_map_returns_default(self):
+        """Returns default when category map is empty."""
+        from mamfast.metadata import _get_audiobook_category
+
+        mock_settings = MagicMock()
+        mock_settings.categories.audiobook_fiction_map = {}
+        mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            data = {"genres": [{"name": "Fantasy"}]}
+            result = _get_audiobook_category(data, is_fiction=True)
+
+        assert result == "Audiobooks - General Fiction"
+
+    def test_hardcoded_default_when_not_in_config(self):
+        """Uses hardcoded default when not in config defaults."""
+        from mamfast.metadata import _get_audiobook_category
+
+        mock_settings = MagicMock()
+        mock_settings.categories.audiobook_fiction_map = {}
+        mock_settings.categories.audiobook_defaults = {}  # Empty!
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            data = {"genres": [{"name": "Fantasy"}]}
+            result = _get_audiobook_category(data, is_fiction=True)
+
+        assert result == "Audiobooks - General Fiction"
+
+
+class TestBuildMamJsonCategory:
+    """Tests for category field in build_mam_json."""
+
+    def test_category_field_included(self):
+        """build_mam_json should include category field."""
+        from mamfast.models import AudiobookRelease
+
+        mock_settings = MagicMock()
+        mock_settings.categories.genre_map = {}
+        mock_settings.categories.audiobook_fiction_map = {"fantasy": "Audiobooks - Fantasy"}
+        mock_settings.categories.audiobook_nonfiction_map = {}
+        mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
+
+        release = AudiobookRelease(
+            asin="B09TEST123",
+            title="Test Book",
+        )
+
+        audnex_data = {
+            "title": "Test Book",
+            "genres": [{"name": "Fantasy"}],
+        }
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            result = build_mam_json(release, audnex_data=audnex_data)
+
+        assert "category" in result
+        assert result["category"] == "Audiobooks - Fantasy"
+        assert result["main_cat"] == 1  # Fiction
