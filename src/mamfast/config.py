@@ -429,9 +429,22 @@ def _load_categories(config_dir: Path) -> CategoriesConfig:
         try:
             with open(audiobook_path, encoding="utf-8") as f:
                 data = json.load(f)
-            audiobook_fiction_map = data.get("_fiction", {})
-            audiobook_nonfiction_map = data.get("_nonfiction", {})
-            audiobook_defaults = data.get("_defaults", {})
+            # Filter to ensure string keys and string values only
+            audiobook_fiction_map = {
+                k: v
+                for k, v in data.get("_fiction", {}).items()
+                if isinstance(k, str) and isinstance(v, str)
+            }
+            audiobook_nonfiction_map = {
+                k: v
+                for k, v in data.get("_nonfiction", {}).items()
+                if isinstance(k, str) and isinstance(v, str)
+            }
+            audiobook_defaults = {
+                k: v
+                for k, v in data.get("_defaults", {}).items()
+                if isinstance(k, str) and isinstance(v, str)
+            }
             logger.debug(
                 f"Loaded audiobook category mappings: {len(audiobook_fiction_map)} fiction, "
                 f"{len(audiobook_nonfiction_map)} nonfiction"

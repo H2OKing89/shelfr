@@ -635,13 +635,14 @@ def _infer_fiction_or_nonfiction(audnex_data: dict[str, Any]) -> int:
     all_genre_text = " ".join(genre_names_lower)
 
     # Check for fiction indicators first (higher priority)
+    # Use word boundary matching to avoid false positives (e.g., "urban" in "Suburban")
     for keyword in FICTION_GENRE_KEYWORDS:
-        if keyword in all_genre_text:
+        if re.search(rf"\b{re.escape(keyword)}\b", all_genre_text):
             return 1  # Fiction
 
     # Check for non-fiction indicators
     for keyword in NONFICTION_GENRE_KEYWORDS:
-        if keyword in all_genre_text:
+        if re.search(rf"\b{re.escape(keyword)}\b", all_genre_text):
             return 2  # Non-Fiction
 
     # Fallback to literatureType if genres don't give a clear signal
@@ -662,6 +663,11 @@ def _get_audiobook_category(audnex_data: dict[str, Any], is_fiction: bool) -> st
     Uses config/audiobook_categories.json mappings. Checks genre keywords
     against the appropriate map (fiction or nonfiction) and returns the
     first match. Falls back to default category if no match found.
+
+    Note: Order of keywords in the JSON file matters (first match wins).
+    This relies on Python 3.7+ dict insertion order preservation.
+    More specific keywords (e.g., "urban fantasy") should appear before
+    general ones (e.g., "fantasy") in the JSON file.
 
     Args:
         audnex_data: Audnex API response
@@ -697,8 +703,9 @@ def _get_audiobook_category(audnex_data: dict[str, Any], is_fiction: bool) -> st
     all_genre_text = " ".join(genre_names_lower)
 
     # Check each keyword in the map (order matters - first match wins)
+    # Use word boundary matching to avoid false positives (e.g., "art" in "martial")
     for keyword, category in category_map.items():
-        if keyword in all_genre_text:
+        if re.search(rf"\b{re.escape(keyword)}\b", all_genre_text):
             return category
 
     return default_category
