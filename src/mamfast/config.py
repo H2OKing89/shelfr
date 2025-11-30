@@ -151,10 +151,16 @@ class FiltersConfig:
 
 @dataclass
 class CategoriesConfig:
-    """MAM category mapping (from config/categories.json)."""
+    """MAM category mapping (from config/categories.json and audiobook_categories.json)."""
 
     # Maps lowercase genre names to MAM category IDs
     genre_map: dict[str, int] = field(default_factory=dict)
+    # Maps genre keywords to MAM audiobook category strings (fiction)
+    audiobook_fiction_map: dict[str, str] = field(default_factory=dict)
+    # Maps genre keywords to MAM audiobook category strings (non-fiction)
+    audiobook_nonfiction_map: dict[str, str] = field(default_factory=dict)
+    # Default category strings when no genre match
+    audiobook_defaults: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -388,33 +394,59 @@ def _get_env_int(key: str, default: int) -> int:
 
 def _load_categories(config_dir: Path) -> CategoriesConfig:
     """
-    Load MAM category mapping from config/categories.json.
+    Load MAM category mappings from config/categories.json and audiobook_categories.json.
 
     Args:
         config_dir: Project root directory containing config/
 
     Returns:
-        CategoriesConfig with genre_map populated
+        CategoriesConfig with all category maps populated
     """
+    genre_map: dict[str, int] = {}
+    audiobook_fiction_map: dict[str, str] = {}
+    audiobook_nonfiction_map: dict[str, str] = {}
+    audiobook_defaults: dict[str, str] = {}
+
+    # Load categories.json (genre -> category ID)
     categories_path = config_dir / "config" / "categories.json"
-
-    if not categories_path.exists():
+    if categories_path.exists():
+        try:
+            with open(categories_path, encoding="utf-8") as f:
+                data = json.load(f)
+            # Filter out comment keys (starting with _) and non-int values
+            genre_map = {
+                k: v for k, v in data.items() if not k.startswith("_") and isinstance(v, int)
+            }
+            logger.debug(f"Loaded {len(genre_map)} category mappings from {categories_path}")
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to load categories.json: {e}")
+    else:
         logger.warning(f"categories.json not found at {categories_path}, using empty map")
-        return CategoriesConfig()
 
-    try:
-        with open(categories_path, encoding="utf-8") as f:
-            data = json.load(f)
+    # Load audiobook_categories.json (genre -> audiobook category string)
+    audiobook_path = config_dir / "config" / "audiobook_categories.json"
+    if audiobook_path.exists():
+        try:
+            with open(audiobook_path, encoding="utf-8") as f:
+                data = json.load(f)
+            audiobook_fiction_map = data.get("_fiction", {})
+            audiobook_nonfiction_map = data.get("_nonfiction", {})
+            audiobook_defaults = data.get("_defaults", {})
+            logger.debug(
+                f"Loaded audiobook category mappings: {len(audiobook_fiction_map)} fiction, "
+                f"{len(audiobook_nonfiction_map)} nonfiction"
+            )
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to load audiobook_categories.json: {e}")
+    else:
+        logger.debug(f"audiobook_categories.json not found at {audiobook_path}, using defaults")
 
-        # Filter out comment keys (starting with _) and non-int values
-        genre_map = {k: v for k, v in data.items() if not k.startswith("_") and isinstance(v, int)}
-
-        logger.debug(f"Loaded {len(genre_map)} category mappings from {categories_path}")
-        return CategoriesConfig(genre_map=genre_map)
-
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning(f"Failed to load categories.json: {e}")
-        return CategoriesConfig()
+    return CategoriesConfig(
+        genre_map=genre_map,
+        audiobook_fiction_map=audiobook_fiction_map,
+        audiobook_nonfiction_map=audiobook_nonfiction_map,
+        audiobook_defaults=audiobook_defaults,
+    )
 
 
 def load_yaml_config(config_path: Path) -> dict[str, Any]:
