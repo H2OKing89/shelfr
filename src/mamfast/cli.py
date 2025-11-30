@@ -7,6 +7,22 @@ import sys
 from pathlib import Path
 
 from mamfast import __version__
+from mamfast.console import (
+    console,
+    fatal_error,
+    print_config_section,
+    print_directory_status,
+    print_dry_run,
+    print_error,
+    print_header,
+    print_info,
+    print_release_table,
+    print_status_table,
+    print_step,
+    print_success,
+    print_summary,
+    print_warning,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -170,6 +186,7 @@ Examples:
     run_parser = subparsers.add_parser(
         "run",
         help="Run full pipeline: scan → discover → prepare → metadata → torrent → upload",
+        epilog="Tip: Use 'mamfast --dry-run run' to preview without making changes.",
     )
     run_parser.add_argument(
         "--skip-scan",
@@ -214,50 +231,51 @@ def cmd_scan(args: argparse.Namespace) -> int:
     from mamfast.config import reload_settings
     from mamfast.libation import run_scan
 
-    print("🔍 Running Libation scan...")
+    print_header("Libation Scan", dry_run=args.dry_run)
 
     try:
         reload_settings(config_file=args.config)
     except FileNotFoundError as e:
-        print(f"❌ Config error: {e}")
+        fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
     if args.dry_run:
-        print("  [DRY RUN] Would execute: docker exec Libation /libation/LibationCli scan")
+        print_dry_run("Would execute: docker exec Libation /libation/LibationCli scan")
         if args.liberate:
-            print("  [DRY RUN] Would execute: docker exec Libation /libation/LibationCli liberate")
+            print_dry_run("Would execute: docker exec Libation /libation/LibationCli liberate")
         return 0
 
+    print_step(1, 2 if args.liberate else 1, "Running scan")
     result = run_scan()
 
-    # Display output
     if result.stdout:
-        print(result.stdout)
-    if result.stderr:
-        print(result.stderr)
+        for line in result.stdout.strip().split("\n"):
+            if line.strip():
+                print_info(line.strip())
 
     if result.success:
-        print("✅ Scan complete")
+        print_success("Scan complete")
     else:
-        print(f"❌ Scan failed (exit code: {result.returncode})")
+        print_error(f"Scan failed (exit code: {result.returncode})")
         return result.returncode
 
-    # Optionally run liberate to download new books
+    # Optionally run liberate
     if args.liberate:
         from mamfast.libation import run_liberate
 
-        print("\n📥 Running Libation liberate (downloading new books)...")
+        console.print()
+        print_step(2, 2, "Running liberate (downloading new books)")
         liberate_result = run_liberate()
 
         if liberate_result.stdout:
-            print(liberate_result.stdout)
-        if liberate_result.stderr:
-            print(liberate_result.stderr)
+            for line in liberate_result.stdout.strip().split("\n"):
+                if line.strip():
+                    print_info(line.strip())
 
         if liberate_result.success:
-            print("✅ Liberate complete")
+            print_success("Liberate complete")
         else:
-            print(f"❌ Liberate failed (exit code: {liberate_result.returncode})")
+            print_error(f"Liberate failed (exit code: {liberate_result.returncode})")
             return liberate_result.returncode
 
     return 0
@@ -266,27 +284,26 @@ def cmd_scan(args: argparse.Namespace) -> int:
 def cmd_discover(args: argparse.Namespace) -> int:
     """Discover new audiobooks."""
     from mamfast.config import reload_settings
-    from mamfast.discovery import get_new_releases, print_release_summary, scan_library
+    from mamfast.discovery import get_new_releases, scan_library
+    from mamfast.logging_setup import set_console_quiet
 
-    print("📚 Discovering audiobooks...")
+    set_console_quiet(True)
+
+    show_all = getattr(args, "all", False)
+    title = "All Releases" if show_all else "New Releases"
+    print_header(f"Discover {title}")
 
     try:
         reload_settings(config_file=args.config)
     except FileNotFoundError as e:
-        print(f"❌ Config error: {e}")
+        set_console_quiet(False)
+        fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
-    # Show all or just new?
-    show_all = getattr(args, "all", False)
+    releases = scan_library() if show_all else get_new_releases()
 
-    if show_all:
-        releases = scan_library()
-        print("\nAll releases in library:")
-    else:
-        releases = get_new_releases()
-        print("\nNew (unprocessed) releases:")
-
-    print_release_summary(releases)
+    set_console_quiet(False)
+    print_release_table(releases, title=title)
     return 0
 
 
@@ -295,39 +312,43 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     from mamfast.config import reload_settings
     from mamfast.discovery import get_new_releases, get_release_by_asin
     from mamfast.hardlinker import stage_release
+    from mamfast.logging_setup import set_console_quiet
 
-    print("📦 Preparing audiobooks for upload...")
+    set_console_quiet(True)
+    print_header("Prepare Releases", dry_run=args.dry_run)
 
     try:
         settings = reload_settings(config_file=args.config)
     except FileNotFoundError as e:
-        print(f"❌ Config error: {e}")
+        set_console_quiet(False)
+        fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
     # Get releases to process
     if args.asin:
         release = get_release_by_asin(args.asin)
         if not release:
-            print(f"❌ Release not found with ASIN: {args.asin}")
+            set_console_quiet(False)
+            fatal_error(f"Release not found with ASIN: {args.asin}")
             return 1
         releases = [release]
     else:
         releases = get_new_releases()
 
     if not releases:
-        print("✅ No new releases to prepare")
+        set_console_quiet(False)
+        console.print("[success]✓[/] No new releases to prepare")
         return 0
 
-    print(f"Found {len(releases)} release(s) to stage\n")
+    console.print(f"Found [highlight]{len(releases)}[/] release(s) to stage\n")
 
     staged = 0
     failed = 0
 
     for release in releases:
-        print(f"  → {release.display_name}")
+        console.print(f"[dim]→[/] {release.display_name}")
 
         if args.dry_run:
-            # Hardlinks go to seed_root, with filtered folder name
             from mamfast.utils.naming import filter_title, transliterate_text
 
             if release.source_dir:
@@ -336,22 +357,23 @@ def cmd_prepare(args: argparse.Namespace) -> int:
                 filtered_name = transliterate_text(filtered_name, settings.filters)
                 seed_path = settings.paths.seed_root / filtered_name
                 if original_name != filtered_name:
-                    print(f"    [DRY RUN] Original: {original_name}")
-                    print(f"    [DRY RUN] Filtered: {filtered_name}")
+                    print_info(f"Original: {original_name}")
+                    print_info(f"Filtered: {filtered_name}")
             else:
                 seed_path = settings.paths.seed_root / "unknown"
-            print(f"    [DRY RUN] Would hardlink to: {seed_path}")
+            print_dry_run(f"Would hardlink to: {seed_path}")
             continue
 
         try:
             staging_dir = stage_release(release)
-            print(f"    ✅ Hardlinked to: {staging_dir}")
+            print_success(f"Staged: {staging_dir.name}")
             staged += 1
         except Exception as e:
-            print(f"    ❌ Failed: {e}")
+            print_error(f"Failed: {e}")
             failed += 1
 
-    print(f"\n📊 Staged: {staged}, Failed: {failed}")
+    set_console_quiet(False)
+    print_summary(staged, failed)
     return 0 if failed == 0 else 1
 
 
@@ -359,6 +381,7 @@ def cmd_metadata(args: argparse.Namespace) -> int:
     """Fetch metadata."""
     from mamfast.config import reload_settings
     from mamfast.discovery import extract_asin_from_name
+    from mamfast.logging_setup import set_console_quiet
     from mamfast.metadata import (
         build_mam_json,
         fetch_all_metadata,
@@ -366,44 +389,45 @@ def cmd_metadata(args: argparse.Namespace) -> int:
     )
     from mamfast.models import AudiobookRelease
 
-    print("📋 Fetching metadata...")
+    set_console_quiet(True)
+    print_header("Fetch Metadata", dry_run=args.dry_run)
 
     try:
         settings = reload_settings(config_file=args.config)
     except FileNotFoundError as e:
-        print(f"❌ Config error: {e}")
+        set_console_quiet(False)
+        fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
-    # Torrent output directory for MAM JSON files
     torrent_output = settings.paths.torrent_output
 
-    # If a specific path is provided, use that directly
+    # Determine which directories to process
     if args.path:
         target_dir = Path(args.path).resolve()
         if not target_dir.exists():
-            print(f"❌ Path does not exist: {target_dir}")
+            set_console_quiet(False)
+            fatal_error(f"Path does not exist: {target_dir}")
             return 1
         if not target_dir.is_dir():
-            print(f"❌ Path is not a directory: {target_dir}")
+            set_console_quiet(False)
+            fatal_error(f"Path is not a directory: {target_dir}")
             return 1
         staged_dirs = [target_dir]
-        print(f"Targeting: {target_dir.name}\n")
+        console.print(f"Target: [highlight]{target_dir.name}[/]\n")
     elif args.asin:
-        # Find specific release by ASIN in seed_root
         seed_root = settings.paths.seed_root
         if not seed_root.exists():
-            print(f"⚠️ Seed directory does not exist: {seed_root}")
+            set_console_quiet(False)
+            fatal_error(f"Seed directory does not exist: {seed_root}")
             return 1
 
         staged_dirs = []
         for d in seed_root.iterdir():
             if not d.is_dir():
                 continue
-            # Check directory name
             if args.asin in d.name:
                 staged_dirs.append(d)
                 continue
-            # Check files inside the directory for ASIN
             for f in d.iterdir():
                 asin = extract_asin_from_name(f.name)
                 if asin == args.asin:
@@ -411,33 +435,35 @@ def cmd_metadata(args: argparse.Namespace) -> int:
                     break
 
         if not staged_dirs:
-            print(f"❌ No staged directory found for ASIN: {args.asin}")
+            set_console_quiet(False)
+            fatal_error(f"No staged directory found for ASIN: {args.asin}")
             return 1
     else:
-        # Default: process all staged releases in seed_root
         seed_root = settings.paths.seed_root
         if not seed_root.exists():
-            print(f"⚠️ Seed directory does not exist yet: {seed_root}")
-            print("  Run 'mamfast prepare' first to stage releases.")
+            set_console_quiet(False)
+            print_warning(f"Seed directory does not exist yet: {seed_root}")
+            print_info("Run 'mamfast prepare' first to stage releases.")
             return 0
         staged_dirs = [d for d in seed_root.iterdir() if d.is_dir()]
 
     if not staged_dirs:
-        print("✅ No releases to process")
+        set_console_quiet(False)
+        console.print("[success]✓[/] No releases to process")
         return 0
 
     if not args.path:
-        print(f"Found {len(staged_dirs)} staged release(s)\n")
+        console.print(f"Found [highlight]{len(staged_dirs)}[/] staged release(s)\n")
 
     success = 0
     for staging_dir in staged_dirs:
-        print(f"  → {staging_dir.name}")
+        console.print(f"[dim]→[/] {staging_dir.name}")
 
-        # Find m4b file first
+        # Find m4b file
         m4b_files = list(staging_dir.glob("*.m4b"))
         m4b_path = m4b_files[0] if m4b_files else None
 
-        # Extract ASIN from m4b filename (has ASIN), fallback to dir name
+        # Extract ASIN
         asin = None
         if m4b_path:
             asin = extract_asin_from_name(m4b_path.name)
@@ -445,9 +471,9 @@ def cmd_metadata(args: argparse.Namespace) -> int:
             asin = extract_asin_from_name(staging_dir.name)
 
         if args.dry_run:
-            print(f"    [DRY RUN] Would fetch Audnex for ASIN: {asin}")
-            print(f"    [DRY RUN] Would run MediaInfo on: {m4b_path}")
-            print(f"    [DRY RUN] Would generate MAM JSON in: {torrent_output}")
+            print_dry_run(f"Would fetch Audnex for ASIN: {asin}")
+            print_dry_run(f"Would run MediaInfo on: {m4b_path}")
+            print_dry_run(f"Would generate MAM JSON in: {torrent_output}")
             continue
 
         audnex_data, mediainfo_data = fetch_all_metadata(
@@ -457,17 +483,16 @@ def cmd_metadata(args: argparse.Namespace) -> int:
         )
 
         if audnex_data:
-            print("    ✅ Audnex: audnex.json")
+            print_success("Audnex metadata fetched")
         else:
-            print("    ⚠️ Audnex: not found")
+            print_warning("Audnex: not found")
 
         if mediainfo_data:
-            print("    ✅ MediaInfo: mediainfo.json")
+            print_success("MediaInfo extracted")
         else:
-            print("    ⚠️ MediaInfo: failed")
+            print_warning("MediaInfo: failed")
 
         # Build and save MAM JSON
-        # Create a temporary release object for building the JSON
         release = AudiobookRelease(
             asin=asin,
             staging_dir=staging_dir,
@@ -481,82 +506,90 @@ def cmd_metadata(args: argparse.Namespace) -> int:
             json_name = f"{staging_dir.name}.json"
             json_path = torrent_output / json_name
             save_mam_json(mam_data, json_path)
-            print(f"    ✅ MAM JSON: {json_name}")
+            print_success(f"MAM JSON: {json_name}")
         else:
-            print("    ⚠️ MAM JSON: no title available")
+            print_warning("MAM JSON: no title available")
 
         success += 1
 
-    print(f"\n📊 Processed: {success}/{len(staged_dirs)}")
+    set_console_quiet(False)
+    print_summary(success, len(staged_dirs) - success)
     return 0
 
 
 def cmd_torrent(args: argparse.Namespace) -> int:
     """Create torrents."""
     from mamfast.config import reload_settings
+    from mamfast.logging_setup import set_console_quiet
     from mamfast.mkbrr import check_docker_available, create_torrent
 
-    print("🧲 Creating torrents...")
+    set_console_quiet(True)
+    print_header("Create Torrents", dry_run=args.dry_run)
 
     try:
         settings = reload_settings(config_file=args.config)
     except FileNotFoundError as e:
-        print(f"❌ Config error: {e}")
+        set_console_quiet(False)
+        fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
-    # Check Docker is available
+    # Check Docker
     if not check_docker_available():
-        print("❌ Docker is not available")
+        set_console_quiet(False)
+        fatal_error("Docker is not available", "Ensure Docker is installed and running")
         return 1
 
-    # Determine which directories to process
+    # Determine directories
     if args.path:
-        # Specific path provided
         target_dir = Path(args.path).resolve()
         if not target_dir.exists():
-            print(f"❌ Path does not exist: {target_dir}")
+            set_console_quiet(False)
+            fatal_error(f"Path does not exist: {target_dir}")
             return 1
         if not target_dir.is_dir():
-            print(f"❌ Path is not a directory: {target_dir}")
+            set_console_quiet(False)
+            fatal_error(f"Path is not a directory: {target_dir}")
             return 1
         staged_dirs = [target_dir]
-        print(f"Targeting: {target_dir.name}\n")
+        console.print(f"Target: [highlight]{target_dir.name}[/]\n")
     elif args.asin:
-        # Find by ASIN in seed_root
         seed_root = settings.paths.seed_root
         if not seed_root.exists():
-            print(f"❌ Seed directory does not exist: {seed_root}")
+            set_console_quiet(False)
+            fatal_error(f"Seed directory does not exist: {seed_root}")
             return 1
         staged_dirs = [d for d in seed_root.iterdir() if d.is_dir() and args.asin in d.name]
         if not staged_dirs:
-            print(f"❌ No staged directory found for ASIN: {args.asin}")
+            set_console_quiet(False)
+            fatal_error(f"No staged directory found for ASIN: {args.asin}")
             return 1
     else:
-        # Default: all staged releases in seed_root
         seed_root = settings.paths.seed_root
         if not seed_root.exists():
-            print(f"⚠️ Seed directory does not exist yet: {seed_root}")
-            print("  Run 'mamfast prepare' first to stage releases.")
+            set_console_quiet(False)
+            print_warning(f"Seed directory does not exist yet: {seed_root}")
+            print_info("Run 'mamfast prepare' first to stage releases.")
             return 0
         staged_dirs = [d for d in seed_root.iterdir() if d.is_dir()]
 
     if not staged_dirs:
-        print("✅ No releases to process")
+        set_console_quiet(False)
+        console.print("[success]✓[/] No releases to process")
         return 0
 
     preset = args.preset or settings.mkbrr.preset
-    print(f"Using preset: {preset}")
+    console.print(f"Preset: [highlight]{preset}[/]")
     if not args.path:
-        print(f"Found {len(staged_dirs)} staged release(s)\n")
+        console.print(f"Found [highlight]{len(staged_dirs)}[/] staged release(s)\n")
 
     success = 0
     failed = 0
 
     for staging_dir in staged_dirs:
-        print(f"  → {staging_dir.name}")
+        console.print(f"[dim]→[/] {staging_dir.name}")
 
         if args.dry_run:
-            print(f"    [DRY RUN] Would create torrent with preset: {preset}")
+            print_dry_run(f"Would create torrent with preset: {preset}")
             continue
 
         result = create_torrent(
@@ -565,13 +598,14 @@ def cmd_torrent(args: argparse.Namespace) -> int:
         )
 
         if result.success:
-            print(f"    ✅ Created: {result.torrent_path}")
+            print_success(f"Created: {result.torrent_path.name if result.torrent_path else 'ok'}")
             success += 1
         else:
-            print(f"    ❌ Failed: {result.error}")
+            print_error(f"Failed: {result.error}")
             failed += 1
 
-    print(f"\n📊 Created: {success}, Failed: {failed}")
+    set_console_quiet(False)
+    print_summary(success, failed)
     return 0 if failed == 0 else 1
 
 
@@ -580,51 +614,57 @@ def cmd_upload(args: argparse.Namespace) -> int:
     from mamfast.config import reload_settings
     from mamfast.qbittorrent import test_connection, upload_torrent
 
-    print("⬆️  Uploading to qBittorrent...")
+    print_header("Upload Torrents", dry_run=args.dry_run)
 
     try:
         settings = reload_settings(config_file=args.config)
     except FileNotFoundError as e:
-        print(f"❌ Config error: {e}")
+        fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
+
+    # Quiet mode for clean Rich UI
+    from mamfast.logging_setup import set_console_quiet
+
+    set_console_quiet(True)
 
     # Test connection
-    print(f"Connecting to: {settings.qbittorrent.host}")
+    console.print(f"Connecting to [highlight]{settings.qbittorrent.host}[/]")
     if not test_connection():
-        print("❌ Cannot connect to qBittorrent")
+        set_console_quiet(False)
+        fatal_error("Cannot connect to qBittorrent", "Check host and credentials in config")
         return 1
-    print("✅ Connected\n")
+    print_success("Connected to qBittorrent\n")
 
-    # Find torrent files
+    # Find torrents
     torrent_dir = settings.paths.torrent_output
     if not torrent_dir.exists():
-        print(f"❌ Torrent directory does not exist: {torrent_dir}")
+        set_console_quiet(False)
+        fatal_error(f"Torrent directory does not exist: {torrent_dir}")
         return 1
 
     torrent_files = list(torrent_dir.glob("*.torrent"))
 
     if not torrent_files:
-        print("✅ No torrent files to upload")
+        set_console_quiet(False)
+        console.print("[success]✓[/] No torrent files to upload")
         return 0
 
-    print(f"Found {len(torrent_files)} torrent file(s)\n")
+    console.print(f"Found [highlight]{len(torrent_files)}[/] torrent file(s)\n")
 
     success = 0
     failed = 0
 
     for torrent_path in torrent_files:
-        print(f"  → {torrent_path.name}")
+        console.print(f"[dim]→[/] {torrent_path.name}")
 
-        # Determine save path (staging dir with matching name)
+        # Determine save path
         staging_name = torrent_path.stem
         save_path = settings.paths.library_root / staging_name
-
         if not save_path.exists():
-            # Fallback to seed root
             save_path = settings.paths.seed_root / staging_name
 
         if args.dry_run:
-            print(f"    [DRY RUN] Would upload with save_path: {save_path}")
+            print_dry_run(f"Would upload with save_path: {save_path}")
             continue
 
         result = upload_torrent(
@@ -634,27 +674,33 @@ def cmd_upload(args: argparse.Namespace) -> int:
         )
 
         if result:
-            print("    ✅ Uploaded")
+            print_success("Uploaded")
             success += 1
         else:
-            print("    ❌ Failed")
+            print_error("Failed to upload")
             failed += 1
 
-    print(f"\n📊 Uploaded: {success}, Failed: {failed}")
+    set_console_quiet(False)
+    print_summary(success, failed)
     return 0 if failed == 0 else 1
 
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Run full pipeline."""
     from mamfast.config import reload_settings
+    from mamfast.logging_setup import set_console_quiet
     from mamfast.workflow import full_run
 
-    print("🚀 Running full pipeline...")
+    # Quiet mode for clean Rich UI (suppress INFO logs on console)
+    set_console_quiet(True)
+
+    print_header("Full Pipeline", dry_run=args.dry_run)
 
     try:
         reload_settings(config_file=args.config)
     except FileNotFoundError as e:
-        print(f"❌ Config error: {e}")
+        set_console_quiet(False)
+        fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
     result = full_run(
@@ -662,6 +708,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         skip_metadata=args.skip_metadata,
         dry_run=args.dry_run,
     )
+
+    set_console_quiet(False)
 
     if result.failed > 0:
         return 1
@@ -673,62 +721,52 @@ def cmd_status(args: argparse.Namespace) -> int:
     from mamfast.config import reload_settings
     from mamfast.utils.state import get_stats, load_state
 
-    print("📊 MAMFast Status\n")
+    print_header("Status")
 
     try:
         settings = reload_settings(config_file=args.config)
     except FileNotFoundError as e:
-        print(f"❌ Config error: {e}")
+        fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
-    # State stats
+    # Stats
     stats = get_stats()
-    print(f"Processed releases: {stats['processed']}")
-    print(f"Failed releases: {stats['failed']}")
+    console.print("[title]Processing Stats[/]")
+    console.print(f"  Processed: [success]{stats['processed']}[/]")
+    console.print(f"  Failed: [error]{stats['failed']}[/]")
 
-    # Check directories
-    print("\n📁 Directories:")
+    # Directories
+    console.print("\n[title]Directories[/]")
 
     lib_root = settings.paths.library_root
     if lib_root.exists():
         book_count = len([d for d in lib_root.iterdir() if d.is_dir()])
-        print(f"  ✅ Library: {lib_root} ({book_count} folders)")
+        print_directory_status("Library", lib_root, True, book_count)
     else:
-        print(f"  ❌ Library: {lib_root} (not found)")
+        print_directory_status("Library", lib_root, False)
+
+    seed_root = settings.paths.seed_root
+    if seed_root.exists():
+        seed_count = len([d for d in seed_root.iterdir() if d.is_dir()])
+        print_directory_status("Seed Root", seed_root, True, seed_count)
+    else:
+        print_directory_status("Seed Root", seed_root, False)
 
     torrent_out = settings.paths.torrent_output
     if torrent_out.exists():
         torrent_count = len(list(torrent_out.glob("*.torrent")))
-        print(f"  ✅ Torrents: {torrent_out} ({torrent_count} files)")
+        print_directory_status("Torrents", torrent_out, True, torrent_count)
     else:
-        print(f"  ⚠️  Torrents: {torrent_out} (not found)")
+        print_directory_status("Torrents", torrent_out, False)
 
-    # Show recent processed
+    # Recent processed/failed
     state = load_state()
     processed = state.get("processed", {})
-
-    if processed:
-        print("\n📚 Recently processed:")
-        # Sort by processed_at, show last 5
-        items = sorted(
-            processed.items(),
-            key=lambda x: x[1].get("processed_at", ""),
-            reverse=True,
-        )[:5]
-
-        for asin, info in items:
-            title = info.get("title", "Unknown")
-            author = info.get("author", "Unknown")
-            print(f"  • {author} - {title} ({asin})")
-
-    # Show failed
     failed = state.get("failed", {})
-    if failed:
-        print("\n⚠️  Failed releases:")
-        for _asin, info in list(failed.items())[:5]:
-            title = info.get("title", "Unknown")
-            error = info.get("error", "Unknown error")
-            print(f"  • {title}: {error}")
+
+    if processed or failed:
+        console.print()
+        print_status_table(processed, failed, limit=5)
 
     return 0
 
@@ -737,43 +775,67 @@ def cmd_config(args: argparse.Namespace) -> int:
     """Print loaded configuration."""
     from mamfast.config import reload_settings
 
+    print_header("Configuration")
+
     try:
         settings = reload_settings(config_file=args.config)
-        print("✅ Configuration loaded successfully\n")
 
-        print("=== Environment ===")
-        print(f"  Libation container: {settings.libation_container}")
-        print(f"  Docker binary: {settings.docker_bin}")
-        print(f"  Target UID:GID: {settings.target_uid}:{settings.target_gid}")
-        print(f"  Environment: {settings.env}")
-        print(f"  Log level: {settings.log_level}")
+        print_config_section(
+            "Environment",
+            {
+                "Libation container": settings.libation_container,
+                "Docker binary": settings.docker_bin,
+                "Target UID:GID": f"{settings.target_uid}:{settings.target_gid}",
+                "Environment": settings.env,
+                "Log level": settings.log_level,
+            },
+        )
 
-        print("\n=== Paths ===")
-        print(f"  Library root: {settings.paths.library_root}")
-        print(f"  Torrent output: {settings.paths.torrent_output}")
-        print(f"  Seed root: {settings.paths.seed_root}")
+        print_config_section(
+            "Paths",
+            {
+                "Library root": settings.paths.library_root,
+                "Seed root": settings.paths.seed_root,
+                "Torrent output": settings.paths.torrent_output,
+            },
+        )
 
-        print("\n=== mkbrr ===")
-        print(f"  Image: {settings.mkbrr.image}")
-        print(f"  Preset: {settings.mkbrr.preset}")
-        print(f"  Host data root: {settings.mkbrr.host_data_root}")
+        print_config_section(
+            "mkbrr",
+            {
+                "Image": settings.mkbrr.image,
+                "Preset": settings.mkbrr.preset,
+                "Host data root": settings.mkbrr.host_data_root,
+            },
+        )
 
-        print("\n=== qBittorrent ===")
-        print(f"  Host: {settings.qbittorrent.host}")
-        print(f"  Category: {settings.qbittorrent.category}")
-        print(f"  Tags: {settings.qbittorrent.tags}")
+        print_config_section(
+            "qBittorrent",
+            {
+                "Host": settings.qbittorrent.host,
+                "Category": settings.qbittorrent.category,
+                "Tags": ", ".join(settings.qbittorrent.tags),
+                "Auto TMM": settings.qbittorrent.auto_tmm,
+                "Save path": settings.qbittorrent.save_path or "(default)",
+            },
+        )
 
-        print("\n=== MAM ===")
-        print(f"  Max filename length: {settings.mam.max_filename_length}")
-        print(f"  Allowed extensions: {settings.mam.allowed_extensions}")
+        print_config_section(
+            "MAM",
+            {
+                "Max filename length": settings.mam.max_filename_length,
+                "Allowed extensions": ", ".join(settings.mam.allowed_extensions),
+            },
+        )
 
+        console.print("\n[success]✓[/] Configuration loaded successfully")
         return 0
 
     except FileNotFoundError as e:
-        print(f"❌ Config file not found: {e}")
+        fatal_error(f"Config file not found: {e}")
         return 1
     except Exception as e:
-        print(f"❌ Error loading config: {e}")
+        fatal_error(f"Error loading config: {e}")
         return 1
 
 
@@ -782,28 +844,29 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    # Setup logging
+    # Setup logging (file only, console output handled by Rich)
     from mamfast.config import reload_settings
     from mamfast.logging_setup import setup_logging
 
     log_level = "DEBUG" if args.verbose else "INFO"
 
-    # Try to get log file from config, but don't fail if config isn't available
+    # Get log file from config
     log_file = None
     try:
         settings = reload_settings(config_file=args.config)
         log_file = settings.paths.log_file
     except Exception:
-        pass  # Config not available yet, just use console logging
+        pass
 
-    setup_logging(log_level=log_level, log_file=log_file)
+    # Use non-rich console for logging (file-focused)
+    setup_logging(log_level=log_level, log_file=log_file, rich_console=False)
 
-    # No command given - show help
+    # No command - show help
     if args.command is None:
         parser.print_help()
         return 0
 
-    # Run the command
+    # Run command
     result: int = args.func(args)
     return result
 

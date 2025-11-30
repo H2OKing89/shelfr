@@ -20,16 +20,17 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
-)
-
 from mamfast.config import get_settings
+from mamfast.console import (
+    console,
+    print_dry_run,
+    print_error,
+    print_info,
+    print_step,
+    print_success,
+    print_summary,
+    print_warning,
+)
 from mamfast.hardlinker import stage_release
 from mamfast.libation import run_liberate, run_scan
 from mamfast.metadata import fetch_metadata, generate_mam_json_for_release
@@ -173,7 +174,7 @@ def process_single_release(
                 )
             )
 
-    logger.info(f"Processing: {release.display_name}")
+    logger.debug(f"Processing: {release.display_name}")
 
     try:
         # ---------------------------------------------------------------------
@@ -182,6 +183,7 @@ def process_single_release(
         notify(ProgressStage.STAGING, "Creating hardlinks...")
         logger.debug("Step 1: Staging release")
         staging_dir = stage_release(release)
+        print_success(f"Staged to {staging_dir.name}")
         release.status = ReleaseStatus.STAGED
 
         # ---------------------------------------------------------------------
@@ -196,6 +198,10 @@ def process_single_release(
             )
             release.audnex_metadata = audnex_data
             release.mediainfo_data = mediainfo_data
+            if audnex_data:
+                print_success(f"Audnex metadata for {release.asin}")
+            if mediainfo_data:
+                print_success("MediaInfo extracted")
             release.status = ReleaseStatus.METADATA_FETCHED
 
         # ---------------------------------------------------------------------
@@ -225,6 +231,8 @@ def process_single_release(
 
         release.torrent_path = mkbrr_result.torrent_path
         release.status = ReleaseStatus.TORRENT_CREATED
+        if mkbrr_result.torrent_path:
+            print_success(f"Torrent: {mkbrr_result.torrent_path.name}")
 
         # ---------------------------------------------------------------------
         # 3b. Generate MAM fast-upload JSON (saved with torrent file)
@@ -235,7 +243,7 @@ def process_single_release(
                 release, output_dir=settings.paths.torrent_output
             )
             if mam_json_path:
-                logger.info(f"MAM JSON saved: {mam_json_path.name}")
+                print_success(f"MAM JSON: {mam_json_path.name}")
 
         # ---------------------------------------------------------------------
         # 4. Upload to qBittorrent
@@ -286,6 +294,7 @@ def process_single_release(
             )
 
         release.status = ReleaseStatus.UPLOADED
+        print_success("Uploaded to qBittorrent")
 
         # ---------------------------------------------------------------------
         # 5. Mark as complete
@@ -295,7 +304,6 @@ def process_single_release(
 
         duration = time.time() - start_time
         notify(ProgressStage.COMPLETE, f"Completed in {duration:.1f}s")
-        logger.info(f"✅ Completed: {release.display_name} ({duration:.1f}s)")
 
         return ProcessingResult(
             release=release,
@@ -309,7 +317,8 @@ def process_single_release(
         error_msg = str(e)
 
         notify(ProgressStage.FAILED, error_msg, error=error_msg)
-        logger.error(f"❌ Failed: {release.display_name} - {error_msg}")
+        print_error(f"Failed: {error_msg}")
+        logger.debug(f"Full error for {release.display_name}: {error_msg}")
 
         release.status = ReleaseStatus.FAILED
         release.error = error_msg
@@ -364,25 +373,27 @@ def full_run(
     # -------------------------------------------------------------------------
     if not skip_scan:
         notify(ProgressStage.SCAN, "Running Libation scan...")
-        logger.info("Step 1: Running Libation scan...")
+        print_step(1, 4, "Libation Scan")
         if not dry_run:
             scan_result = run_scan()
             if not scan_result.success:
-                logger.warning(f"Libation scan returned non-zero: {scan_result.returncode}")
+                print_warning(f"Libation scan returned non-zero: {scan_result.returncode}")
 
-            # Run liberate to download new books
-            logger.info("Step 1b: Running Libation liberate (downloading new books)...")
+            print_info("Running liberate (downloading new books)...")
             liberate_result = run_liberate()
             if not liberate_result.success:
-                logger.warning(f"Libation liberate returned non-zero: {liberate_result.returncode}")
+                print_warning(f"Libation liberate returned non-zero: {liberate_result.returncode}")
+            else:
+                print_success("Libation scan complete")
         else:
-            logger.info("  [DRY RUN] Would run Libation scan + liberate")
+            print_dry_run("Would run Libation scan + liberate")
 
     # -------------------------------------------------------------------------
     # 2. Discover new releases
     # -------------------------------------------------------------------------
     notify(ProgressStage.DISCOVERY, "Discovering new releases...")
-    logger.info("Step 2: Discovering new releases...")
+    step_num = 1 if skip_scan else 2
+    print_step(step_num, 4 if not skip_scan else 3, "Discovering Releases")
 
     # TODO: Replace with actual discovery once implemented
     # For now, return empty results
@@ -399,7 +410,7 @@ def full_run(
         releases = []
 
     if not releases:
-        logger.info("No new releases found")
+        console.print("[dim]No new releases found[/]")
         return PipelineResult(
             total=0,
             successful=0,
@@ -409,7 +420,7 @@ def full_run(
             duration_seconds=time.time() - start_time,
         )
 
-    logger.info(f"Found {len(releases)} new release(s)")
+    console.print(f"Found [highlight]{len(releases)}[/] new release(s)\n")
 
     # -------------------------------------------------------------------------
     # 3. Process each release
@@ -418,81 +429,54 @@ def full_run(
     skipped = 0
     settings = get_settings()
 
-    # Create progress bar for processing releases
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        TextColumn("({task.completed}/{task.total})"),
-        TimeElapsedColumn(),
-        TimeRemainingColumn(),
-        transient=False,
-    ) as progress:
-        task = progress.add_task(
-            "[cyan]Processing releases...", total=len(releases), visible=not dry_run
+    # Process each release
+    for i, release in enumerate(releases, 1):
+        console.print(f"\n[bold cyan][{i}/{len(releases)}][/] {release.display_name}")
+
+        # Check if already processed
+        identifier = release.asin or str(release.source_dir)
+        if identifier and is_processed(identifier):
+            print_info("Skipping (already processed)")
+            skipped += 1
+            continue
+
+        if dry_run:
+            # Show detailed dry-run info for each step
+            print_dry_run("Steps that would be performed:")
+
+            # Step 1: Stage
+            if release.source_dir:
+                staging_name = release.source_dir.name
+                seed_root = settings.paths.seed_root
+                print_dry_run(f"STAGE → {seed_root / staging_name}")
+
+            # Step 2: Metadata
+            if not skip_metadata:
+                if release.asin:
+                    print_dry_run(f"METADATA → Fetch Audnex for {release.asin}")
+                if release.main_m4b:
+                    print_dry_run(f"METADATA → MediaInfo on {release.main_m4b.name}")
+            else:
+                print_dry_run("METADATA → [SKIPPED]")
+
+            # Step 3: Torrent
+            print_dry_run(f"TORRENT → Create with preset '{settings.mkbrr.preset}'")
+
+            # Step 4: Upload
+            print_dry_run(f"UPLOAD → Add to qBittorrent ({settings.qbittorrent.category})")
+
+            # Step 5: Mark processed
+            print_dry_run(f"STATE → Mark {identifier} as processed")
+            continue
+
+        result = process_single_release(
+            release,
+            skip_metadata=skip_metadata,
+            progress_callback=progress_callback,
+            release_index=i,
+            release_total=len(releases),
         )
-
-        for i, release in enumerate(releases, 1):
-            # Update progress description (truncate long names with ellipsis)
-            name = release.display_name
-            display = f"{name[:50]}..." if len(name) > 50 else name
-            progress.update(task, description=f"[cyan]{display}", visible=not dry_run)
-
-            logger.info(f"[{i}/{len(releases)}] {release.display_name}")
-
-            # Check if already processed
-            identifier = release.asin or str(release.source_dir)
-            if identifier and is_processed(identifier):
-                logger.info("  Skipping (already processed)")
-                skipped += 1
-                progress.advance(task)
-                continue
-
-            if dry_run:
-                # Show detailed dry-run info for each step
-                logger.info("  [DRY RUN] Steps that would be performed:")
-
-                # Step 1: Stage
-                if release.source_dir:
-                    staging_name = release.source_dir.name
-                    seed_root = settings.paths.seed_root
-                    logger.info(f"    1. STAGE: Hardlink to {seed_root / staging_name}")
-
-                # Step 2: Metadata
-                if not skip_metadata:
-                    if release.asin:
-                        logger.info(f"    2. METADATA: Fetch Audnex for ASIN {release.asin}")
-                    if release.main_m4b:
-                        logger.info(f"    2. METADATA: Run MediaInfo on {release.main_m4b.name}")
-                    logger.info(
-                        f"    2. METADATA: Generate MAM JSON to {settings.paths.torrent_output}"
-                    )
-                else:
-                    logger.info("    2. METADATA: [SKIPPED]")
-
-                # Step 3: Torrent
-                logger.info(f"    3. TORRENT: Create with preset '{settings.mkbrr.preset}'")
-                logger.info(f"    3. TORRENT: Output to {settings.paths.torrent_output}")
-
-                # Step 4: Upload
-                logger.info(f"    4. UPLOAD: Add to qBittorrent at {settings.qbittorrent.host}")
-                logger.info(f"    4. UPLOAD: Category '{settings.qbittorrent.category}'")
-
-                # Step 5: Mark processed
-                logger.info(f"    5. STATE: Mark {identifier} as processed")
-                progress.advance(task)
-                continue
-
-            result = process_single_release(
-                release,
-                skip_metadata=skip_metadata,
-                progress_callback=progress_callback,
-                release_index=i,
-                release_total=len(releases),
-            )
-            results.append(result)
-            progress.advance(task)
+        results.append(result)
 
     # -------------------------------------------------------------------------
     # Summary
@@ -509,12 +493,7 @@ def full_run(
         skipped=skipped,
     )
 
-    logger.info("=" * 50)
-    logger.info(f"Pipeline complete in {duration:.1f}s")
-    logger.info(f"  Total: {len(releases)}")
-    logger.info(f"  Successful: {successful}")
-    logger.info(f"  Failed: {failed}")
-    logger.info(f"  Skipped: {skipped}")
+    print_summary(successful, failed, skipped, duration)
 
     return PipelineResult(
         total=len(releases),
