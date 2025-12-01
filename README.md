@@ -101,8 +101,6 @@ QB_HOST=http://10.1.60.10:8080
 QB_USERNAME=admin
 QB_PASSWORD=secret
 
-# MAM tracker announce URL (secret)
-MAM_ANNOUNCE_URL=https://t.myanonamouse.net/announce/your-key
 
 # Optional overrides
 LIBATION_CONTAINER=libation

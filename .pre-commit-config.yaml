@@ -11,12 +11,13 @@ repos:
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
 
-  # MyPy - static type checking (uses local installation)
+  # MyPy - static type checking (uses local installation to access project dependencies)
   - repo: local
     hooks:
       - id: mypy
         name: mypy
-        entry: bash -c 'cd /mnt/cache/scripts/mam_tool && source .venv/bin/activate && mypy src/'
+        entry: mypy
+        args: [src/]
         language: system
         pass_filenames: false
         always_run: true
@@ -37,7 +38,8 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: bash -c 'cd /mnt/cache/scripts/mam_tool && source .venv/bin/activate && pytest -q'
+        entry: pytest
+        args: [-q, --tb=short]
         language: system
         pass_filenames: false
         always_run: true

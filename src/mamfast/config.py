@@ -242,6 +242,52 @@ def validate_path_exists(path: Path, field_name: str, *, required: bool = True) 
         )
 
 
+def validate_same_filesystem(path1: Path, path2: Path, name1: str, name2: str) -> None:
+    """
+    Validate that two paths are on the same filesystem.
+
+    This is required for hardlinks to work. If paths are on different filesystems,
+    hardlinks will fail and copying would be needed instead.
+
+    Args:
+        path1: First path to check
+        path2: Second path to check
+        name1: Name of first path for error messages
+        name2: Name of second path for error messages
+
+    Raises:
+        ConfigurationError: If paths are on different filesystems
+    """
+    # Resolve to existing parent directories if paths don't exist yet
+    resolved1 = path1
+    while not resolved1.exists() and resolved1.parent != resolved1:
+        resolved1 = resolved1.parent
+
+    resolved2 = path2
+    while not resolved2.exists() and resolved2.parent != resolved2:
+        resolved2 = resolved2.parent
+
+    if not resolved1.exists() or not resolved2.exists():
+        # Can't validate if we can't find existing directories
+        return
+
+    try:
+        stat1 = resolved1.stat()
+        stat2 = resolved2.stat()
+
+        if stat1.st_dev != stat2.st_dev:
+            raise ConfigurationError(
+                f"{name1} and {name2} must be on the same filesystem for hardlinks.\n"
+                f"  {name1}: {path1} (device: {stat1.st_dev})\n"
+                f"  {name2}: {path2} (device: {stat2.st_dev})\n"
+                f"Fix: Move one of the directories to the same filesystem, or consider "
+                f"using symlinks/copying instead."
+            )
+    except OSError as e:
+        # Log but don't fail if we can't stat the paths
+        logger.warning(f"Could not validate filesystem for {name1}/{name2}: {e}")
+
+
 def validate_required_env_vars() -> None:
     """
     Validate that all required environment variables are set.
@@ -302,6 +348,10 @@ def validate_paths(paths: PathsConfig, *, strict: bool = False) -> list[str]:
     ]:
         if path and not path.exists():
             warnings.append(f"{name} does not exist (will be created): {path}")
+
+    # Validate library_root and seed_root are on the same filesystem for hardlinks
+    if paths.library_root and paths.seed_root:
+        validate_same_filesystem(paths.library_root, paths.seed_root, "library_root", "seed_root")
 
     return warnings
 

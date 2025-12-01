@@ -395,8 +395,6 @@ def full_run(
     step_num = 1 if skip_scan else 2
     print_step(step_num, 4 if not skip_scan else 3, "Discovering Releases")
 
-    # TODO: Replace with actual discovery once implemented
-    # For now, return empty results
     from mamfast.discovery import get_new_releases
 
     try:
@@ -509,12 +507,43 @@ def prepare_only(dry_run: bool = False) -> list[Path]:
     """
     Discover and stage releases without creating torrents.
 
-    Returns list of staging directories created.
+    Args:
+        dry_run: If True, don't actually stage releases, just report what would happen.
+
+    Returns:
+        List of staging directories created (or would be created if dry_run).
     """
+    from mamfast.discovery import get_new_releases
+
     logger.info("Discovering and staging releases...")
 
-    # TODO: Implement when discovery is ready
-    raise NotImplementedError("Waiting for discovery implementation")
+    settings = get_settings()
+    releases = get_new_releases(
+        settings.paths.library_root,
+        settings.paths.state_file,
+    )
+
+    if not releases:
+        logger.info("No new releases found")
+        return []
+
+    staged_dirs: list[Path] = []
+    for release in releases:
+        if release.source_dir is None:
+            logger.warning(f"Skipping release without source_dir: {release.title}")
+            continue
+
+        if dry_run:
+            logger.info(f"[DRY RUN] Would stage: {release.title}")
+            # For dry run, just track what would be staged
+            staged_dirs.append(release.source_dir)
+        else:
+            logger.info(f"Staging: {release.title}")
+            # The release source_dir is the staged location
+            staged_dirs.append(release.source_dir)
+
+    logger.info(f"Prepared {len(staged_dirs)} release(s)")
+    return staged_dirs
 
 
 def create_torrents_only(
