@@ -1280,6 +1280,10 @@ class ChapterIntegrityChecker:
                         if key.startswith("_") and "_" in key[1:]:
                             parts = key[1:].split("_")
                             if len(parts) >= 3:
+                                # Validate parts are numeric before conversion
+                                if not all(p.isdigit() for p in parts[:3]):
+                                    logger.debug(f"Skipping non-numeric chapter key: {key}")
+                                    continue
                                 h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
                                 total_ms = (h * 3600 + m * 60 + s) * 1000
                                 chapters.append(
@@ -1290,7 +1294,7 @@ class ChapterIntegrityChecker:
                                 )
                     break
 
-        except Exception as e:
+        except (TypeError, KeyError) as e:
             logger.warning(f"Failed to extract chapters from mediainfo: {e}")
 
         return chapters
@@ -1326,12 +1330,10 @@ def sanitize_path_component(name: str) -> str:
 
     # Remove directory traversal patterns in a loop until none remain
     # This prevents bypass attacks like "...." -> ".." after single replacement
+    # Note: "./" and ".\\" patterns are already handled by the path separator
+    # replacement above (they become ".-" which is safe)
     while ".." in result:
         result = result.replace("..", "")
-    while "./" in result:
-        result = result.replace("./", "")
-    while ".\\" in result:
-        result = result.replace(".\\", "")
 
     # Remove leading/trailing dots and spaces
     result = result.strip(". ")
