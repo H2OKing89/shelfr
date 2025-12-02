@@ -28,7 +28,6 @@ MAMFast handles sensitive information that should **never** be committed to vers
 
 | Data | Location | Risk |
 |------|----------|------|
-| MAM announce URL | `config/.env` | Tracker ban if leaked |
 | qBittorrent credentials | `config/.env` | Unauthorized access |
 | API keys | `config/.env` | Service abuse |
 

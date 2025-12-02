@@ -9,12 +9,21 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from mamfast.models import AudiobookRelease, ReleaseStatus
+from mamfast.validation import ValidationResult
 from mamfast.workflow import PipelineResult, full_run, process_single_release
+
+
+def _create_passing_validation_result() -> ValidationResult:
+    """Create a ValidationResult that passes all checks."""
+    result = ValidationResult()
+    return result
 
 
 class TestProcessSingleRelease:
     """Integration tests for processing a single release through the pipeline."""
 
+    @patch("mamfast.workflow.DiscoveryValidation")
+    @patch("mamfast.workflow.PreUploadValidation")
     @patch("mamfast.workflow.get_settings")
     @patch("mamfast.workflow.generate_mam_json_for_release")
     @patch("mamfast.workflow.upload_torrent")
@@ -31,6 +40,8 @@ class TestProcessSingleRelease:
         mock_upload: Mock,
         mock_mam_json: Mock,
         mock_settings: Mock,
+        mock_pre_upload_validation: Mock,
+        mock_discovery_validation: Mock,
     ) -> None:
         """Test successful processing of a single release through all steps."""
         # Arrange
@@ -46,6 +57,14 @@ class TestProcessSingleRelease:
                 author="Test Author",
                 asin="B000TEST01",
                 source_dir=tmppath / "source",
+            )
+
+            # Mock validation to pass
+            mock_discovery_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
+            )
+            mock_pre_upload_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
             )
 
             # Mock the pipeline steps
@@ -74,6 +93,8 @@ class TestProcessSingleRelease:
             mock_upload.assert_called_once()
             mock_mark_processed.assert_called_once_with(release)
 
+    @patch("mamfast.workflow.DiscoveryValidation")
+    @patch("mamfast.workflow.PreUploadValidation")
     @patch("mamfast.workflow.get_settings")
     @patch("mamfast.workflow.upload_torrent")
     @patch("mamfast.workflow.create_torrent")
@@ -86,6 +107,8 @@ class TestProcessSingleRelease:
         mock_torrent: Mock,
         mock_upload: Mock,
         mock_settings: Mock,
+        mock_pre_upload_validation: Mock,
+        mock_discovery_validation: Mock,
     ) -> None:
         """Test that pipeline handles torrent creation failure correctly."""
         # Arrange
@@ -98,6 +121,14 @@ class TestProcessSingleRelease:
                 title="Test Book",
                 author="Test Author",
                 asin="B000TEST02",
+            )
+
+            # Mock validation to pass
+            mock_discovery_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
+            )
+            mock_pre_upload_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
             )
 
             mock_stage.return_value = staging_dir
@@ -121,6 +152,8 @@ class TestProcessSingleRelease:
             # Upload should not be called if torrent creation fails
             mock_upload.assert_not_called()
 
+    @patch("mamfast.workflow.DiscoveryValidation")
+    @patch("mamfast.workflow.PreUploadValidation")
     @patch("mamfast.workflow.get_settings")
     @patch("mamfast.workflow.upload_torrent")
     @patch("mamfast.workflow.create_torrent")
@@ -133,6 +166,8 @@ class TestProcessSingleRelease:
         mock_torrent: Mock,
         mock_upload: Mock,
         mock_settings: Mock,
+        mock_pre_upload_validation: Mock,
+        mock_discovery_validation: Mock,
     ) -> None:
         """Test that pipeline handles upload failure correctly."""
         # Arrange
@@ -147,6 +182,14 @@ class TestProcessSingleRelease:
                 title="Test Book",
                 author="Test Author",
                 asin="B000TEST03",
+            )
+
+            # Mock validation to pass
+            mock_discovery_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
+            )
+            mock_pre_upload_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
             )
 
             mock_stage.return_value = staging_dir
@@ -346,6 +389,8 @@ class TestAtomicStateWrites:
 class TestWorkflowSavePathLogic:
     """Tests for qb_save_path logic in workflow functions."""
 
+    @patch("mamfast.workflow.DiscoveryValidation")
+    @patch("mamfast.workflow.PreUploadValidation")
     @patch("mamfast.workflow.get_settings")
     @patch("mamfast.workflow.generate_mam_json_for_release")
     @patch("mamfast.workflow.upload_torrent")
@@ -362,6 +407,8 @@ class TestWorkflowSavePathLogic:
         mock_upload: Mock,
         mock_mam_json: Mock,
         mock_settings: Mock,
+        mock_pre_upload_validation: Mock,
+        mock_discovery_validation: Mock,
     ) -> None:
         """Test that save_path is None when auto_tmm is enabled."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -376,6 +423,14 @@ class TestWorkflowSavePathLogic:
                 author="Test Author",
                 asin="B000TEST04",
                 source_dir=tmppath / "source",
+            )
+
+            # Mock validation to pass
+            mock_discovery_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
+            )
+            mock_pre_upload_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
             )
 
             mock_stage.return_value = staging_dir
@@ -400,6 +455,8 @@ class TestWorkflowSavePathLogic:
             call_kwargs = mock_upload.call_args[1]
             assert call_kwargs["save_path"] is None
 
+    @patch("mamfast.workflow.DiscoveryValidation")
+    @patch("mamfast.workflow.PreUploadValidation")
     @patch("mamfast.workflow.get_settings")
     @patch("mamfast.workflow.generate_mam_json_for_release")
     @patch("mamfast.workflow.upload_torrent")
@@ -416,6 +473,8 @@ class TestWorkflowSavePathLogic:
         mock_upload: Mock,
         mock_mam_json: Mock,
         mock_settings: Mock,
+        mock_pre_upload_validation: Mock,
+        mock_discovery_validation: Mock,
     ) -> None:
         """Test that save_path is constructed when auto_tmm is disabled."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -430,6 +489,14 @@ class TestWorkflowSavePathLogic:
                 author="Test Author",
                 asin="B000TEST05",
                 source_dir=tmppath / "source",
+            )
+
+            # Mock validation to pass
+            mock_discovery_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
+            )
+            mock_pre_upload_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
             )
 
             mock_stage.return_value = staging_dir
@@ -455,6 +522,8 @@ class TestWorkflowSavePathLogic:
             expected_path = Path("/config/save/path") / staging_dir.name
             assert call_kwargs["save_path"] == expected_path
 
+    @patch("mamfast.workflow.DiscoveryValidation")
+    @patch("mamfast.workflow.PreUploadValidation")
     @patch("mamfast.workflow.get_settings")
     @patch("mamfast.workflow.generate_mam_json_for_release")
     @patch("mamfast.workflow.upload_torrent")
@@ -471,6 +540,8 @@ class TestWorkflowSavePathLogic:
         mock_upload: Mock,
         mock_mam_json: Mock,
         mock_settings: Mock,
+        mock_pre_upload_validation: Mock,
+        mock_discovery_validation: Mock,
     ) -> None:
         """Test that save_path is None when auto_tmm is disabled and no path configured."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -485,6 +556,14 @@ class TestWorkflowSavePathLogic:
                 author="Test Author",
                 asin="B000TEST06",
                 source_dir=tmppath / "source",
+            )
+
+            # Mock validation to pass
+            mock_discovery_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
+            )
+            mock_pre_upload_validation.return_value.validate.return_value = (
+                _create_passing_validation_result()
             )
 
             mock_stage.return_value = staging_dir

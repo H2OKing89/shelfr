@@ -218,6 +218,51 @@ Examples:
     )
     config_parser.set_defaults(func=cmd_config)
 
+    # -------------------------------------------------------------------------
+    # check: Health check command
+    # -------------------------------------------------------------------------
+    check_parser = subparsers.add_parser(
+        "check",
+        help="Run health checks to verify environment setup",
+        epilog="Use category flags to run specific checks only.",
+    )
+    check_parser.add_argument(
+        "--config-only",
+        action="store_true",
+        help="Run configuration checks only",
+    )
+    check_parser.add_argument(
+        "--paths-only",
+        action="store_true",
+        help="Run path checks only",
+    )
+    check_parser.add_argument(
+        "--services-only",
+        action="store_true",
+        help="Run service connectivity checks only",
+    )
+    check_parser.set_defaults(func=cmd_check)
+
+    # -------------------------------------------------------------------------
+    # validate: Validate discovered releases
+    # -------------------------------------------------------------------------
+    validate_parser = subparsers.add_parser(
+        "validate",
+        help="Validate all discovered releases (discovery, metadata checks)",
+        epilog="Runs validation checks without processing releases.",
+    )
+    validate_parser.add_argument(
+        "--asin",
+        type=str,
+        help="Validate specific release by ASIN only",
+    )
+    validate_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output validation report as JSON",
+    )
+    validate_parser.set_defaults(func=cmd_validate)
+
     return parser
 
 
@@ -776,6 +821,213 @@ def cmd_status(args: argparse.Namespace) -> int:
         print_status_table(processed, failed, limit=5)
 
     return 0
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    """Run health checks to verify environment setup."""
+    from mamfast.config import reload_settings
+    from mamfast.validation import (
+        check_categories,
+        check_config,
+        check_paths,
+        check_services,
+    )
+
+    print_header("MAMFast Health Check")
+
+    try:
+        settings = reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+    except Exception as e:
+        fatal_error(f"Error loading config: {e}")
+        return 1
+
+    # Determine which checks to run
+    run_config = args.config_only or not (args.paths_only or args.services_only)
+    run_paths = args.paths_only or not (args.config_only or args.services_only)
+    run_services = args.services_only or not (args.config_only or args.paths_only)
+    run_categories = not (args.config_only or args.paths_only or args.services_only)
+
+    from mamfast.validation import ValidationResult
+
+    result = ValidationResult()
+
+    # Run selected checks
+    if run_config:
+        console.print("\n[title]Configuration[/]")
+        config_result = check_config(settings)
+        for check in config_result.checks:
+            console.print(f"  {check.icon} {check.message}")
+        result.merge(config_result)
+
+    if run_paths:
+        console.print("\n[title]Paths[/]")
+        paths_result = check_paths(settings)
+        for check in paths_result.checks:
+            console.print(f"  {check.icon} {check.message}")
+        result.merge(paths_result)
+
+    if run_services:
+        console.print("\n[title]Services[/]")
+        print_info("Checking connectivity (this may take a moment)...")
+        services_result = check_services(settings)
+        for check in services_result.checks:
+            console.print(f"  {check.icon} {check.message}")
+        result.merge(services_result)
+
+    if run_categories:
+        console.print("\n[title]Categories[/]")
+        cat_result = check_categories(settings)
+        for check in cat_result.checks:
+            console.print(f"  {check.icon} {check.message}")
+        result.merge(cat_result)
+
+    # Summary
+    console.print()
+    total = len(result.checks)
+    passed = result.passed_count
+    errors = result.error_count
+    warnings = result.warning_count
+
+    if result.passed:
+        if warnings > 0:
+            console.print(
+                f"[success]Summary:[/] {passed}/{total} checks passed, "
+                f"[warning]{warnings} warning(s)[/] ⚠️"
+            )
+        else:
+            console.print(f"[success]Summary:[/] All {total} checks passed ✅")
+        return 0
+    else:
+        console.print(
+            f"[error]Summary:[/] {passed}/{total} checks passed, "
+            f"[error]{errors} error(s)[/], [warning]{warnings} warning(s)[/]"
+        )
+        return 1
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    """Validate all discovered releases."""
+    import json as json_module
+    from datetime import datetime
+
+    from mamfast.config import reload_settings
+    from mamfast.discovery import get_new_releases, get_release_by_asin
+    from mamfast.logging_setup import set_console_quiet
+    from mamfast.utils.state import get_processed_identifiers
+    from mamfast.validation import (
+        DiscoveryValidation,
+        ValidationReport,
+    )
+
+    set_console_quiet(True)
+
+    output_json = getattr(args, "json", False)
+    if not output_json:
+        print_header("Validate Releases")
+
+    try:
+        reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        set_console_quiet(False)
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+
+    # Get releases to validate
+    if args.asin:
+        release = get_release_by_asin(args.asin)
+        if not release:
+            set_console_quiet(False)
+            print_error(f"Release not found: {args.asin}")
+            return 1
+        releases = [release]
+    else:
+        releases = get_new_releases()
+
+    set_console_quiet(False)
+
+    if not releases:
+        if output_json:
+            console.print(json_module.dumps({"releases": [], "summary": {"total": 0}}))
+        else:
+            print_info("No new releases found to validate")
+        return 0
+
+    # Run validation on each release
+    processed = get_processed_identifiers()
+    discovery_validator = DiscoveryValidation(processed_identifiers=processed)
+
+    reports: list[ValidationReport] = []
+    total_warnings = 0
+    total_errors = 0
+
+    for i, release in enumerate(releases, 1):
+        # Create report
+        report = ValidationReport(
+            asin=release.asin,
+            title=release.title or release.display_name,
+            validated_at=datetime.now().isoformat(),
+        )
+
+        # Discovery validation
+        discovery_result = discovery_validator.validate(release)
+        report.discovery_result = discovery_result
+        total_warnings += discovery_result.warning_count
+        total_errors += discovery_result.error_count
+
+        reports.append(report)
+
+        # Print progress (non-JSON mode)
+        if not output_json:
+            status = "✅" if discovery_result.passed else "❌"
+            console.print(f"\n[bold][{i}/{len(releases)}] {release.display_name}[/]")
+            console.print(f"  ASIN: {release.asin or 'N/A'}")
+            console.print(f"  Status: {status}")
+
+            for check in discovery_result.checks:
+                console.print(f"    {check.icon} {check.message}")
+
+            if discovery_result.warning_count > 0:
+                console.print(f"  [warning]⚠️ {discovery_result.warning_count} warning(s)[/]")
+            if discovery_result.error_count > 0:
+                console.print(f"  [error]❌ {discovery_result.error_count} error(s)[/]")
+
+    # Output
+    if output_json:
+        output = {
+            "releases": [r.to_dict() for r in reports],
+            "summary": {
+                "total": len(reports),
+                "passed": sum(1 for r in reports if r.all_passed),
+                "failed": sum(1 for r in reports if not r.all_passed),
+                "total_warnings": total_warnings,
+                "total_errors": total_errors,
+            },
+        }
+        console.print(json_module.dumps(output, indent=2))
+    else:
+        # Summary
+        console.print()
+        passed_count = sum(1 for r in reports if r.all_passed)
+        failed_count = len(reports) - passed_count
+
+        if failed_count == 0 and total_warnings == 0:
+            console.print(f"[success]Summary:[/] All {len(reports)} releases validated ✅")
+        elif failed_count == 0:
+            console.print(
+                f"[success]Summary:[/] {passed_count}/{len(reports)} validated, "
+                f"[warning]{total_warnings} warning(s)[/] ⚠️"
+            )
+        else:
+            console.print(
+                f"[error]Summary:[/] {passed_count}/{len(reports)} validated, "
+                f"[error]{failed_count} failed[/], "
+                f"[warning]{total_warnings} warning(s)[/]"
+            )
+
+    return 0 if total_errors == 0 else 1
 
 
 def cmd_config(args: argparse.Namespace) -> int:

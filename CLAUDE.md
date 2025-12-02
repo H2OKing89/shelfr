@@ -138,7 +138,7 @@ class AudiobookRelease:
 Configuration is loaded from **three sources** with clear precedence:
 
 1. **`config/config.yaml`** - Structured settings (paths, MAM compliance, service configs)
-2. **`config/.env`** - Secrets (qBittorrent credentials, MAM announce URL)
+2. **`config/.env`** - Secrets (qBittorrent credentials)
 3. **`config/categories.json`** - MAM genre → category ID mappings
 
 **Configuration precedence for environment vars**:
@@ -411,7 +411,7 @@ def _helper_function() -> None:
 ### Critical Security Rules
 
 **NEVER commit these to Git**:
-- `config/.env` - Contains QB credentials, MAM announce URL
+- `config/.env` - Contains QB credentials
 - `config/config.yaml` - May contain user-specific paths or secrets
 - `data/processed.json` - State file with ASINs
 - `logs/*.log` - May contain sensitive data
