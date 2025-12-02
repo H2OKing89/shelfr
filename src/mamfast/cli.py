@@ -218,6 +218,31 @@ Examples:
     )
     config_parser.set_defaults(func=cmd_config)
 
+    # -------------------------------------------------------------------------
+    # check: Health check command
+    # -------------------------------------------------------------------------
+    check_parser = subparsers.add_parser(
+        "check",
+        help="Run health checks to verify environment setup",
+        epilog="Use category flags to run specific checks only.",
+    )
+    check_parser.add_argument(
+        "--config-only",
+        action="store_true",
+        help="Run configuration checks only",
+    )
+    check_parser.add_argument(
+        "--paths-only",
+        action="store_true",
+        help="Run path checks only",
+    )
+    check_parser.add_argument(
+        "--services-only",
+        action="store_true",
+        help="Run service connectivity checks only",
+    )
+    check_parser.set_defaults(func=cmd_check)
+
     return parser
 
 
@@ -776,6 +801,91 @@ def cmd_status(args: argparse.Namespace) -> int:
         print_status_table(processed, failed, limit=5)
 
     return 0
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    """Run health checks to verify environment setup."""
+    from mamfast.config import reload_settings
+    from mamfast.validation import (
+        check_categories,
+        check_config,
+        check_paths,
+        check_services,
+    )
+
+    print_header("MAMFast Health Check")
+
+    try:
+        settings = reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+    except Exception as e:
+        fatal_error(f"Error loading config: {e}")
+        return 1
+
+    # Determine which checks to run
+    run_config = args.config_only or not (args.paths_only or args.services_only)
+    run_paths = args.paths_only or not (args.config_only or args.services_only)
+    run_services = args.services_only or not (args.config_only or args.paths_only)
+    run_categories = not (args.config_only or args.paths_only or args.services_only)
+
+    from mamfast.validation import ValidationResult
+
+    result = ValidationResult()
+
+    # Run selected checks
+    if run_config:
+        console.print("\n[title]Configuration[/]")
+        config_result = check_config(settings)
+        for check in config_result.checks:
+            console.print(f"  {check.icon} {check.message}")
+        result.merge(config_result)
+
+    if run_paths:
+        console.print("\n[title]Paths[/]")
+        paths_result = check_paths(settings)
+        for check in paths_result.checks:
+            console.print(f"  {check.icon} {check.message}")
+        result.merge(paths_result)
+
+    if run_services:
+        console.print("\n[title]Services[/]")
+        print_info("Checking connectivity (this may take a moment)...")
+        services_result = check_services(settings)
+        for check in services_result.checks:
+            console.print(f"  {check.icon} {check.message}")
+        result.merge(services_result)
+
+    if run_categories:
+        console.print("\n[title]Categories[/]")
+        cat_result = check_categories(settings)
+        for check in cat_result.checks:
+            console.print(f"  {check.icon} {check.message}")
+        result.merge(cat_result)
+
+    # Summary
+    console.print()
+    total = len(result.checks)
+    passed = result.passed_count
+    errors = result.error_count
+    warnings = result.warning_count
+
+    if result.passed:
+        if warnings > 0:
+            console.print(
+                f"[success]Summary:[/] {passed}/{total} checks passed, "
+                f"[warning]{warnings} warning(s)[/] ⚠️"
+            )
+        else:
+            console.print(f"[success]Summary:[/] All {total} checks passed ✅")
+        return 0
+    else:
+        console.print(
+            f"[error]Summary:[/] {passed}/{total} checks passed, "
+            f"[error]{errors} error(s)[/], [warning]{warnings} warning(s)[/]"
+        )
+        return 1
 
 
 def cmd_config(args: argparse.Namespace) -> int:

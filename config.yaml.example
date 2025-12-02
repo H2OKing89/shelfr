@@ -75,13 +75,13 @@ filters:
 # ─────────────────────────────────────────────────────────────────────────────
 mkbrr:
   image: "ghcr.io/autobrr/mkbrr:latest"
-  preset: "mam"                       # mkbrr preset for MAM announce URL
+  preset: "mam"                       # mkbrr preset name (contains announce URL)
 
   # Path mapping: how host paths appear inside the mkbrr container
   host_data_root: "/mnt/user/data"
   container_data_root: "/data"
 
-  # mkbrr config directory mapping (where config.yaml with announce URL lives)
+  # mkbrr config directory mapping (where presets.yaml lives)
   host_config_dir: "/path/to/mkbrr/config"
   container_config_dir: "/root/.config/mkbrr"
 

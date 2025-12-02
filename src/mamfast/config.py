@@ -17,7 +17,6 @@ Settings are loaded from three sources:
 
 2. **.env file** (for secrets and environment-specific values):
    - QB_HOST, QB_USERNAME, QB_PASSWORD (qBittorrent credentials)
-   - MAM_ANNOUNCE_URL (tracker announce URL - secret)
    - LIBATION_CONTAINER, DOCKER_BIN, TARGET_UID, TARGET_GID
    - MAMFAST_ENV, LOG_LEVEL
 
@@ -176,7 +175,6 @@ class Settings:
     docker_bin: str  # .env: DOCKER_BIN
     target_uid: int  # .env: TARGET_UID
     target_gid: int  # .env: TARGET_GID
-    mam_announce_url: str  # .env: MAM_ANNOUNCE_URL
     env: str  # .env: MAMFAST_ENV
     log_level: str  # .env: LOG_LEVEL
 
@@ -376,10 +374,6 @@ def validate_settings(settings: Settings) -> list[str]:
 
     # Validate URLs
     validate_url(settings.qbittorrent.host, "QB_HOST")
-
-    # MAM_ANNOUNCE_URL is optional - mkbrr presets typically handle the announce URL
-    if settings.mam_announce_url:
-        validate_url(settings.mam_announce_url, "MAM_ANNOUNCE_URL")
 
     # Validate Audnex API URL
     if settings.audnex.base_url:
@@ -666,7 +660,6 @@ def load_settings(
         docker_bin=env_data.get("docker_bin", _get_env("DOCKER_BIN", "/usr/bin/docker")),
         target_uid=env_data.get("target_uid", _get_env_int("TARGET_UID", 99)),
         target_gid=env_data.get("target_gid", _get_env_int("TARGET_GID", 100)),
-        mam_announce_url=env_data.get("mam_announce_url", _get_env("MAM_ANNOUNCE_URL", "")),
         env=env_data.get("env", _get_env("MAMFAST_ENV", "development")),
         log_level=env_data.get("log_level", _get_env("LOG_LEVEL", "INFO")),
         # YAML config

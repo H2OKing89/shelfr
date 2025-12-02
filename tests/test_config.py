@@ -222,10 +222,7 @@ environment:
             # Create .env with required values
             env_path = Path(tmpdir) / ".env"
             env_path.write_text(
-                "QB_HOST=http://localhost:8080\n"
-                "QB_USERNAME=admin\n"
-                "QB_PASSWORD=secret\n"
-                "MAM_ANNOUNCE_URL=http://tracker.example.com\n"
+                "QB_HOST=http://localhost:8080\n" "QB_USERNAME=admin\n" "QB_PASSWORD=secret\n"
             )
 
             # validate=False since we're testing config loading, not path validation
@@ -257,16 +254,13 @@ paths:
 
             env_path = config_dir / ".env"
             env_path.write_text(
-                "QB_HOST=http://found:8080\n"
-                "QB_USERNAME=admin\n"
-                "QB_PASSWORD=secret\n"
-                "MAM_ANNOUNCE_URL=http://tracker.example.com\n"
+                "QB_HOST=http://found:8080\n" "QB_USERNAME=admin\n" "QB_PASSWORD=secret\n"
             )
 
             # Clear any existing env vars and reload
             with patch.dict(
                 os.environ,
-                {"QB_HOST": "", "QB_USERNAME": "", "QB_PASSWORD": "", "MAM_ANNOUNCE_URL": ""},
+                {"QB_HOST": "", "QB_USERNAME": "", "QB_PASSWORD": ""},
                 clear=False,
             ):
                 # validate=False since we're testing .env discovery, not path validation
