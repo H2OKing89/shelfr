@@ -243,6 +243,26 @@ Examples:
     )
     check_parser.set_defaults(func=cmd_check)
 
+    # -------------------------------------------------------------------------
+    # validate: Validate discovered releases
+    # -------------------------------------------------------------------------
+    validate_parser = subparsers.add_parser(
+        "validate",
+        help="Validate all discovered releases (discovery, metadata checks)",
+        epilog="Runs validation checks without processing releases.",
+    )
+    validate_parser.add_argument(
+        "--asin",
+        type=str,
+        help="Validate specific release by ASIN only",
+    )
+    validate_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output validation report as JSON",
+    )
+    validate_parser.set_defaults(func=cmd_validate)
+
     return parser
 
 
@@ -886,6 +906,128 @@ def cmd_check(args: argparse.Namespace) -> int:
             f"[error]{errors} error(s)[/], [warning]{warnings} warning(s)[/]"
         )
         return 1
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    """Validate all discovered releases."""
+    import json as json_module
+    from datetime import datetime
+
+    from mamfast.config import reload_settings
+    from mamfast.discovery import get_new_releases, get_release_by_asin
+    from mamfast.logging_setup import set_console_quiet
+    from mamfast.utils.state import get_processed_identifiers
+    from mamfast.validation import (
+        DiscoveryValidation,
+        ValidationReport,
+    )
+
+    set_console_quiet(True)
+
+    output_json = getattr(args, "json", False)
+    if not output_json:
+        print_header("Validate Releases")
+
+    try:
+        reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        set_console_quiet(False)
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+
+    # Get releases to validate
+    if args.asin:
+        release = get_release_by_asin(args.asin)
+        if not release:
+            set_console_quiet(False)
+            print_error(f"Release not found: {args.asin}")
+            return 1
+        releases = [release]
+    else:
+        releases = get_new_releases()
+
+    set_console_quiet(False)
+
+    if not releases:
+        if output_json:
+            console.print(json_module.dumps({"releases": [], "summary": {"total": 0}}))
+        else:
+            print_info("No new releases found to validate")
+        return 0
+
+    # Run validation on each release
+    processed = get_processed_identifiers()
+    discovery_validator = DiscoveryValidation(processed_identifiers=processed)
+
+    reports: list[ValidationReport] = []
+    total_warnings = 0
+    total_errors = 0
+
+    for i, release in enumerate(releases, 1):
+        # Create report
+        report = ValidationReport(
+            asin=release.asin,
+            title=release.title or release.display_name,
+            validated_at=datetime.now().isoformat(),
+        )
+
+        # Discovery validation
+        discovery_result = discovery_validator.validate(release)
+        report.discovery_result = discovery_result
+        total_warnings += discovery_result.warning_count
+        total_errors += discovery_result.error_count
+
+        reports.append(report)
+
+        # Print progress (non-JSON mode)
+        if not output_json:
+            status = "✅" if discovery_result.passed else "❌"
+            console.print(f"\n[bold][{i}/{len(releases)}] {release.display_name}[/]")
+            console.print(f"  ASIN: {release.asin or 'N/A'}")
+            console.print(f"  Status: {status}")
+
+            for check in discovery_result.checks:
+                console.print(f"    {check.icon} {check.message}")
+
+            if discovery_result.warning_count > 0:
+                console.print(f"  [warning]⚠️ {discovery_result.warning_count} warning(s)[/]")
+            if discovery_result.error_count > 0:
+                console.print(f"  [error]❌ {discovery_result.error_count} error(s)[/]")
+
+    # Output
+    if output_json:
+        output = {
+            "releases": [r.to_dict() for r in reports],
+            "summary": {
+                "total": len(reports),
+                "passed": sum(1 for r in reports if r.all_passed),
+                "failed": sum(1 for r in reports if not r.all_passed),
+                "total_warnings": total_warnings,
+                "total_errors": total_errors,
+            },
+        }
+        console.print(json_module.dumps(output, indent=2))
+    else:
+        # Summary
+        console.print()
+        passed_count = sum(1 for r in reports if r.all_passed)
+        failed_count = len(reports) - passed_count
+
+        if failed_count == 0 and total_warnings == 0:
+            console.print(f"[success]Summary:[/] All {len(reports)} releases validated ✅")
+        elif failed_count == 0:
+            console.print(
+                f"[success]Summary:[/] {passed_count}/{len(reports)} validated, "
+                f"[warning]{total_warnings} warning(s)[/] ⚠️"
+            )
+        else:
+            console.print(
+                f"[error]Summary:[/] {passed_count}/{len(reports)} validated, "
+                f"[error]{failed_count} failed[/], "
+                f"[warning]{total_warnings} warning(s)[/]"
+            )
+
+    return 0 if total_errors == 0 else 1
 
 
 def cmd_config(args: argparse.Namespace) -> int:

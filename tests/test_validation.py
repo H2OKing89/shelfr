@@ -572,3 +572,542 @@ class TestAudnexHelper:
 
         mock_head.side_effect = httpx.ConnectError("Connection refused")
         assert _check_audnex_api("https://api.audnex.us", 30) is False
+
+
+# =============================================================================
+# Runtime Validation Tests (Phase 3)
+# =============================================================================
+
+
+class TestDiscoveryValidation:
+    """Tests for DiscoveryValidation class."""
+
+    def test_valid_asin_passes(self, tmp_path):
+        """Valid ASIN format should pass."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import DiscoveryValidation
+
+        # Create a mock M4B file
+        m4b_file = tmp_path / "test.m4b"
+        m4b_file.write_bytes(b"fake m4b content")
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            title="Test Book",
+            source_dir=tmp_path,
+            main_m4b=m4b_file,
+        )
+
+        validator = DiscoveryValidation()
+        result = validator.validate(release)
+
+        asin_check = next(c for c in result.checks if c.name == "asin_format")
+        assert asin_check.passed is True
+
+    def test_invalid_asin_fails(self, tmp_path):
+        """Invalid ASIN format should fail."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import DiscoveryValidation
+
+        m4b_file = tmp_path / "test.m4b"
+        m4b_file.write_bytes(b"fake m4b content")
+
+        release = AudiobookRelease(
+            asin="INVALID",
+            title="Test Book",
+            source_dir=tmp_path,
+            main_m4b=m4b_file,
+        )
+
+        validator = DiscoveryValidation()
+        result = validator.validate(release)
+
+        asin_check = next(c for c in result.checks if c.name == "asin_format")
+        assert asin_check.passed is False
+
+    def test_missing_asin_fails(self, tmp_path):
+        """Missing ASIN should fail."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import DiscoveryValidation
+
+        m4b_file = tmp_path / "test.m4b"
+        m4b_file.write_bytes(b"fake m4b content")
+
+        release = AudiobookRelease(
+            title="Test Book",
+            source_dir=tmp_path,
+            main_m4b=m4b_file,
+        )
+
+        validator = DiscoveryValidation()
+        result = validator.validate(release)
+
+        asin_check = next(c for c in result.checks if c.name == "asin_format")
+        assert asin_check.passed is False
+
+    def test_m4b_exists_passes(self, tmp_path):
+        """Existing M4B file should pass."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import DiscoveryValidation
+
+        m4b_file = tmp_path / "test.m4b"
+        m4b_file.write_bytes(b"fake m4b content")
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            main_m4b=m4b_file,
+            source_dir=tmp_path,
+        )
+
+        validator = DiscoveryValidation()
+        result = validator.validate(release)
+
+        m4b_check = next(c for c in result.checks if c.name == "m4b_exists")
+        assert m4b_check.passed is True
+
+    def test_missing_m4b_fails(self, tmp_path):
+        """Missing M4B file should fail."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import DiscoveryValidation
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            source_dir=tmp_path,
+        )
+
+        validator = DiscoveryValidation()
+        result = validator.validate(release)
+
+        m4b_check = next(c for c in result.checks if c.name == "m4b_exists")
+        assert m4b_check.passed is False
+
+    def test_cover_exists_passes(self, tmp_path):
+        """Existing cover should pass."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import DiscoveryValidation
+
+        m4b_file = tmp_path / "test.m4b"
+        m4b_file.write_bytes(b"fake m4b content")
+
+        cover_file = tmp_path / "cover.jpg"
+        cover_file.write_bytes(b"fake cover")
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            source_dir=tmp_path,
+            main_m4b=m4b_file,
+            files=[m4b_file, cover_file],
+        )
+
+        validator = DiscoveryValidation()
+        result = validator.validate(release)
+
+        cover_check = next(c for c in result.checks if c.name == "cover_exists")
+        assert cover_check.passed is True
+
+    def test_duplicate_detection(self, tmp_path):
+        """Already processed release should be flagged."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import DiscoveryValidation
+
+        m4b_file = tmp_path / "test.m4b"
+        m4b_file.write_bytes(b"fake m4b content")
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            main_m4b=m4b_file,
+            source_dir=tmp_path,
+        )
+
+        # Mark as already processed
+        validator = DiscoveryValidation(processed_identifiers={"B09GHD1R2R"})
+        result = validator.validate(release)
+
+        dup_check = next(c for c in result.checks if c.name == "not_duplicate")
+        assert dup_check.passed is False
+
+
+class TestMetadataValidation:
+    """Tests for MetadataValidation class."""
+
+    def test_required_fields_present_passes(self):
+        """All required fields present should pass."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import MetadataValidation
+
+        release = AudiobookRelease(asin="B09GHD1R2R", title="Test Book")
+        audnex_data = {
+            "title": "Test Book",
+            "asin": "B09GHD1R2R",
+            "authors": [{"name": "Test Author"}],
+            "narrators": [{"name": "Test Narrator"}],
+        }
+
+        validator = MetadataValidation()
+        result = validator.validate(release, audnex_data=audnex_data)
+
+        fields_check = next(c for c in result.checks if c.name == "required_fields")
+        assert fields_check.passed is True
+
+    def test_missing_required_fields_fails(self):
+        """Missing required fields should fail."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import MetadataValidation
+
+        release = AudiobookRelease(asin="B09GHD1R2R", title="Test Book")
+        audnex_data = {
+            "authors": [{"name": "Test Author"}],
+            # Missing title and asin
+        }
+
+        validator = MetadataValidation()
+        result = validator.validate(release, audnex_data=audnex_data)
+
+        fields_check = next(c for c in result.checks if c.name == "required_fields")
+        assert fields_check.passed is False
+
+    def test_authors_present_passes(self):
+        """Authors present should pass."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import MetadataValidation
+
+        release = AudiobookRelease(asin="B09GHD1R2R")
+        audnex_data = {
+            "title": "Test",
+            "asin": "B09GHD1R2R",
+            "authors": [{"name": "Author 1"}, {"name": "Author 2"}],
+        }
+
+        validator = MetadataValidation()
+        result = validator.validate(release, audnex_data=audnex_data)
+
+        authors_check = next(c for c in result.checks if c.name == "authors_present")
+        assert authors_check.passed is True
+
+    def test_narrators_present_passes(self):
+        """Narrators present should pass."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import MetadataValidation
+
+        release = AudiobookRelease(asin="B09GHD1R2R")
+        audnex_data = {
+            "title": "Test",
+            "asin": "B09GHD1R2R",
+            "narrators": [{"name": "Narrator 1"}],
+        }
+
+        validator = MetadataValidation()
+        result = validator.validate(release, audnex_data=audnex_data)
+
+        narrators_check = next(c for c in result.checks if c.name == "narrators_present")
+        assert narrators_check.passed is True
+
+    def test_runtime_match_within_tolerance(self):
+        """Runtime within tolerance should pass."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import MetadataValidation
+
+        release = AudiobookRelease(asin="B09GHD1R2R")
+        audnex_data = {"title": "Test", "asin": "B09", "runtimeLengthSec": 10000}
+        mediainfo_data = {
+            "media": {"track": [{"@type": "General", "Duration": 10050}]}  # 0.5% diff
+        }
+
+        validator = MetadataValidation(runtime_tolerance=0.05)
+        result = validator.validate(release, audnex_data=audnex_data, mediainfo_data=mediainfo_data)
+
+        runtime_check = next(c for c in result.checks if c.name == "runtime_match")
+        assert runtime_check.passed is True
+
+    def test_runtime_mismatch_outside_tolerance(self):
+        """Runtime outside tolerance should warn."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import MetadataValidation
+
+        release = AudiobookRelease(asin="B09GHD1R2R")
+        audnex_data = {"title": "Test", "asin": "B09", "runtimeLengthSec": 10000}
+        mediainfo_data = {
+            "media": {"track": [{"@type": "General", "Duration": 12000}]}  # 20% diff
+        }
+
+        validator = MetadataValidation(runtime_tolerance=0.05)
+        result = validator.validate(release, audnex_data=audnex_data, mediainfo_data=mediainfo_data)
+
+        runtime_check = next(c for c in result.checks if c.name == "runtime_match")
+        assert runtime_check.passed is False
+
+
+class TestPreUploadValidation:
+    """Tests for PreUploadValidation class."""
+
+    def test_torrent_valid_passes(self, tmp_path):
+        """Valid torrent file should pass."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import PreUploadValidation
+
+        torrent_file = tmp_path / "test.torrent"
+        torrent_file.write_bytes(b"d8:announce...")
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            torrent_path=torrent_file,
+            staging_dir=tmp_path,
+        )
+
+        settings = MockSettings()
+        settings.paths.seed_root = tmp_path
+
+        validator = PreUploadValidation(settings)
+        result = validator.validate(release)
+
+        torrent_check = next(c for c in result.checks if c.name == "torrent_valid")
+        assert torrent_check.passed is True
+
+    def test_missing_torrent_fails(self, tmp_path):
+        """Missing torrent file should fail."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import PreUploadValidation
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            staging_dir=tmp_path,
+        )
+
+        settings = MockSettings()
+        settings.paths.seed_root = tmp_path
+
+        validator = PreUploadValidation(settings)
+        result = validator.validate(release)
+
+        torrent_check = next(c for c in result.checks if c.name == "torrent_valid")
+        assert torrent_check.passed is False
+
+    def test_filename_length_ok(self, tmp_path):
+        """Filename under 225 chars should pass."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import PreUploadValidation
+
+        staging = tmp_path / ("A" * 100)  # 100 chars - OK
+        staging.mkdir()
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            staging_dir=staging,
+        )
+
+        settings = MockSettings()
+        settings.paths.seed_root = tmp_path
+
+        validator = PreUploadValidation(settings)
+        result = validator.validate(release)
+
+        length_check = next(c for c in result.checks if c.name == "filename_length")
+        assert length_check.passed is True
+
+    def test_filename_too_long_fails(self, tmp_path):
+        """Filename over 225 chars should fail."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import PreUploadValidation
+
+        staging = tmp_path / ("A" * 230)  # 230 chars - Too long
+        staging.mkdir()
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            staging_dir=staging,
+        )
+
+        settings = MockSettings()
+        settings.paths.seed_root = tmp_path
+
+        validator = PreUploadValidation(settings)
+        result = validator.validate(release)
+
+        length_check = next(c for c in result.checks if c.name == "filename_length")
+        assert length_check.passed is False
+
+
+class TestChapterIntegrityChecker:
+    """Tests for ChapterIntegrityChecker class."""
+
+    def test_matching_chapter_counts(self):
+        """Matching chapter counts should pass."""
+        from mamfast.validation import ChapterIntegrityChecker
+
+        embedded = [{"title": "Ch 1"}, {"title": "Ch 2"}, {"title": "Ch 3"}]
+        api = [{"title": "Ch 1"}, {"title": "Ch 2"}, {"title": "Ch 3"}]
+
+        checker = ChapterIntegrityChecker()
+        result = checker.compare_chapters(embedded, api)
+
+        assert result.count_match is True
+        assert result.embedded_count == 3
+        assert result.api_count == 3
+
+    def test_mismatched_chapter_counts(self):
+        """Mismatched chapter counts should fail - detects Libation bug."""
+        from mamfast.validation import ChapterIntegrityChecker
+
+        embedded = [{"title": "Ch 1"}, {"title": "Ch 2"}]  # 2 chapters
+        api = [{"title": "Ch 1"}, {"title": "Ch 2"}, {"title": "Ch 3"}]  # 3 chapters
+
+        checker = ChapterIntegrityChecker()
+        result = checker.compare_chapters(embedded, api)
+
+        assert result.count_match is False
+        assert result.embedded_count == 2
+        assert result.api_count == 3
+
+    def test_chapter_validation_integration(self):
+        """Full chapter validation flow."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import ChapterIntegrityChecker
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            mediainfo_data={
+                "media": {
+                    "track": [
+                        {
+                            "@type": "Menu",
+                            "extra": {
+                                "_00_00_00_000": "Chapter 1",
+                                "_00_10_00_000": "Chapter 2",
+                            },
+                        }
+                    ]
+                }
+            },
+        )
+
+        audnex_chapters = {
+            "chapters": [
+                {"title": "Chapter 1", "lengthMs": 600000},
+                {"title": "Chapter 2", "lengthMs": 600000},
+                {"title": "Chapter 3", "lengthMs": 600000},  # Extra chapter - mismatch!
+            ]
+        }
+
+        checker = ChapterIntegrityChecker()
+        result = checker.validate(release, audnex_chapters)
+
+        # Should have chapter count mismatch warning
+        count_check = next((c for c in result.checks if c.name == "chapter_count"), None)
+        assert count_check is not None
+        assert count_check.passed is False
+        assert "MISMATCH" in count_check.message
+
+
+class TestSafetyUtilities:
+    """Tests for Phase 5 safety utilities."""
+
+    def test_sanitize_path_component_removes_traversal(self):
+        """Path traversal patterns should be removed."""
+        from mamfast.validation import sanitize_path_component
+
+        assert ".." not in sanitize_path_component("../evil")
+        assert ".." not in sanitize_path_component("foo/../bar")
+        assert "/" not in sanitize_path_component("foo/bar")
+        assert "\\" not in sanitize_path_component("foo\\bar")
+
+    def test_sanitize_path_component_removes_null_bytes(self):
+        """Null bytes should be removed."""
+        from mamfast.validation import sanitize_path_component
+
+        result = sanitize_path_component("test\x00evil")
+        assert "\x00" not in result
+
+    def test_is_safe_path_within_root(self, tmp_path):
+        """Path within root should be safe."""
+        from mamfast.validation import is_safe_path
+
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+
+        assert is_safe_path(subdir, tmp_path) is True
+
+    def test_is_safe_path_outside_root(self, tmp_path):
+        """Path outside root should not be safe."""
+        from mamfast.validation import is_safe_path
+
+        outside = tmp_path.parent / "other"
+        assert is_safe_path(outside, tmp_path) is False
+
+    def test_compute_file_checksum(self, tmp_path):
+        """File checksum should be computed correctly."""
+        from mamfast.validation import compute_file_checksum
+
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("hello world")
+
+        checksum = compute_file_checksum(test_file, "md5")
+        assert checksum is not None
+        assert len(checksum) == 32  # MD5 hex length
+
+    def test_compute_file_checksum_missing_file(self, tmp_path):
+        """Missing file should return None."""
+        from mamfast.validation import compute_file_checksum
+
+        missing = tmp_path / "missing.txt"
+        assert compute_file_checksum(missing) is None
+
+
+class TestValidationReport:
+    """Tests for ValidationReport class."""
+
+    def test_report_all_passed(self):
+        """Report with all passing results should indicate all_passed."""
+        from mamfast.validation import ValidationReport, ValidationResult
+
+        result = ValidationResult()
+        result.add(ValidationCheck(name="test1", passed=True, message="OK"))
+        result.add(ValidationCheck(name="test2", passed=True, message="OK"))
+
+        report = ValidationReport(
+            asin="B09GHD1R2R",
+            title="Test Book",
+            validated_at="2025-12-02T00:00:00",
+            discovery_result=result,
+        )
+
+        assert report.all_passed is True
+        assert report.total_errors == 0
+        assert report.total_warnings == 0
+
+    def test_report_with_failures(self):
+        """Report with failures should indicate not all_passed."""
+        from mamfast.validation import ValidationReport, ValidationResult
+
+        result = ValidationResult()
+        result.add(ValidationCheck(name="test1", passed=True, message="OK"))
+        result.add(ValidationCheck(name="test2", passed=False, message="Failed", severity="error"))
+
+        report = ValidationReport(
+            asin="B09GHD1R2R",
+            title="Test Book",
+            validated_at="2025-12-02T00:00:00",
+            discovery_result=result,
+        )
+
+        assert report.all_passed is False
+        assert report.total_errors == 1
+
+    def test_report_to_dict(self):
+        """Report should serialize to dictionary."""
+        from mamfast.validation import ValidationReport, ValidationResult
+
+        result = ValidationResult()
+        result.add(ValidationCheck(name="test1", passed=True, message="OK"))
+
+        report = ValidationReport(
+            asin="B09GHD1R2R",
+            title="Test Book",
+            validated_at="2025-12-02T00:00:00",
+            discovery_result=result,
+        )
+
+        data = report.to_dict()
+        assert data["asin"] == "B09GHD1R2R"
+        assert data["title"] == "Test Book"
+        assert data["all_passed"] is True
+        assert "discovery" in data
