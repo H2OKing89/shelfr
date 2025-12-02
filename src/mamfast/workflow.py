@@ -3,11 +3,12 @@ Workflow orchestration for the MAMFast pipeline.
 
 Coordinates all processing steps:
 1. Libation scan
-2. Discovery
+2. Discovery (+ validation)
 3. Staging (hardlink + rename)
-4. Metadata (Audnex + MediaInfo)
+4. Metadata (Audnex + MediaInfo) (+ validation)
 5. Torrent creation (mkbrr)
-6. Upload (qBittorrent)
+6. Pre-upload validation
+7. Upload (qBittorrent)
 """
 
 from __future__ import annotations
@@ -39,6 +40,12 @@ from mamfast.models import AudiobookRelease, ProcessingResult, ReleaseStatus
 from mamfast.qbittorrent import upload_torrent
 from mamfast.utils.retry import NETWORK_EXCEPTIONS, retry_with_backoff
 from mamfast.utils.state import is_processed, mark_failed, mark_processed
+from mamfast.validation import (
+    ChapterIntegrityChecker,
+    DiscoveryValidation,
+    MetadataValidation,
+    PreUploadValidation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +60,7 @@ class ProgressStage(Enum):
 
     SCAN = "scan"
     DISCOVERY = "discovery"
+    VALIDATION = "validation"
     STAGING = "staging"
     METADATA = "metadata"
     TORRENT = "torrent"
@@ -178,6 +186,37 @@ def process_single_release(
 
     try:
         # ---------------------------------------------------------------------
+        # 0. Discovery Validation (pre-flight checks)
+        # ---------------------------------------------------------------------
+        notify(ProgressStage.VALIDATION, "Validating release...")
+        logger.debug("Step 0: Discovery validation")
+
+        discovery_validator = DiscoveryValidation()
+        discovery_result = discovery_validator.validate(release)
+
+        # Log validation results
+        for check in discovery_result.checks:
+            if check.passed:
+                logger.debug(f"  {check.icon} {check.name}: {check.message}")
+            elif check.severity == "warning":
+                print_warning(f"Validation: {check.message}")
+            else:
+                logger.warning(f"  {check.icon} {check.name}: {check.message}")
+
+        # Fail on errors (but allow warnings)
+        if not discovery_result.passed:
+            failed_checks = [
+                c for c in discovery_result.checks if not c.passed and c.severity == "error"
+            ]
+            error_msgs = [c.message for c in failed_checks]
+            raise RuntimeError("Discovery validation failed:\n  - " + "\n  - ".join(error_msgs))
+
+        if discovery_result.warning_count > 0:
+            print_warning(f"Validation passed with {discovery_result.warning_count} warning(s)")
+        else:
+            print_success("Validation passed")
+
+        # ---------------------------------------------------------------------
         # 1. Stage
         # ---------------------------------------------------------------------
         notify(ProgressStage.STAGING, "Creating hardlinks...")
@@ -207,6 +246,34 @@ def process_single_release(
             if mediainfo_data:
                 print_success("MediaInfo extracted")
             release.status = ReleaseStatus.METADATA_FETCHED
+
+            # -----------------------------------------------------------------
+            # 2b. Metadata Validation
+            # -----------------------------------------------------------------
+            logger.debug("Step 2b: Metadata validation")
+            metadata_validator = MetadataValidation()
+            metadata_result = metadata_validator.validate(
+                release, audnex_data=audnex_data, mediainfo_data=mediainfo_data
+            )
+
+            for check in metadata_result.checks:
+                if not check.passed and check.severity == "warning":
+                    print_warning(f"Metadata: {check.message}")
+
+            # -----------------------------------------------------------------
+            # 2c. Chapter Integrity Check
+            # -----------------------------------------------------------------
+            if audnex_chapters:
+                logger.debug("Step 2c: Chapter integrity check")
+                chapter_checker = ChapterIntegrityChecker()
+                chapter_result = chapter_checker.validate(release, audnex_chapters)
+
+                for check in chapter_result.checks:
+                    if not check.passed:
+                        if check.severity == "warning":
+                            print_warning(f"Chapters: {check.message}")
+                        else:
+                            print_error(f"Chapters: {check.message}")
 
         # ---------------------------------------------------------------------
         # 3. Create torrent
@@ -252,6 +319,20 @@ def process_single_release(
             mam_json_path = generate_mam_json_for_release(release, output_dir=release_output_dir)
             if mam_json_path:
                 print_success(f"MAM JSON: {mam_json_path.name}")
+
+        # ---------------------------------------------------------------------
+        # 3c. Pre-Upload Validation
+        # ---------------------------------------------------------------------
+        logger.debug("Step 3c: Pre-upload validation")
+        pre_upload_validator = PreUploadValidation(settings)
+        pre_upload_result = pre_upload_validator.validate(release)
+
+        for check in pre_upload_result.checks:
+            if not check.passed:
+                if check.severity == "error":
+                    raise RuntimeError(f"Pre-upload validation failed: {check.message}")
+                elif check.severity == "warning":
+                    print_warning(f"Pre-upload: {check.message}")
 
         # ---------------------------------------------------------------------
         # 4. Upload to qBittorrent
