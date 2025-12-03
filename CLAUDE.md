@@ -15,6 +15,8 @@ This document provides AI assistants with essential context about the MAMFast co
 
 **Technology Stack**:
 - Python 3.11+ (strict type checking with mypy)
+- Pydantic 2.0+ for data validation and schemas
+- pathvalidate for robust filename sanitization
 - Docker (for Libation and mkbrr containers)
 - External services: qBittorrent API, Audnex API
 - CLI interface with Rich for pretty output
@@ -27,7 +29,7 @@ mam_tool/
 │   ├── __init__.py           # Version: 0.1.0
 │   ├── cli.py                # Command-line interface (argparse)
 │   ├── config.py             # Configuration loading (.env, YAML, JSON)
-│   ├── models.py             # Data models (AudiobookRelease, ProcessingResult, etc.)
+│   ├── models.py             # Data models (AudiobookRelease, NormalizedBook, MamPath, etc.)
 │   ├── workflow.py           # Pipeline orchestration
 │   ├── discovery.py          # Find audiobooks in Libation library
 │   ├── hardlinker.py         # Stage files (hardlink + MAM-compliant rename)
@@ -36,13 +38,22 @@ mam_tool/
 │   ├── qbittorrent.py        # qBittorrent API client
 │   ├── libation.py           # Libation Docker wrapper
 │   ├── logging_setup.py      # Logging configuration
+│   ├── console.py            # Rich console output formatting
+│   ├── validation.py         # Configuration and data validation
+│   ├── schemas/              # Pydantic validation schemas
+│   │   ├── __init__.py       # Schema exports
+│   │   ├── audnex.py         # Audnex API response validation
+│   │   ├── config.py         # Configuration YAML validation
+│   │   ├── naming.py         # Naming conventions validation
+│   │   └── state.py          # State file validation
 │   ├── templates/            # Jinja2 templates for MAM BBCode
 │   │   └── mam_description.j2
 │   └── utils/
 │       ├── naming.py         # Filename sanitization & Japanese transliteration
 │       ├── paths.py          # Host↔container path mapping
 │       ├── retry.py          # Exponential backoff decorator
-│       └── state.py          # Processed release tracking (JSON)
+│       ├── state.py          # Processed release tracking (JSON)
+│       └── validate_naming.py # Naming validation utilities
 ├── tests/                     # Pytest test suite
 │   ├── test_discovery.py     # Discovery module tests
 │   ├── test_models.py        # Data model tests
@@ -56,7 +67,18 @@ mam_tool/
 │   ├── test_retry.py         # Retry logic tests
 │   ├── test_paths.py         # Path mapping tests
 │   ├── test_state.py         # State tracking tests
-│   └── test_integration.py   # End-to-end tests
+│   ├── test_integration.py   # End-to-end tests
+│   ├── test_console.py       # Console output tests
+│   ├── test_validation.py    # Validation logic tests
+│   ├── test_schemas.py       # Pydantic schema tests
+│   ├── test_audnex_schema.py # Audnex schema validation tests
+│   ├── test_config_schema.py # Config schema validation tests
+│   ├── test_state_schema.py  # State schema validation tests
+│   ├── test_normalization.py # Book normalization tests
+│   ├── test_pathvalidate.py  # pathvalidate integration tests
+│   ├── test_golden.py        # Golden file regression tests
+│   ├── fixtures/             # Test fixtures directory
+│   └── golden/               # Golden files for regression testing
 ├── config/
 │   └── categories.json       # MAM genre → category ID mappings
 ├── .github/workflows/
@@ -123,6 +145,7 @@ class AudiobookRelease:
     # Metadata
     audnex_metadata: dict[str, Any] | None
     mediainfo_data: dict[str, Any] | None
+    audnex_chapters: dict[str, Any] | None  # Audnex chapters API response
 
     # Timestamps
     discovered_at: datetime | None
@@ -132,6 +155,50 @@ class AudiobookRelease:
 **Key Properties**:
 - `display_name` - Human-readable name for logging: "Author - Title"
 - `safe_dirname` - Filesystem-safe directory name with sanitized characters
+
+**`NormalizedBook`** handles Audible's inconsistent title/subtitle swapping:
+
+```python
+@dataclass
+class NormalizedBook:
+    """
+    Canonical book metadata after Audnex normalization.
+
+    Fixes Audible's inconsistent title/subtitle swapping by using seriesPrimary
+    as the source of truth.
+    """
+    asin: str
+    raw_title: str                    # Original title from Audible
+    raw_subtitle: str | None          # Original subtitle from Audible
+    series_name: str | None           # From seriesPrimary
+    series_position: str | None       # From seriesPrimary
+    arc_name: str | None              # Extracted arc name
+    display_title: str                # Corrected title for display
+    display_subtitle: str | None      # Corrected subtitle for display
+    was_swapped: bool                 # True if title/subtitle were swapped
+```
+
+**`MamPath`** tracks MAM path generation with truncation metadata:
+
+```python
+@dataclass
+class MamPath:
+    """
+    Result of MAM path generation with truncation metadata.
+
+    MAM enforces a 225-character limit for the full relative path
+    (folder/filename combined).
+    """
+    folder: str                       # e.g., "Series vol_01 ... [H2OKing]"
+    filename: str                     # e.g., "Series vol_01 ....m4b"
+    full_path: str                    # folder + "/" + filename
+    length: int                       # len(full_path)
+    truncated: bool                   # True if truncation occurred
+    dropped_components: list[str]     # Components dropped during truncation
+```
+
+**Key Property**:
+- `over_limit` - Returns True if path exceeds 225 characters
 
 ### Configuration System (config.py)
 
@@ -193,6 +260,82 @@ Network operations use exponential backoff:
 def network_operation():
     ...
 ```
+
+### Pydantic Validation (schemas/)
+
+**Pydantic 2.0+ is used for comprehensive data validation** throughout the codebase:
+
+**Configuration Validation** (`schemas/config.py`):
+- `ConfigSchema` - Main configuration YAML structure
+- `PathsSchema` - File path validation with existence checks
+- `MamSchema` - MAM compliance settings
+- `QBittorrentSchema` - qBittorrent configuration with URL validation
+- `MkbrrSchema` - mkbrr Docker configuration
+- `AudnexSchema` - Audnex API settings
+- `LibationSchema` - Libation discovery configuration
+- `MediaInfoSchema` - MediaInfo configuration
+- `FiltersSchema` - Filtering and transliteration settings
+- `EnvironmentSchema` - Environment variable validation
+
+**Audnex API Validation** (`schemas/audnex.py`):
+- `AudnexBook` - Book metadata from Audnex API
+- `AudnexAuthor` - Author information
+- `AudnexSeries` - Series metadata
+- `AudnexGenre` - Genre information
+- `AudnexChapter` - Chapter data
+- `AudnexChaptersResponse` - Chapters API response
+
+**State Management** (`schemas/state.py`):
+- `ProcessedRelease` - Successfully processed release tracking
+- `FailedRelease` - Failed release tracking
+- `ProcessedState` - Complete state file structure
+
+**Naming Conventions** (`schemas/naming.py`):
+- `NamingSchema` - Naming rules and patterns validation
+
+**Validation Functions**:
+```python
+from mamfast.schemas import validate_config_yaml, validate_audnex_book
+
+# Validate configuration
+config = validate_config_yaml(config_dict)
+
+# Validate Audnex API response
+book = validate_audnex_book(api_response)
+```
+
+**Benefits**:
+- Early error detection with clear error messages
+- Type safety at runtime
+- Automatic data coercion where appropriate
+- Prevents invalid data from propagating through pipeline
+
+### pathvalidate Integration (utils/naming.py)
+
+**pathvalidate library** provides robust, cross-platform filename sanitization:
+
+**Key Features**:
+- Validates filenames across Windows, macOS, Linux
+- Handles Unicode normalization
+- Sanitizes invalid characters per platform
+- Respects MAM's 225-character path limit
+
+**Usage**:
+```python
+from pathvalidate import sanitize_filename
+
+# Sanitize with platform-aware rules
+safe_name = sanitize_filename(
+    user_input,
+    platform="universal",  # Works on all platforms
+    max_len=225           # MAM path limit
+)
+```
+
+**Integration Points**:
+- `utils/naming.py` - Filename sanitization with MAM compliance
+- `utils/validate_naming.py` - Naming validation utilities
+- `hardlinker.py` - File staging with validated names
 
 ## Development Workflows
 
@@ -488,6 +631,30 @@ logger.debug(f"QB password: {settings.qbittorrent.password}")  # NEVER DO THIS
 5. **Add tests** for new stage
 6. **Update README.md** pipeline diagram
 
+### Adding Pydantic Schema Validation
+
+1. **Create schema** in appropriate `schemas/*.py` file
+2. **Define Pydantic model** with Field validators
+   ```python
+   from pydantic import BaseModel, Field, field_validator
+
+   class MySchema(BaseModel):
+       name: str = Field(..., min_length=1, description="Display name")
+       count: int = Field(ge=0, le=100, description="Item count")
+
+       @field_validator('name')
+       @classmethod
+       def validate_name(cls, v: str) -> str:
+           if not v.strip():
+               raise ValueError("Name cannot be empty")
+           return v.strip()
+   ```
+3. **Export from `schemas/__init__.py`**
+4. **Add validation function** if needed (e.g., `validate_myschema()`)
+5. **Add comprehensive tests** in `tests/test_*_schema.py`
+6. **Update calling code** to use validation
+7. **Document in CLAUDE.md** if it's a major schema
+
 ## Testing Patterns
 
 ### Mock External Services
@@ -595,6 +762,34 @@ container_path = "/data/seedvault/audiobooks/release"
 - Used for deduplication in state tracking
 - Some releases may lack ASIN (fallback: folder name)
 
+### Pydantic Validation Strictness
+
+**Pydantic validation is strict by default**:
+- All schemas validate data at runtime
+- Invalid data raises `ValidationError` with detailed messages
+- Validation happens at configuration load, API response parsing, and state file reads
+- **Always catch ValidationError** when parsing external data:
+  ```python
+  from pydantic import ValidationError
+
+  try:
+      config = validate_config_yaml(raw_data)
+  except ValidationError as e:
+      logger.error(f"Invalid configuration: {e}")
+      # Handle error gracefully
+  ```
+- **Test with invalid data** to ensure error handling works
+- **Validation errors are user-facing** - ensure messages are helpful
+
+### pathvalidate Sanitization
+
+**pathvalidate sanitization differs from manual sanitization**:
+- Uses platform-specific rules (Windows, macOS, Linux, universal)
+- Handles reserved filenames (CON, PRN, AUX on Windows)
+- Validates max path lengths per platform
+- **Always use `platform="universal"`** for MAM compatibility
+- **Test with edge cases**: Unicode, emoji, long names, reserved names
+
 ## Git Workflow for AI Assistants
 
 ### Branch Naming
@@ -674,6 +869,18 @@ Fixes issue where network blips caused pipeline failures.
    - Check MAM 225-char limit
    - Handle Unicode and special characters
 
+7. **Does this process external data (API responses, config files)?**
+   - Add Pydantic schema validation
+   - Handle ValidationError gracefully
+   - Provide helpful error messages
+   - Add tests for invalid data
+
+8. **Does this add new configuration fields?**
+   - Update `schemas/config.py` Pydantic schema
+   - Update `config.py` parsing logic
+   - Update `config.yaml.example` with examples
+   - Add validation tests
+
 ## Useful Commands Reference
 
 ```bash
@@ -724,6 +931,6 @@ mamfast -c /path/to/config.yaml run  # Custom config
 
 ---
 
-**Last Updated**: 2025-11-30
+**Last Updated**: 2025-12-03
 **Maintained By**: MAMFast Project
 **For AI Assistants**: This document is regularly updated. Check git history for changes.
