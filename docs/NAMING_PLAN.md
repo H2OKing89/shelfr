@@ -1251,27 +1251,169 @@ Save raw responses from metadata fetches for analysis.
 - [x] Added 20 tests for normalization (`tests/test_normalization.py`)
 - [x] Verified against live Audnex API - SAO vol_16, TBATE vols 1-4, Multiverse vol_7 confirmed swapped
 
-### Phase 8: Full Path Truncation (BUG FIX) 🔧
-**Status:** TODO
+### Phase 8: Full Path Truncation (BUG FIX) ✅
+**Status:** COMPLETE
 
 **Problem discovered:** The 225-char limit applies to the **full relative path** (`folder/filename`), not individual components. Current implementation truncates folder and filename separately, which can result in paths exceeding 225 chars.
 
-**Example of the bug:**
+**Real-world impact:** Testing against actual library samples shows **7 out of 7 light novel titles exceed 225 chars** when the full path is calculated:
+
+| Series | Path Length | Over By |
+|--------|-------------|---------|
+| The Haunted Bookstore - Gateway to a Parallel Universe | 299 | +74 |
+| Campfire Cooking... (with arc) | 297 | +72 |
+| Failure Frame: I Became the Strongest... | 289 | +64 |
+| Disciple of the Lich: Or How I Was Cursed... | 271 | +46 |
+| I Got a Cheat Skill in Another World... | 253 | +28 |
+| Trapped in a Dating Sim (with arc) | 241 | +16 |
+| Now I'm a Demon Lord! Happily Ever After... | 241 | +16 |
+
+**Example of the bug (Trapped in a Dating Sim):**
 ```
 Trapped in a Dating Sim vol_01 The World of Otome Games is Tough for Mobs (2024) (Yomu Mishima) {ASIN.B0DK27WWT8} [H2OKing]/Trapped in a Dating Sim vol_01 The World of Otome Games is Tough for Mobs (2024) (Yomu Mishima) {ASIN.B0DK27WWT8}.m4b
-└─ 241 chars ❌ EXCEEDS 225
+└─ 241 chars ❌ EXCEEDS 225 by 16 chars
 ```
 
-**Fix required:**
-- [ ] Add `build_mam_path()` function that coordinates folder + filename truncation
-- [ ] Calculate combined length: `len(folder) + 1 + len(filename)` (the `1` is for `/`)
-- [ ] Truncate based on combined length, not individually
-- [ ] Since folder has `[Tag]` and filename has `.m4b`, they differ by ~`len(tag) + 2 - 4` chars
-- [ ] Update `hardlinker.py` to use new `build_mam_path()` function
-- [ ] Add tests for full path length validation
-- [ ] Update existing truncation tests to use full path logic
+**Example of the bug (Haunted Bookstore - worst case):**
+```
+The Haunted Bookstore - Gateway to a Parallel Universe vol_01 The Spirit Daughter and the Exorcist Son (2022) (Shinobumaru) {ASIN.B09EXAMPLE1} [H2OKing]/The Haunted Bookstore - Gateway to a Parallel Universe vol_01 The Spirit Daughter and the Exorcist Son (2022) (Shinobumaru) {ASIN.B09EXAMPLE1}.m4b
+└─ 299 chars ❌ EXCEEDS 225 by 74 chars
+```
 
-**Implementation approach:**
+**Why the current code fails:**
+- `build_mam_folder_name()` truncates to 225 chars → produces ~150 char folder
+- `build_mam_file_name()` truncates to 225 chars → produces ~145 char filename
+- Combined: `150 + 1 + 145 = 296 chars` (the `/` adds 1 char)
+- Both components fit individually but combined path exceeds limit
+
+#### The Math: Calculate Budget Upfront
+
+The key insight is that the **base name appears TWICE** in the path. This means we can derive the max base length directly instead of iterating:
+
+```python
+# Path structure: "{base} [{tag}]/{base}.m4b"
+#
+# Components:
+#   folder   = base + " [" + tag + "]"  →  len(base) + 3 + len(tag)
+#   filename = base + ext               →  len(base) + len(ext)
+#   separator = "/"                     →  1
+#
+# Total length = len(folder) + 1 + len(filename)
+#              = (len(base) + 3 + len(tag)) + 1 + (len(base) + len(ext))
+#              = 2*len(base) + len(tag) + len(ext) + 4
+#
+# For no tag:    length = 2*len(base) + len(ext) + 1
+#                       = 2*len(base) + 4 + 1  (for ".m4b")
+#                       = 2*len(base) + 5
+#
+# To fit in 225 chars:
+#   WITH tag:    2*base + len(tag) + len(ext) + 4 ≤ 225
+#                base ≤ (225 - len(tag) - len(ext) - 4) / 2
+#
+#   NO tag:      2*base + len(ext) + 1 ≤ 225
+#                base ≤ (225 - len(ext) - 1) / 2
+#
+# Examples with ".m4b" (4 chars):
+#   With "H2OKing" (7 chars): base ≤ (225 - 7 - 4 - 4) / 2 = 105 chars
+#   With no tag:              base ≤ (225 - 4 - 1) / 2     = 110 chars
+#
+# Multi-file adjustment for " - Part XX.m4b" (14 chars worst case):
+#   With "H2OKing" (7 chars): base ≤ (225 - 7 - 14 - 4) / 2 = 100 chars
+#   With no tag:              base ≤ (225 - 14 - 1) / 2     = 105 chars
+```
+
+**This formula goes in the code comments.** Calculate budget upfront, don't iterate.
+
+#### Return Type: MamPath Dataclass
+
+Instead of returning a tuple, return a result object for better debugging:
+
+```python
+@dataclass
+class MamPath:
+    """Result of MAM path generation with truncation metadata."""
+    folder: str              # e.g., "Series vol_01 ... [H2OKing]"
+    filename: str            # e.g., "Series vol_01 ....m4b"
+    full_path: str           # folder + "/" + filename
+    length: int              # len(full_path)
+    truncated: bool          # True if any truncation occurred
+    dropped_components: list[str]  # ["arc", "author"] for logging
+```
+
+The `dropped_components` list makes debug logging trivial:
+```
+[build_mam_path] Truncated path for B0DK27WWT8: 225 chars
+  - Dropped: arc, author
+  - Final: "Trapped in a Dating Sim vol_01 (2024) {ASIN.B0DK27WWT8} [H2OKing]/..."
+```
+
+#### Multi-File Support
+
+Account for multi-part audiobooks with `part_count` parameter:
+
+```python
+# Extension lengths:
+#   Single file:  ".m4b"           = 4 chars
+#   Multi-file:   " - Part 01.m4b" = 14 chars (worst case: Part 99)
+#   Other files:  ".cue"           = 4 chars
+#                 ".epub"          = 5 chars
+#                 ".metadata.json" = 14 chars (!)
+#
+# Budget with longest extension reduces base by ~5 chars vs .m4b
+
+def build_mam_path(
+    ...,
+    part_count: int = 1,  # Number of parts (1 = single file)
+) -> MamPath:
+    # Use worst-case extension for budget calculation
+    if part_count > 1:
+        ext_len = 14  # " - Part XX.m4b"
+    else:
+        ext_len = 4   # ".m4b"
+```
+
+#### Minimum Viable Base (Floor)
+
+What's the absolute minimum if we drop everything optional?
+
+```
+{Series...} vol_{NN} {ASIN.xxxxx}
+```
+
+Shortest realistic example:
+```
+X... vol_01 {ASIN.B0XXXXXXXX}
+└─ 32 chars minimum
+```
+
+**Assert/warn if series truncation is triggered** - it probably means bad input data or an edge case worth investigating.
+
+```python
+MIN_SERIES_LEN = 3  # Absolute floor before ellipsis
+
+if len(series) <= MIN_SERIES_LEN:
+    logger.warning(
+        f"Series truncation hit floor for {asin}: '{series}' - check input data"
+    )
+```
+
+#### Implementation
+
+**Completed:**
+- [x] Add `MamPath` dataclass to `models.py`
+- [x] Add `build_mam_path()` function in `naming.py` that:
+  - [x] Calculates max base length upfront using the formula
+  - [x] Builds base name to fit exactly within budget
+  - [x] Drops components in priority order: arc → author → year → tag
+  - [x] Truncates series with `...` only as last resort (with warning)
+  - [x] Returns `MamPath` with truncation metadata
+- [x] Add `part_count` parameter for multi-file support
+- [x] Use worst-case extension length for budget calculation
+- [x] Update `hardlinker.py` to use new `build_mam_path()` function
+- [x] Separate `build_mam_folder_name()` / `build_mam_file_name()` retained for backwards compatibility
+- [x] Add tests for full path length validation (13 tests in `TestBuildMamPath`)
+- [x] Add specific test: Haunted Bookstore (299 chars) → truncates to exactly ≤225
+
 ```python
 def build_mam_path(
     *,
@@ -1281,18 +1423,100 @@ def build_mam_path(
     arc: str | None,
     year: str | None,
     author: str | None,
-    asin: str | None,
-    ripper_tag: str | None,
+    asin: str,
+    ripper_tag: str | None = None,
     extension: str = ".m4b",
+    part_count: int = 1,
     max_path_length: int = 225,
-) -> tuple[str, str]:
-    """Build folder and filename ensuring combined path ≤ max_path_length."""
-    # 1. Build base name (without tag or extension)
-    # 2. Calculate: folder = base + tag, filename = base + ext
-    # 3. Combined = len(folder) + 1 + len(filename)
-    # 4. If exceeds, progressively drop components from base
-    # 5. Return (folder_name, filename)
+) -> MamPath:
+    """
+    Build folder and filename ensuring combined path ≤ max_path_length.
+
+    Path structure: "{base} [{tag}]/{base}{ext}"
+
+    Budget formula (with tag):
+        2*len(base) + len(tag) + len(ext) + 4 ≤ max_path_length
+        max_base = (max_path_length - len(tag) - len(ext) - 4) // 2
+
+    Budget formula (no tag):
+        2*len(base) + len(ext) + 1 ≤ max_path_length
+        max_base = (max_path_length - len(ext) - 1) // 2
+
+    Returns:
+        MamPath with folder, filename, and truncation metadata.
+    """
+    # 1. Calculate extension length (worst case for multi-file)
+    if part_count > 1:
+        ext_len = 14  # " - Part XX.m4b"
+    else:
+        ext_len = len(extension)
+
+    # 2. Calculate max base length using formula
+    tag_overhead = len(f" [{ripper_tag}]") if ripper_tag else 0
+    if ripper_tag:
+        # With tag: folder = base + " [tag]", filename = base + ext
+        # Total = 2*base + 3 + len(tag) + 1 + ext_len = 2*base + tag_overhead + ext_len + 1
+        fixed_overhead = tag_overhead + ext_len + 1
+    else:
+        # No tag: folder = base, filename = base + ext
+        # Total = 2*base + 1 + ext_len
+        fixed_overhead = ext_len + 1
+
+    max_base_len = (max_path_length - fixed_overhead) // 2
+
+    # 3. Build base name to fit within max_base_len
+    base = _build_base_name(
+        series=series,
+        title=title,
+        volume_number=volume_number,
+        arc=arc,
+        year=year,
+        author=author,
+        asin=asin,
+        max_length=max_base_len,
+    )
+
+    # 4. Construct folder and filename
+    folder = f"{base} [{ripper_tag}]" if ripper_tag else base
+    filename = f"{base}{extension}"
+    full_path = f"{folder}/{filename}"
+
+    return MamPath(
+        folder=folder,
+        filename=filename,
+        full_path=full_path,
+        length=len(full_path),
+        truncated=base.truncated,
+        dropped_components=base.dropped_components,
+    )
 ```
+
+#### Test Cases
+
+**Required tests for Phase 8:**
+
+1. **Barely over** - Trapped in a Dating Sim (241 chars)
+   - Verify dropping `{Arc}` alone is sufficient
+   - Confirm author/year/tag are NOT dropped
+
+2. **Worst case** - Haunted Bookstore (299 chars)
+   - Must drop arc, author, year, tag AND truncate series
+   - Verify `series` ends with `...`
+   - Verify `vol_XX` and `{ASIN}` are intact
+   - Verify final path length ≤ 225
+
+3. **Multi-file** - Same titles with `part_count=2`
+   - Verify budget accounts for ` - Part XX.m4b` (14 chars)
+   - Verify truncation triggers earlier
+
+4. **No truncation needed** - Short series like "Overlord vol_01"
+   - Verify `truncated=False`
+   - Verify `dropped_components=[]`
+
+5. **Edge case: minimum series**
+   - Series that's already very short
+   - Verify warning is logged
+   - Verify floor of 3 chars is respected
 
 ---
 
@@ -1406,3 +1630,4 @@ Eventually could extend naming.json to support context overrides:
 - **2025-12-02**: Implemented Phase 7 - Audnex Normalization Layer. Fixes title/subtitle swaps using `seriesPrimary` as source of truth. Added `NormalizedBook` dataclass, detection/extraction functions, 20 tests, and 18 verified API samples
 - **2025-12-03**: Added real-world truncation examples from `samples/library_full.json` (I Parry Everything, Campfire Cooking, Space Mercenary)
 - **2025-12-03**: **BUG DISCOVERED** - 225-char limit applies to full path (`folder/filename`), not individual components. Added Phase 8 to fix truncation logic. Example: "Trapped in a Dating Sim" path is 241 chars, exceeds limit. Updated Character Limits section with correct path calculation.
+- **2025-12-03**: **Phase 8 refined** with external feedback: Added budget formula (calculate upfront, don't iterate), `MamPath` dataclass with `dropped_components` for logging, multi-file support (`part_count` parameter), minimum viable base floor (3 chars + warning), and specific test cases (Haunted Bookstore at 299 chars → must truncate to ≤225).

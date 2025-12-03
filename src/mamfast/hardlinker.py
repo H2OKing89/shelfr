@@ -16,8 +16,7 @@ from pathlib import Path
 from mamfast.config import get_settings
 from mamfast.models import AudiobookRelease
 from mamfast.utils.naming import (
-    build_mam_file_name,
-    build_mam_folder_name,
+    build_mam_path,
     extract_volume_number,
 )
 
@@ -55,8 +54,18 @@ def stage_release(release: AudiobookRelease) -> Path:
     # Extract volume number from series_position or filename
     volume_number = extract_volume_number(release.title, series_position=release.series_position)
 
-    # Build MAM-compliant folder name using metadata
-    staging_name = build_mam_folder_name(
+    # Count how many audio files we have (for multi-part budget calculation)
+    # Use glob (not rglob) since we only process files in this folder, not recursive
+    m4b_count = sum(1 for f in release.source_dir.glob("*.m4b"))
+    part_count = max(1, m4b_count)
+
+    # ASIN is required for MAM-compliant paths
+    if not release.asin:
+        raise ValueError(f"Release '{release.display_name}' has no ASIN - required for MAM staging")
+
+    # Build MAM-compliant path using the new Phase 8 function
+    # This ensures folder + filename combined fit within 225 chars
+    mam_path = build_mam_path(
         series=release.series,
         title=release.title,
         volume_number=volume_number,
@@ -65,34 +74,58 @@ def stage_release(release: AudiobookRelease) -> Path:
         author=release.author,
         asin=release.asin,
         ripper_tag=settings.naming.ripper_tag if settings.naming else None,
+        part_count=part_count,
         naming_config=settings.naming,
-        max_length=settings.mam.max_filename_length,
+        max_path_length=settings.mam.max_filename_length,
     )
 
-    staging_dir = seed_root / staging_name
+    # Log truncation info if any
+    if mam_path.truncated:
+        logger.info(
+            f"Path truncated for {release.asin}: dropped {mam_path.dropped_components}, "
+            f"final length {mam_path.length} chars"
+        )
+
+    staging_dir = seed_root / mam_path.folder
 
     logger.info(f"Staging release: {release.display_name}")
     logger.debug(f"  Source: {release.source_dir}")
     logger.debug(f"  Seed dir: {staging_dir}")
+    logger.debug(f"  Path length: {mam_path.length} chars")
 
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     # Find and hardlink allowed files (not recursive - just files in this folder)
     staged_files = []
     for src_file in find_allowed_files(release.source_dir):
-        # Build MAM-compliant filename
-        dst_name = build_mam_file_name(
-            series=release.series,
-            title=release.title,
-            volume_number=volume_number,
-            arc=None,
-            year=release.year,
-            author=release.author,
-            asin=release.asin,
-            extension=src_file.suffix,
-            naming_config=settings.naming,
-            max_length=settings.mam.max_filename_length,
-        )
+        # Use the base filename from mam_path, but with this file's extension
+        # For the main .m4b, use the computed filename directly
+        # For other extensions, replace the extension
+        if src_file.suffix.lower() == ".m4b":
+            dst_name = mam_path.filename
+        else:
+            # Strip .m4b and add this file's extension
+            base_without_ext = mam_path.filename.removesuffix(".m4b")
+            dst_name = f"{base_without_ext}{src_file.suffix}"
+
+            # Check if non-.m4b extension exceeds budget (e.g., .jpeg > .m4b)
+            max_path_len = settings.mam.max_filename_length
+            full_ancillary_path = f"{mam_path.folder}/{dst_name}"
+            original_len = len(full_ancillary_path)
+            if original_len > max_path_len:
+                # Truncate base and verify the full path fits; loop if needed
+                truncated_base = base_without_ext
+                while len(f"{mam_path.folder}/{truncated_base}{src_file.suffix}") > max_path_len:
+                    if len(truncated_base) <= 1:
+                        break  # Safety: don't truncate to empty
+                    truncated_base = truncated_base[:-1]
+                dst_name = f"{truncated_base}{src_file.suffix}"
+                new_len = len(f"{mam_path.folder}/{dst_name}")
+                logger.debug(
+                    f"  Truncated ancillary filename for {src_file.suffix}: "
+                    f"{original_len} -> {new_len} chars"
+                )
+
         dst_file = staging_dir / dst_name
 
         hardlink_file(src_file, dst_file)

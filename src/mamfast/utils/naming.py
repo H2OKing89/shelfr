@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from mamfast.config import FiltersConfig, NamingConfig
-    from mamfast.models import NormalizedBook
+    from mamfast.models import MamPath, NormalizedBook
 
 logger = logging.getLogger(__name__)
 
@@ -1513,3 +1513,377 @@ def build_mam_file_name(
     )
 
     return f"{base_name}{extension}"
+
+
+# =============================================================================
+# PHASE 8: Full Path Truncation
+# =============================================================================
+# The 225-char limit applies to the FULL RELATIVE PATH (folder/filename),
+# not individual components. The base name appears TWICE in the path,
+# so every character saved from the base saves ~2 characters total.
+#
+# Path structure: "{base} [{tag}]/{base}{ext}"
+#
+# Budget formula (with tag):
+#   Total = len(base) + 3 + len(tag) + 1 + len(base) + len(ext)
+#         = 2*len(base) + len(tag) + len(ext) + 4
+#
+#   To fit in 225: max_base = (225 - len(tag) - len(ext) - 4) // 2
+#
+# Budget formula (no tag):
+#   Total = len(base) + 1 + len(base) + len(ext)
+#         = 2*len(base) + len(ext) + 1
+#
+#   To fit in 225: max_base = (225 - len(ext) - 1) // 2
+#
+# Examples with ".m4b" (4 chars):
+#   With "H2OKing" (7 chars): max_base = (225 - 7 - 4 - 4) // 2 = 105 chars
+#   With no tag:              max_base = (225 - 4 - 1) // 2     = 110 chars
+#
+# Multi-file adjustment for " - Part XX.m4b" (14 chars worst case):
+#   With "H2OKing": max_base = (225 - 7 - 14 - 4) // 2 = 100 chars
+#   With no tag:    max_base = (225 - 14 - 1) // 2     = 105 chars
+# =============================================================================
+
+# Minimum series length before we give up and just truncate
+MIN_SERIES_LENGTH = 3
+
+# Default MAM path length limit
+MAM_MAX_PATH_LENGTH = 225
+
+
+@functools.lru_cache(maxsize=1)
+def _get_mam_path_class() -> type[MamPath]:
+    """Lazy import of MamPath to avoid circular imports."""
+    from mamfast.models import MamPath as MamPathClass
+
+    return MamPathClass
+
+
+def _calculate_max_base_length(
+    *,
+    ripper_tag: str | None,
+    extension: str,
+    part_count: int,
+    max_path_length: int,
+) -> int:
+    """
+    Calculate the maximum base name length given the path constraints.
+
+    The base name appears TWICE in the path (folder + filename), so:
+        path_length = 2*base + overhead
+
+    Args:
+        ripper_tag: Optional ripper tag (e.g., "H2OKing")
+        extension: File extension including dot (e.g., ".m4b")
+        part_count: Number of parts (>1 means multi-file)
+        max_path_length: Maximum total path length (default: 225)
+
+    Returns:
+        Maximum allowed base name length
+    """
+    # Determine extension length (worst case for multi-file)
+    # Using if/else to preserve the explanatory comment
+    if part_count > 1:  # noqa: SIM108
+        # " - Part XX.m4b" = 14 chars worst case
+        ext_len = 14
+    else:
+        ext_len = len(extension)
+
+    # Calculate overhead based on whether we have a tag
+    # Using if/else to preserve the detailed math comments
+    if ripper_tag:  # noqa: SIM108
+        # With tag: folder = "{base} [{tag}]", filename = "{base}{ext}"
+        # Total = len(base) + 1 + 1 + len(tag) + 1 + 1 + len(base) + ext_len
+        #       = 2*len(base) + len(tag) + ext_len + 4
+        tag_overhead = len(ripper_tag) + 4  # " [" + tag + "]" + "/"
+    else:
+        # No tag: folder = "{base}", filename = "{base}{ext}"
+        # Total = len(base) + 1 + len(base) + ext_len
+        #       = 2*len(base) + ext_len + 1
+        tag_overhead = 1  # Just the "/" separator
+
+    overhead = tag_overhead + ext_len
+    max_base = (max_path_length - overhead) // 2
+
+    return max_base
+
+
+def _build_truncated_base_name(
+    *,
+    series: str | None,
+    title: str,
+    vol_str: str | None,
+    arc: str | None,
+    year: str | None,
+    author: str | None,
+    asin_str: str,
+    max_length: int,
+) -> tuple[str, bool, list[str]]:
+    """
+    Build a base name that fits within max_length, dropping components as needed.
+
+    Drop priority (lowest priority dropped first):
+    1. {Arc} - drop first
+    2. ({Author}) - drop second
+    3. ({Year}) - drop third
+    4. Series truncation with "..." - last resort
+
+    {Series}, vol_{NN}, and {ASIN} are NEVER dropped.
+
+    Args:
+        series: Series name (cleaned)
+        title: Book title (used for standalone books)
+        vol_str: Formatted volume string (e.g., "vol_01") or None
+        arc: Arc/subtitle name (optional)
+        year: Release year (4 digits)
+        author: Author name (cleaned)
+        asin_str: Formatted ASIN string (e.g., "{ASIN.B0123}")
+        max_length: Maximum allowed base name length
+
+    Returns:
+        Tuple of (base_name, truncated, dropped_components)
+    """
+    dropped: list[str] = []
+
+    # Determine if this is a series or standalone book
+    is_series = bool(series and vol_str)
+
+    # Track which optional components we have
+    use_arc = bool(arc)
+    use_year = bool(year)
+    use_author = bool(author)
+
+    def build_base(
+        include_arc: bool = True,
+        include_author: bool = True,
+        include_year: bool = True,
+        series_override: str | None = None,
+    ) -> str:
+        """Assemble base name from current components."""
+        if is_series:
+            current_series = series_override if series_override is not None else series
+            parts = [f"{current_series} {vol_str}"]
+        else:
+            parts = [series_override if series_override is not None else title]
+
+        if include_arc and arc:
+            parts.append(arc)
+        if include_year and year:
+            parts.append(f"({year})")
+        if include_author and author:
+            parts.append(f"({author})")
+
+        parts.append(asin_str)
+        return " ".join(parts)
+
+    # Try with all components
+    base = build_base(include_arc=use_arc, include_author=use_author, include_year=use_year)
+    if len(base) <= max_length:
+        return base, False, dropped
+
+    # Drop arc first
+    if use_arc:
+        dropped.append("arc")
+        base = build_base(include_arc=False, include_author=use_author, include_year=use_year)
+        if len(base) <= max_length:
+            return base, True, dropped
+
+    # Drop author second
+    if use_author:
+        dropped.append("author")
+        base = build_base(include_arc=False, include_author=False, include_year=use_year)
+        if len(base) <= max_length:
+            return base, True, dropped
+
+    # Drop year third
+    if use_year:
+        dropped.append("year")
+        base = build_base(include_arc=False, include_author=False, include_year=False)
+        if len(base) <= max_length:
+            return base, True, dropped
+
+    # Last resort: truncate series/title with "..."
+    # Base without optionals: "{series} {vol_str} {asin_str}" or "{title} {asin_str}"
+    if is_series:
+        suffix = f" {vol_str} {asin_str}"
+        identity_to_truncate = series  # We know series is not None when is_series is True
+    else:
+        suffix = f" {asin_str}"
+        identity_to_truncate = title
+
+    # At this point identity_to_truncate is guaranteed to be a string
+    assert identity_to_truncate is not None
+
+    available_for_identity = max_length - len(suffix) - 3  # 3 for "..."
+
+    if available_for_identity >= MIN_SERIES_LENGTH:
+        dropped.append("series_truncated")
+        truncated_identity = identity_to_truncate[:available_for_identity] + "..."
+        if is_series:
+            base = f"{truncated_identity} {vol_str} {asin_str}"
+        else:
+            base = f"{truncated_identity} {asin_str}"
+
+        logger.warning(
+            "Series/title truncation triggered for %s: '%s' -> '%s...' (%d chars available)",
+            asin_str,
+            identity_to_truncate,
+            identity_to_truncate[:available_for_identity],
+            available_for_identity,
+        )
+        return base, True, dropped
+
+    # Absolute minimum fallback (should never happen with real data)
+    logger.error(
+        "Cannot fit base name in %d chars for %s - returning truncated identity",
+        max_length,
+        asin_str,
+    )
+    dropped.append("emergency_truncation")
+    return (
+        f"{identity_to_truncate[:max_length - len(asin_str) - 4]}... {asin_str}"[:max_length],
+        True,
+        dropped,
+    )
+
+
+def build_mam_path(
+    *,
+    series: str | None = None,
+    title: str,
+    volume_number: str | None = None,
+    arc: str | None = None,
+    year: str | None = None,
+    author: str | None = None,
+    asin: str,
+    ripper_tag: str | None = None,
+    extension: str = ".m4b",
+    part_count: int = 1,
+    naming_config: NamingConfig | None = None,
+    max_path_length: int = MAM_MAX_PATH_LENGTH,
+) -> MamPath:
+    """
+    Build folder and filename ensuring combined path ≤ max_path_length.
+
+    This is the CORRECT way to generate MAM paths. The 225-char limit applies
+    to the full relative path (folder/filename), not individual components.
+
+    Path structure: "{base} [{tag}]/{base}{ext}"
+
+    The base name appears TWICE, so every character saved from base saves ~2
+    characters from the total path length.
+
+    Args:
+        series: Series name (cleaned). If None, treated as standalone.
+        title: Book title (used for standalone books or fallback)
+        volume_number: Volume/book number (e.g., "3", "12")
+        arc: Arc/subtitle name (optional, e.g., "Aincrad")
+        year: Release year (4 digits)
+        author: Primary author name (cleaned)
+        asin: Amazon ASIN (REQUIRED for MAM)
+        ripper_tag: Optional ripper tag (e.g., "H2OKing")
+        extension: File extension (default: ".m4b")
+        part_count: Number of parts (>1 adjusts budget for " - Part XX")
+        naming_config: NamingConfig for cleaning rules
+        max_path_length: Maximum path length (default: 225 for MAM)
+
+    Returns:
+        MamPath with folder, filename, and truncation metadata
+    """
+    mam_path_cls = _get_mam_path_class()
+
+    # Ensure extension starts with dot
+    if extension and not extension.startswith("."):
+        extension = f".{extension}"
+
+    # Clean inputs
+    clean_series = (
+        filter_title(series, naming_config=naming_config, keep_volume=False) if series else None
+    )
+    clean_title = (
+        filter_title(title, naming_config=naming_config, keep_volume=False) if title else ""
+    )
+    clean_arc = filter_title(arc, naming_config=naming_config, keep_volume=False) if arc else None
+    clean_author = sanitize_filename(author) if author else None
+
+    # Format volume
+    vol_str = format_volume_number(volume_number)
+
+    # Format ASIN (required for MAM)
+    # Pre-sanitize ASIN to ensure it doesn't introduce characters needing expansion later
+    clean_asin = sanitize_filename(asin) if asin else asin
+    asin_str = f"{{ASIN.{clean_asin}}}"
+
+    # Calculate max base length using the budget formula
+    max_base_len = _calculate_max_base_length(
+        ripper_tag=ripper_tag,
+        extension=extension,
+        part_count=part_count,
+        max_path_length=max_path_length,
+    )
+
+    # Build the base name (with truncation if needed)
+    base_name, truncated, dropped = _build_truncated_base_name(
+        series=clean_series,
+        title=clean_title,
+        vol_str=vol_str,
+        arc=clean_arc,
+        year=year,
+        author=clean_author,
+        asin_str=asin_str,
+        max_length=max_base_len,
+    )
+
+    # Sanitize the base name (can increase length: e.g., ':' -> ' -')
+    base_name = sanitize_filename(base_name)
+
+    # Re-check length after sanitization - truncate if sanitization expanded it
+    if len(base_name) > max_base_len:
+        # Truncate to fit, preserving the ASIN at the end
+        asin_idx = base_name.rfind("{ASIN.")
+        if asin_idx > 0:
+            # Keep ASIN intact, truncate before it
+            available = max_base_len - (len(base_name) - asin_idx) - 4  # 4 for "... "
+            if available > 3:
+                base_name = base_name[:available] + "... " + base_name[asin_idx:]
+                if not truncated:
+                    truncated = True
+                    dropped.append("sanitization_expansion")
+            else:
+                # Emergency: just hard truncate
+                base_name = base_name[:max_base_len]
+        else:
+            base_name = base_name[:max_base_len]
+        logger.debug(
+            "Post-sanitization truncation for %s: base exceeded budget by %d chars",
+            asin,
+            len(base_name) - max_base_len,
+        )
+
+    # Check if tag was dropped during truncation (not yet implemented in _build_truncated_base_name)
+    # For now, tag is always included if provided - it's handled by the budget formula
+
+    # Build folder and filename
+    folder = f"{base_name} [{ripper_tag}]" if ripper_tag else base_name
+
+    filename = f"{base_name}{extension}"
+    full_path = f"{folder}/{filename}"
+
+    # Log if truncation occurred
+    if truncated:
+        logger.debug(
+            "Truncated MAM path for %s: %d chars, dropped: %s",
+            asin,
+            len(full_path),
+            dropped,
+        )
+
+    return mam_path_cls(
+        folder=folder,
+        filename=filename,
+        full_path=full_path,
+        length=len(full_path),
+        truncated=truncated,
+        dropped_components=dropped,
+    )
