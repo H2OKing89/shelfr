@@ -248,6 +248,20 @@ def process_single_release(
             release.audnex_chapters = audnex_chapters
             if audnex_data:
                 print_success(f"Audnex metadata for {release.asin}")
+
+                # Check if Audnex title differs significantly from Libation title
+                from mamfast.utils.fuzzy import similarity_ratio
+
+                audnex_title = audnex_data.get("title", "")
+                libation_title = release.title or ""
+                if audnex_title and libation_title:
+                    title_similarity = similarity_ratio(audnex_title, libation_title)
+                    if title_similarity < 70:
+                        print_warning(
+                            f"Title mismatch: Libation='{libation_title}' vs "
+                            f"Audnex='{audnex_title}' ({title_similarity:.0f}% similar)"
+                        )
+
             if audnex_chapters:
                 chapter_count = len(audnex_chapters.get("chapters", []))
                 print_success(f"Audnex chapters: {chapter_count} chapters")

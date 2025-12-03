@@ -573,3 +573,100 @@ class TestPrintReleaseSummary:
 
         captured = capsys.readouterr()
         assert "No releases found" in captured.out
+
+
+class TestFindDuplicateReleases:
+    """Tests for find_duplicate_releases fuzzy matching."""
+
+    def test_finds_similar_titles(self):
+        """Should find releases with similar titles."""
+        from mamfast.discovery import find_duplicate_releases
+
+        releases = [
+            AudiobookRelease(
+                title="Overlord 14",
+                author="Kugane Maruyama",
+                asin="B001",
+            ),
+            AudiobookRelease(
+                title="Overlord, Vol. 14",
+                author="Kugane Maruyama",
+                asin="B002",
+            ),
+            AudiobookRelease(
+                title="Different Book",
+                author="Other Author",
+                asin="B003",
+            ),
+        ]
+
+        duplicates = find_duplicate_releases(releases, threshold=75)  # Lower threshold
+
+        assert len(duplicates) == 1
+        assert duplicates[0]["title_similarity"] > 75
+        assert duplicates[0]["same_author"] is True
+
+    def test_no_duplicates_different_titles(self):
+        """Should return empty for completely different titles."""
+        from mamfast.discovery import find_duplicate_releases
+
+        releases = [
+            AudiobookRelease(title="Sword Art Online", asin="B001"),
+            AudiobookRelease(title="Overlord", asin="B002"),
+            AudiobookRelease(title="Re:Zero", asin="B003"),
+        ]
+
+        duplicates = find_duplicate_releases(releases, threshold=85)
+
+        assert len(duplicates) == 0
+
+    def test_empty_list_returns_empty(self):
+        """Empty list should return empty."""
+        from mamfast.discovery import find_duplicate_releases
+
+        assert find_duplicate_releases([]) == []
+        assert find_duplicate_releases([AudiobookRelease(title="One")]) == []
+
+    def test_marks_likely_duplicate_with_same_author(self):
+        """Should mark as likely duplicate when same author."""
+        from mamfast.discovery import find_duplicate_releases
+
+        releases = [
+            AudiobookRelease(
+                title="My Book 1",
+                author="Same Author",
+                asin="B001",
+            ),
+            AudiobookRelease(
+                title="My Book, Vol. 1",
+                author="Same Author",
+                asin="B002",
+            ),
+        ]
+
+        duplicates = find_duplicate_releases(releases, threshold=70)
+
+        assert len(duplicates) == 1
+        assert duplicates[0]["likely_duplicate"] is True
+
+    def test_marks_likely_duplicate_with_same_series(self):
+        """Should mark as likely duplicate when same series."""
+        from mamfast.discovery import find_duplicate_releases
+
+        releases = [
+            AudiobookRelease(
+                title="Series Book 1",
+                series="My Series",
+                asin="B001",
+            ),
+            AudiobookRelease(
+                title="Series Book, Vol 1",
+                series="My Series",
+                asin="B002",
+            ),
+        ]
+
+        duplicates = find_duplicate_releases(releases, threshold=70)
+
+        assert len(duplicates) == 1
+        assert duplicates[0]["likely_duplicate"] is True

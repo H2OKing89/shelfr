@@ -28,6 +28,7 @@ from typing import Any
 
 from mamfast.config import get_settings
 from mamfast.models import AudiobookRelease, ReleaseStatus
+from mamfast.utils.fuzzy import find_duplicates, similarity_ratio
 from mamfast.utils.state import get_processed_identifiers
 
 logger = logging.getLogger(__name__)
@@ -513,3 +514,65 @@ def print_release_summary(releases: list[AudiobookRelease]) -> None:
 
         print(f"       Files: {len(release.files)}")
         print()
+
+
+def find_duplicate_releases(
+    releases: list[AudiobookRelease],
+    threshold: int = 85,
+) -> list[dict[str, Any]]:
+    """
+    Find potential duplicate releases in library using fuzzy matching.
+
+    Detects near-duplicate titles that may indicate the same audiobook
+    was added twice (e.g., 'Overlord 14' vs 'Overlord, Vol. 14').
+
+    Args:
+        releases: List of releases to check
+        threshold: Minimum similarity percentage to flag as duplicate
+
+    Returns:
+        List of duplicate info dicts with release1, release2, and similarity
+    """
+    if len(releases) < 2:
+        return []
+
+    # Extract titles for comparison
+    titles = [r.title or r.display_name for r in releases]
+
+    # Find duplicates using fuzzy matching
+    duplicate_pairs = find_duplicates(titles, threshold=threshold)
+
+    results: list[dict[str, Any]] = []
+    for dup in duplicate_pairs:
+        # Find the actual release objects
+        r1 = next((r for r in releases if (r.title or r.display_name) == dup.item1), None)
+        r2 = next((r for r in releases if (r.title or r.display_name) == dup.item2), None)
+
+        if r1 and r2:
+            # Check additional signals
+            same_author = False
+            if r1.author and r2.author:
+                same_author = similarity_ratio(r1.author, r2.author) > 90
+
+            same_series = False
+            if r1.series and r2.series:
+                same_series = similarity_ratio(r1.series, r2.series) > 90
+
+            results.append(
+                {
+                    "release1": r1,
+                    "release2": r2,
+                    "title_similarity": dup.similarity,
+                    "same_author": same_author,
+                    "same_series": same_series,
+                    "likely_duplicate": same_author or same_series,
+                }
+            )
+
+    # Sort by likelihood (same author/series first, then by similarity)
+    def sort_key(x: dict[str, Any]) -> tuple[bool, float]:
+        return (not bool(x["likely_duplicate"]), -float(x["title_similarity"]))
+
+    results.sort(key=sort_key)
+
+    return results

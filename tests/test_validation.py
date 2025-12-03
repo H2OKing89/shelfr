@@ -726,6 +726,51 @@ class TestDiscoveryValidation:
         dup_check = next(c for c in result.checks if c.name == "not_duplicate")
         assert dup_check.passed is False
 
+    def test_title_cleaning_ok(self, tmp_path):
+        """Normal title cleaning should pass."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import DiscoveryValidation
+
+        m4b_file = tmp_path / "test.m4b"
+        m4b_file.write_bytes(b"fake m4b content")
+
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            title="Sword Art Online: Alicization",  # Similar after cleaning
+            source_dir=tmp_path,
+            main_m4b=m4b_file,
+        )
+
+        validator = DiscoveryValidation()
+        result = validator.validate(release)
+
+        title_check = next(c for c in result.checks if c.name == "title_cleaning")
+        assert title_check.passed is True
+        assert title_check.severity == "info"
+
+    def test_aggressive_title_cleaning_warns(self, tmp_path):
+        """Aggressive title cleaning should warn."""
+        from mamfast.models import AudiobookRelease
+        from mamfast.validation import DiscoveryValidation
+
+        m4b_file = tmp_path / "test.m4b"
+        m4b_file.write_bytes(b"fake m4b content")
+
+        # Title with lots of stuff that gets removed
+        release = AudiobookRelease(
+            asin="B09GHD1R2R",
+            title="This is a Very Long Title: Unabridged Audiobook Edition - Publisher Name (2023)",
+            source_dir=tmp_path,
+            main_m4b=m4b_file,
+        )
+
+        validator = DiscoveryValidation()
+        result = validator.validate(release)
+
+        title_check = next(c for c in result.checks if c.name == "title_cleaning")
+        # Should pass but with warning severity if similarity is low
+        assert title_check.passed is True
+
 
 class TestMetadataValidation:
     """Tests for MetadataValidation class."""

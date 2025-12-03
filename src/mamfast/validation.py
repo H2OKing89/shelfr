@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 
+from mamfast.utils.fuzzy import analyze_change
+
 if TYPE_CHECKING:
     from mamfast.config import Settings
     from mamfast.models import AudiobookRelease
@@ -530,6 +532,7 @@ class DiscoveryValidation:
         result.add(self._check_m4b_exists(release))
         result.add(self._check_cover_exists(release))
         result.add(self._check_not_duplicate(release))
+        result.add(self._check_title_cleaning(release))
         return result
 
     def _check_asin_format(self, release: AudiobookRelease) -> ValidationCheck:
@@ -663,6 +666,47 @@ class DiscoveryValidation:
             name="not_duplicate",
             passed=True,
             message="Not previously processed",
+            severity="info",
+        )
+
+    def _check_title_cleaning(self, release: AudiobookRelease) -> ValidationCheck:
+        """
+        Check if title cleaning is too aggressive.
+
+        Uses fuzzy matching to detect when naming rules remove
+        too much from the original title.
+        """
+        from mamfast.utils.naming import filter_title
+
+        if not release.title:
+            return ValidationCheck(
+                name="title_cleaning",
+                passed=True,
+                message="No title to check",
+                severity="info",
+            )
+
+        original = release.title
+        cleaned = filter_title(original)
+
+        # Analyze the change
+        analysis = analyze_change(original, cleaned)
+
+        if analysis.is_suspicious:
+            return ValidationCheck(
+                name="title_cleaning",
+                passed=True,  # Warning, not failure
+                message=(
+                    f"Title cleaning may be aggressive: "
+                    f"'{original}' → '{cleaned}' ({analysis.similarity:.0f}% similar)"
+                ),
+                severity="warning",
+            )
+
+        return ValidationCheck(
+            name="title_cleaning",
+            passed=True,
+            message=f"Title cleaning OK ({analysis.similarity:.0f}% similar)",
             severity="info",
         )
 
