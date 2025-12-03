@@ -27,6 +27,8 @@ def mock_settings():
     settings.filters.remove_phrases = []
     settings.filters.author_map = {}
     settings.filters.transliterate_japanese = False
+    # Add naming config (None uses defaults)
+    settings.naming = None
     return settings
 
 
@@ -190,7 +192,7 @@ class TestStageRelease:
         assert staging_dir.is_dir()
 
     def test_hardlinks_allowed_files(self, temp_source_dir, mock_settings):
-        """Test that allowed files are hardlinked to staging."""
+        """Test that allowed files are hardlinked to staging with MAM-compliant names."""
         release = AudiobookRelease(
             title="Test Book",
             author="Test Author",
@@ -203,10 +205,12 @@ class TestStageRelease:
         staged_files = list(staging_dir.iterdir())
         staged_names = {f.name for f in staged_files}
 
-        assert "audiobook.m4b" in staged_names
-        assert "cover.jpg" in staged_names
-        assert "notes.pdf" in staged_names
-        assert "readme.txt" not in staged_names
+        # Files should be renamed to MAM-compliant format: "Title (Author).ext"
+        assert "Test Book (Test Author).m4b" in staged_names
+        assert "Test Book (Test Author).jpg" in staged_names
+        assert "Test Book (Test Author).pdf" in staged_names
+        # txt should still be excluded
+        assert len([n for n in staged_names if n.endswith(".txt")]) == 0
 
     def test_updates_release_staging_dir(self, temp_source_dir, mock_settings):
         """Test that release.staging_dir is updated."""

@@ -797,6 +797,13 @@ Save raw responses from metadata fetches for analysis.
 - [x] Implement truncation logic (225 char limit) with priority dropping
 - [x] Handle standalone vs series books differently (title-only fallbacks)
 - [x] Added 22 tests for folder/file generation
+- [x] **Integrated into hardlinker.py** - `stage_release()` now uses `build_mam_folder_name()` and `build_mam_file_name()`
+
+---
+
+## Implementation Complete! 🎉
+
+All naming strategy phases are complete and integrated into the workflow.
 
 ---
 

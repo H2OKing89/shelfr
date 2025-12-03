@@ -15,7 +15,11 @@ from pathlib import Path
 
 from mamfast.config import get_settings
 from mamfast.models import AudiobookRelease
-from mamfast.utils.naming import filter_title, transliterate_text, truncate_filename
+from mamfast.utils.naming import (
+    build_mam_file_name,
+    build_mam_folder_name,
+    extract_volume_number,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +28,9 @@ def stage_release(release: AudiobookRelease) -> Path:
     """
     Create staging directory and hardlink files for a release.
 
-    1. Create directory under seed_root with same name as source folder
+    1. Create directory under seed_root with MAM-compliant naming
     2. Find all allowed file types in source_dir
-    3. Hardlink each file (keeping original names)
+    3. Hardlink each file with cleaned names
     4. Update release.staging_dir and return the path
 
     Args:
@@ -48,18 +52,23 @@ def stage_release(release: AudiobookRelease) -> Path:
     seed_root = settings.paths.seed_root
     seed_root.mkdir(parents=True, exist_ok=True)
 
-    # Use the original folder name (the book folder, not author folder)
-    # e.g., "Reincarnated in a Fantasy World... {ASIN.B0FF4L58ZY} [H2OKing]"
-    original_folder_name = release.source_dir.name
+    # Extract volume number from series_position or filename
+    volume_number = extract_volume_number(release.title, series_position=release.series_position)
 
-    # Apply title filters (remove "Book XX", "Light Novel", etc.)
-    filtered_name = filter_title(original_folder_name, settings.filters.remove_phrases)
+    # Build MAM-compliant folder name using metadata
+    staging_name = build_mam_folder_name(
+        series=release.series,
+        title=release.title,
+        volume_number=volume_number,
+        arc=None,  # Arc extraction not yet implemented
+        year=release.year,
+        author=release.author,
+        asin=release.asin,
+        ripper_tag=settings.naming.ripper_tag if settings.naming else None,
+        naming_config=settings.naming,
+        max_length=settings.mam.max_filename_length,
+    )
 
-    # Transliterate foreign characters (Japanese author names, etc.)
-    filtered_name = transliterate_text(filtered_name, settings.filters)
-
-    # Truncate if needed for MAM compliance
-    staging_name = truncate_filename(filtered_name, settings.mam.max_filename_length)
     staging_dir = seed_root / staging_name
 
     logger.info(f"Staging release: {release.display_name}")
@@ -71,15 +80,19 @@ def stage_release(release: AudiobookRelease) -> Path:
     # Find and hardlink allowed files (not recursive - just files in this folder)
     staged_files = []
     for src_file in find_allowed_files(release.source_dir):
-        # Apply same filtering to filename as we did to folder name
-        # Get the stem (filename without extension) and apply filters
-        src_stem = src_file.stem
-        filtered_stem = filter_title(src_stem, settings.filters.remove_phrases)
-        filtered_stem = transliterate_text(filtered_stem, settings.filters)
-
-        # Build new filename with original extension
-        new_name = filtered_stem + src_file.suffix
-        dst_name = truncate_filename(new_name, settings.mam.max_filename_length)
+        # Build MAM-compliant filename
+        dst_name = build_mam_file_name(
+            series=release.series,
+            title=release.title,
+            volume_number=volume_number,
+            arc=None,
+            year=release.year,
+            author=release.author,
+            asin=release.asin,
+            extension=src_file.suffix,
+            naming_config=settings.naming,
+            max_length=settings.mam.max_filename_length,
+        )
         dst_file = staging_dir / dst_name
 
         hardlink_file(src_file, dst_file)
