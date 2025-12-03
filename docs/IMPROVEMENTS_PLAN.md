@@ -980,6 +980,7 @@ dependencies = [
 - [x] Author name fuzzy match in `test_fuzzy.py`
 - [x] Series name normalization in `test_fuzzy.py`
 - [x] Console output helpers in `test_console.py` (10 tests)
+- [x] Workflow integration tests in `test_validation.py` and `test_discovery.py` (7 tests)
 
 ### Implementation Status
 
@@ -1008,6 +1009,14 @@ dependencies = [
    - `print_duplicate_pairs()` - Display duplicate pairs in Rich table
    - `print_suspicious_changes()` - Display suspicious changes with tips
    - `print_change_analysis()` - Detailed single change analysis
+
+4. **Workflow Integration**:
+   - `validation.py` - `_check_title_cleaning()` warns when naming rules are too aggressive
+   - `discovery.py` - `find_duplicate_releases()` detects near-duplicate titles with author/series signals
+   - `naming.py` - Fuzzy fallback for `author_map` lookups in `transliterate_text()`
+   - `workflow.py` - Warns when Audnex API title differs significantly from Libation folder name
+
+**Total Tests**: 877 (55 fuzzy + 10 console + 7 integration = 72 new tests)
 
 [↑ Back to top](#mamfast-improvements-plan)
 
