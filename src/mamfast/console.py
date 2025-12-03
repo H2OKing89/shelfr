@@ -662,7 +662,6 @@ def print_error_summary(errors: list[tuple[str, Exception]], title: str = "Error
     err_console.print(table)
 
 
-# Convenience function for quick messages
 
 
 # Convenience function for quick messages
