@@ -119,6 +119,97 @@ class MediaInfoSchema(BaseModel):
     binary: str = "mediainfo"
 
 
+class AudiobookshelfPathMapSchema(BaseModel):
+    """Docker path mapping for Audiobookshelf."""
+
+    container: str = Field(..., description="Path as seen inside ABS container")
+    host: str = Field(..., description="Corresponding path on host filesystem")
+
+    @field_validator("container", "host")
+    @classmethod
+    def validate_paths(cls, v: str, info: ValidationInfo) -> str:
+        """Ensure paths are non-empty and absolute-looking."""
+        if not v or not v.strip():
+            raise ValueError(f"{info.field_name} path is required but empty")
+        if not v.startswith("/"):
+            raise ValueError(f"{info.field_name} path must be absolute (start with /)")
+        return v.rstrip("/")  # Normalize: remove trailing slash
+
+
+class AudiobookshelfLibrarySchema(BaseModel):
+    """Audiobookshelf library configuration."""
+
+    id: str = Field(..., description="ABS library ID (e.g., lib_xxxxx)")
+    name: str = Field(default="", description="Human-readable library name")
+    mamfast_managed: bool = Field(
+        default=False, description="Whether mamfast imports to this library"
+    )
+
+    @field_validator("id")
+    @classmethod
+    def validate_library_id(cls, v: str) -> str:
+        """Validate library ID format."""
+        if not v or not v.strip():
+            raise ValueError("Library id is required")
+        if not v.startswith("lib_"):
+            raise ValueError(f"Library id should start with 'lib_', got: {v}")
+        return v
+
+
+class AudiobookshelfImportSchema(BaseModel):
+    """Audiobookshelf import settings."""
+
+    duplicate_policy: str = Field(default="skip", description="What to do with duplicates")
+    trigger_scan: str = Field(default="batch", description="When to trigger ABS library scan")
+
+    @field_validator("duplicate_policy")
+    @classmethod
+    def validate_duplicate_policy(cls, v: str) -> str:
+        """Validate duplicate_policy is a recognized value."""
+        valid = {"skip", "warn", "overwrite"}
+        if v.lower() not in valid:
+            raise ValueError(f"Invalid duplicate_policy '{v}'. Must be one of: {valid}")
+        return v.lower()
+
+    @field_validator("trigger_scan")
+    @classmethod
+    def validate_trigger_scan(cls, v: str) -> str:
+        """Validate trigger_scan is a recognized value."""
+        valid = {"none", "each", "batch"}
+        if v.lower() not in valid:
+            raise ValueError(f"Invalid trigger_scan '{v}'. Must be one of: {valid}")
+        return v.lower()
+
+
+class AudiobookshelfSchema(BaseModel):
+    """Audiobookshelf integration settings (credentials come from .env)."""
+
+    enabled: bool = Field(default=False, description="Enable ABS integration")
+    timeout_seconds: int = Field(default=30, ge=5, le=120)
+    docker_mode: bool = Field(default=True, description="Whether ABS runs in Docker")
+    path_map: list[AudiobookshelfPathMapSchema] = Field(
+        default_factory=list, description="Container-to-host path mappings"
+    )
+    libraries: list[AudiobookshelfLibrarySchema] = Field(
+        default_factory=list, description="Library configurations"
+    )
+    import_settings: AudiobookshelfImportSchema = Field(
+        default_factory=AudiobookshelfImportSchema,
+        alias="import",
+        description="Import behavior settings",
+    )
+    index_db: str = Field(default="./data/abs_index.db", description="Index database path")
+
+    model_config = {"populate_by_name": True}  # Allow both 'import' and 'import_settings'
+
+    @model_validator(mode="after")
+    def validate_docker_mode_requires_path_map(self) -> AudiobookshelfSchema:
+        """Ensure path_map is provided when docker_mode is enabled."""
+        if self.enabled and self.docker_mode and not self.path_map:
+            raise ValueError("path_map is required when docker_mode is true")
+        return self
+
+
 class FiltersSchema(BaseModel):
     """
     Title filtering settings.
@@ -180,6 +271,7 @@ class ConfigSchema(BaseModel):
     mediainfo: MediaInfoSchema = Field(default_factory=MediaInfoSchema)
     filters: FiltersSchema = Field(default_factory=FiltersSchema)
     libation: LibationSchema = Field(default_factory=LibationSchema)
+    audiobookshelf: AudiobookshelfSchema = Field(default_factory=AudiobookshelfSchema)
 
     model_config = {"extra": "forbid"}  # Catch typos in config keys
 

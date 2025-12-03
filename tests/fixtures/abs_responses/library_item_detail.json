@@ -1,0 +1,144 @@
+{
+  "id": "li_sao16_alicization",
+  "ino": "649641337522215266",
+  "libraryId": "lib_c1u6t4p45c35rf0nzd",
+  "folderId": "fol_bev1zuxhb0j0s1wehr",
+  "path": "/audiobooks/Reki Kawahara/Sword Art Online/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9} [H2OKing]",
+  "relPath": "Reki Kawahara/Sword Art Online/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9} [H2OKing]",
+  "isFile": false,
+  "mtimeMs": 1733212800000,
+  "ctimeMs": 1733212800000,
+  "birthtimeMs": 1733212800000,
+  "addedAt": 1733212800000,
+  "updatedAt": 1733212800000,
+  "lastScan": 1733212800000,
+  "scanVersion": "2.7.2",
+  "isMissing": false,
+  "isInvalid": false,
+  "mediaType": "book",
+  "media": {
+    "libraryItemId": "li_sao16_alicization",
+    "metadata": {
+      "title": "Sword Art Online vol_16 Alicization Exploding",
+      "titleIgnorePrefix": "Sword Art Online vol_16 Alicization Exploding",
+      "subtitle": null,
+      "authors": [
+        {
+          "id": "aut_reki_kawahara",
+          "name": "Reki Kawahara"
+        }
+      ],
+      "narrators": ["Bryce Papenbrook"],
+      "series": [
+        {
+          "id": "ser_sword_art_online",
+          "name": "Sword Art Online",
+          "sequence": "16"
+        }
+      ],
+      "genres": ["Light Novel", "Fantasy", "Science Fiction"],
+      "publishedYear": "2025",
+      "publishedDate": null,
+      "publisher": "Yen Audio",
+      "description": "Kirito and Eugeo continue their journey through the Underworld, facing new challenges as they climb the Central Cathedral. The fate of the human world hangs in the balance as Administrator's true intentions are revealed.",
+      "isbn": null,
+      "asin": "B0DK9TS6D9",
+      "language": "English",
+      "explicit": false,
+      "authorName": "Reki Kawahara",
+      "authorNameLF": "Kawahara, Reki",
+      "narratorName": "Bryce Papenbrook",
+      "seriesName": "Sword Art Online"
+    },
+    "coverPath": "/audiobooks/Reki Kawahara/Sword Art Online/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9} [H2OKing]/cover.jpg",
+    "tags": [],
+    "audioFiles": [
+      {
+        "index": 1,
+        "ino": "649644248522215260",
+        "metadata": {
+          "filename": "Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+          "ext": ".m4b",
+          "path": "/audiobooks/Reki Kawahara/Sword Art Online/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9} [H2OKing]/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+          "relPath": "Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+          "size": 576000000,
+          "mtimeMs": 1733212800000,
+          "ctimeMs": 1733212800000,
+          "birthtimeMs": 1733212800000
+        },
+        "addedAt": 1733212800000,
+        "updatedAt": 1733212800000,
+        "format": "M4B",
+        "duration": 36000.0,
+        "bitRate": 128000,
+        "language": "English",
+        "codec": "aac",
+        "channels": 2,
+        "mimeType": "audio/mp4"
+      }
+    ],
+    "chapters": [
+      {"id": 0, "start": 0, "end": 1500, "title": "Chapter 1: The Administrator"},
+      {"id": 1, "start": 1500, "end": 3000, "title": "Chapter 2: Ascending the Tower"},
+      {"id": 2, "start": 3000, "end": 4500, "title": "Chapter 3: Memories of Blue"}
+    ],
+    "duration": 36000.0,
+    "size": 576000000,
+    "tracks": [
+      {
+        "index": 1,
+        "startOffset": 0,
+        "duration": 36000.0,
+        "title": "Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+        "contentUrl": "/s/item/li_sao16_alicization/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+        "mimeType": "audio/mp4",
+        "metadata": {
+          "filename": "Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+          "ext": ".m4b",
+          "path": "/audiobooks/Reki Kawahara/Sword Art Online/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9} [H2OKing]/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+          "relPath": "Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+          "size": 576000000,
+          "mtimeMs": 1733212800000,
+          "ctimeMs": 1733212800000,
+          "birthtimeMs": 1733212800000
+        }
+      }
+    ],
+    "ebookFile": null
+  },
+  "libraryFiles": [
+    {
+      "ino": "649644248522215260",
+      "metadata": {
+        "filename": "Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+        "ext": ".m4b",
+        "path": "/audiobooks/Reki Kawahara/Sword Art Online/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9} [H2OKing]/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+        "relPath": "Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9}.m4b",
+        "size": 576000000,
+        "mtimeMs": 1733212800000,
+        "ctimeMs": 1733212800000,
+        "birthtimeMs": 1733212800000
+      },
+      "addedAt": 1733212800000,
+      "updatedAt": 1733212800000,
+      "fileType": "audio"
+    },
+    {
+      "ino": "649644248522215261",
+      "metadata": {
+        "filename": "cover.jpg",
+        "ext": ".jpg",
+        "path": "/audiobooks/Reki Kawahara/Sword Art Online/Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9} [H2OKing]/cover.jpg",
+        "relPath": "cover.jpg",
+        "size": 500000,
+        "mtimeMs": 1733212800000,
+        "ctimeMs": 1733212800000,
+        "birthtimeMs": 1733212800000
+      },
+      "addedAt": 1733212800000,
+      "updatedAt": 1733212800000,
+      "fileType": "image"
+    }
+  ],
+  "size": 576500000
+}

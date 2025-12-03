@@ -113,3 +113,45 @@ audnex:
 # ─────────────────────────────────────────────────────────────────────────────
 mediainfo:
   binary: "mediainfo"                 # or full path: /usr/bin/mediainfo
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Audiobookshelf Integration (optional)
+# ─────────────────────────────────────────────────────────────────────────────
+# Note: Host and API token are read from .env file:
+#   AUDIOBOOKSHELF_HOST=http://localhost:13378
+#   AUDIOBOOKSHELF_API_KEY=your-api-token
+audiobookshelf:
+  # Enable/disable ABS import integration
+  enabled: false
+
+  # Connection timeout
+  timeout_seconds: 30
+
+  # Docker path mapping (ABS container path → host path)
+  # Required when ABS runs in Docker - paths in API responses are container paths
+  # Set docker_mode to false if ABS runs directly on host
+  docker_mode: true
+  path_map:
+    - container: "/audiobooks"
+      host: "/path/to/audiobooks"
+
+  # Library configuration (run 'mamfast abs-init' to discover library IDs)
+  # Multiple libraries can be defined; only those with mamfast_managed=true are imported
+  libraries:
+    - id: "lib_xxxxxxxxxxxxx"         # From ABS library ID
+      name: "Audiobooks"
+      mamfast_managed: true           # Import to this library
+
+  # Import settings
+  import:
+    # What to do when ASIN already exists in library
+    duplicate_policy: skip            # skip | warn | overwrite
+
+    # Trigger ABS library scan after import?
+    # none: Don't scan (manual rescan required)
+    # each: Scan after each book (slower but immediate)
+    # batch: Scan once after all imports complete (recommended)
+    trigger_scan: batch
+
+  # Index database location (for ASIN caching and duplicate detection)
+  index_db: "./data/abs_index.db"

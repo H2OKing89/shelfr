@@ -183,7 +183,7 @@ Audiobookshelf already does 80% of the work:
 ### Key API Endpoints
 
 ```python
-# Base URL: https://audiobookshelf.kingpaging.com/api
+# Base URL: https://audiobookshelf.domain.com/api
 
 # 1. List all libraries
 GET /api/libraries
@@ -352,7 +352,7 @@ We need to translate between them.
 # config.yaml
 abs:
   enabled: true
-  base_url: "https://audiobookshelf.kingpaging.com"
+  base_url: "https://audiobookshelf.domain.com"
   api_token: "${ABS_API_TOKEN}"   # From .env
   docker_mode: true               # Paths returned are container paths
 
@@ -1391,7 +1391,7 @@ def find_cover(source_dir: Path) -> Path | None:
 # ═══════════════════════════════════════════════════════════════════════════════
 abs:
   enabled: true
-  base_url: "https://audiobookshelf.kingpaging.com"
+  base_url: "https://audiobookshelf.domain.com"
   api_token: "${ABS_API_TOKEN}"
   docker_mode: true
 
@@ -1539,7 +1539,7 @@ The `import_log` table tracks import history:
 mamfast abs-init
 
 # Example output:
-# [ABS] Connected to https://audiobookshelf.kingpaging.com
+# [ABS] Connected to https://audiobookshelf.domain.com
 # [ABS] Found Libraries:
 #   - lib_c1u6t4p45c35rf0nzd "Audiobooks" (root: /audiobooks)
 #   - lib_xxxxxxxxxxxxx     "Podcasts"   (root: /podcasts)
@@ -1652,7 +1652,7 @@ Found Libraries:
 
 abs:
   enabled: true
-  base_url: "https://audiobookshelf.kingpaging.com"
+  base_url: "https://audiobookshelf.domain.com"
   api_token: "${ABS_API_TOKEN}"
   docker_mode: true
   libraries:
@@ -1982,7 +1982,7 @@ def cmd_abs_import(args):
 ```yaml
 abs:
   enabled: true
-  base_url: "https://audiobookshelf.kingpaging.com"
+  base_url: "https://audiobookshelf.domain.com"
   api_token: "${ABS_API_TOKEN}"
   docker_mode: true
   libraries:
