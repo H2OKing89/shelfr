@@ -282,6 +282,8 @@ def print_dry_run_header(count: int) -> None:
 def print_dry_run_release(
     transforms: list[DryRunTransform],
     release_title: str | None = None,
+    source_path: str | None = None,
+    target_path: str | None = None,
 ) -> None:
     """
     Print a before/after table for a single release in dry-run mode.
@@ -289,15 +291,27 @@ def print_dry_run_release(
     Args:
         transforms: List of field transformations to display
         release_title: Optional release title to show above the table
+        source_path: Original source folder name
+        target_path: Target folder name after transformations
     """
     if release_title:
         console.print(f"[bold]{release_title}[/]")
+
+    # Show source/target paths if provided
+    if source_path:
+        console.print(f"  [dim]Source:[/] {source_path}")
+    if target_path:
+        if source_path and source_path != target_path:
+            console.print(f"  [dim]Target:[/] [green]{target_path}[/]")
+        elif source_path:
+            console.print("  [dim]Target:[/] [dim](unchanged)[/]")
 
     # Filter to only transformations that actually changed something
     changes = [t for t in transforms if t.before != t.after]
 
     if not changes:
-        console.print("  [dim]No transformations applied[/]")
+        if not source_path:  # Only show this if we didn't already show paths
+            console.print("  [dim]✓ No transformations needed[/]")
         console.print()
         return
 

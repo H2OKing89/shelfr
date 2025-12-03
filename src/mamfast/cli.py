@@ -1211,6 +1211,7 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
 
         # Original folder name from source
         original_name = release.source_dir.name if release.source_dir else release.title
+        final_name = original_name
 
         # Step 1: filter_title removes phrases
         filtered_name = filter_title(
@@ -1231,6 +1232,7 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
                     rule=rule,
                 )
             )
+            final_name = filtered_name
 
         # Step 2: transliterate (Japanese characters, etc.)
         transliterated = transliterate_text(filtered_name, settings.filters)
@@ -1243,21 +1245,25 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
                     rule="transliteration",
                 )
             )
-            filtered_name = transliterated
+            final_name = transliterated
 
-        # Show the final target path
+        # Track stats
         if transforms:
             would_change += 1
         else:
             no_change += 1
 
-        # Print the release transforms
-        verbose = getattr(args, "verbose", False)
-        if transforms or verbose:
-            release_label = f"{release.title}" if release.title else original_name
-            if release.asin:
-                release_label += f" [dim]({release.asin})[/dim]"
-            print_dry_run_release(transforms, release_title=release_label)
+        # Always print release info (show what we're checking)
+        release_label = f"{release.title}" if release.title else original_name
+        if release.asin:
+            release_label += f" [dim]({release.asin})[/dim]"
+
+        print_dry_run_release(
+            transforms,
+            release_title=release_label,
+            source_path=original_name,
+            target_path=final_name,
+        )
 
     # Print summary
     print_dry_run_summary(len(releases), would_change, no_change)

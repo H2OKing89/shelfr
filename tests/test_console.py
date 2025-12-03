@@ -1164,7 +1164,7 @@ class TestPrintDryRunRelease:
             assert mock_print.called
 
     def test_with_no_changes(self):
-        """print_dry_run_release should show 'no transformations' when unchanged."""
+        """print_dry_run_release should show source/target when paths provided."""
         from mamfast.console import DryRunTransform, print_dry_run_release
 
         transforms = [
@@ -1172,9 +1172,28 @@ class TestPrintDryRunRelease:
         ]
 
         with patch.object(console, "print") as mock_print:
-            print_dry_run_release(transforms)
+            print_dry_run_release(transforms, source_path="My Folder", target_path="My Folder")
             call_str = str(mock_print.call_args_list)
-            assert "No transformations" in call_str
+            assert "Source" in call_str
+            assert "unchanged" in call_str
+
+    def test_shows_different_target(self):
+        """print_dry_run_release should highlight different target path."""
+        from mamfast.console import DryRunTransform, print_dry_run_release
+
+        transforms = [
+            DryRunTransform(field="title", before="Old", after="New"),
+        ]
+
+        with patch.object(console, "print") as mock_print:
+            print_dry_run_release(
+                transforms,
+                source_path="Old Folder",
+                target_path="New Folder",
+            )
+            call_str = str(mock_print.call_args_list)
+            assert "Source" in call_str
+            assert "Target" in call_str
 
     def test_filters_unchanged_fields(self):
         """print_dry_run_release should only show fields that changed."""
