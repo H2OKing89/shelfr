@@ -534,6 +534,28 @@ def full_run(
             skipped += 1
             continue
 
+        # Run validation (even in dry-run mode to show warnings)
+        processed_ids = get_processed_identifiers()
+        discovery_validator = DiscoveryValidation(processed_identifiers=processed_ids)
+        discovery_result = discovery_validator.validate(release)
+
+        # Log validation results
+        for check in discovery_result.checks:
+            if not check.passed and check.severity == "warning":
+                print_warning(f"Validation: {check.message}")
+
+        if not discovery_result.passed:
+            failed_checks = [
+                c for c in discovery_result.checks if not c.passed and c.severity == "error"
+            ]
+            error_msgs = [c.message for c in failed_checks]
+            print_error("Validation failed: " + ", ".join(error_msgs))
+            skipped += 1
+            continue
+
+        if discovery_result.warning_count > 0:
+            print_warning(f"Validation passed with {discovery_result.warning_count} warning(s)")
+
         if dry_run:
             # Show detailed dry-run info for each step
             print_dry_run("Steps that would be performed:")

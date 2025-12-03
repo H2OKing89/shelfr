@@ -77,26 +77,73 @@ _VOL_EXTRACT_PATTERNS: list[re.Pattern[str]] = [
 # MAM filename limit
 MAM_MAX_FILENAME_LENGTH = 225
 
-# Author role detection patterns - use word boundaries to avoid false positives
-# e.g., "translator" should match but "John Translator Smith" should NOT match
-# Pattern matches: "- translator", "(translator)", "translator" at end, standalone "translator"
-_ROLE_WORDS = r"translator|illustrator|editor|adapter|contributor|compiler"
-_CREDIT_WORDS = r"afterword|foreword|introduction"
-_AUTHOR_ROLE_PATTERN = re.compile(
-    rf"""
-    (?:
-        \s*-\s*(?:{_ROLE_WORDS})s?\s*$  |           # "- translator" at end
-        \s*\(\s*(?:{_ROLE_WORDS})s?\s*\)  |         # "(translator)"
-        \s*,\s*(?:{_ROLE_WORDS})s?\s*$  |           # ", translator" at end
-        ^\s*(?:{_CREDIT_WORDS})\s+by\s  |           # "Foreword by ..."
-        \s*\(\s*(?:{_CREDIT_WORDS})\s*\)  |         # "(foreword)"
-        \s*-\s*(?:{_CREDIT_WORDS})\s*$  |           # "- foreword" at end
-        \s*-\s*(?:cover\s+design|cover\s+art)\s*$  |  # "- cover design" at end
-        ^with\s                                     # "with John Smith" at start
+# Default author role words (fallback if config not available)
+_DEFAULT_ROLE_WORDS = ["translator", "illustrator", "editor", "adapter", "contributor", "compiler"]
+_DEFAULT_CREDIT_WORDS = ["afterword", "foreword", "introduction", "cover design", "cover art"]
+
+
+def _build_author_role_pattern(
+    role_words: list[str] | None = None,
+    credit_words: list[str] | None = None,
+) -> re.Pattern[str]:
+    """
+    Build the author role detection pattern from config lists.
+
+    Args:
+        role_words: List of role words (translator, illustrator, etc.)
+        credit_words: List of credit words (afterword, foreword, etc.)
+
+    Returns:
+        Compiled regex pattern
+    """
+    roles = role_words or _DEFAULT_ROLE_WORDS
+    credits = credit_words or _DEFAULT_CREDIT_WORDS
+
+    # Build alternation patterns
+    role_pattern = "|".join(re.escape(r) for r in roles)
+    credit_pattern = "|".join(re.escape(c) for c in credits)
+
+    return re.compile(
+        rf"""
+        (?:
+            \s*-\s*(?:{role_pattern})s?\s*$  |           # "- translator" at end
+            \s*\(\s*(?:{role_pattern})s?\s*\)  |         # "(translator)"
+            \s*,\s*(?:{role_pattern})s?\s*$  |           # ", translator" at end
+            ^\s*(?:{credit_pattern})\s+by\s  |           # "Foreword by ..."
+            \s*\(\s*(?:{credit_pattern})\s*\)  |         # "(foreword)"
+            \s*-\s*(?:{credit_pattern})\s*$  |           # "- foreword" at end
+            ^with\s                                      # "with John Smith" at start
+        )
+        """,
+        re.IGNORECASE | re.VERBOSE,
     )
-    """,
-    re.IGNORECASE | re.VERBOSE,
-)
+
+
+# Default pattern (used when config not available)
+_AUTHOR_ROLE_PATTERN = _build_author_role_pattern()
+
+
+def _get_author_role_pattern() -> re.Pattern[str]:
+    """
+    Get the author role pattern, loading from config if available.
+
+    Returns:
+        Compiled regex pattern for author role detection
+    """
+    try:
+        from mamfast.config import get_settings
+
+        settings = get_settings()
+        if settings.filters and settings.filters.naming:
+            naming = settings.filters.naming
+            if naming.author_roles or naming.credit_roles:
+                return _build_author_role_pattern(
+                    role_words=naming.author_roles,
+                    credit_words=naming.credit_roles,
+                )
+    except Exception:
+        pass
+    return _AUTHOR_ROLE_PATTERN
 
 
 def is_author_role(name: str) -> bool:
@@ -117,7 +164,8 @@ def is_author_role(name: str) -> bool:
     Returns:
         True if this is a translator/illustrator/etc., False if primary author
     """
-    return bool(_AUTHOR_ROLE_PATTERN.search(name))
+    pattern = _get_author_role_pattern()
+    return bool(pattern.search(name))
 
 
 def filter_authors(authors: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -151,6 +199,139 @@ def extract_translator(authors: list[dict[str, str]]) -> str | None:
             cleaned = re.sub(r"\s*-?\s*translator[s]?\s*$", "", name, flags=re.IGNORECASE)
             return cleaned.strip()
     return None
+
+
+def _build_mediainfo_role_pattern(
+    role_words: list[str] | None = None,
+    credit_words: list[str] | None = None,
+) -> re.Pattern[str]:
+    """
+    Build pattern for extracting non-author roles from MediaInfo.
+
+    Args:
+        role_words: List of role words (translator, illustrator, etc.)
+        credit_words: List of credit words (afterword, foreword, etc.)
+
+    Returns:
+        Compiled regex pattern matching "- role" suffix
+    """
+    roles = role_words or _DEFAULT_ROLE_WORDS
+    credits = credit_words or _DEFAULT_CREDIT_WORDS
+
+    # Combine all roles, escaping special regex chars and handling multi-word
+    all_roles = roles + credits
+    # For multi-word roles like "cover design", convert space to \s+
+    role_patterns = [re.escape(r).replace(r"\ ", r"\s+") for r in all_roles]
+    combined = "|".join(role_patterns)
+
+    return re.compile(
+        rf"\s*-?\s*(?:{combined})s?\s*$",
+        re.IGNORECASE,
+    )
+
+
+def extract_non_authors_from_mediainfo(mediainfo_data: dict[str, Any] | None) -> set[str]:
+    """
+    Extract non-author names (translators, illustrators, etc.) from MediaInfo metadata.
+
+    The M4B file often has role info in Album_Performer field like:
+    "Bokuto Uno; Ruria Miyuki; Andrew Cunningham - translator"
+
+    This extracts names with role markers that Audnex API doesn't provide,
+    matching the same roles as is_author_role(): translator, illustrator,
+    editor, adapter, contributor, compiler, cover design, etc.
+
+    Args:
+        mediainfo_data: MediaInfo JSON data
+
+    Returns:
+        Set of non-author names (without the role suffix)
+    """
+    if not mediainfo_data:
+        return set()
+
+    non_authors: set[str] = set()
+
+    # Try to load roles from config, fall back to defaults
+    try:
+        from mamfast.config import get_settings
+
+        settings = get_settings()
+        if settings.filters and settings.filters.naming:
+            naming = settings.filters.naming
+            role_pattern = _build_mediainfo_role_pattern(
+                role_words=naming.author_roles,
+                credit_words=naming.credit_roles,
+            )
+        else:
+            role_pattern = _build_mediainfo_role_pattern()
+    except Exception:
+        role_pattern = _build_mediainfo_role_pattern()
+
+    try:
+        media = mediainfo_data.get("media", {})
+        tracks = media.get("track", [])
+
+        for track in tracks:
+            if track.get("@type") == "General":
+                # Check Album_Performer and Performer fields
+                for field in ["Album_Performer", "Performer"]:
+                    performer = track.get(field, "")
+                    if performer:
+                        # Split by semicolon (common separator)
+                        parts = performer.split(";")
+                        for part in parts:
+                            part = part.strip()
+                            # Check if this person has a role marker
+                            if role_pattern.search(part):
+                                # Extract name without role suffix
+                                cleaned = role_pattern.sub("", part).strip()
+                                if cleaned:
+                                    non_authors.add(cleaned)
+                break
+
+    except (TypeError, KeyError):
+        pass
+
+    return non_authors
+
+
+# Keep old name as alias for backward compatibility
+extract_translators_from_mediainfo = extract_non_authors_from_mediainfo
+
+
+def filter_authors_with_mediainfo(
+    authors: list[dict[str, str]], mediainfo_data: dict[str, Any] | None = None
+) -> list[dict[str, str]]:
+    """
+    Filter out translators, illustrators, etc. from author list.
+
+    Enhanced version that also checks MediaInfo metadata for translator info,
+    since Audnex API doesn't always include role information.
+
+    Args:
+        authors: List of author dicts with 'name' key
+        mediainfo_data: Optional MediaInfo JSON to extract translator info
+
+    Returns:
+        Filtered list containing only primary authors
+    """
+    # First use the standard filter (catches "- translator" in name)
+    filtered = filter_authors(authors)
+
+    # Then filter out translators identified from MediaInfo
+    if mediainfo_data:
+        mediainfo_translators = extract_translators_from_mediainfo(mediainfo_data)
+        if mediainfo_translators:
+            # Normalize names for comparison (lowercase, strip whitespace)
+            translator_names_lower = {t.lower().strip() for t in mediainfo_translators}
+            filtered = [
+                a
+                for a in filtered
+                if a.get("name", "").lower().strip() not in translator_names_lower
+            ]
+
+    return filtered
 
 
 def sanitize_filename(name: str) -> str:

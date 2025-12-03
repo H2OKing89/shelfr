@@ -28,6 +28,7 @@ from jinja2 import Environment, PackageLoader
 
 from mamfast.config import get_settings
 from mamfast.utils.naming import (
+    extract_translators_from_mediainfo,
     filter_authors,
     filter_series,
     filter_subtitle,
@@ -268,6 +269,16 @@ def render_bbcode_description(
 
     authors_raw = audnex_data.get("authors", [])
     authors_filtered = filter_authors(authors_raw)
+
+    # Also filter out translators detected from MediaInfo
+    # (Audnex doesn't include "- translator" suffix, but MediaInfo does)
+    mediainfo_translators = extract_translators_from_mediainfo(mediainfo_data)
+    if mediainfo_translators:
+        logger.debug(f"Filtering translators from MediaInfo: {mediainfo_translators}")
+        authors_filtered = [
+            a for a in authors_filtered if a.get("name", "") not in mediainfo_translators
+        ]
+
     authors = [
         transliterate_text(a.get("name", ""), filters) for a in authors_filtered if a.get("name")
     ]
@@ -278,12 +289,16 @@ def render_bbcode_description(
     ]
 
     # Translator detection (look for "translator" in author/narrator names or roles)
+    # First check MediaInfo (more reliable), then fall back to Audnex author names
     translator = None
-    for author in authors_raw:
-        name = author.get("name", "")
-        if "translator" in name.lower():
-            translator = name
-            break
+    if mediainfo_translators:
+        translator = next(iter(mediainfo_translators))  # Use first translator found
+    else:
+        for author in authors_raw:
+            name = author.get("name", "")
+            if "translator" in name.lower():
+                translator = name
+                break
 
     publisher = audnex_data.get("publisherName", "")
     release_date = audnex_data.get("releaseDate", "")
@@ -976,6 +991,15 @@ def build_mam_json(
     authors = audnex.get("authors", [])
     if authors:
         filtered_authors = filter_authors(authors)
+        # Also filter out translators detected from MediaInfo
+        mediainfo_translators = extract_translators_from_mediainfo(mediainfo)
+        if mediainfo_translators:
+            logger.debug(
+                f"Filtering translators from MediaInfo in MAM JSON: {mediainfo_translators}"
+            )
+            filtered_authors = [
+                a for a in filtered_authors if a.get("name", "") not in mediainfo_translators
+            ]
         author_names = [a.get("name", "") for a in filtered_authors if a.get("name")]
         # Transliterate Japanese/foreign names
         mam_json["authors"] = [transliterate_text(name, filters) for name in author_names]

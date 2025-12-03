@@ -170,6 +170,27 @@ class NamingConfig:
     # Ripper tag for folder names (e.g., "H2OKing" -> "[H2OKing]")
     # Set to None or empty string to disable
     ripper_tag: str | None = None
+    # Non-author roles to filter: "translator", "illustrator", etc.
+    author_roles: list[str] = field(
+        default_factory=lambda: [
+            "translator",
+            "illustrator",
+            "editor",
+            "adapter",
+            "contributor",
+            "compiler",
+        ]
+    )
+    # Credit roles (afterword, foreword, etc.)
+    credit_roles: list[str] = field(
+        default_factory=lambda: [
+            "afterword",
+            "foreword",
+            "introduction",
+            "cover design",
+            "cover art",
+        ]
+    )
 
 
 @dataclass
@@ -610,13 +631,23 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
         preserve_data = data.get("preserve_in_json", {})
         preserve_volume_in_json = bool(preserve_data.get("volume_patterns", []))
 
+        # Extract author roles (non-author roles to filter)
+        author_roles_data = data.get("author_roles", {})
+        author_roles = author_roles_data.get(
+            "roles", ["translator", "illustrator", "editor", "adapter", "contributor", "compiler"]
+        )
+        credit_roles = author_roles_data.get(
+            "credit_roles", ["afterword", "foreword", "introduction", "cover design", "cover art"]
+        )
+
         logger.debug(
             f"Loaded naming.json v{data.get('_version', '?')}: "
             f"{len(format_indicators)} format indicators, "
             f"{len(genre_tags)} genre tags, {len(series_suffixes)} series suffixes, "
             f"{len(publisher_tags)} publisher tags, {len(preserve_exact)} preserve_exact, "
             f"{len(subtitle_redundancy_rules)} redundancy rules, "
-            f"{len(author_map)} author mappings"
+            f"{len(author_map)} author mappings, "
+            f"{len(author_roles)} author roles, {len(credit_roles)} credit roles"
         )
 
         return NamingConfig(
@@ -632,6 +663,8 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
             preserve_exact=preserve_exact,
             author_map=author_map,
             preserve_volume_in_json=preserve_volume_in_json,
+            author_roles=author_roles,
+            credit_roles=credit_roles,
         )
 
     except (json.JSONDecodeError, OSError) as e:

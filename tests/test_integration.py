@@ -255,6 +255,8 @@ class TestFullPipeline:
         mock_liberate.assert_called_once()
 
     @patch("mamfast.workflow.get_settings")
+    @patch("mamfast.workflow.DiscoveryValidation")
+    @patch("mamfast.workflow.get_processed_identifiers")
     @patch("mamfast.workflow.is_processed")
     @patch("mamfast.workflow.process_single_release")
     @patch("mamfast.discovery.get_new_releases")
@@ -267,6 +269,8 @@ class TestFullPipeline:
         mock_get_releases: Mock,
         mock_process: Mock,
         mock_is_processed: Mock,
+        mock_get_processed_ids: Mock,
+        mock_discovery_validation: Mock,
         mock_settings: Mock,
     ) -> None:
         """Test that full run skips already processed releases."""
@@ -290,6 +294,14 @@ class TestFullPipeline:
 
         mock_get_releases.return_value = [release1, release2]
         mock_is_processed.side_effect = lambda x: x == "B000TEST04"
+        mock_get_processed_ids.return_value = {"B000TEST04"}  # Mock processed identifiers
+
+        # Mock validation to pass
+        mock_validation_result = MagicMock()
+        mock_validation_result.passed = True
+        mock_validation_result.warning_count = 0
+        mock_validation_result.checks = []
+        mock_discovery_validation.return_value.validate.return_value = mock_validation_result
 
         mock_result = MagicMock()
         mock_result.success = True

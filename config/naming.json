@@ -1,6 +1,27 @@
 {
   "_comment": "Naming rules for MAMFast. See docs/NAMING_PLAN.md for details.",
-  "_version": "1.3.0",
+  "_version": "1.4.0",
+
+  "author_roles": {
+    "_comment": "Non-author roles to filter from author lists. Names with these suffixes are not primary authors.",
+    "match_mode": "suffix",
+    "case_sensitive": false,
+    "roles": [
+      "translator",
+      "illustrator",
+      "editor",
+      "adapter",
+      "contributor",
+      "compiler"
+    ],
+    "credit_roles": [
+      "afterword",
+      "foreword",
+      "introduction",
+      "cover design",
+      "cover art"
+    ]
+  },
 
   "format_indicators": {
     "_comment": "Remove from titles, subtitles, series. Case-insensitive, whole phrase.",

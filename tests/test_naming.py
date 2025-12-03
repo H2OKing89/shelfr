@@ -5,6 +5,7 @@ from mamfast.utils.naming import (
     build_release_dirname,
     ensure_unique_name,
     extract_translator,
+    extract_translators_from_mediainfo,
     filter_authors,
     filter_series,
     filter_subtitle,
@@ -203,6 +204,127 @@ class TestExtractTranslator:
         authors = [{"name": "Real Author"}]
         result = extract_translator(authors)
         assert result is None
+
+
+class TestExtractTranslatorsFromMediainfo:
+    """Tests for extracting non-authors from MediaInfo metadata."""
+
+    def test_extracts_single_translator(self):
+        """Test extracting a single translator from Album_Performer."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": "Author One; Author Two; John Smith - translator",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"John Smith"}
+
+    def test_extracts_multiple_translators(self):
+        """Test extracting multiple translators."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": "Author; Trans One - translator; Trans Two - translator",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"Trans One", "Trans Two"}
+
+    def test_extracts_illustrator(self):
+        """Test extracting illustrators."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": "Author; Artist Name - illustrator",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"Artist Name"}
+
+    def test_extracts_editor(self):
+        """Test extracting editors."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": "Author; Jane Doe - editor",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"Jane Doe"}
+
+    def test_extracts_multiple_roles(self):
+        """Test extracting multiple different roles."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": (
+                            "Real Author; Trans - translator; " "Artist - illustrator; Ed - editor"
+                        ),
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"Trans", "Artist", "Ed"}
+
+    def test_no_non_authors(self):
+        """Test when no non-authors present."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": "Author One; Author Two",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == set()
+
+    def test_none_input(self):
+        """Test with None input."""
+        result = extract_translators_from_mediainfo(None)
+        assert result == set()
+
+    def test_empty_mediainfo(self):
+        """Test with empty mediainfo."""
+        result = extract_translators_from_mediainfo({})
+        assert result == set()
+
+    def test_uses_performer_fallback(self):
+        """Test using Performer field when Album_Performer not present."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Performer": "Author; Jane Doe - translator",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"Jane Doe"}
 
 
 class TestFilterTitle:
