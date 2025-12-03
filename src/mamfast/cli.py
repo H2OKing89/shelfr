@@ -368,6 +368,36 @@ Examples:
     )
     suspicious_parser.set_defaults(func=cmd_check_suspicious)
 
+    # -------------------------------------------------------------------------
+    # abs-init: Initialize Audiobookshelf connection
+    # -------------------------------------------------------------------------
+    abs_init_parser = subparsers.add_parser(
+        "abs-init",
+        help="Initialize and verify Audiobookshelf connection",
+        epilog="Tests ABS API connection and discovers available libraries.",
+    )
+    abs_init_parser.set_defaults(func=cmd_abs_init)
+
+    # -------------------------------------------------------------------------
+    # abs-index: Build/update ASIN index from Audiobookshelf library
+    # -------------------------------------------------------------------------
+    abs_index_parser = subparsers.add_parser(
+        "abs-index",
+        help="Build or update ASIN index from Audiobookshelf library",
+        epilog="Scans ABS library and caches ASINs for duplicate detection.",
+    )
+    abs_index_parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Full rebuild (default: incremental update)",
+    )
+    abs_index_parser.add_argument(
+        "--library",
+        type=str,
+        help="Specific library ID to index (default: all mamfast_managed libraries)",
+    )
+    abs_index_parser.set_defaults(func=cmd_abs_index)
+
     return parser
 
 
@@ -1628,6 +1658,78 @@ def cmd_config(args: argparse.Namespace) -> int:
     except Exception as e:
         fatal_error(f"Error loading config: {e}")
         return 1
+
+
+# =============================================================================
+# Audiobookshelf Commands (stubs for PR 1)
+# =============================================================================
+
+
+def cmd_abs_init(args: argparse.Namespace) -> int:
+    """Initialize and verify Audiobookshelf connection.
+
+    Tests API connectivity and discovers available libraries.
+    """
+    from mamfast.config import reload_settings
+
+    print_header("Audiobookshelf Init", dry_run=args.dry_run)
+
+    try:
+        settings = reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+
+    # Check if ABS is enabled in config
+    if not hasattr(settings, "audiobookshelf") or not settings.audiobookshelf.enabled:
+        print_warning("Audiobookshelf integration is not enabled in config")
+        print_info("Set audiobookshelf.enabled: true in config.yaml")
+        return 1
+
+    # Stub: Not implemented yet
+    print_info("abs-init: Not implemented yet")
+    print_info("This command will:")
+    print_info("  • Test connection to Audiobookshelf API")
+    print_info("  • Validate API token")
+    print_info("  • List available libraries")
+    print_info("  • Show path mappings (docker_mode)")
+
+    return 0
+
+
+def cmd_abs_index(args: argparse.Namespace) -> int:
+    """Build or update ASIN index from Audiobookshelf library.
+
+    Scans ABS library items and caches ASINs for duplicate detection.
+    """
+    from mamfast.config import reload_settings
+
+    print_header("Audiobookshelf Index", dry_run=args.dry_run)
+
+    try:
+        settings = reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+
+    # Check if ABS is enabled in config
+    if not hasattr(settings, "audiobookshelf") or not settings.audiobookshelf.enabled:
+        print_warning("Audiobookshelf integration is not enabled in config")
+        print_info("Set audiobookshelf.enabled: true in config.yaml")
+        return 1
+
+    # Stub: Not implemented yet
+    mode = "full rebuild" if args.full else "incremental update"
+    library_msg = f"library {args.library}" if args.library else "all mamfast_managed libraries"
+
+    print_info(f"abs-index: Not implemented yet (mode: {mode}, target: {library_msg})")
+    print_info("This command will:")
+    print_info("  • Fetch all items from Audiobookshelf library")
+    print_info("  • Extract ASINs from folder names and metadata")
+    print_info("  • Store in local SQLite index for fast lookup")
+    print_info("  • Report duplicate/missing ASIN statistics")
+
+    return 0
 
 
 def main() -> int:
