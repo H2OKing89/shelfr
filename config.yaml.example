@@ -71,6 +71,15 @@ filters:
   transliterate_japanese: true
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Naming / Output Settings
+# ─────────────────────────────────────────────────────────────────────────────
+naming:
+  # Ripper tag appended to folder names: "[H2OKing]" at end of folder name
+  # Used in both Audiobookshelf library and MAM uploads (folder only, not filename)
+  # Set to null or empty string to disable
+  ripper_tag: "H2OKing"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # mkbrr Docker Settings
 # ─────────────────────────────────────────────────────────────────────────────
 mkbrr:

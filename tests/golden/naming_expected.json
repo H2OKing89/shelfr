@@ -1,0 +1,147 @@
+{
+  "_comment": "Expected outputs for golden tests. Each entry corresponds to naming_inputs.json by ID.",
+  "_version": "1.0.0",
+  "expected": [
+    {
+      "id": "light_novel_title_1",
+      "title_json": "Overlord, Vol. 3",
+      "title_folder": "Overlord",
+      "series": "Overlord",
+      "subtitle": ""
+    },
+    {
+      "id": "light_novel_title_2",
+      "title_json": "Mushoku Tensei: Jobless Reincarnation, Vol. 17",
+      "title_folder": "Mushoku Tensei: Jobless Reincarnation",
+      "series": "Mushoku Tensei: Jobless Reincarnation",
+      "subtitle": ""
+    },
+    {
+      "id": "litrpg_genre_tag",
+      "title_json": "Dungeon Crawler Carl",
+      "title_folder": "Dungeon Crawler Carl",
+      "series": "Dungeon Crawler Carl",
+      "subtitle": null
+    },
+    {
+      "id": "series_suffix",
+      "title_json": "A Most Unlikely Hero",
+      "title_folder": "A Most Unlikely Hero",
+      "series": "A Most Unlikely Hero",
+      "subtitle": null
+    },
+    {
+      "id": "trilogy_suffix",
+      "title_json": "The Lord of the Rings",
+      "title_folder": "The Lord of the Rings",
+      "series": "The Lord of the Rings",
+      "subtitle": null
+    },
+    {
+      "id": "preserve_exact_rezero",
+      "title_json": "Re:ZERO -Starting Life in Another World-, Vol. 1",
+      "title_folder": "Re:ZERO -Starting Life in Another World-, Vol. 1",
+      "series": "Re:ZERO -Starting Life in Another World-",
+      "subtitle": "Light Novel"
+    },
+    {
+      "id": "preserve_exact_86",
+      "title_json": "86--EIGHTY-SIX, Vol. 1",
+      "title_folder": "86--EIGHTY-SIX, Vol. 1",
+      "series": "86--EIGHTY-SIX",
+      "subtitle": "Light Novel"
+    },
+    {
+      "id": "publisher_tag",
+      "title_json": "Sword Art Online, Vol. 1",
+      "title_folder": "Sword Art Online",
+      "series": "Sword Art Online",
+      "subtitle": null
+    },
+    {
+      "id": "multiple_indicators",
+      "title_json": "Kuma Kuma Kuma Bear, Vol. 5",
+      "title_folder": "Kuma Kuma Kuma Bear",
+      "series": "Kuma Kuma Kuma Bear",
+      "subtitle": ""
+    },
+    {
+      "id": "progression_fantasy",
+      "title_json": "Cradle",
+      "title_folder": "Cradle",
+      "series": "Cradle",
+      "subtitle": ""
+    },
+    {
+      "id": "book_number_format",
+      "title_json": "The Wandering Inn",
+      "title_folder": "The Wandering Inn",
+      "series": "The Wandering Inn",
+      "subtitle": ""
+    },
+    {
+      "id": "volume_full_word",
+      "title_json": "Spice and Wolf, Volume 12",
+      "title_folder": "Spice and Wolf",
+      "series": "Spice and Wolf",
+      "subtitle": null
+    },
+    {
+      "id": "japanese_author",
+      "title_json": "Test Book",
+      "title_folder": "Test Book",
+      "series": null,
+      "subtitle": null,
+      "author": "Rifujin na Magonote"
+    },
+    {
+      "id": "clean_title",
+      "title_json": "Project Hail Mary",
+      "title_folder": "Project Hail Mary",
+      "series": null,
+      "subtitle": null
+    },
+    {
+      "id": "redundant_subtitle",
+      "title_json": "He Who Fights with Monsters 11",
+      "title_folder": "He Who Fights with Monsters 11",
+      "series": "He Who Fights with Monsters",
+      "subtitle": ""
+    },
+    {
+      "id": "meaningful_subtitle",
+      "title_json": "Sword Art Online, Vol. 1",
+      "title_folder": "Sword Art Online",
+      "series": "Sword Art Online",
+      "subtitle": "Aincrad"
+    },
+    {
+      "id": "unabridged_in_title",
+      "title_json": "The Way of Kings",
+      "title_folder": "The Way of Kings",
+      "series": "The Stormlight Archive",
+      "subtitle": null
+    },
+    {
+      "id": "double_dash_cleanup",
+      "title_json": "Title - Subtitle",
+      "title_folder": "Title - Subtitle",
+      "series": null,
+      "subtitle": null
+    },
+    {
+      "id": "saga_suffix",
+      "title_json": "The Inheritance Cycle",
+      "title_folder": "The Inheritance Cycle",
+      "series": "The Inheritance",
+      "subtitle": null
+    },
+    {
+      "id": "chronicles_suffix",
+      "title_json": "The Spellmonger",
+      "title_folder": "The Spellmonger",
+      "series": "The Spellmonger",
+      "subtitle": null
+    }
+  ]
+}

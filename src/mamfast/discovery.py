@@ -8,7 +8,7 @@ Parses Libation's folder structure to find audiobook releases:
             ├── *.m4b
             ├── *.cue (optional)
             ├── *.pdf (optional)
-            ├── cover.jpg
+            ├── *.jpg
             └── metadata.json
 
 ASIN is extracted from folder name pattern: {ASIN.XXXXXXXXXX}

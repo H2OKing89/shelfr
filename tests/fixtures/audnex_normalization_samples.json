@@ -1,0 +1,287 @@
+{
+  "_comment": "Sample Audnex API responses for title/subtitle normalization testing",
+  "_generated": "2025-12-02",
+  "_source": "Real ASINs from library_full.json verified against Audnex API",
+
+  "correct_mapping": [
+    {
+      "_description": "SAO vol 7 - Title has series+num, subtitle has arc (CORRECT)",
+      "asin": "B0BHLHRMJH",
+      "title": "Sword Art Online 7",
+      "subtitle": "Mother's Rosary",
+      "seriesPrimary": {"name": "Sword Art Online", "position": "7"},
+      "expected": {
+        "title": "Sword Art Online 7",
+        "subtitle": "Mother's Rosary",
+        "series_name": "Sword Art Online",
+        "position": "7",
+        "arc": "Mother's Rosary",
+        "was_swapped": false
+      }
+    },
+    {
+      "_description": "SAO vol 14 - Title has series+num, subtitle has arc (CORRECT)",
+      "asin": "B0D6C6H1LS",
+      "title": "Sword Art Online 14",
+      "subtitle": "Alicization Uniting",
+      "seriesPrimary": {"name": "Sword Art Online", "position": "14"},
+      "expected": {
+        "title": "Sword Art Online 14",
+        "subtitle": "Alicization Uniting",
+        "series_name": "Sword Art Online",
+        "position": "14",
+        "arc": "Alicization Uniting",
+        "was_swapped": false
+      }
+    },
+    {
+      "_description": "SAO vol 17 - Title has series+num, subtitle has arc (CORRECT)",
+      "asin": "B0DPLFZ9NH",
+      "title": "Sword Art Online 17",
+      "subtitle": "Alicization Awakening",
+      "seriesPrimary": {"name": "Sword Art Online", "position": "17"},
+      "expected": {
+        "title": "Sword Art Online 17",
+        "subtitle": "Alicization Awakening",
+        "series_name": "Sword Art Online",
+        "position": "17",
+        "arc": "Alicization Awakening",
+        "was_swapped": false
+      }
+    },
+    {
+      "_description": "SAO vol 18 - Title has series+num, subtitle has arc (CORRECT)",
+      "asin": "B0DPLGHQKT",
+      "title": "Sword Art Online 18",
+      "subtitle": "Alicization Lasting",
+      "seriesPrimary": {"name": "Sword Art Online", "position": "18"},
+      "expected": {
+        "title": "Sword Art Online 18",
+        "subtitle": "Alicization Lasting",
+        "series_name": "Sword Art Online",
+        "position": "18",
+        "arc": "Alicization Lasting",
+        "was_swapped": false
+      }
+    },
+    {
+      "_description": "SAO vol 19 - Title has series+num, subtitle has arc (CORRECT)",
+      "asin": "B0FPP9D1V6",
+      "title": "Sword Art Online 19",
+      "subtitle": "Moon Cradle",
+      "seriesPrimary": {"name": "Sword Art Online", "position": "19"},
+      "expected": {
+        "title": "Sword Art Online 19",
+        "subtitle": "Moon Cradle",
+        "series_name": "Sword Art Online",
+        "position": "19",
+        "arc": "Moon Cradle",
+        "was_swapped": false
+      }
+    }
+  ],
+
+  "swapped_mapping": [
+    {
+      "_description": "SAO vol 16 - Title has arc, subtitle has series+num (SWAPPED!)",
+      "asin": "B0DK9TS6D9",
+      "title": "Alicization Exploding",
+      "subtitle": "Sword Art Online 16",
+      "seriesPrimary": {"name": "Sword Art Online", "position": "16"},
+      "expected": {
+        "title": "Sword Art Online 16",
+        "subtitle": "Alicization Exploding",
+        "series_name": "Sword Art Online",
+        "position": "16",
+        "arc": "Alicization Exploding",
+        "was_swapped": true
+      }
+    },
+    {
+      "_description": "The Beginning After the End vol 1 - SWAPPED",
+      "asin": "B0DH64NC7D",
+      "title": "Early Years",
+      "subtitle": "The Beginning After the End, Book 1",
+      "seriesPrimary": {"name": "The Beginning After the End", "position": "1"},
+      "expected": {
+        "title": "The Beginning After the End, Book 1",
+        "subtitle": "Early Years",
+        "series_name": "The Beginning After the End",
+        "position": "1",
+        "arc": "Early Years",
+        "was_swapped": true
+      }
+    },
+    {
+      "_description": "The Beginning After the End vol 2 - SWAPPED",
+      "asin": "B0DH5RK8QK",
+      "title": "New Heights",
+      "subtitle": "The Beginning After the End, Book 2",
+      "seriesPrimary": {"name": "The Beginning After the End", "position": "2"},
+      "expected": {
+        "title": "The Beginning After the End, Book 2",
+        "subtitle": "New Heights",
+        "series_name": "The Beginning After the End",
+        "position": "2",
+        "arc": "New Heights",
+        "was_swapped": true
+      }
+    },
+    {
+      "_description": "The Beginning After the End vol 3 - SWAPPED",
+      "asin": "B0DH5BRVW3",
+      "title": "Beckoning Fates",
+      "subtitle": "The Beginning After the End, Book 3",
+      "seriesPrimary": {"name": "The Beginning After the End", "position": "3"},
+      "expected": {
+        "title": "The Beginning After the End, Book 3",
+        "subtitle": "Beckoning Fates",
+        "series_name": "The Beginning After the End",
+        "position": "3",
+        "arc": "Beckoning Fates",
+        "was_swapped": true
+      }
+    },
+    {
+      "_description": "The Beginning After the End vol 4 - SWAPPED",
+      "asin": "B0DH5B625C",
+      "title": "Horizon's Edge",
+      "subtitle": "The Beginning After the End, Book 4",
+      "seriesPrimary": {"name": "The Beginning After the End", "position": "4"},
+      "expected": {
+        "title": "The Beginning After the End, Book 4",
+        "subtitle": "Horizon's Edge",
+        "series_name": "The Beginning After the End",
+        "position": "4",
+        "arc": "Horizon's Edge",
+        "was_swapped": true
+      }
+    },
+    {
+      "_description": "Welcome to the Multiverse vol 7 - SWAPPED",
+      "asin": "B0F9BWK13J",
+      "title": "Invasion",
+      "subtitle": "Welcome to the Multiverse, Book 7",
+      "seriesPrimary": {"name": "Welcome to the Multiverse", "position": "7"},
+      "expected": {
+        "title": "Welcome to the Multiverse, Book 7",
+        "subtitle": "Invasion",
+        "series_name": "Welcome to the Multiverse",
+        "position": "7",
+        "arc": "Invasion",
+        "was_swapped": true
+      }
+    }
+  ],
+
+  "no_series": [
+    {
+      "_description": "Standalone book with no series - should not be modified",
+      "asin": "B_STANDALONE_TEST",
+      "title": "The Standalone Book",
+      "subtitle": "A Great Adventure",
+      "seriesPrimary": null,
+      "expected": {
+        "title": "The Standalone Book",
+        "subtitle": "A Great Adventure",
+        "series_name": null,
+        "position": null,
+        "arc": null,
+        "was_swapped": false
+      }
+    },
+    {
+      "_description": "Book with empty series object",
+      "asin": "B_EMPTY_SERIES_TEST",
+      "title": "Another Book",
+      "subtitle": "Without Series",
+      "seriesPrimary": {},
+      "expected": {
+        "title": "Another Book",
+        "subtitle": "Without Series",
+        "series_name": null,
+        "position": null,
+        "arc": null,
+        "was_swapped": false
+      }
+    }
+  ],
+
+  "edge_cases": [
+    {
+      "_description": "Both title AND subtitle contain series name - don't swap",
+      "asin": "B_BOTH_HAVE_SERIES_TEST",
+      "title": "Sword Art Online: Aincrad",
+      "subtitle": "Sword Art Online, Book 1",
+      "seriesPrimary": {"name": "Sword Art Online", "position": "1"},
+      "expected": {
+        "title": "Sword Art Online: Aincrad",
+        "subtitle": "Sword Art Online, Book 1",
+        "series_name": "Sword Art Online",
+        "position": "1",
+        "arc": null,
+        "was_swapped": false
+      }
+    },
+    {
+      "_description": "Series name in title only - correct, no swap needed",
+      "asin": "B0D2SK9CTN",
+      "title": "Mushoku Tensei: Jobless Reincarnation, Vol. 17",
+      "subtitle": "Light Novel",
+      "seriesPrimary": {"name": "Mushoku Tensei: Jobless Reincarnation", "position": "17"},
+      "expected": {
+        "title": "Mushoku Tensei: Jobless Reincarnation, Vol. 17",
+        "subtitle": "Light Novel",
+        "series_name": "Mushoku Tensei: Jobless Reincarnation",
+        "position": "17",
+        "arc": null,
+        "was_swapped": false
+      }
+    },
+    {
+      "_description": "Subtitle is just 'Light Novel' - common pattern, no swap",
+      "asin": "B0D2SDB6PV",
+      "title": "Mushoku Tensei: Jobless Reincarnation, Vol. 16",
+      "subtitle": "Light Novel",
+      "seriesPrimary": {"name": "Mushoku Tensei: Jobless Reincarnation", "position": "16"},
+      "expected": {
+        "title": "Mushoku Tensei: Jobless Reincarnation, Vol. 16",
+        "subtitle": "Light Novel",
+        "series_name": "Mushoku Tensei: Jobless Reincarnation",
+        "position": "16",
+        "arc": null,
+        "was_swapped": false
+      }
+    },
+    {
+      "_description": "Neither title nor subtitle have series - just use raw",
+      "asin": "B_NEITHER_HAS_SERIES_TEST",
+      "title": "The Great Adventure",
+      "subtitle": "Part One",
+      "seriesPrimary": {"name": "Adventure Series", "position": "1"},
+      "expected": {
+        "title": "The Great Adventure",
+        "subtitle": "Part One",
+        "series_name": "Adventure Series",
+        "position": "1",
+        "arc": null,
+        "was_swapped": false
+      }
+    },
+    {
+      "_description": "Trapped in a Dating Sim - Title is short form, subtitle has full series (interesting case)",
+      "asin": "B0DK27WWT8",
+      "title": "Trapped in a Dating Sim",
+      "subtitle": "The World of Otome Games is Tough for Mobs (Light Novel), Vol. 1",
+      "seriesPrimary": {"name": "The World of Otome Games is Tough for Mobs", "position": "1"},
+      "expected": {
+        "title": "The World of Otome Games is Tough for Mobs (Light Novel), Vol. 1",
+        "subtitle": "Trapped in a Dating Sim",
+        "series_name": "The World of Otome Games is Tough for Mobs",
+        "position": "1",
+        "arc": "Trapped in a Dating Sim",
+        "was_swapped": true
+      }
+    }
+  ]
+}

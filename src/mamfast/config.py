@@ -135,10 +135,72 @@ class LibationConfig:
 
 
 @dataclass
-class FiltersConfig:
-    """Title filtering settings (from config.yaml filters section)."""
+class NamingConfig:
+    """
+    Naming rules configuration (from config/naming.json).
 
-    # Phrases to remove from titles (case-insensitive)
+    Separate from FiltersConfig to allow independent updates and sharing
+    of naming rules without affecting main config.
+    """
+
+    # Format indicators to remove: "(Light Novel)", "Unabridged", etc.
+    format_indicators: list[str] = field(default_factory=list)
+    # Genre tags to remove: "A LitRPG Adventure", etc.
+    genre_tags: list[str] = field(default_factory=list)
+    # Series suffixes to remove (regex patterns): " Series", " Light Novel", etc.
+    series_suffixes: list[str] = field(default_factory=list)
+    # Publisher tags to remove: "[Yen Audio]", etc.
+    publisher_tags: list[str] = field(default_factory=list)
+    # Subtitle patterns (regex) to remove
+    subtitle_remove_patterns: list[str] = field(default_factory=list)
+    # Subtitle patterns (regex) to preserve
+    subtitle_keep_patterns: list[str] = field(default_factory=list)
+    # Whether to remove subtitle if it matches series name
+    remove_subtitle_if_matches_series: bool = True
+    # Subtitle redundancy rules - templates with {{series}}/{{title}} placeholders
+    subtitle_redundancy_rules: list[dict[str, str]] = field(default_factory=list)
+    # Whether subtitle redundancy checking is enabled
+    subtitle_redundancy_enabled: bool = True
+    # Titles that bypass ALL cleaning rules (exact match, case-sensitive)
+    preserve_exact: list[str] = field(default_factory=list)
+    # Author name mapping (foreign name -> romanized name)
+    author_map: dict[str, str] = field(default_factory=dict)
+    # Patterns to preserve in JSON but remove from folder/file names
+    preserve_volume_in_json: bool = True
+    # Ripper tag for folder names (e.g., "H2OKing" -> "[H2OKing]")
+    # Set to None or empty string to disable
+    ripper_tag: str | None = None
+    # Non-author roles to filter: "translator", "illustrator", etc.
+    author_roles: list[str] = field(
+        default_factory=lambda: [
+            "translator",
+            "illustrator",
+            "editor",
+            "adapter",
+            "contributor",
+            "compiler",
+        ]
+    )
+    # Credit roles (afterword, foreword, etc.)
+    credit_roles: list[str] = field(
+        default_factory=lambda: [
+            "afterword",
+            "foreword",
+            "introduction",
+            "cover design",
+            "cover art",
+        ]
+    )
+    # Title/subtitle normalization settings
+    normalize_title_subtitle: bool = True  # Enable Audnex title/subtitle swap detection
+    log_normalization_swaps: bool = True  # Log when swaps are detected
+
+
+@dataclass
+class FiltersConfig:
+    """Title filtering settings (from config.yaml filters section + naming.json)."""
+
+    # Phrases to remove from titles (case-insensitive) - combined from all sources
     remove_phrases: list[str] = field(default_factory=list)
     # Remove "Book XX" patterns (we keep vol_XX)
     remove_book_numbers: bool = True
@@ -146,6 +208,8 @@ class FiltersConfig:
     author_map: dict[str, str] = field(default_factory=dict)
     # Use pykakasi to transliterate unknown Japanese text
     transliterate_japanese: bool = True
+    # Naming config (loaded from naming.json)
+    naming: NamingConfig = field(default_factory=NamingConfig)
 
 
 @dataclass
@@ -188,6 +252,7 @@ class Settings:
     libation: LibationConfig
     filters: FiltersConfig
     categories: CategoriesConfig
+    naming: NamingConfig
 
 
 def validate_url(url: str, field_name: str) -> None:
@@ -506,6 +571,118 @@ def _load_categories(config_dir: Path) -> CategoriesConfig:
     )
 
 
+def _load_naming_config(config_dir: Path) -> NamingConfig:
+    """
+    Load naming rules from config/naming.json.
+
+    Args:
+        config_dir: Project root directory containing config/
+
+    Returns:
+        NamingConfig with all naming rules populated
+    """
+    naming_path = config_dir / "config" / "naming.json"
+
+    if not naming_path.exists():
+        logger.debug(f"naming.json not found at {naming_path}, using defaults")
+        return NamingConfig()
+
+    try:
+        with open(naming_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Extract format indicators
+        format_indicators = data.get("format_indicators", {}).get("phrases", [])
+
+        # Extract genre tags
+        genre_tags = data.get("genre_tags", {}).get("phrases", [])
+
+        # Extract series suffixes (now regex patterns)
+        series_suffixes_data = data.get("series_suffixes", {})
+        # Support both old "phrases" format and new "patterns" format
+        series_suffixes = series_suffixes_data.get(
+            "patterns", series_suffixes_data.get("phrases", [])
+        )
+
+        # Extract publisher tags (new)
+        publisher_tags = data.get("publisher_tags", {}).get("phrases", [])
+
+        # Extract subtitle patterns (two-tier: remove and keep)
+        subtitle_data = data.get("subtitle_patterns", {})
+        subtitle_remove_patterns = subtitle_data.get(
+            "remove_patterns", subtitle_data.get("patterns", [])
+        )
+        subtitle_keep_patterns = subtitle_data.get("keep_patterns", [])
+        remove_subtitle_if_matches_series = subtitle_data.get("remove_if_matches_series", True)
+
+        # Extract subtitle redundancy rules (template-based with {{series}}/{{title}})
+        redundancy_data = data.get("subtitle_redundancy_rules", {})
+        subtitle_redundancy_enabled = redundancy_data.get("enabled", True)
+        subtitle_redundancy_rules = redundancy_data.get("rules", [])
+
+        # Extract preserve_exact titles (new)
+        preserve_exact = data.get("preserve_exact", {}).get("titles", [])
+
+        # Extract author map (skip comment keys)
+        author_map = {
+            k: v
+            for k, v in data.get("author_map", {}).items()
+            if not k.startswith("_") and isinstance(v, str)
+        }
+
+        # Extract preserve settings
+        preserve_data = data.get("preserve_in_json", {})
+        preserve_volume_in_json = bool(preserve_data.get("volume_patterns", []))
+
+        # Extract author roles (non-author roles to filter)
+        author_roles_data = data.get("author_roles", {})
+        author_roles = author_roles_data.get(
+            "roles", ["translator", "illustrator", "editor", "adapter", "contributor", "compiler"]
+        )
+        credit_roles = author_roles_data.get(
+            "credit_roles", ["afterword", "foreword", "introduction", "cover design", "cover art"]
+        )
+
+        # Extract title/subtitle normalization settings
+        normalization_data = data.get("title_subtitle_normalization", {})
+        normalize_title_subtitle = normalization_data.get("enabled", True)
+        log_normalization_swaps = normalization_data.get("log_swaps", True)
+
+        logger.debug(
+            f"Loaded naming.json v{data.get('_version', '?')}: "
+            f"{len(format_indicators)} format indicators, "
+            f"{len(genre_tags)} genre tags, {len(series_suffixes)} series suffixes, "
+            f"{len(publisher_tags)} publisher tags, {len(preserve_exact)} preserve_exact, "
+            f"{len(subtitle_redundancy_rules)} redundancy rules, "
+            f"{len(author_map)} author mappings, "
+            f"{len(author_roles)} author roles, {len(credit_roles)} credit roles, "
+            f"normalize_title_subtitle={normalize_title_subtitle}"
+        )
+
+        return NamingConfig(
+            format_indicators=format_indicators,
+            genre_tags=genre_tags,
+            series_suffixes=series_suffixes,
+            publisher_tags=publisher_tags,
+            subtitle_remove_patterns=subtitle_remove_patterns,
+            subtitle_keep_patterns=subtitle_keep_patterns,
+            remove_subtitle_if_matches_series=remove_subtitle_if_matches_series,
+            subtitle_redundancy_rules=subtitle_redundancy_rules,
+            subtitle_redundancy_enabled=subtitle_redundancy_enabled,
+            preserve_exact=preserve_exact,
+            author_map=author_map,
+            preserve_volume_in_json=preserve_volume_in_json,
+            author_roles=author_roles,
+            credit_roles=credit_roles,
+            normalize_title_subtitle=normalize_title_subtitle,
+            log_normalization_swaps=log_normalization_swaps,
+        )
+
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"Failed to load naming.json: {e}, using defaults")
+        return NamingConfig()
+
+
 def load_yaml_config(config_path: Path) -> dict[str, Any]:
     """Load configuration from YAML file."""
     if not config_path.exists():
@@ -637,13 +814,49 @@ def load_settings(
         asin_pattern=libation_data.get("asin_pattern", r"^[A-Z0-9]{10}$"),
     )
 
-    # Parse filters config
+    # Load naming config from config/naming.json
+    naming = _load_naming_config(config_dir)
+
+    # Parse naming section from config.yaml (for ripper_tag and other output settings)
+    naming_yaml_data = yaml_config.get("naming", {})
+    ripper_tag_value = naming_yaml_data.get("ripper_tag")
+    # Update naming config with ripper_tag from yaml (empty string means disabled)
+    if ripper_tag_value is not None:
+        naming = NamingConfig(
+            format_indicators=naming.format_indicators,
+            genre_tags=naming.genre_tags,
+            series_suffixes=naming.series_suffixes,
+            publisher_tags=naming.publisher_tags,
+            subtitle_remove_patterns=naming.subtitle_remove_patterns,
+            subtitle_keep_patterns=naming.subtitle_keep_patterns,
+            remove_subtitle_if_matches_series=naming.remove_subtitle_if_matches_series,
+            subtitle_redundancy_rules=naming.subtitle_redundancy_rules,
+            subtitle_redundancy_enabled=naming.subtitle_redundancy_enabled,
+            preserve_exact=naming.preserve_exact,
+            author_map=naming.author_map,
+            preserve_volume_in_json=naming.preserve_volume_in_json,
+            ripper_tag=ripper_tag_value if ripper_tag_value else None,
+        )
+
+    # Parse filters config and merge with naming.json
     filters_data = yaml_config.get("filters", {})
+
+    # Combine remove_phrases from config.yaml AND naming.json
+    # naming.json format_indicators + genre_tags + publisher_tags become remove_phrases
+    yaml_remove_phrases = filters_data.get("remove_phrases", [])
+    naming_remove_phrases = naming.format_indicators + naming.genre_tags + naming.publisher_tags
+    combined_remove_phrases = list(dict.fromkeys(yaml_remove_phrases + naming_remove_phrases))
+
+    # Merge author_map from config.yaml AND naming.json (naming.json takes precedence)
+    yaml_author_map = filters_data.get("author_map", {})
+    combined_author_map = {**yaml_author_map, **naming.author_map}
+
     filters = FiltersConfig(
-        remove_phrases=filters_data.get("remove_phrases", []),
+        remove_phrases=combined_remove_phrases,
         remove_book_numbers=filters_data.get("remove_book_numbers", True),
-        author_map=filters_data.get("author_map", {}),
+        author_map=combined_author_map,
         transliterate_japanese=filters_data.get("transliterate_japanese", True),
+        naming=naming,
     )
 
     # Load categories from config/categories.json
@@ -672,6 +885,7 @@ def load_settings(
         libation=libation,
         filters=filters,
         categories=categories,
+        naming=naming,
     )
 
     # Comprehensive validation if requested

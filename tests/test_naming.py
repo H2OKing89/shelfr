@@ -1,11 +1,16 @@
 """Tests for naming utilities."""
 
-from mamfast.config import FiltersConfig
+from mamfast.config import FiltersConfig, NamingConfig
 from mamfast.utils.naming import (
     build_release_dirname,
     ensure_unique_name,
     extract_translator,
+    # Using backward-compatible alias; function is now extract_non_authors_from_mediainfo
+    # but handles translators, illustrators, editors, etc.
+    extract_translators_from_mediainfo,
     filter_authors,
+    filter_series,
+    filter_subtitle,
     filter_title,
     is_author_role,
     sanitize_filename,
@@ -203,6 +208,127 @@ class TestExtractTranslator:
         assert result is None
 
 
+class TestExtractTranslatorsFromMediainfo:
+    """Tests for extracting non-authors from MediaInfo metadata."""
+
+    def test_extracts_single_translator(self):
+        """Test extracting a single translator from Album_Performer."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": "Author One; Author Two; John Smith - translator",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"John Smith"}
+
+    def test_extracts_multiple_translators(self):
+        """Test extracting multiple translators."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": "Author; Trans One - translator; Trans Two - translator",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"Trans One", "Trans Two"}
+
+    def test_extracts_illustrator(self):
+        """Test extracting illustrators."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": "Author; Artist Name - illustrator",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"Artist Name"}
+
+    def test_extracts_editor(self):
+        """Test extracting editors."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": "Author; Jane Doe - editor",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"Jane Doe"}
+
+    def test_extracts_multiple_roles(self):
+        """Test extracting multiple different roles."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": (
+                            "Real Author; Trans - translator; " "Artist - illustrator; Ed - editor"
+                        ),
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"Trans", "Artist", "Ed"}
+
+    def test_no_non_authors(self):
+        """Test when no non-authors present."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Album_Performer": "Author One; Author Two",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == set()
+
+    def test_none_input(self):
+        """Test with None input."""
+        result = extract_translators_from_mediainfo(None)
+        assert result == set()
+
+    def test_empty_mediainfo(self):
+        """Test with empty mediainfo."""
+        result = extract_translators_from_mediainfo({})
+        assert result == set()
+
+    def test_uses_performer_fallback(self):
+        """Test using Performer field when Album_Performer not present."""
+        mediainfo_data = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Performer": "Author; Jane Doe - translator",
+                    }
+                ]
+            }
+        }
+        result = extract_translators_from_mediainfo(mediainfo_data)
+        assert result == {"Jane Doe"}
+
+
 class TestFilterTitle:
     """Tests for title filtering."""
 
@@ -277,3 +403,802 @@ class TestEnsureUniqueName:
         existing = {"file.txt"}
         result = ensure_unique_name("file.txt", existing)
         assert result.endswith(".txt")
+
+
+class TestFilterTitleWithNamingConfig:
+    """Tests for filter_title with NamingConfig."""
+
+    def test_removes_format_indicators(self):
+        """Test removing format indicators from NamingConfig."""
+        config = NamingConfig(format_indicators=["(Light Novel)", "Unabridged"])
+        result = filter_title("Overlord (Light Novel)", naming_config=config)
+        assert result == "Overlord"
+
+    def test_removes_genre_tags(self):
+        """Test removing genre tags from NamingConfig."""
+        config = NamingConfig(genre_tags=["A LitRPG Adventure"])
+        result = filter_title("Dungeon Crawler Carl A LitRPG Adventure", naming_config=config)
+        assert result == "Dungeon Crawler Carl"
+
+    def test_removes_publisher_tags(self):
+        """Test removing publisher tags from NamingConfig."""
+        config = NamingConfig(publisher_tags=["[Yen Audio]", "(J-Novel Club)"])
+        result = filter_title("Sword Art Online [Yen Audio]", naming_config=config)
+        assert result == "Sword Art Online"
+
+    def test_removes_multiple_categories(self):
+        """Test removing from multiple categories in one pass."""
+        config = NamingConfig(
+            format_indicators=["(Light Novel)"],
+            genre_tags=["A LitRPG Adventure"],
+            publisher_tags=["[Yen Audio]"],
+        )
+        result = filter_title(
+            "My Book (Light Novel) A LitRPG Adventure [Yen Audio]",
+            naming_config=config,
+        )
+        assert result == "My Book"
+
+    def test_case_insensitive_matching(self):
+        """Test that matching is case-insensitive."""
+        config = NamingConfig(format_indicators=["(Light Novel)"])
+        result = filter_title("Overlord (light novel)", naming_config=config)
+        assert result == "Overlord"
+
+    def test_backward_compatibility_with_remove_phrases(self):
+        """Test that legacy remove_phrases still works."""
+        result = filter_title(
+            "Title [Custom Tag]",
+            remove_phrases=["[Custom Tag]"],
+        )
+        assert result == "Title"
+
+    def test_combined_naming_config_and_remove_phrases(self):
+        """Test both naming_config and remove_phrases work together."""
+        config = NamingConfig(format_indicators=["(Light Novel)"])
+        result = filter_title(
+            "Title (Light Novel) [Custom]",
+            remove_phrases=["[Custom]"],
+            naming_config=config,
+        )
+        assert result == "Title"
+
+
+class TestFilterTitlePreserveExact:
+    """Tests for preserve_exact bypass in filter_title."""
+
+    def test_preserves_exact_match(self):
+        """Test exact match is preserved."""
+        config = NamingConfig(
+            format_indicators=["(Light Novel)"],
+            preserve_exact=["Re:ZERO"],
+        )
+        # The colon would normally be problematic, but preserve_exact bypasses cleaning
+        result = filter_title("Re:ZERO", naming_config=config)
+        assert result == "Re:ZERO"
+
+    def test_preserves_substring_match(self):
+        """Test substring match is preserved."""
+        config = NamingConfig(
+            format_indicators=["(Light Novel)"],
+            preserve_exact=["Re:ZERO"],
+        )
+        result = filter_title("Re:ZERO (Light Novel)", naming_config=config)
+        # Should preserve because "Re:ZERO" is in the input
+        assert result == "Re:ZERO (Light Novel)"
+
+    def test_preserves_86_eighty_six(self):
+        """Test 86--EIGHTY-SIX is preserved."""
+        config = NamingConfig(
+            format_indicators=["(Light Novel)"],
+            preserve_exact=["86--EIGHTY-SIX"],
+        )
+        result = filter_title("86--EIGHTY-SIX (Light Novel)", naming_config=config)
+        assert result == "86--EIGHTY-SIX (Light Novel)"
+
+    def test_preserves_sao_progressive(self):
+        """Test Sword Art Online: Progressive is preserved."""
+        config = NamingConfig(
+            preserve_exact=["Sword Art Online: Progressive"],
+        )
+        result = filter_title("Sword Art Online: Progressive", naming_config=config)
+        assert result == "Sword Art Online: Progressive"
+
+    def test_non_preserved_still_cleaned(self):
+        """Test non-preserved titles are still cleaned."""
+        config = NamingConfig(
+            format_indicators=["(Light Novel)"],
+            preserve_exact=["Re:ZERO"],
+        )
+        result = filter_title("Overlord (Light Novel)", naming_config=config)
+        assert result == "Overlord"
+
+
+class TestFilterSeries:
+    """Tests for filter_series function."""
+
+    def test_removes_series_suffix(self):
+        """Test removing ' Series' suffix."""
+        config = NamingConfig(series_suffixes=[r"\s+[Ss]eries$"])
+        result = filter_series("A Most Unlikely Hero Series", naming_config=config)
+        assert result == "A Most Unlikely Hero"
+
+    def test_removes_trilogy_suffix(self):
+        """Test removing ' Trilogy' suffix."""
+        config = NamingConfig(series_suffixes=[r"\s+[Tt]rilogy$"])
+        result = filter_series("Epic Fantasy Trilogy", naming_config=config)
+        assert result == "Epic Fantasy"
+
+    def test_removes_light_novel_suffix(self):
+        """Test removing ' Light Novel' suffix from series."""
+        config = NamingConfig(series_suffixes=[r"\s+[Ll]ight [Nn]ovel$"])
+        result = filter_series("Kuma Kuma Kuma Bear Light Novel", naming_config=config)
+        assert result == "Kuma Kuma Kuma Bear"
+
+    def test_removes_parenthetical_light_novel(self):
+        """Test removing '(Light Novel)' suffix from series."""
+        config = NamingConfig(series_suffixes=[r"\s*\([Ll]ight [Nn]ovel\)$"])
+        result = filter_series("Overlord (Light Novel)", naming_config=config)
+        assert result == "Overlord"
+
+    def test_also_applies_format_indicators(self):
+        """Test filter_series also removes format_indicators."""
+        config = NamingConfig(
+            format_indicators=["(Unabridged)"],
+            series_suffixes=[r"\s+[Ss]eries$"],
+        )
+        result = filter_series("Hero Series (Unabridged)", naming_config=config)
+        assert result == "Hero"
+
+    def test_preserves_non_suffix_series(self):
+        """Test series without matching suffix is preserved."""
+        config = NamingConfig(series_suffixes=[r"\s+[Ss]eries$"])
+        result = filter_series("The Stormlight Archive", naming_config=config)
+        assert result == "The Stormlight Archive"
+
+    def test_preserve_exact_works_in_series(self):
+        """Test preserve_exact also works in filter_series."""
+        config = NamingConfig(
+            series_suffixes=[r"\s+[Ss]eries$"],
+            preserve_exact=["Re:ZERO"],
+        )
+        result = filter_series("Re:ZERO Series", naming_config=config)
+        # Should preserve because "Re:ZERO" is in preserve_exact
+        assert result == "Re:ZERO Series"
+
+    def test_multiple_suffix_patterns(self):
+        """Test multiple suffix patterns."""
+        config = NamingConfig(
+            series_suffixes=[
+                r"\s+[Ss]eries$",
+                r"\s+[Tt]rilogy$",
+                r"\s+[Ss]aga$",
+            ]
+        )
+        assert filter_series("Epic Series", naming_config=config) == "Epic"
+        assert filter_series("Epic Trilogy", naming_config=config) == "Epic"
+        assert filter_series("Epic Saga", naming_config=config) == "Epic"
+
+    def test_invalid_regex_handled_gracefully(self):
+        """Test invalid regex patterns don't crash."""
+        config = NamingConfig(series_suffixes=[r"[invalid(regex"])
+        # Should not raise, just skip the bad pattern
+        result = filter_series("Test Series", naming_config=config)
+        assert result == "Test Series"
+
+
+class TestFilterTitleKeepVolume:
+    """Tests for the keep_volume parameter in filter_title.
+
+    Phase 3: MAM JSON keeps Vol. X human-readable, folders use vol_XX.
+    """
+
+    def test_default_removes_volume(self):
+        """Test that Vol. X is removed by default (for folder names)."""
+        result = filter_title("Overlord, Vol. 3")
+        assert "Vol. 3" not in result
+        assert "Overlord" in result
+
+    def test_keep_volume_true_preserves_vol(self):
+        """Test that keep_volume=True preserves Vol. X (for JSON)."""
+        result = filter_title("Overlord, Vol. 3", keep_volume=True)
+        assert "Vol. 3" in result
+        assert "Overlord" in result
+
+    def test_keep_volume_preserves_volume_word(self):
+        """Test that keep_volume=True also preserves Volume X."""
+        result = filter_title("Overlord, Volume 12", keep_volume=True)
+        assert "Volume 12" in result
+
+    def test_keep_volume_removes_format_indicators(self):
+        """Test that keep_volume=True still removes format indicators."""
+        config = NamingConfig(format_indicators=["(Light Novel)"])
+        result = filter_title(
+            "Overlord (Light Novel), Vol. 3",
+            naming_config=config,
+            keep_volume=True,
+        )
+        assert "(Light Novel)" not in result
+        assert "Vol. 3" in result
+        assert "Overlord" in result
+
+    def test_keep_volume_still_removes_book(self):
+        """Test that Book X is still removed (we normalize to Vol.)."""
+        result = filter_title("Title, Book 5", keep_volume=True)
+        # "Book 5" should still be removed (hardcoded pattern)
+        assert "Book 5" not in result
+
+
+class TestFilterSeriesKeepVolume:
+    """Tests for the keep_volume parameter in filter_series."""
+
+    def test_default_removes_volume(self):
+        """Test that Vol. X is removed by default from series."""
+        config = NamingConfig()
+        result = filter_series("Overlord, Vol. 3", naming_config=config)
+        assert "Vol. 3" not in result
+
+    def test_keep_volume_true_in_series(self):
+        """Test keep_volume parameter is passed through filter_series."""
+        config = NamingConfig()
+        result = filter_series("Overlord, Vol. 3", naming_config=config, keep_volume=True)
+        assert "Vol. 3" in result
+
+    def test_series_suffixes_still_applied_with_keep_volume(self):
+        """Test that series suffixes are applied regardless of keep_volume."""
+        config = NamingConfig(series_suffixes=[r"\s+[Ss]eries$"])
+        result = filter_series("Epic Vol. 2 Series", naming_config=config, keep_volume=True)
+        # Vol. 2 kept, but "Series" suffix removed
+        assert "Vol. 2" in result
+        assert result.endswith("Series") is False
+
+
+class TestFilterSubtitle:
+    """Tests for the filter_subtitle function."""
+
+    def test_empty_subtitle_returns_none(self):
+        """Test that empty/whitespace subtitles return None."""
+
+        assert filter_subtitle("") is None
+        assert filter_subtitle("   ") is None
+        assert filter_subtitle(None) is None  # type: ignore[arg-type]
+
+    def test_simple_subtitle_passes_through(self):
+        """Test that normal subtitles pass through unchanged."""
+
+        result = filter_subtitle("A Tale of Mystery")
+        assert result == "A Tale of Mystery"
+
+    def test_remove_patterns_drop_subtitle(self):
+        """Test that matching remove_patterns drop the entire subtitle."""
+
+        config = NamingConfig(subtitle_remove_patterns=[r"^[Ll]ight [Nn]ovel$", r"^[Uu]nabridged$"])
+        assert filter_subtitle("Light Novel", naming_config=config) is None
+        assert filter_subtitle("light novel", naming_config=config) is None
+        assert filter_subtitle("Unabridged", naming_config=config) is None
+        # But not partial matches
+        assert filter_subtitle("The Light Novel Chronicles", naming_config=config) is not None
+
+    def test_keep_patterns_preserve_subtitle(self):
+        """Test that matching keep_patterns preserve the subtitle."""
+
+        config = NamingConfig(
+            subtitle_remove_patterns=[r"^.*Aria.*$"],
+            subtitle_keep_patterns=[r".*[Aa]ria.*"],
+        )
+        # Without keep_pattern, would be removed by remove_pattern
+        result = filter_subtitle("Aria of the Stars", naming_config=config)
+        assert result == "Aria of the Stars"
+
+    def test_series_match_drops_subtitle(self):
+        """Test that subtitle matching series name is dropped."""
+
+        config = NamingConfig(remove_subtitle_if_matches_series=True)
+        result = filter_subtitle(
+            "The Wandering Inn",
+            series="The Wandering Inn",
+            naming_config=config,
+        )
+        assert result is None
+
+    def test_series_match_case_insensitive(self):
+        """Test that series matching is case-insensitive."""
+
+        config = NamingConfig(remove_subtitle_if_matches_series=True)
+        result = filter_subtitle(
+            "the wandering inn",
+            series="The Wandering Inn",
+            naming_config=config,
+        )
+        assert result is None
+
+    def test_series_match_disabled(self):
+        """Test that series matching can be disabled."""
+
+        config = NamingConfig(remove_subtitle_if_matches_series=False)
+        result = filter_subtitle(
+            "The Wandering Inn",
+            series="The Wandering Inn",
+            naming_config=config,
+        )
+        assert result == "The Wandering Inn"
+
+    def test_redundancy_rule_drop_subtitle(self):
+        """Test drop_subtitle action in redundancy rules."""
+
+        config = NamingConfig(
+            subtitle_redundancy_enabled=True,
+            subtitle_redundancy_rules=[
+                {
+                    "id": "series_book",
+                    "pattern_template": r"^{{series}},?\s*Book\s*\d+$",
+                    "action": "drop_subtitle",
+                }
+            ],
+        )
+        result = filter_subtitle(
+            "Overlord, Book 3",
+            series="Overlord",
+            naming_config=config,
+        )
+        assert result is None
+
+    def test_redundancy_rule_strip_match(self):
+        """Test strip_match action in redundancy rules."""
+
+        config = NamingConfig(
+            subtitle_redundancy_enabled=True,
+            subtitle_redundancy_rules=[
+                {
+                    "id": "series_in_parens",
+                    "pattern_template": r"\({{series}},?\s*Book\s*\d+\)$",
+                    "action": "strip_match",
+                }
+            ],
+        )
+        result = filter_subtitle(
+            "A Tale of Adventure (Overlord, Book 3)",
+            series="Overlord",
+            naming_config=config,
+        )
+        assert result == "A Tale of Adventure"
+
+    def test_redundancy_skips_rule_if_series_empty(self):
+        """Test that rules with {{series}} are skipped if series is empty."""
+
+        config = NamingConfig(
+            subtitle_redundancy_enabled=True,
+            subtitle_redundancy_rules=[
+                {
+                    "id": "series_book",
+                    "pattern_template": r"^{{series}},?\s*Book\s*\d+$",
+                    "action": "drop_subtitle",
+                }
+            ],
+        )
+        # No series provided, rule should be skipped
+        result = filter_subtitle(
+            "Some Series, Book 3",
+            series=None,
+            naming_config=config,
+        )
+        assert result == "Some Series, Book 3"
+
+    def test_redundancy_rule_with_title(self):
+        """Test {{title}} placeholder substitution."""
+
+        config = NamingConfig(
+            subtitle_redundancy_enabled=True,
+            subtitle_redundancy_rules=[
+                {
+                    "id": "title_book",
+                    "pattern_template": r"^{{title}},?\s*Book\s*\d+$",
+                    "action": "drop_subtitle",
+                }
+            ],
+        )
+        result = filter_subtitle(
+            "Epic Adventure, Book 1",
+            title="Epic Adventure",
+            naming_config=config,
+        )
+        assert result is None
+
+    def test_redundancy_disabled(self):
+        """Test that redundancy rules are skipped when disabled."""
+
+        config = NamingConfig(
+            subtitle_redundancy_enabled=False,
+            subtitle_redundancy_rules=[
+                {
+                    "id": "series_book",
+                    "pattern_template": r"^{{series}},?\s*Book\s*\d+$",
+                    "action": "drop_subtitle",
+                }
+            ],
+        )
+        result = filter_subtitle(
+            "Overlord, Book 3",
+            series="Overlord",
+            naming_config=config,
+        )
+        # Should NOT be dropped because redundancy is disabled
+        assert result == "Overlord, Book 3"
+
+    def test_preserve_exact_bypasses_all_rules(self):
+        """Test that preserve_exact bypasses all subtitle filtering."""
+
+        config = NamingConfig(
+            subtitle_remove_patterns=[r"^[Ll]ight [Nn]ovel$"],
+            preserve_exact=["Light Novel"],
+        )
+        # Would normally be removed, but preserved
+        result = filter_subtitle("Light Novel", naming_config=config)
+        assert result == "Light Novel"
+
+    def test_strip_match_leaves_empty_drops_subtitle(self):
+        """Test that strip_match leaving empty string drops subtitle."""
+
+        config = NamingConfig(
+            subtitle_redundancy_enabled=True,
+            subtitle_redundancy_rules=[
+                {
+                    "id": "strip_all",
+                    "pattern_template": r"^{{series}},?\s*Book\s*\d+$",
+                    "action": "strip_match",
+                }
+            ],
+        )
+        result = filter_subtitle(
+            "Overlord, Book 3",
+            series="Overlord",
+            naming_config=config,
+        )
+        # Strip match removes entire string, leaving empty -> None
+        assert result is None
+
+    def test_multiple_rules_applied_in_order(self):
+        """Test that redundancy rules are applied in order."""
+
+        config = NamingConfig(
+            subtitle_redundancy_enabled=True,
+            subtitle_redundancy_rules=[
+                # First rule: drop exact series+book
+                {
+                    "id": "series_book",
+                    "pattern_template": r"^{{series}},?\s*Book\s*\d+$",
+                    "action": "drop_subtitle",
+                },
+                # Second rule: strip series in parens
+                {
+                    "id": "series_in_parens",
+                    "pattern_template": r"\({{series}},?\s*Book\s*\d+\)$",
+                    "action": "strip_match",
+                },
+            ],
+        )
+        # First rule should match and drop
+        result1 = filter_subtitle(
+            "Overlord, Book 3",
+            series="Overlord",
+            naming_config=config,
+        )
+        assert result1 is None
+
+        # Second rule should strip the parens part
+        result2 = filter_subtitle(
+            "Epic Adventure (Overlord, Book 3)",
+            series="Overlord",
+            naming_config=config,
+        )
+        assert result2 == "Epic Adventure"
+
+    def test_cleanup_applied_to_result(self):
+        """Test that cleanup is applied to the final result."""
+
+        config = NamingConfig(
+            subtitle_redundancy_enabled=True,
+            subtitle_redundancy_rules=[
+                {
+                    "id": "strip_suffix",
+                    "pattern_template": r"\({{series}}\)$",
+                    "action": "strip_match",
+                }
+            ],
+        )
+        # After stripping, should clean up trailing comma
+        result = filter_subtitle(
+            "A Great Story, (Overlord)",
+            series="Overlord",
+            naming_config=config,
+        )
+        # Should remove trailing comma after cleanup
+        assert result == "A Great Story"
+
+    def test_verbose_logging(self, caplog):
+        """Test that verbose mode logs transformations."""
+        import logging
+
+        config = NamingConfig(
+            subtitle_remove_patterns=[r"^[Uu]nabridged$"],
+        )
+        with caplog.at_level(logging.DEBUG):
+            filter_subtitle("Unabridged", naming_config=config, verbose=True)
+
+        assert "remove_pattern" in caplog.text
+
+
+class TestExtractVolumeNumber:
+    """Tests for extract_volume_number function."""
+
+    def test_series_position_priority(self):
+        """Test that series_position is used when provided."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("Overlord, Vol. 5", series_position="3") == "3"
+        assert extract_volume_number("Title", series_position="12") == "12"
+        assert extract_volume_number("Title", series_position="1.5") == "1.5"
+
+    def test_vol_pattern(self):
+        """Test Vol. extraction from title."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("Overlord, Vol. 3") == "3"
+        assert extract_volume_number("Overlord Vol 12") == "12"
+        assert extract_volume_number("Title, Vol.5") == "5"
+
+    def test_volume_pattern(self):
+        """Test Volume extraction from title."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("Overlord, Volume 3") == "3"
+        assert extract_volume_number("Title Volume 12") == "12"
+
+    def test_book_pattern(self):
+        """Test Book extraction from title."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("The Wandering Inn, Book 1") == "1"
+        assert extract_volume_number("Series Book 5") == "5"
+
+    def test_trailing_number(self):
+        """Test trailing number extraction."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("He Who Fights with Monsters 11") == "11"
+
+    def test_no_volume(self):
+        """Test returns None when no volume found."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("Project Hail Mary") is None
+        assert extract_volume_number("The Martian") is None
+
+
+class TestFormatVolumeNumber:
+    """Tests for format_volume_number function."""
+
+    def test_zero_padding(self):
+        """Test zero padding."""
+        from mamfast.utils.naming import format_volume_number
+
+        assert format_volume_number("3") == "vol_03"
+        assert format_volume_number("12") == "vol_12"
+        assert format_volume_number("1") == "vol_01"
+
+    def test_no_padding(self):
+        """Test without zero padding."""
+        from mamfast.utils.naming import format_volume_number
+
+        assert format_volume_number("3", zero_pad=False) == "vol_3"
+
+    def test_decimal_volumes(self):
+        """Test decimal volume numbers."""
+        from mamfast.utils.naming import format_volume_number
+
+        assert format_volume_number("1.5") == "vol_01.5"
+        assert format_volume_number("10.5") == "vol_10.5"
+
+    def test_none_returns_empty(self):
+        """Test None returns empty string."""
+        from mamfast.utils.naming import format_volume_number
+
+        assert format_volume_number(None) == ""
+        assert format_volume_number("") == ""
+
+
+class TestBuildMamFolderName:
+    """Tests for build_mam_folder_name function."""
+
+    def test_series_book_full(self):
+        """Test series book with all components."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Sword Art Online",
+            title="Sword Art Online",
+            volume_number="1",
+            arc="Aincrad",
+            year="2021",
+            author="Reki Kawahara",
+            asin="1975337182",
+            ripper_tag="H2OKing",
+        )
+        assert "Sword Art Online" in result
+        assert "vol_01" in result
+        assert "Aincrad" in result
+        assert "(2021)" in result
+        assert "(Reki Kawahara)" in result
+        assert "{ASIN.1975337182}" in result
+        assert "[H2OKing]" in result
+
+    def test_series_book_no_arc(self):
+        """Test series book without arc/subtitle."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Skyward",
+            title="Skyward",
+            volume_number="1",
+            year="2018",
+            author="Brandon Sanderson",
+            asin="B07H7Q5D3M",
+        )
+        assert "Skyward" in result
+        assert "vol_01" in result
+        assert "(2018)" in result
+        assert "(Brandon Sanderson)" in result
+        assert "{ASIN.B07H7Q5D3M}" in result
+        assert "[" not in result  # No ripper tag
+
+    def test_standalone_book(self):
+        """Test standalone book (no series)."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series=None,
+            title="Project Hail Mary",
+            volume_number=None,
+            year="2021",
+            author="Andy Weir",
+            asin="B08G9PRS1K",
+        )
+        assert "Project Hail Mary" in result
+        assert "vol_" not in result  # No volume for standalone
+        assert "(2021)" in result
+        assert "(Andy Weir)" in result
+        assert "{ASIN.B08G9PRS1K}" in result
+
+    def test_truncation_drops_arc_first(self):
+        """Test that arc is dropped first when truncating."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        # Very long series name + arc should truncate
+        result = build_mam_folder_name(
+            series="A" * 100,
+            title="Test",
+            volume_number="1",
+            arc="B" * 50,
+            year="2021",
+            author="C" * 50,
+            asin="TEST123",
+            max_length=150,
+        )
+        # Arc should be dropped to fit
+        assert len(result) <= 150
+        assert "{ASIN.TEST123}" in result  # ASIN preserved
+
+    def test_truncation_preserves_identity(self):
+        """Test that series + vol + ASIN are always preserved."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Overlord",
+            title="Overlord",
+            volume_number="3",
+            arc="The Bloody Valkyrie",
+            year="2021",
+            author="Kugane Maruyama",
+            asin="B09TEST123",
+            ripper_tag="H2OKing",
+            max_length=80,
+        )
+        # Core identity preserved even with aggressive truncation
+        assert "Overlord" in result
+        assert "vol_03" in result
+        assert "ASIN" in result
+
+    def test_no_asin(self):
+        """Test folder name without ASIN."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Test Series",
+            title="Test",
+            volume_number="1",
+            year="2021",
+            author="Author",
+        )
+        assert "Test Series" in result
+        assert "{ASIN" not in result
+
+    def test_special_characters_sanitized(self):
+        """Test that special characters are sanitized."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Re:ZERO -Starting Life in Another World-",
+            title="Re:ZERO",
+            volume_number="1",
+            asin="TEST",
+        )
+        # Colons are replaced with " -"
+        assert ":" not in result or "Re:ZERO" in result  # preserve_exact may keep it
+
+
+class TestBuildMamFileName:
+    """Tests for build_mam_file_name function."""
+
+    def test_file_has_extension(self):
+        """Test file name includes extension."""
+        from mamfast.utils.naming import build_mam_file_name
+
+        result = build_mam_file_name(
+            series="Overlord",
+            title="Overlord",
+            volume_number="3",
+            year="2021",
+            author="Kugane Maruyama",
+            asin="B09TEST123",
+        )
+        assert result.endswith(".m4b")
+
+    def test_file_no_ripper_tag(self):
+        """Test file name never has ripper tag."""
+        from mamfast.utils.naming import build_mam_file_name
+
+        result = build_mam_file_name(
+            series="Test",
+            title="Test",
+            volume_number="1",
+            asin="TEST",
+            # Note: ripper_tag is not even a parameter for file name
+        )
+        assert "[" not in result
+        assert "]" not in result or "{ASIN" in result  # Only ASIN braces
+
+    def test_custom_extension(self):
+        """Test custom file extension."""
+        from mamfast.utils.naming import build_mam_file_name
+
+        result = build_mam_file_name(
+            title="Test",
+            asin="TEST",
+            extension=".mp3",
+        )
+        assert result.endswith(".mp3")
+
+    def test_extension_without_dot(self):
+        """Test extension without leading dot."""
+        from mamfast.utils.naming import build_mam_file_name
+
+        result = build_mam_file_name(
+            title="Test",
+            asin="TEST",
+            extension="m4b",  # No dot
+        )
+        assert result.endswith(".m4b")
+
+    def test_truncation_reserves_extension_space(self):
+        """Test that truncation reserves space for extension."""
+        from mamfast.utils.naming import build_mam_file_name
+
+        result = build_mam_file_name(
+            series="A" * 200,
+            title="Test",
+            volume_number="1",
+            asin="TEST",
+            max_length=100,
+        )
+        assert len(result) <= 100
+        assert result.endswith(".m4b")

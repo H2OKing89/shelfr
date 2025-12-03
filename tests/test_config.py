@@ -14,10 +14,12 @@ from mamfast.config import (
     FiltersConfig,
     MamConfig,
     MkbrrConfig,
+    NamingConfig,
     PathsConfig,
     QBittorrentConfig,
     _get_env,
     _get_env_int,
+    _load_naming_config,
     clear_settings,
     load_settings,
     load_yaml_config,
@@ -520,3 +522,311 @@ class TestValidateSameFilesystem:
             # Should not raise since both are on same filesystem
             warnings = validate_paths(paths)
             assert isinstance(warnings, list)
+
+
+class TestNamingConfig:
+    """Tests for NamingConfig dataclass and loading."""
+
+    def test_default_values(self):
+        """Test default NamingConfig values."""
+        config = NamingConfig()
+        assert config.format_indicators == []
+        assert config.genre_tags == []
+        assert config.series_suffixes == []
+        assert config.publisher_tags == []
+        assert config.subtitle_remove_patterns == []
+        assert config.subtitle_keep_patterns == []
+        assert config.preserve_exact == []
+        assert config.author_map == {}
+        assert config.remove_subtitle_if_matches_series is True
+        assert config.preserve_volume_in_json is True
+        assert config.ripper_tag is None
+
+    def test_custom_values(self):
+        """Test NamingConfig with custom values."""
+        config = NamingConfig(
+            format_indicators=["(Light Novel)", "Unabridged"],
+            genre_tags=["A LitRPG Adventure"],
+            series_suffixes=[" Series", " Light Novel"],
+            publisher_tags=["[Yen Audio]"],
+            preserve_exact=["Re:ZERO"],
+            author_map={"猫子": "Necoco"},
+            ripper_tag="H2OKing",
+        )
+        assert "(Light Novel)" in config.format_indicators
+        assert "A LitRPG Adventure" in config.genre_tags
+        assert " Series" in config.series_suffixes
+        assert "[Yen Audio]" in config.publisher_tags
+        assert "Re:ZERO" in config.preserve_exact
+        assert config.author_map["猫子"] == "Necoco"
+        assert config.ripper_tag == "H2OKing"
+
+    def test_ripper_tag_none_when_empty_string(self):
+        """Test ripper_tag is effectively disabled with empty string."""
+        config = NamingConfig(ripper_tag="")
+        # Empty string is truthy-false, so folder builder should treat as disabled
+        assert config.ripper_tag == ""
+        # In practice, the config loader converts empty string to None
+        # but direct instantiation preserves the value
+
+    def test_load_naming_config_from_file(self):
+        """Test loading NamingConfig from naming.json file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_dir = Path(tmpdir)
+            # naming.json is expected at config_dir/config/naming.json
+            (config_dir / "config").mkdir()
+            naming_file = config_dir / "config" / "naming.json"
+
+            # Create a test naming.json with nested structure
+            naming_file.write_text(
+                """{
+                "format_indicators": {
+                    "phrases": ["(Light Novel)", "Unabridged"]
+                },
+                "genre_tags": {
+                    "phrases": ["A LitRPG Adventure"]
+                },
+                "series_suffixes": {
+                    "patterns": ["[\\\\s—-]?Series$"]
+                },
+                "publisher_tags": {
+                    "phrases": ["[Yen Audio]"]
+                },
+                "subtitle_patterns": {
+                    "remove_patterns": ["^Book \\\\d+$"],
+                    "keep_patterns": [".*Aria.*"],
+                    "remove_if_matches_series": true
+                },
+                "preserve_exact": {
+                    "titles": ["Re:ZERO"]
+                },
+                "author_map": {"テスト": "Test"}
+            }"""
+            )
+
+            config = _load_naming_config(config_dir)
+
+            assert "(Light Novel)" in config.format_indicators
+            assert "A LitRPG Adventure" in config.genre_tags
+            assert "[\\s—-]?Series$" in config.series_suffixes
+            assert "[Yen Audio]" in config.publisher_tags
+            assert "^Book \\d+$" in config.subtitle_remove_patterns
+            assert ".*Aria.*" in config.subtitle_keep_patterns
+            assert "Re:ZERO" in config.preserve_exact
+            assert config.author_map["テスト"] == "Test"
+
+    def test_load_naming_config_missing_file(self):
+        """Test loading NamingConfig returns defaults when file missing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_dir = Path(tmpdir)
+            # Don't create naming.json - but create the config subdir
+            (config_dir / "config").mkdir()
+
+            config = _load_naming_config(config_dir)
+
+            # Should return defaults
+            assert config.format_indicators == []
+            assert config.genre_tags == []
+            assert config.author_map == {}
+
+    def test_load_naming_config_empty_file(self):
+        """Test loading NamingConfig from empty JSON."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_dir = Path(tmpdir)
+            (config_dir / "config").mkdir()
+            naming_file = config_dir / "config" / "naming.json"
+            naming_file.write_text("{}")
+
+            config = _load_naming_config(config_dir)
+
+            # Should return defaults for missing keys
+            assert config.format_indicators == []
+            assert config.genre_tags == []
+            assert config.author_map == {}
+
+    def test_load_naming_config_partial_file(self):
+        """Test loading NamingConfig with only some fields."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_dir = Path(tmpdir)
+            (config_dir / "config").mkdir()
+            naming_file = config_dir / "config" / "naming.json"
+            naming_file.write_text(
+                """{
+                "format_indicators": {"phrases": ["Test"]},
+                "author_map": {"A": "B"}
+            }"""
+            )
+
+            config = _load_naming_config(config_dir)
+
+            assert config.format_indicators == ["Test"]
+            assert config.author_map == {"A": "B"}
+            # Other fields should be defaults
+            assert config.genre_tags == []
+            assert config.series_suffixes == []
+
+    def test_filters_config_includes_naming(self):
+        """Test FiltersConfig includes NamingConfig."""
+        naming = NamingConfig(format_indicators=["Test"])
+        filters = FiltersConfig(naming=naming)
+
+        assert filters.naming.format_indicators == ["Test"]
+
+    def test_naming_integrated_with_load_settings(self):
+        """Test that naming config is properly loaded with full settings."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            # Create naming.json in config/ subdirectory
+            (config_subdir / "naming.json").write_text(
+                """{
+                "format_indicators": {"phrases": ["(Light Novel)"]},
+                "genre_tags": {"phrases": ["A Test Genre"]},
+                "author_map": {"Test": "Result"}
+            }"""
+            )
+
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+mam:
+  mam_id: "test_id"
+  announce_url: "http://test.example.com/announce"
+
+mkbrr:
+  image: "test/mkbrr"
+
+qbittorrent:
+  host: "http://localhost:8080"
+  username: "admin"
+  password: "admin"
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # Verify naming config is loaded
+            assert "(Light Novel)" in settings.naming.format_indicators
+            assert "A Test Genre" in settings.naming.genre_tags
+            assert settings.naming.author_map.get("Test") == "Result"
+
+            # Verify naming is also accessible via filters
+            assert settings.filters.naming.format_indicators == settings.naming.format_indicators
+
+            # Verify remove_phrases includes naming items
+            assert "(Light Novel)" in settings.filters.remove_phrases
+            assert "A Test Genre" in settings.filters.remove_phrases
+
+    def test_ripper_tag_from_config_yaml(self):
+        """Test that ripper_tag is loaded from config.yaml naming section."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            # Create minimal naming.json
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "H2OKing"
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            assert settings.naming.ripper_tag == "H2OKing"
+
+    def test_ripper_tag_null_in_config_yaml(self):
+        """Test that ripper_tag is None when set to null in config.yaml."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            # Create minimal naming.json
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: null
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            assert settings.naming.ripper_tag is None
+
+    def test_ripper_tag_empty_string_becomes_none(self):
+        """Test that empty string ripper_tag becomes None."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            # Create minimal naming.json
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: ""
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # Empty string is converted to None for easier boolean checks
+            assert settings.naming.ripper_tag is None

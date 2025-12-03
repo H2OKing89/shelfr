@@ -568,6 +568,231 @@ class TestBuildMamJson:
         assert result2.get("main_cat") == 2
 
 
+class TestBuildMamJsonCleaning:
+    """Tests for MAM JSON cleaning with filter_title and filter_series.
+
+    Phase 3: Verifies that titles, subtitles, and series names are cleaned
+    using the naming config rules.
+    """
+
+    def _get_mock_settings(self):
+        """Create mock settings with NamingConfig for testing cleaning."""
+        from mamfast.config import NamingConfig
+
+        mock_settings = MagicMock()
+        mock_settings.filters = None
+        mock_settings.naming = NamingConfig(
+            format_indicators=["(Light Novel)", "Light Novel", "(Unabridged)"],
+            genre_tags=["A LitRPG Adventure", "A Progression Fantasy"],
+            publisher_tags=["[Yen Audio]"],
+            series_suffixes=[r"\s+[Ss]eries$", r"\s+[Tt]rilogy$"],
+            preserve_exact=["Re:ZERO"],
+            # Subtitle patterns for filter_subtitle
+            subtitle_remove_patterns=[r"^[Ll]ight [Nn]ovel$", r"^[Uu]nabridged$"],
+            subtitle_keep_patterns=[r".*[Aa]incrad.*"],
+        )
+        return mock_settings
+
+    def test_title_removes_format_indicators(self):
+        """Test that format indicators like (Light Novel) are removed from title."""
+        from mamfast.models import AudiobookRelease
+
+        release = AudiobookRelease(title="Test", asin="B09TEST123")
+        audnex = {
+            "title": "Overlord (Light Novel), Vol. 3",
+            "authors": [{"name": "Author"}],
+        }
+
+        with (
+            patch("mamfast.metadata.render_bbcode_description", return_value=""),
+            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+        ):
+            result = build_mam_json(release, audnex_data=audnex)
+
+        # Should remove (Light Novel) but keep Vol. 3
+        assert "(Light Novel)" not in result["title"]
+        assert "Vol. 3" in result["title"]
+        assert "Overlord" in result["title"]
+
+    def test_title_keeps_volume_for_json(self):
+        """Test that Vol. X is preserved in MAM JSON titles."""
+        from mamfast.models import AudiobookRelease
+
+        release = AudiobookRelease(title="Test", asin="B09TEST123")
+        audnex = {
+            "title": "Sword Art Online, Vol. 12",
+            "authors": [{"name": "Author"}],
+        }
+
+        with (
+            patch("mamfast.metadata.render_bbcode_description", return_value=""),
+            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+        ):
+            result = build_mam_json(release, audnex_data=audnex)
+
+        # Vol. 12 should be preserved for human-readable JSON
+        assert "Vol. 12" in result["title"]
+
+    def test_title_removes_genre_tags(self):
+        """Test that genre tags like 'A LitRPG Adventure' are removed."""
+        from mamfast.models import AudiobookRelease
+
+        release = AudiobookRelease(title="Test", asin="B09TEST123")
+        audnex = {
+            "title": "Dungeon Crawler Carl: A LitRPG Adventure",
+            "authors": [{"name": "Author"}],
+        }
+
+        with (
+            patch("mamfast.metadata.render_bbcode_description", return_value=""),
+            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+        ):
+            result = build_mam_json(release, audnex_data=audnex)
+
+        # Genre tag should be removed
+        assert "LitRPG Adventure" not in result["title"]
+        assert "Dungeon Crawler Carl" in result["title"]
+
+    def test_subtitle_removes_format_indicators(self):
+        """Test that format indicators are removed from subtitle."""
+        from mamfast.models import AudiobookRelease
+
+        release = AudiobookRelease(title="Test", asin="B09TEST123")
+        audnex = {
+            "title": "Test Book",
+            "subtitle": "Light Novel",
+            "authors": [{"name": "Author"}],
+        }
+
+        with (
+            patch("mamfast.metadata.render_bbcode_description", return_value=""),
+            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+        ):
+            result = build_mam_json(release, audnex_data=audnex)
+
+        # "Light Novel" alone should be removed, so no subtitle
+        assert "subtitle" not in result or result.get("subtitle") == ""
+
+    def test_subtitle_keeps_meaningful_content(self):
+        """Test that meaningful subtitle content is preserved."""
+        from mamfast.models import AudiobookRelease
+
+        release = AudiobookRelease(title="Test", asin="B09TEST123")
+        audnex = {
+            "title": "Test Book",
+            "subtitle": "The Aincrad Arc",
+            "authors": [{"name": "Author"}],
+        }
+
+        with (
+            patch("mamfast.metadata.render_bbcode_description", return_value=""),
+            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+        ):
+            result = build_mam_json(release, audnex_data=audnex)
+
+        # Meaningful subtitle should be preserved
+        assert result.get("subtitle") == "The Aincrad Arc"
+
+    def test_series_removes_format_indicators(self):
+        """Test that format indicators are removed from series names."""
+        from mamfast.models import AudiobookRelease
+
+        release = AudiobookRelease(title="Test", asin="B09TEST123")
+        audnex = {
+            "title": "Test Book",
+            "seriesPrimary": {
+                "name": "Kuma Kuma Kuma Bear (Light Novel)",
+                "position": "1",
+            },
+            "authors": [{"name": "Author"}],
+        }
+
+        with (
+            patch("mamfast.metadata.render_bbcode_description", return_value=""),
+            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+        ):
+            result = build_mam_json(release, audnex_data=audnex)
+
+        # Should remove (Light Novel) from series
+        series_name = result["series"][0]["name"]
+        assert "(Light Novel)" not in series_name
+        assert "Kuma Kuma Kuma Bear" in series_name
+
+    def test_series_removes_series_suffixes(self):
+        """Test that series suffixes like ' Series', ' Trilogy' are removed."""
+        from mamfast.models import AudiobookRelease
+
+        release = AudiobookRelease(title="Test", asin="B09TEST123")
+        audnex = {
+            "title": "Test Book",
+            "seriesPrimary": {
+                "name": "A Most Unlikely Hero Series",
+                "position": "1",
+            },
+            "authors": [{"name": "Author"}],
+        }
+
+        with (
+            patch("mamfast.metadata.render_bbcode_description", return_value=""),
+            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+        ):
+            result = build_mam_json(release, audnex_data=audnex)
+
+        # Should remove " Series" suffix
+        series_name = result["series"][0]["name"]
+        assert series_name.endswith("Series") is False
+        assert "A Most Unlikely Hero" in series_name
+
+    def test_series_from_release_is_cleaned(self):
+        """Test that series from release (not audnex) is also cleaned."""
+        from mamfast.models import AudiobookRelease
+
+        release = AudiobookRelease(
+            title="Test Book",
+            series="Epic Fantasy Trilogy",
+            series_position="2",
+            asin="B09TEST123",
+        )
+
+        with (
+            patch("mamfast.metadata.render_bbcode_description", return_value=""),
+            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+        ):
+            result = build_mam_json(release, audnex_data={})
+
+        # Should remove " Trilogy" suffix
+        series_name = result["series"][0]["name"]
+        assert series_name.endswith("Trilogy") is False
+        assert "Epic Fantasy" in series_name
+
+    def test_series_removes_volume_but_title_keeps(self):
+        """Test that series removes Vol. X while title keeps it."""
+        from mamfast.models import AudiobookRelease
+
+        release = AudiobookRelease(title="Test", asin="B09TEST123")
+        audnex = {
+            "title": "Overlord, Vol. 14",
+            "seriesPrimary": {
+                "name": "Overlord (Light Novel)",
+                "position": "14",
+            },
+            "authors": [{"name": "Author"}],
+        }
+
+        with (
+            patch("mamfast.metadata.render_bbcode_description", return_value=""),
+            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+        ):
+            result = build_mam_json(release, audnex_data=audnex)
+
+        # Title should keep Vol. 14
+        assert "Vol. 14" in result["title"]
+        # Series should be clean (no Light Novel, no volume)
+        series_name = result["series"][0]["name"]
+        assert "(Light Novel)" not in series_name
+        assert "Vol." not in series_name
+
+
 class TestRenderBbcodeDescription:
     """Tests for render_bbcode_description function."""
 

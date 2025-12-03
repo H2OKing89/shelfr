@@ -27,7 +27,16 @@ import httpx
 from jinja2 import Environment, PackageLoader
 
 from mamfast.config import get_settings
-from mamfast.utils.naming import filter_authors, transliterate_text
+from mamfast.models import NormalizedBook
+from mamfast.utils.naming import (
+    extract_translators_from_mediainfo,
+    filter_authors,
+    filter_series,
+    filter_subtitle,
+    filter_title,
+    normalize_audnex_book,
+    transliterate_text,
+)
 
 if TYPE_CHECKING:
     from mamfast.models import AudiobookRelease
@@ -262,6 +271,16 @@ def render_bbcode_description(
 
     authors_raw = audnex_data.get("authors", [])
     authors_filtered = filter_authors(authors_raw)
+
+    # Also filter out translators detected from MediaInfo
+    # (Audnex doesn't include "- translator" suffix, but MediaInfo does)
+    mediainfo_translators = extract_translators_from_mediainfo(mediainfo_data)
+    if mediainfo_translators:
+        logger.debug(f"Filtering translators from MediaInfo: {mediainfo_translators}")
+        authors_filtered = [
+            a for a in authors_filtered if a.get("name", "") not in mediainfo_translators
+        ]
+
     authors = [
         transliterate_text(a.get("name", ""), filters) for a in authors_filtered if a.get("name")
     ]
@@ -272,12 +291,16 @@ def render_bbcode_description(
     ]
 
     # Translator detection (look for "translator" in author/narrator names or roles)
+    # First check MediaInfo (more reliable), then fall back to Audnex author names
     translator = None
-    for author in authors_raw:
-        name = author.get("name", "")
-        if "translator" in name.lower():
-            translator = name
-            break
+    if mediainfo_translators:
+        translator = next(iter(mediainfo_translators))  # Use first translator found
+    else:
+        for author in authors_raw:
+            name = author.get("name", "")
+            if "translator" in name.lower():
+                translator = name
+                break
 
     publisher = audnex_data.get("publisherName", "")
     release_date = audnex_data.get("releaseDate", "")
@@ -849,12 +872,19 @@ def _map_genres_to_categories(genres: list[dict[str, Any]]) -> list[int]:
     return sorted(categories)
 
 
-def _build_series_list(audnex_data: dict[str, Any]) -> list[dict[str, Any]]:
+def _build_series_list(
+    audnex_data: dict[str, Any],
+    naming_config: Any = None,
+) -> list[dict[str, Any]]:
     """
     Build series list for MAM JSON from Audnex data.
 
+    Applies filter_series to clean series names (removes format indicators,
+    series suffixes like " Series", " Trilogy", etc.)
+
     Args:
         audnex_data: Audnex book metadata
+        naming_config: NamingConfig for cleaning rules (optional)
 
     Returns:
         List of series dicts with 'name' and 'number' keys
@@ -864,22 +894,28 @@ def _build_series_list(audnex_data: dict[str, Any]) -> list[dict[str, Any]]:
     # Primary series
     primary = audnex_data.get("seriesPrimary")
     if primary:
-        series_list.append(
-            {
-                "name": primary.get("name", ""),
-                "number": primary.get("position", ""),
-            }
-        )
+        name = primary.get("name", "")
+        if name:
+            cleaned_name = filter_series(name, naming_config=naming_config)
+            series_list.append(
+                {
+                    "name": cleaned_name,
+                    "number": primary.get("position", ""),
+                }
+            )
 
     # Secondary series (if any)
     secondary = audnex_data.get("seriesSecondary")
     if secondary:
-        series_list.append(
-            {
-                "name": secondary.get("name", ""),
-                "number": secondary.get("position", ""),
-            }
-        )
+        name = secondary.get("name", "")
+        if name:
+            cleaned_name = filter_series(name, naming_config=naming_config)
+            series_list.append(
+                {
+                    "name": cleaned_name,
+                    "number": secondary.get("position", ""),
+                }
+            )
 
     return series_list
 
@@ -932,22 +968,52 @@ def build_mam_json(
 
     mam_json: dict[str, Any] = {}
 
-    # Get settings for transliteration (fallback to no transliteration if not available)
+    # Get settings for transliteration and naming config
     try:
         settings = get_settings()
         filters = settings.filters
+        naming_config = settings.naming
     except Exception:
         filters = None
+        naming_config = None
 
-    # Title - use Audnex title or fallback to release title
-    title = audnex.get("title") or release.title
+    # Normalize Audnex data first to fix title/subtitle swaps
+    # This uses seriesPrimary as the source of truth
+    # Default to enabled if no config available
+    normalized: NormalizedBook | None = None
+    should_normalize = (
+        naming_config.normalize_title_subtitle
+        if naming_config is not None
+        else True  # Default to enabled
+    )
+    if audnex and should_normalize:
+        normalized = normalize_audnex_book(audnex)
+
+    # Title - use normalized title if available, else Audnex title or fallback to release title
+    # Apply filter_title to remove format indicators, genre tags, etc.
+    # keep_volume=True to preserve "Vol. X" for human-readable JSON
+    title = normalized.display_title if normalized else audnex.get("title") or release.title
     if title:
-        mam_json["title"] = title
+        cleaned_title = filter_title(
+            title,
+            naming_config=naming_config,
+            keep_volume=True,
+        )
+        mam_json["title"] = cleaned_title
 
     # Authors (filter out translators, illustrators, etc. and transliterate Japanese names)
     authors = audnex.get("authors", [])
     if authors:
         filtered_authors = filter_authors(authors)
+        # Also filter out translators detected from MediaInfo
+        mediainfo_translators = extract_translators_from_mediainfo(mediainfo)
+        if mediainfo_translators:
+            logger.debug(
+                f"Filtering translators from MediaInfo in MAM JSON: {mediainfo_translators}"
+            )
+            filtered_authors = [
+                a for a in filtered_authors if a.get("name", "") not in mediainfo_translators
+            ]
         author_names = [a.get("name", "") for a in filtered_authors if a.get("name")]
         # Transliterate Japanese/foreign names
         mam_json["authors"] = [transliterate_text(name, filters) for name in author_names]
@@ -973,22 +1039,66 @@ def build_mam_json(
         if bbcode_description:
             mam_json["description"] = bbcode_description
 
-    # Series
-    series_list = _build_series_list(audnex)
-    if series_list:
-        mam_json["series"] = series_list
-    elif release.series:
+    # Series - apply filter_series to remove format indicators and series suffixes
+    # Series names should not have volume indicators
+    cleaned_series: str | None = None  # Initialize for use in filter_subtitle
+
+    # Use normalized series if available
+    if normalized and normalized.series_name:
+        cleaned_series = filter_series(
+            normalized.series_name,
+            naming_config=naming_config,
+        )
+        series_number = normalized.series_position or ""
         mam_json["series"] = [
             {
-                "name": release.series,
-                "number": release.series_position or "",
+                "name": cleaned_series,
+                "number": series_number,
             }
         ]
+    else:
+        # Fallback to building from audnex seriesPrimary
+        series_list = _build_series_list(audnex, naming_config=naming_config)
+        if series_list:
+            mam_json["series"] = series_list
+            # Extract cleaned_series from the first series entry for subtitle filtering
+            cleaned_series = series_list[0].get("name") if series_list else None
+        elif release.series:
+            cleaned_series = filter_series(
+                release.series,
+                naming_config=naming_config,
+            )
+            mam_json["series"] = [
+                {
+                    "name": cleaned_series,
+                    "number": release.series_position or "",
+                }
+            ]
 
-    # Subtitle
-    subtitle = audnex.get("subtitle")
-    if subtitle:
-        mam_json["subtitle"] = subtitle
+    # Subtitle - use normalized arc_name (from swap detection) or filter raw subtitle
+    # Arc name is the meaningful subtitle (e.g., "Alicization Exploding", "Mother's Rosary")
+    if normalized and normalized.arc_name:
+        # Use arc name directly as subtitle (it's already the "good" part)
+        cleaned_subtitle = filter_subtitle(
+            normalized.arc_name,
+            title=cleaned_title,
+            series=cleaned_series if mam_json.get("series") else None,
+            naming_config=naming_config,
+        )
+        if cleaned_subtitle:
+            mam_json["subtitle"] = cleaned_subtitle
+    else:
+        # Fallback: apply filter_subtitle with full redundancy checking
+        subtitle = audnex.get("subtitle")
+        if subtitle:
+            cleaned_subtitle = filter_subtitle(
+                subtitle,
+                title=cleaned_title,
+                series=cleaned_series if mam_json.get("series") else None,
+                naming_config=naming_config,
+            )
+            if cleaned_subtitle:  # Only add if non-empty after cleaning
+                mam_json["subtitle"] = cleaned_subtitle
 
     # Thumbnail (cover image URL)
     image = audnex.get("image")

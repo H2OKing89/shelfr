@@ -22,6 +22,53 @@ class ReleaseStatus(Enum):
 
 
 @dataclass
+class NormalizedBook:
+    """
+    Canonical book metadata after Audnex normalization.
+
+    Fixes Audible's inconsistent title/subtitle swapping by using seriesPrimary
+    as the source of truth. See docs/NAMING_PLAN.md for details.
+
+    Example (swapped input):
+        Raw: title="Alicization Exploding", subtitle="Sword Art Online 16"
+        Series: "Sword Art Online #16"
+
+        Normalized:
+            series_name="Sword Art Online"
+            series_position="16"
+            arc_name="Alicization Exploding"
+            display_title="Sword Art Online 16"
+            display_subtitle="Alicization Exploding"
+            was_swapped=True
+    """
+
+    asin: str
+
+    # Raw values (preserved for debugging)
+    raw_title: str
+    raw_subtitle: str | None
+
+    # Canonical values from seriesPrimary (source of truth)
+    series_name: str | None = None
+    series_position: str | None = None
+
+    # Extracted arc name (e.g., "Alicization Exploding", "Mother's Rosary")
+    arc_name: str | None = None
+
+    # Constructed display values
+    display_title: str = ""  # "{Series} {N}" or raw_title if no series
+    display_subtitle: str | None = None  # Arc name if exists, else None
+
+    # Tracking
+    was_swapped: bool = False
+
+    def __post_init__(self) -> None:
+        """Set display_title to raw_title if not explicitly set."""
+        if not self.display_title:
+            self.display_title = self.raw_title
+
+
+@dataclass
 class AudiobookRelease:
     """
     Represents a single audiobook ready for processing.

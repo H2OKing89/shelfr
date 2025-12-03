@@ -610,9 +610,9 @@ class DiscoveryValidation:
                     severity="info",
                 )
 
-        # Also check in files list
+        # Also check in files list for any image file (cover may be named after the book)
         for f in release.files:
-            if f.suffix.lower() in {".jpg", ".jpeg", ".png"} and "cover" in f.name.lower():
+            if f.suffix.lower() in {".jpg", ".jpeg", ".png"}:
                 return ValidationCheck(
                     name="cover_exists",
                     passed=True,
@@ -620,10 +620,21 @@ class DiscoveryValidation:
                     severity="info",
                 )
 
+        # Finally, scan source directory for any image files
+        if release.source_dir and release.source_dir.exists():
+            for img in release.source_dir.iterdir():
+                if img.is_file() and img.suffix.lower() in {".jpg", ".jpeg", ".png"}:
+                    return ValidationCheck(
+                        name="cover_exists",
+                        passed=True,
+                        message=f"Cover image found: {img.name}",
+                        severity="info",
+                    )
+
         return ValidationCheck(
             name="cover_exists",
             passed=False,
-            message="No cover image found (cover.jpg/png expected)",
+            message="No cover image found (jpg/png expected)",
             severity="warning",
         )
 
@@ -1263,15 +1274,28 @@ class ChapterIntegrityChecker:
     def _extract_mediainfo_chapters(
         self, mediainfo_data: dict[str, Any] | None
     ) -> list[dict[str, Any]]:
-        """Extract chapters from MediaInfo JSON."""
+        """Extract chapters from MediaInfo JSON with calculated durations."""
         if not mediainfo_data:
             return []
 
         chapters: list[dict[str, Any]] = []
+        total_duration_ms: float = 0
+
         try:
             media = mediainfo_data.get("media", {})
             tracks = media.get("track", [])
 
+            # First, get total duration from General or Audio track
+            for track in tracks:
+                track_type = track.get("@type")
+                if track_type in ("General", "Audio"):
+                    duration_str = track.get("Duration")
+                    if duration_str:
+                        total_duration_ms = float(duration_str) * 1000
+                        break
+
+            # Extract chapter start times
+            chapter_starts: list[tuple[int, str]] = []  # (startMs, title)
             for track in tracks:
                 if track.get("@type") == "Menu":
                     extra = track.get("extra", {})
@@ -1285,16 +1309,31 @@ class ChapterIntegrityChecker:
                                     logger.debug(f"Skipping non-numeric chapter key: {key}")
                                     continue
                                 h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
-                                total_ms = (h * 3600 + m * 60 + s) * 1000
-                                chapters.append(
-                                    {
-                                        "title": value,
-                                        "startMs": total_ms,
-                                    }
-                                )
+                                # Handle milliseconds if present (4th part)
+                                ms = int(parts[3]) if len(parts) >= 4 and parts[3].isdigit() else 0
+                                total_ms = (h * 3600 + m * 60 + s) * 1000 + ms
+                                chapter_starts.append((total_ms, value))
                     break
 
-        except (TypeError, KeyError) as e:
+            # Sort by start time and calculate durations
+            chapter_starts.sort(key=lambda x: x[0])
+            for i, (start_ms, title) in enumerate(chapter_starts):
+                # Duration = next chapter start - current start (or total - current for last)
+                if i + 1 < len(chapter_starts):
+                    duration_ms = chapter_starts[i + 1][0] - start_ms
+                else:
+                    # Last chapter: duration = total - start
+                    duration_ms = int(total_duration_ms - start_ms) if total_duration_ms > 0 else 0
+
+                chapters.append(
+                    {
+                        "title": title,
+                        "startMs": start_ms,
+                        "lengthMs": duration_ms,
+                    }
+                )
+
+        except (TypeError, KeyError, ValueError) as e:
             logger.warning(f"Failed to extract chapters from mediainfo: {e}")
 
         return chapters

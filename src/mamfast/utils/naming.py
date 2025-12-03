@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from mamfast.config import FiltersConfig
+    from mamfast.config import FiltersConfig, NamingConfig
+    from mamfast.models import NormalizedBook
 
 logger = logging.getLogger(__name__)
 
@@ -35,17 +36,21 @@ NORMALIZE_MAP = {
 }
 
 # Pre-compiled patterns for title filtering (better performance than re-compiling each call)
-# These patterns are always removed from titles
+# Base patterns: always removed from titles
 _COMPILED_REMOVE_PATTERNS: list[re.Pattern[str]] = [
     # "Book 12", "Book XII", "Book: 12" etc - we keep vol_XX instead
     re.compile(r"\bBook\s*[:\s]*\d+\b", re.IGNORECASE),
     re.compile(r"\bBook\s*[:\s]*[IVXLCDM]+\b", re.IGNORECASE),
-    # "Vol. 12" or "Volume 12" (but NOT vol_12 which is Libation format)
-    re.compile(r"\bVol\.\s*\d+\b", re.IGNORECASE),
-    re.compile(r"\bVolume\s*\d+\b", re.IGNORECASE),
     # Extra whitespace patterns
     re.compile(r"\s*-\s*-\s*"),  # Double dashes
     re.compile(r"\s*,\s*,\s*"),  # Double commas
+]
+
+# Volume patterns: removed for folder/file names, kept for MAM JSON
+_COMPILED_VOLUME_PATTERNS: list[re.Pattern[str]] = [
+    # "Vol. 12" or "Volume 12" (but NOT vol_12 which is Libation format)
+    re.compile(r"\bVol\.\s*\d+\b", re.IGNORECASE),
+    re.compile(r"\bVolume\s*\d+\b", re.IGNORECASE),
 ]
 
 # Pre-compiled cleanup patterns
@@ -57,27 +62,90 @@ _EMPTY_PARENS_PATTERN = re.compile(r"\(\s*\)")
 _EMPTY_BRACKETS_PATTERN = re.compile(r"\[\s*\]")
 _DUPLICATE_VOL_PATTERN = re.compile(r"\b(\d+)\s+vol_\1\b")
 _NON_ASCII_PATTERN = re.compile(r"[^\x00-\x7F]+")
+# Dangling punctuation patterns
+_TRAILING_PUNCT_PATTERN = re.compile(r"\s*[,:;]\s*$")  # Trailing comma, colon, semicolon
+_LEADING_PUNCT_PATTERN = re.compile(r"^\s*[,:;]\s*")  # Leading comma, colon, semicolon
+_SPACE_BEFORE_PUNCT_PATTERN = re.compile(r"\s+([,:;])")  # Space before punctuation
 
-# Author role detection patterns - use word boundaries to avoid false positives
-# e.g., "translator" should match but "John Translator Smith" should NOT match
-# Pattern matches: "- translator", "(translator)", "translator" at end, standalone "translator"
-_ROLE_WORDS = r"translator|illustrator|editor|adapter|contributor|compiler"
-_CREDIT_WORDS = r"afterword|foreword|introduction"
-_AUTHOR_ROLE_PATTERN = re.compile(
-    rf"""
-    (?:
-        \s*-\s*(?:{_ROLE_WORDS})s?\s*$  |           # "- translator" at end
-        \s*\(\s*(?:{_ROLE_WORDS})s?\s*\)  |         # "(translator)"
-        \s*,\s*(?:{_ROLE_WORDS})s?\s*$  |           # ", translator" at end
-        ^\s*(?:{_CREDIT_WORDS})\s+by\s  |           # "Foreword by ..."
-        \s*\(\s*(?:{_CREDIT_WORDS})\s*\)  |         # "(foreword)"
-        \s*-\s*(?:{_CREDIT_WORDS})\s*$  |           # "- foreword" at end
-        \s*-\s*(?:cover\s+design|cover\s+art)\s*$  |  # "- cover design" at end
-        ^with\s                                     # "with John Smith" at start
+# Volume/Book number extraction patterns for folder naming
+_VOL_EXTRACT_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r",?\s*Vol\.?\s*(\d+)", re.IGNORECASE),  # ", Vol. 3" or "Vol 3"
+    re.compile(r",?\s*Volume\s+(\d+)", re.IGNORECASE),  # ", Volume 3"
+    re.compile(r",?\s*Book\s+(\d+)", re.IGNORECASE),  # ", Book 3"
+    re.compile(r"\s+(\d+)$"),  # Trailing number "Title 3"
+]
+
+# MAM filename limit
+MAM_MAX_FILENAME_LENGTH = 225
+
+# Default author role words (fallback if config not available)
+_DEFAULT_ROLE_WORDS = ["translator", "illustrator", "editor", "adapter", "contributor", "compiler"]
+_DEFAULT_CREDIT_WORDS = ["afterword", "foreword", "introduction", "cover design", "cover art"]
+
+
+def _build_author_role_pattern(
+    role_words: list[str] | None = None,
+    credit_words: list[str] | None = None,
+) -> re.Pattern[str]:
+    """
+    Build the author role detection pattern from config lists.
+
+    Args:
+        role_words: List of role words (translator, illustrator, etc.)
+        credit_words: List of credit words (afterword, foreword, etc.)
+
+    Returns:
+        Compiled regex pattern
+    """
+    roles = role_words or _DEFAULT_ROLE_WORDS
+    credits = credit_words or _DEFAULT_CREDIT_WORDS
+
+    # Build alternation patterns
+    role_pattern = "|".join(re.escape(r) for r in roles)
+    credit_pattern = "|".join(re.escape(c) for c in credits)
+
+    return re.compile(
+        rf"""
+        (?:
+            \s*-\s*(?:{role_pattern})s?\s*$  |           # "- translator" at end
+            \s*\(\s*(?:{role_pattern})s?\s*\)  |         # "(translator)"
+            \s*,\s*(?:{role_pattern})s?\s*$  |           # ", translator" at end
+            ^\s*(?:{credit_pattern})\s+by\s  |           # "Foreword by ..."
+            \s*\(\s*(?:{credit_pattern})\s*\)  |         # "(foreword)"
+            \s*-\s*(?:{credit_pattern})\s*$  |           # "- foreword" at end
+            ^with\s                                      # "with John Smith" at start
+        )
+        """,
+        re.IGNORECASE | re.VERBOSE,
     )
-    """,
-    re.IGNORECASE | re.VERBOSE,
-)
+
+
+# Default pattern (used when config not available)
+_AUTHOR_ROLE_PATTERN = _build_author_role_pattern()
+
+
+def _get_author_role_pattern() -> re.Pattern[str]:
+    """
+    Get the author role pattern, loading from config if available.
+
+    Returns:
+        Compiled regex pattern for author role detection
+    """
+    try:
+        from mamfast.config import get_settings
+
+        settings = get_settings()
+        if settings.filters and settings.filters.naming:
+            naming = settings.filters.naming
+            if naming.author_roles or naming.credit_roles:
+                return _build_author_role_pattern(
+                    role_words=naming.author_roles,
+                    credit_words=naming.credit_roles,
+                )
+    except Exception as e:
+        # Config not available or invalid; fall back to default pattern
+        logger.debug("Failed to load author role pattern from config, using default: %r", e)
+    return _AUTHOR_ROLE_PATTERN
 
 
 def is_author_role(name: str) -> bool:
@@ -98,7 +166,8 @@ def is_author_role(name: str) -> bool:
     Returns:
         True if this is a translator/illustrator/etc., False if primary author
     """
-    return bool(_AUTHOR_ROLE_PATTERN.search(name))
+    pattern = _get_author_role_pattern()
+    return bool(pattern.search(name))
 
 
 def filter_authors(authors: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -134,6 +203,338 @@ def extract_translator(authors: list[dict[str, str]]) -> str | None:
     return None
 
 
+# =============================================================================
+# Audnex Normalization (Title/Subtitle Swap Detection)
+# =============================================================================
+
+
+def detect_swapped_title_subtitle(
+    title: str,
+    subtitle: str | None,
+    series_name: str | None,
+    series_position: str | None,
+) -> tuple[str, str | None, bool]:
+    """
+    Detect and fix swapped title/subtitle using series data as ground truth.
+
+    Audible metadata is inconsistent - the same series can have different
+    title/subtitle arrangements. For example:
+    - SAO Vol 7: Title="Sword Art Online 7", Subtitle="Mother's Rosary" ✓
+    - SAO Vol 16: Title="Alicization Exploding", Subtitle="Sword Art Online 16" ✗
+
+    Uses seriesPrimary as the source of truth to detect when title/subtitle
+    are swapped.
+
+    Args:
+        title: Raw title from Audnex
+        subtitle: Raw subtitle from Audnex
+        series_name: Series name from seriesPrimary.name
+        series_position: Position from seriesPrimary.position
+
+    Returns:
+        Tuple of (corrected_title, corrected_subtitle, was_swapped)
+    """
+    # Can't detect swap without subtitle or series data
+    if not subtitle or not series_name:
+        return title, subtitle, False
+
+    title_lower = title.lower()
+    subtitle_lower = subtitle.lower()
+    series_lower = series_name.lower()
+
+    # Check if series name appears in title vs subtitle
+    subtitle_has_series = series_lower in subtitle_lower
+    title_has_series = series_lower in title_lower
+
+    # Heuristic 1: subtitle has series name, title doesn't → swapped
+    if subtitle_has_series and not title_has_series:
+        logger.debug(
+            "[normalize] Detected swap (series in subtitle): " "title=%r, subtitle=%r, series=%r",
+            title,
+            subtitle,
+            series_name,
+        )
+        return subtitle, title, True
+
+    # Heuristic 2: subtitle ends with series number, title doesn't have series
+    # This catches patterns like "Sword Art Online 16" as subtitle
+    if (
+        series_position
+        and not title_has_series
+        and re.search(rf"\b{re.escape(series_position)}\b", subtitle_lower)
+    ):
+        logger.debug(
+            "[normalize] Detected swap (position in subtitle): "
+            "title=%r, subtitle=%r, position=%r",
+            title,
+            subtitle,
+            series_position,
+        )
+        return subtitle, title, True
+
+    # No swap detected
+    return title, subtitle, False
+
+
+def extract_arc_name(
+    title: str,
+    subtitle: str | None,
+    series_name: str | None,
+) -> str | None:
+    """
+    Determine which field contains the arc name (e.g., "Alicization Exploding").
+
+    The arc name is the descriptive subtitle that isn't just series+number.
+    For example:
+    - "Mother's Rosary" (SAO Vol 7)
+    - "Alicization Exploding" (SAO Vol 16)
+    - "Early Years" (TBATE Vol 1)
+
+    Args:
+        title: Corrected title (after swap detection)
+        subtitle: Corrected subtitle (after swap detection)
+        series_name: Series name from seriesPrimary
+
+    Returns:
+        Arc name if found, None otherwise
+    """
+    if not series_name:
+        # No series → subtitle is arc (if any)
+        return subtitle if subtitle else None
+
+    series_lower = series_name.lower()
+
+    # If subtitle exists and doesn't contain series name, it's the arc
+    if subtitle:
+        subtitle_lower = subtitle.lower()
+        # Also filter out generic subtitles like "Light Novel"
+        if series_lower not in subtitle_lower and subtitle_lower not in (
+            "light novel",
+            "novel",
+            "a novel",
+        ):
+            return subtitle
+
+    # Check if title has the arc (uncommon, but possible if we didn't swap)
+    # This happens when title is like "Aincrad" but subtitle is "Sword Art Online 1"
+    title_lower = title.lower()
+    # Title doesn't have series name - it might be the arc itself
+    # But only if it's not empty/generic
+    if series_lower not in title_lower and title and title_lower not in ("light novel", "novel"):
+        return title
+
+    return None
+
+
+def normalize_audnex_book(
+    audnex_data: dict[str, Any],
+) -> NormalizedBook:
+    """
+    Normalize Audnex book data to fix title/subtitle inconsistencies.
+
+    This is the main entry point for Audnex normalization. It:
+    1. Extracts series info from seriesPrimary (source of truth)
+    2. Detects and fixes title/subtitle swaps
+    3. Extracts arc name from the appropriate field
+    4. Returns a NormalizedBook with canonical values
+
+    Args:
+        audnex_data: Raw Audnex API response for a book
+
+    Returns:
+        NormalizedBook with corrected/canonical metadata
+    """
+    from mamfast.models import NormalizedBook
+
+    asin = audnex_data.get("asin", "")
+    raw_title = audnex_data.get("title", "")
+    raw_subtitle = audnex_data.get("subtitle")
+
+    # Extract series info (source of truth)
+    series_primary = audnex_data.get("seriesPrimary") or {}
+    series_name = series_primary.get("name", "").strip() or None
+    series_position = series_primary.get("position")
+    if series_position is not None:
+        series_position = str(series_position)
+
+    # Detect and fix swapped title/subtitle
+    corrected_title, corrected_subtitle, was_swapped = detect_swapped_title_subtitle(
+        raw_title, raw_subtitle, series_name, series_position
+    )
+
+    # Extract arc name
+    arc_name = extract_arc_name(corrected_title, corrected_subtitle, series_name)
+
+    # Build display values
+    display_title = corrected_title
+    display_subtitle = arc_name
+
+    if was_swapped:
+        logger.info(
+            "[normalize] %s: Fixed swapped title/subtitle\n"
+            "  Raw: title=%r, subtitle=%r\n"
+            "  Series: %r #%s\n"
+            "  Fixed: title=%r, subtitle=%r\n"
+            "  Arc: %r",
+            asin,
+            raw_title,
+            raw_subtitle,
+            series_name,
+            series_position,
+            display_title,
+            display_subtitle,
+            arc_name,
+        )
+
+    return NormalizedBook(
+        asin=asin,
+        raw_title=raw_title,
+        raw_subtitle=raw_subtitle,
+        series_name=series_name,
+        series_position=series_position,
+        arc_name=arc_name,
+        display_title=display_title,
+        display_subtitle=display_subtitle,
+        was_swapped=was_swapped,
+    )
+
+
+def _build_mediainfo_role_pattern(
+    role_words: list[str] | None = None,
+    credit_words: list[str] | None = None,
+) -> re.Pattern[str]:
+    """
+    Build pattern for extracting non-author roles from MediaInfo.
+
+    Args:
+        role_words: List of role words (translator, illustrator, etc.)
+        credit_words: List of credit words (afterword, foreword, etc.)
+
+    Returns:
+        Compiled regex pattern matching "- role" suffix
+    """
+    roles = role_words or _DEFAULT_ROLE_WORDS
+    credits = credit_words or _DEFAULT_CREDIT_WORDS
+
+    # Combine all roles, escaping special regex chars and handling multi-word
+    all_roles = roles + credits
+    # For multi-word roles like "cover design", convert space to \s+
+    role_patterns = [re.escape(r).replace(r"\ ", r"\s+") for r in all_roles]
+    combined = "|".join(role_patterns)
+
+    return re.compile(
+        rf"\s*-?\s*(?:{combined})s?\s*$",
+        re.IGNORECASE,
+    )
+
+
+def extract_non_authors_from_mediainfo(mediainfo_data: dict[str, Any] | None) -> set[str]:
+    """
+    Extract non-author names (translators, illustrators, etc.) from MediaInfo metadata.
+
+    The M4B file often has role info in Album_Performer field like:
+    "Bokuto Uno; Ruria Miyuki; Andrew Cunningham - translator"
+
+    This extracts names with role markers that Audnex API doesn't provide,
+    matching the same roles as is_author_role(): translator, illustrator,
+    editor, adapter, contributor, compiler, cover design, etc.
+
+    Args:
+        mediainfo_data: MediaInfo JSON data
+
+    Returns:
+        Set of non-author names (without the role suffix)
+    """
+    if not mediainfo_data:
+        return set()
+
+    non_authors: set[str] = set()
+
+    # Try to load roles from config, fall back to defaults
+    try:
+        from mamfast.config import get_settings
+
+        settings = get_settings()
+        if settings.filters and settings.filters.naming:
+            naming = settings.filters.naming
+            role_pattern = _build_mediainfo_role_pattern(
+                role_words=naming.author_roles,
+                credit_words=naming.credit_roles,
+            )
+        else:
+            role_pattern = _build_mediainfo_role_pattern()
+    except Exception as e:
+        # Config not available; fall back to default pattern
+        logger.debug("Failed to load mediainfo role pattern from config: %r", e)
+        role_pattern = _build_mediainfo_role_pattern()
+
+    try:
+        media = mediainfo_data.get("media", {})
+        tracks = media.get("track", [])
+
+        for track in tracks:
+            if track.get("@type") == "General":
+                # Check Album_Performer and Performer fields
+                for field in ["Album_Performer", "Performer"]:
+                    performer = track.get(field, "")
+                    if performer:
+                        # Split by semicolon (common separator)
+                        parts = performer.split(";")
+                        for part in parts:
+                            part = part.strip()
+                            # Check if this person has a role marker
+                            if role_pattern.search(part):
+                                # Extract name without role suffix
+                                cleaned = role_pattern.sub("", part).strip()
+                                if cleaned:
+                                    non_authors.add(cleaned)
+                break
+
+    except (TypeError, KeyError) as e:
+        # Failed to parse expected fields from MediaInfo; returning what we have
+        logger.debug("Error extracting non-authors from MediaInfo: %s", e)
+
+    return non_authors
+
+
+# Keep old name as alias for backward compatibility
+extract_translators_from_mediainfo = extract_non_authors_from_mediainfo
+
+
+def filter_authors_with_mediainfo(
+    authors: list[dict[str, str]], mediainfo_data: dict[str, Any] | None = None
+) -> list[dict[str, str]]:
+    """
+    Filter out translators, illustrators, etc. from author list.
+
+    Enhanced version that also checks MediaInfo metadata for translator info,
+    since Audnex API doesn't always include role information.
+
+    Args:
+        authors: List of author dicts with 'name' key
+        mediainfo_data: Optional MediaInfo JSON to extract translator info
+
+    Returns:
+        Filtered list containing only primary authors
+    """
+    # First use the standard filter (catches "- translator" in name)
+    filtered = filter_authors(authors)
+
+    # Then filter out translators identified from MediaInfo
+    if mediainfo_data:
+        mediainfo_translators = extract_translators_from_mediainfo(mediainfo_data)
+        if mediainfo_translators:
+            # Normalize names for comparison (lowercase, strip whitespace)
+            translator_names_lower = {t.lower().strip() for t in mediainfo_translators}
+            filtered = [
+                a
+                for a in filtered
+                if a.get("name", "").lower().strip() not in translator_names_lower
+            ]
+
+    return filtered
+
+
 def sanitize_filename(name: str) -> str:
     """
     Remove or replace characters that are problematic in filenames.
@@ -160,51 +561,385 @@ def sanitize_filename(name: str) -> str:
     return result
 
 
-def filter_title(name: str, remove_phrases: list[str] | None = None) -> str:
+def filter_title(
+    name: str,
+    remove_phrases: list[str] | None = None,
+    *,
+    naming_config: NamingConfig | None = None,
+    verbose: bool = False,
+    keep_volume: bool = False,
+) -> str:
     """
     Remove unwanted phrases from a title/folder name.
 
-    Applies:
-    1. Hardcoded patterns (Book XX, Vol. XX, etc.)
-    2. User-configured phrases from config.yaml
-    3. Duplicate number before vol_XX (e.g., "Title 12 vol_12" -> "Title vol_12")
+    Applies in order:
+    1. Check preserve_exact - skip ALL cleaning if matched
+    2. Hardcoded patterns (Book XX, etc.)
+    3. Volume patterns (Vol. XX, Volume XX) - unless keep_volume=True
+    4. Config patterns: format_indicators, genre_tags, publisher_tags
+    5. Legacy remove_phrases (for backward compatibility)
+    6. Duplicate number before vol_XX cleanup
 
     Args:
         name: Original name
-        remove_phrases: List of phrases to remove (case-insensitive)
+        remove_phrases: Legacy list of phrases to remove (case-insensitive)
+        naming_config: NamingConfig with format_indicators, genre_tags, etc.
+        verbose: If True, log each transformation with rule IDs
+        keep_volume: If True, keep "Vol. X" and "Volume X" (for MAM JSON).
+                     If False, remove them (for folder/file names).
 
     Returns:
         Filtered name with unwanted phrases removed
     """
     result = name
+    transformations: list[tuple[str, str, str]] = []  # (before, after, rule_id)
 
-    # Apply pre-compiled hardcoded patterns
+    # Step 1: Check preserve_exact - skip ALL cleaning if matched
+    # Use word-boundary matching to avoid false positives (e.g., "Zero" matching "Project Zero")
+    if naming_config and naming_config.preserve_exact:
+        for preserved in naming_config.preserve_exact:
+            # Exact match or word-boundary match (not substring)
+            if name == preserved:
+                if verbose:
+                    logger.debug(
+                        f"[filter_title] '{name}' -> '{name}' (preserved via preserve_exact)"
+                    )
+                return name
+            # Check if preserved text appears as complete word/phrase
+            pattern = re.compile(rf"\b{re.escape(preserved)}\b", re.IGNORECASE)
+            if pattern.search(name):
+                if verbose:
+                    logger.debug(f"[filter_title] '{name}' -> '{name}' (preserved via word match)")
+                return name
+
+    # Step 2: Apply pre-compiled hardcoded patterns (always applied)
     for pattern in _COMPILED_REMOVE_PATTERNS:
+        before = result
         result = pattern.sub("", result)
+        if before != result and verbose:
+            transformations.append((before, result, "hardcoded_patterns"))
 
-    # Apply user-configured phrases (case-insensitive)
-    if remove_phrases:
-        for phrase in remove_phrases:
-            # Escape regex special chars and make case-insensitive
+    # Step 3: Apply volume patterns (only if keep_volume=False)
+    if not keep_volume:
+        for pattern in _COMPILED_VOLUME_PATTERNS:
+            before = result
+            result = pattern.sub("", result)
+            if before != result and verbose:
+                transformations.append((before, result, "volume_patterns"))
+
+    # Step 3: Apply naming config patterns (format_indicators, genre_tags, publisher_tags)
+    if naming_config:
+        # Format indicators (case-insensitive phrase matching)
+        for phrase in naming_config.format_indicators:
+            before = result
             escaped = re.escape(phrase)
             result = re.sub(escaped, "", result, flags=re.IGNORECASE)
+            if before != result and verbose:
+                transformations.append((before, result, f"format_indicators:{phrase}"))
 
-    # Collapse whitespace before duplicate check
+        # Genre tags (case-insensitive phrase matching)
+        for phrase in naming_config.genre_tags:
+            before = result
+            escaped = re.escape(phrase)
+            result = re.sub(escaped, "", result, flags=re.IGNORECASE)
+            if before != result and verbose:
+                transformations.append((before, result, f"genre_tags:{phrase}"))
+
+        # Publisher tags (case-insensitive phrase matching)
+        for phrase in naming_config.publisher_tags:
+            before = result
+            escaped = re.escape(phrase)
+            result = re.sub(escaped, "", result, flags=re.IGNORECASE)
+            if before != result and verbose:
+                transformations.append((before, result, f"publisher_tags:{phrase}"))
+
+    # Step 4: Apply legacy user-configured phrases (backward compatibility)
+    if remove_phrases:
+        for phrase in remove_phrases:
+            before = result
+            escaped = re.escape(phrase)
+            result = re.sub(escaped, "", result, flags=re.IGNORECASE)
+            if before != result and verbose:
+                transformations.append((before, result, f"remove_phrases:{phrase}"))
+
+    # Step 5: Collapse whitespace before duplicate check
     result = _WHITESPACE_PATTERN.sub(" ", result)
 
-    # Remove duplicate number before vol_XX (e.g., "Title 12 vol_12" -> "Title vol_12")
-    # Must happen AFTER phrase removal so "12 <phrase> vol_12" -> "12 vol_12" -> "vol_12"
+    # Step 6: Remove duplicate number before vol_XX (e.g., "Title 12 vol_12" -> "Title vol_12")
+    before = result
     result = _DUPLICATE_VOL_PATTERN.sub(r"vol_\1", result)
+    if before != result and verbose:
+        transformations.append((before, result, "duplicate_vol_cleanup"))
 
-    # Clean up whitespace artifacts using pre-compiled patterns
+    # Step 7: Clean up whitespace artifacts
+    result = _cleanup_string(result)
+
+    # Log all transformations if verbose
+    if verbose and transformations:
+        logger.debug(f"[filter_title] '{name}' -> '{result}'")
+        for before, after, rule_id in transformations:
+            logger.debug(f"  - [{rule_id}] '{before}' -> '{after}'")
+
+    return result
+
+
+def filter_series(
+    name: str,
+    remove_phrases: list[str] | None = None,
+    *,
+    naming_config: NamingConfig | None = None,
+    verbose: bool = False,
+    keep_volume: bool = False,
+) -> str:
+    """
+    Remove unwanted phrases from a series name.
+
+    Like filter_title() but also applies series_suffixes regex patterns
+    (e.g., " Series", " Trilogy", " Light Novel").
+
+    Series names in MAM JSON should NOT have volume indicators, so
+    keep_volume=False is typically correct even for JSON output.
+
+    Args:
+        name: Original series name
+        remove_phrases: Legacy list of phrases to remove (case-insensitive)
+        naming_config: NamingConfig with series_suffixes patterns
+        verbose: If True, log each transformation with rule IDs
+        keep_volume: If True, keep "Vol. X" (passed to filter_title)
+
+    Returns:
+        Filtered series name
+    """
+    # First apply standard title filtering
+    result = filter_title(
+        name,
+        remove_phrases=remove_phrases,
+        naming_config=naming_config,
+        verbose=verbose,
+        keep_volume=keep_volume,
+    )
+
+    # Check if original name was preserved (filter_title already checked, but verify
+    # against original name since result may have been cleaned)
+    if naming_config and naming_config.preserve_exact:
+        for preserved in naming_config.preserve_exact:
+            # Use word-boundary matching to avoid false positives
+            if name == preserved:
+                return result  # Already preserved
+            pattern = re.compile(rf"\b{re.escape(preserved)}\b", re.IGNORECASE)
+            if pattern.search(name):
+                return result  # Already preserved
+
+    transformations: list[tuple[str, str, str]] = []
+
+    # Apply series suffix patterns (regex, case-insensitive, end-anchored)
+    if naming_config and naming_config.series_suffixes:
+        for pattern_str in naming_config.series_suffixes:
+            try:
+                pattern = re.compile(pattern_str, re.IGNORECASE)
+                before = result
+                result = pattern.sub("", result)
+                if before != result and verbose:
+                    transformations.append((before, result, f"series_suffixes:{pattern_str}"))
+            except re.error as e:
+                logger.warning(f"Invalid series_suffix regex '{pattern_str}': {e}")
+
+    # Final cleanup
+    result = _cleanup_string(result)
+
+    # Log series-specific transformations
+    if verbose and transformations:
+        logger.debug("[filter_series] additional transformations:")
+        for before, after, rule_id in transformations:
+            logger.debug(f"  - [{rule_id}] '{before}' -> '{after}'")
+
+    return result
+
+
+def filter_subtitle(
+    subtitle: str,
+    *,
+    title: str | None = None,
+    series: str | None = None,
+    naming_config: NamingConfig | None = None,
+    verbose: bool = False,
+) -> str | None:
+    """
+    Filter a subtitle using two-tier strategy and redundancy rules.
+
+    Processing order:
+    1. Check preserve_exact - skip ALL cleaning if matched
+    2. If matches keep_patterns -> return as-is (preserve subtitle, whitelist)
+    3. If matches remove_patterns -> return None (drop subtitle)
+    4. If matches series name (and enabled) -> return None (drop subtitle)
+    5. Apply subtitle_redundancy_rules:
+       - Replace {{series}} with series name (skip rule if series empty)
+       - Replace {{title}} with title name
+       - If action="drop_subtitle" and pattern matches -> return None
+       - If action="strip_match" and pattern matches -> remove matched portion
+    6. Otherwise -> return cleaned subtitle
+
+    Args:
+        subtitle: Subtitle text to filter
+        title: Title for {{title}} template substitution
+        series: Series name for {{series}} template substitution
+        naming_config: NamingConfig with subtitle patterns and rules
+        verbose: If True, log each transformation
+
+    Returns:
+        Filtered subtitle string, or None if subtitle should be dropped entirely
+    """
+    if not subtitle or not subtitle.strip():
+        return None
+
+    result = subtitle.strip()
+    transformations: list[tuple[str, str, str]] = []
+
+    # Step 1: Check preserve_exact - skip ALL cleaning if matched
+    if naming_config and naming_config.preserve_exact:
+        for preserved in naming_config.preserve_exact:
+            if subtitle == preserved or preserved in subtitle:
+                if verbose:
+                    logger.debug(
+                        f"[filter_subtitle] '{subtitle}' -> '{subtitle}' "
+                        "(preserved via preserve_exact)"
+                    )
+                return subtitle
+
+    # Step 2: Check keep_patterns FIRST - whitelist to preserve special subtitles
+    if naming_config and naming_config.subtitle_keep_patterns:
+        for pattern_str in naming_config.subtitle_keep_patterns:
+            try:
+                pattern = re.compile(pattern_str, re.IGNORECASE)
+                if pattern.search(result):
+                    if verbose:
+                        logger.debug(
+                            f"[filter_subtitle] '{subtitle}' -> '{result}' "
+                            f"(preserved via keep_pattern: {pattern_str})"
+                        )
+                    return _cleanup_string(result)
+            except re.error as e:
+                logger.warning(f"Invalid subtitle_keep_pattern regex '{pattern_str}': {e}")
+
+    # Step 3: Check remove_patterns - if matches, drop subtitle entirely
+    if naming_config and naming_config.subtitle_remove_patterns:
+        for pattern_str in naming_config.subtitle_remove_patterns:
+            try:
+                pattern = re.compile(pattern_str, re.IGNORECASE)
+                if pattern.search(result):
+                    if verbose:
+                        logger.debug(
+                            f"[filter_subtitle] '{subtitle}' -> None "
+                            f"(matched remove_pattern: {pattern_str})"
+                        )
+                    return None
+            except re.error as e:
+                logger.warning(f"Invalid subtitle_remove_pattern regex '{pattern_str}': {e}")
+
+    # Step 4: Check if subtitle matches series name (drop if enabled)
+    if naming_config and naming_config.remove_subtitle_if_matches_series and series:
+        # Normalize both for comparison
+        series_normalized = series.strip().lower()
+        subtitle_normalized = result.strip().lower()
+        if subtitle_normalized == series_normalized:
+            if verbose:
+                logger.debug(f"[filter_subtitle] '{subtitle}' -> None (matches series name)")
+            return None
+
+    # Step 5: Apply subtitle_redundancy_rules
+    if (
+        naming_config
+        and naming_config.subtitle_redundancy_enabled
+        and naming_config.subtitle_redundancy_rules
+    ):
+        for rule in naming_config.subtitle_redundancy_rules:
+            pattern_template = rule.get("pattern_template", "")
+            action = rule.get("action", "drop_subtitle")
+            rule_id = rule.get("id", "unknown")
+
+            # Skip rules with {{series}} if series is empty
+            if "{{series}}" in pattern_template and not series:
+                continue
+
+            # Build the actual pattern by substituting placeholders
+            actual_pattern = pattern_template
+            if series:
+                actual_pattern = actual_pattern.replace("{{series}}", re.escape(series))
+            if title:
+                actual_pattern = actual_pattern.replace("{{title}}", re.escape(title))
+
+            try:
+                pattern = re.compile(actual_pattern, re.IGNORECASE)
+                match = pattern.search(result)
+                if match:
+                    if action == "drop_subtitle":
+                        # Full match -> drop the entire subtitle
+                        if verbose:
+                            logger.debug(
+                                f"[filter_subtitle] '{subtitle}' -> None "
+                                f"(redundancy rule '{rule_id}': drop_subtitle)"
+                            )
+                        return None
+                    elif action == "strip_match":
+                        # Remove only the matched portion
+                        before = result
+                        result = pattern.sub("", result)
+                        result = _cleanup_string(result)
+                        if before != result and verbose:
+                            transformations.append(
+                                (before, result, f"redundancy:{rule_id}:strip_match")
+                            )
+                        # If stripping left nothing, drop subtitle
+                        if not result:
+                            if verbose:
+                                logger.debug(
+                                    f"[filter_subtitle] '{subtitle}' -> None "
+                                    f"(redundancy rule '{rule_id}': strip_match left empty)"
+                                )
+                            return None
+            except re.error as e:
+                logger.warning(
+                    f"Invalid redundancy rule pattern '{pattern_template}' "
+                    f"(resolved: '{actual_pattern}'): {e}"
+                )
+
+    # Step 6: Final cleanup
+    result = _cleanup_string(result)
+
+    # Log transformations if verbose
+    if verbose and transformations:
+        logger.debug(f"[filter_subtitle] '{subtitle}' -> '{result}'")
+        for before, after, rule_id in transformations:
+            logger.debug(f"  - [{rule_id}] '{before}' -> '{after}'")
+
+    return result if result else None
+
+
+def _cleanup_string(text: str) -> str:
+    """
+    Clean up whitespace and punctuation artifacts from string.
+
+    - Collapse multiple spaces
+    - Fix double dashes
+    - Remove leading/trailing dashes
+    - Remove empty parentheses/brackets
+    - Remove dangling punctuation (trailing colon, comma, semicolon)
+    - Fix space before punctuation
+    - Strip whitespace
+    """
+    result = text
     result = _WHITESPACE_PATTERN.sub(" ", result)  # Collapse multiple spaces
     result = _DOUBLE_DASH_PATTERN.sub(" - ", result)  # Fix double dashes
     result = _LEADING_DASH_PATTERN.sub("", result)  # Remove leading dash
     result = _TRAILING_DASH_PATTERN.sub("", result)  # Remove trailing dash
     result = _EMPTY_PARENS_PATTERN.sub("", result)  # Remove empty parens
     result = _EMPTY_BRACKETS_PATTERN.sub("", result)  # Remove empty brackets
+    result = _SPACE_BEFORE_PUNCT_PATTERN.sub(r"\1", result)  # Fix "word ," -> "word,"
+    result = _TRAILING_PUNCT_PATTERN.sub("", result)  # Remove trailing comma/colon
+    result = _LEADING_PUNCT_PATTERN.sub("", result)  # Remove leading comma/colon
+    # Re-collapse spaces after punctuation fixes
+    result = _WHITESPACE_PATTERN.sub(" ", result)
     result = result.strip()
-
     return result
 
 
@@ -402,3 +1137,379 @@ def ensure_unique_name(name: str, existing: set[str]) -> str:
         if new_name not in existing:
             return new_name
         counter += 1
+
+
+def extract_volume_number(title: str, series_position: str | None = None) -> str | None:
+    """
+    Extract volume/book number from title or series_position.
+
+    Priority:
+    1. series_position if provided and numeric
+    2. Vol/Volume/Book number from title
+    3. Trailing number from title
+
+    Args:
+        title: Title string that may contain volume info
+        series_position: Explicit series position if available
+
+    Returns:
+        Volume number as string (e.g., "3", "12"), or None if not found
+    """
+    # Priority 1: Use explicit series_position if it's numeric
+    if series_position:
+        # Handle "1.5", "2", etc. - validate proper decimal format
+        clean_pos = series_position.strip()
+        if clean_pos and re.match(r"^\d+(\.\d+)?$", clean_pos):
+            return clean_pos
+
+    # Priority 2-4: Extract from title using patterns
+    for pattern in _VOL_EXTRACT_PATTERNS:
+        match = pattern.search(title)
+        if match:
+            return match.group(1)
+
+    return None
+
+
+def format_volume_number(vol_num: str | None, zero_pad: bool = True) -> str:
+    """
+    Format volume number for folder/file naming.
+
+    Args:
+        vol_num: Volume number string (e.g., "3", "12", "1.5")
+        zero_pad: Whether to zero-pad to 2 digits
+
+    Returns:
+        Formatted string like "vol_03" or "vol_12", empty string if no volume
+    """
+    if not vol_num:
+        return ""
+
+    # Handle decimal volumes (e.g., "1.5" -> "01.5")
+    if "." in vol_num:
+        parts = vol_num.split(".")
+        if zero_pad and parts[0].isdigit():
+            parts[0] = parts[0].zfill(2)
+        return f"vol_{'.'.join(parts)}"
+
+    # Integer volumes
+    if vol_num.isdigit():
+        if zero_pad:
+            return f"vol_{vol_num.zfill(2)}"
+        return f"vol_{vol_num}"
+
+    return ""
+
+
+def build_mam_folder_name(
+    *,
+    series: str | None = None,
+    title: str,
+    volume_number: str | None = None,
+    arc: str | None = None,
+    year: str | None = None,
+    author: str | None = None,
+    asin: str | None = None,
+    ripper_tag: str | None = None,
+    naming_config: NamingConfig | None = None,
+    max_length: int = MAM_MAX_FILENAME_LENGTH,
+) -> str:
+    """
+    Build a MAM-compliant folder name for staging.
+
+    Schema for series books:
+        {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
+
+    Schema for standalone books:
+        {Title} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
+
+    Args:
+        series: Series name (cleaned). If None, treated as standalone.
+        title: Book title (used for standalone books or fallback)
+        volume_number: Volume/book number (e.g., "3", "12")
+        arc: Arc/subtitle name (optional, e.g., "Aincrad")
+        year: Release year (4 digits)
+        author: Primary author name (cleaned)
+        asin: Amazon ASIN
+        ripper_tag: Optional ripper tag (e.g., "H2OKing")
+        naming_config: NamingConfig for cleaning rules
+        max_length: Maximum filename length (default: 225 for MAM)
+
+    Returns:
+        Sanitized folder name within length limit
+    """
+    # Clean inputs
+    clean_series = (
+        filter_title(series, naming_config=naming_config, keep_volume=False) if series else None
+    )
+    clean_title = (
+        filter_title(title, naming_config=naming_config, keep_volume=False) if title else ""
+    )
+    clean_arc = filter_title(arc, naming_config=naming_config, keep_volume=False) if arc else None
+    clean_author = sanitize_filename(author) if author else None
+
+    # Format volume
+    vol_str = format_volume_number(volume_number)
+
+    # Format ASIN
+    asin_str = f"{{ASIN.{asin}}}" if asin else ""
+
+    # Format ripper tag
+    tag_str = f"[{ripper_tag}]" if ripper_tag else ""
+
+    # Build the name based on whether it's a series or standalone
+    if clean_series and vol_str:
+        # Series book: {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN} [{Tag}]
+        base_name = _build_series_folder_name(
+            series=clean_series,
+            vol_str=vol_str,
+            arc=clean_arc,
+            year=year,
+            author=clean_author,
+            asin_str=asin_str,
+            tag_str=tag_str,
+            max_length=max_length,
+        )
+    else:
+        # Standalone book: {Title} ({Year}) ({Author}) {ASIN} [{Tag}]
+        base_name = _build_standalone_folder_name(
+            title=clean_title,
+            year=year,
+            author=clean_author,
+            asin_str=asin_str,
+            tag_str=tag_str,
+            max_length=max_length,
+        )
+
+    # Final sanitization
+    return sanitize_filename(base_name)
+
+
+def _build_series_folder_name(
+    *,
+    series: str,
+    vol_str: str,
+    arc: str | None,
+    year: str | None,
+    author: str | None,
+    asin_str: str,
+    tag_str: str,
+    max_length: int,
+) -> str:
+    """
+    Build folder name for series book with truncation.
+
+    Components in priority order (lowest priority dropped first):
+    1. {Series} + vol_{NN} (identity - never truncate)
+    2. {ASIN} (lookup key - never truncate)
+    3. [{Tag}] (ripper credit)
+    4. ({Year}) (sorting)
+    5. ({Author}) (can truncate)
+    6. {Arc} (can truncate or omit)
+    """
+    # Start with full name
+    parts = [series, vol_str]
+
+    # Optional components (will be dropped in reverse order if too long)
+    optional_parts: list[tuple[str, str]] = []  # (component, label)
+
+    if arc:
+        optional_parts.append((arc, "arc"))
+    if year:
+        optional_parts.append((f"({year})", "year"))
+    if author:
+        optional_parts.append((f"({author})", "author"))
+
+    # Required suffix (ASIN + tag)
+    suffix_parts = []
+    if asin_str:
+        suffix_parts.append(asin_str)
+    if tag_str:
+        suffix_parts.append(tag_str)
+    suffix = " ".join(suffix_parts)
+
+    # Build name with all components
+    def build_name(include_optional: list[tuple[str, str]]) -> str:
+        result_parts = parts.copy()
+        for comp, _ in include_optional:
+            result_parts.append(comp)
+        if suffix:
+            result_parts.append(suffix)
+        return " ".join(result_parts)
+
+    # Try full name first
+    full_name = build_name(optional_parts)
+    if len(full_name) <= max_length:
+        return full_name
+
+    # Drop components from lowest priority (end of list) until it fits
+    # Priority for dropping: arc -> author -> year -> tag
+    drop_order = ["arc", "author", "year"]
+
+    current_optional = optional_parts.copy()
+    for drop_label in drop_order:
+        # Remove this component
+        current_optional = [
+            (comp, label) for comp, label in current_optional if label != drop_label
+        ]
+        name = build_name(current_optional)
+        if len(name) <= max_length:
+            return name
+
+    # Still too long? Try without tag
+    if tag_str and suffix:
+        suffix = asin_str
+        name = " ".join(parts + [suffix]) if suffix else " ".join(parts)
+        if len(name) <= max_length:
+            return name
+
+    # Last resort: truncate series name with "..."
+    # Keep: series... vol_XX {ASIN}
+    min_suffix_len = len(f" {vol_str} {asin_str}")
+    available_for_series = max_length - min_suffix_len - 3  # "..."
+
+    if available_for_series > 10:  # Reasonable minimum
+        truncated_series = series[:available_for_series] + "..."
+        return f"{truncated_series} {vol_str} {asin_str}"
+
+    # Absolute fallback
+    return f"{series[:50]}... {vol_str} {asin_str}"[:max_length]
+
+
+def _build_standalone_folder_name(
+    *,
+    title: str,
+    year: str | None,
+    author: str | None,
+    asin_str: str,
+    tag_str: str,
+    max_length: int,
+) -> str:
+    """
+    Build folder name for standalone book with truncation.
+
+    Schema: {Title} ({Year}) ({Author}) {ASIN} [{Tag}]
+
+    Components in priority order (lowest priority dropped first):
+    1. {Title} (identity - can truncate with ...)
+    2. {ASIN} (lookup key - never truncate)
+    3. [{Tag}] (ripper credit)
+    4. ({Year}) (sorting)
+    5. ({Author}) (can truncate)
+    """
+    parts = [title]
+
+    # Optional components
+    optional_parts: list[tuple[str, str]] = []
+    if year:
+        optional_parts.append((f"({year})", "year"))
+    if author:
+        optional_parts.append((f"({author})", "author"))
+
+    # Required suffix
+    suffix_parts = []
+    if asin_str:
+        suffix_parts.append(asin_str)
+    if tag_str:
+        suffix_parts.append(tag_str)
+    suffix = " ".join(suffix_parts)
+
+    def build_name(include_optional: list[tuple[str, str]]) -> str:
+        result_parts = parts.copy()
+        for comp, _ in include_optional:
+            result_parts.append(comp)
+        if suffix:
+            result_parts.append(suffix)
+        return " ".join(result_parts)
+
+    # Try full name first
+    full_name = build_name(optional_parts)
+    if len(full_name) <= max_length:
+        return full_name
+
+    # Drop components
+    drop_order = ["author", "year"]
+    current_optional = optional_parts.copy()
+    for drop_label in drop_order:
+        current_optional = [
+            (comp, label) for comp, label in current_optional if label != drop_label
+        ]
+        name = build_name(current_optional)
+        if len(name) <= max_length:
+            return name
+
+    # Try without tag
+    if tag_str:
+        suffix = asin_str
+        name = f"{title} {suffix}" if suffix else title
+        if len(name) <= max_length:
+            return name
+
+    # Truncate title
+    min_suffix_len = len(f" {asin_str}") if asin_str else 0
+    available_for_title = max_length - min_suffix_len - 3
+
+    if available_for_title > 10:
+        truncated_title = title[:available_for_title] + "..."
+        return f"{truncated_title} {asin_str}" if asin_str else truncated_title
+
+    return f"{title[:50]}... {asin_str}"[:max_length] if asin_str else title[:max_length]
+
+
+def build_mam_file_name(
+    *,
+    series: str | None = None,
+    title: str,
+    volume_number: str | None = None,
+    arc: str | None = None,
+    year: str | None = None,
+    author: str | None = None,
+    asin: str | None = None,
+    extension: str = ".m4b",
+    naming_config: NamingConfig | None = None,
+    max_length: int = MAM_MAX_FILENAME_LENGTH,
+) -> str:
+    """
+    Build a MAM-compliant file name (without ripper tag).
+
+    Same schema as folder name but:
+    - No ripper tag (only on folder)
+    - Includes file extension
+
+    Args:
+        series: Series name (cleaned)
+        title: Book title
+        volume_number: Volume/book number
+        arc: Arc/subtitle name
+        year: Release year
+        author: Primary author name
+        asin: Amazon ASIN
+        extension: File extension (default: ".m4b")
+        naming_config: NamingConfig for cleaning rules
+        max_length: Maximum filename length
+
+    Returns:
+        Sanitized filename with extension within length limit
+    """
+    # Ensure extension starts with dot
+    if extension and not extension.startswith("."):
+        extension = f".{extension}"
+
+    # Reserve space for extension
+    name_max_length = max_length - len(extension)
+
+    # Build folder name without ripper tag
+    base_name = build_mam_folder_name(
+        series=series,
+        title=title,
+        volume_number=volume_number,
+        arc=arc,
+        year=year,
+        author=author,
+        asin=asin,
+        ripper_tag=None,  # No tag on filename
+        naming_config=naming_config,
+        max_length=name_max_length,
+    )
+
+    return f"{base_name}{extension}"
