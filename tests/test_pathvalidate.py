@@ -17,8 +17,7 @@ class TestSafeFilename:
         """Test that Windows reserved names are sanitized."""
         # CON, PRN, AUX, NUL, COM1-9, LPT1-9 are reserved on Windows
         result = safe_filename("CON.m4b")
-        assert result != "CON.m4b"
-        assert "CON" not in result or result != "CON.m4b"
+        assert result != "CON.m4b", f"Expected CON.m4b to be sanitized, got: {result}"
 
         result = safe_filename("NUL.txt")
         assert result != "NUL.txt"

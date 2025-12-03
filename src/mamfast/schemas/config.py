@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 
 class EnvironmentSchema(BaseModel):
@@ -52,7 +52,7 @@ class PathsSchema(BaseModel):
 
     @field_validator("library_root", "torrent_output", "seed_root")
     @classmethod
-    def validate_required_paths(cls, v: str, info: Any) -> str:
+    def validate_required_paths(cls, v: str, info: ValidationInfo) -> str:
         """Ensure required paths are non-empty."""
         if not v or not v.strip():
             raise ValueError(f"{info.field_name} is required but empty")
@@ -152,7 +152,7 @@ class LibationSchema(BaseModel):
 
     @field_validator("folder_pattern", "asin_pattern")
     @classmethod
-    def validate_regex(cls, v: str, info: Any) -> str:
+    def validate_regex(cls, v: str, info: ValidationInfo) -> str:
         """Validate regex patterns compile."""
         import re
 
