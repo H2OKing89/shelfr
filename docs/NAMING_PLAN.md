@@ -185,6 +185,7 @@ The `[{Tag}]` component identifies who ripped/uploaded the audiobook. This is:
 - **Optional** - only added if configured
 - **Configurable** - set your tag in `config.yaml`
 - **Position** - always last, after ASIN
+- **Used in both** - Audiobookshelf library AND MAM uploads
 
 ```yaml
 # config.yaml
@@ -272,18 +273,18 @@ MAM torrent staging uses a **flat folder structure** (no Author/Series nesting) 
 |--------|------------------------|-------------|
 | Nesting | `Author/Series/Book/` | Flat: `Book/` only |
 | Root | `/audiobooks/` (library) | `{staging_root}/` (config) |
-| Ripper tag | `[{Tag}]` in folder name | Not used (personal tag) |
+| Ripper tag | `[{Tag}]` in folder name | `[{Tag}]` in folder name |
 | Purpose | Long-term organization | Temporary upload staging |
 
 **MAM staging example:**
 ```
-/staging/Mushoku Tensei - Jobless Reincarnation vol_27 Recollections (2024) (Rifujin na Magonote) {ASIN.B0DP3CQC6N}/
+/staging/Mushoku Tensei - Jobless Reincarnation vol_27 Recollections (2024) (Rifujin na Magonote) {ASIN.B0DP3CQC6N} [H2OKing]/
 ├── Mushoku Tensei - Jobless Reincarnation vol_27 Recollections (2024) (Rifujin na Magonote) {ASIN.B0DP3CQC6N}.m4b
 ├── cover.jpg
 └── metadata.json
 ```
 
-> Note: The ripper tag `[{Tag}]` is for personal library organization only and is NOT included in MAM uploads.
+> Note: The ripper tag `[{Tag}]` appears in the **folder name only**, not in the `.m4b` filename. This keeps files clean while still crediting the ripper.
 
 ---
 
@@ -759,25 +760,28 @@ Save raw responses from metadata fetches for analysis.
 - [x] Add MAM JSON output schema
 - [x] Document real examples from library (SAO, Mushoku Tensei, Skyward)
 
-### Phase 2: Update naming.py to Use Config
-- [ ] Refactor `filter_title()` to use `settings.naming`
-- [ ] Add `filter_series()` function for series-specific cleaning
-- [ ] Implement `preserve_exact` bypass logic
-- [ ] Add publisher_tags support
-- [ ] Add verbose logging for transformations (with rule IDs)
+### Phase 2: Update naming.py to Use Config ✅
+- [x] Refactor `filter_title()` to use `settings.naming`
+- [x] Add `filter_series()` function for series-specific cleaning
+- [x] Implement `preserve_exact` bypass logic
+- [x] Add publisher_tags support
+- [x] Add verbose logging for transformations (with rule IDs)
 
-### Phase 3: Implement MAM JSON Cleaning
-- [ ] Add `filter_title()` to title field in metadata.py
-- [ ] Add `filter_title()` to subtitle field
-- [ ] Add `filter_series()` for series names
-- [ ] Handle Vol/Book differently for JSON vs folders
+### Phase 3: Implement MAM JSON Cleaning ✅
+- [x] Add `filter_title()` to title field in metadata.py (with `keep_volume=True`)
+- [x] Add `filter_title()` to subtitle field (with `keep_volume=True`)
+- [x] Add `filter_series()` for series names (via `_build_series_list()`)
+- [x] Handle Vol/Book differently for JSON vs folders (`keep_volume` parameter)
+- [x] Add tests for MAM JSON cleaning (9 tests in `TestBuildMamJsonCleaning`)
+- [x] Add tests for `keep_volume` parameter (8 tests)
 
-### Phase 4: Testing & Validation
-- [ ] Create `tests/golden/` with input/expected pairs
-- [ ] Add validation script to flag suspicious results
-- [ ] Add preserve-exact drift check
-- [ ] Test against full library export (1,295 books from ABS)
-- [ ] Document any new edge cases found
+### Phase 4: Testing & Validation ✅
+- [x] Create `tests/golden/` with input/expected pairs (20 test cases)
+- [x] Add validation script (`src/mamfast/utils/validate_naming.py`)
+- [x] Add preserve-exact drift check (in `TestGoldenPreserveExact`)
+- [x] Test against full library export (368 books, 0 issues!)
+- [x] Fixed edge cases: trailing colons, trailing commas, space before punctuation
+- [x] Added cleanup patterns for dangling punctuation (`_TRAILING_PUNCT_PATTERN`, etc.)
 
 ### Phase 5: Subtitle Handling
 - [ ] Implement two-tier subtitle strategy (remove_patterns + keep_patterns)
@@ -788,7 +792,7 @@ Save raw responses from metadata fetches for analysis.
 ### Phase 6: Folder/File Generation (NEW)
 - [ ] Implement folder name builder using schema
 - [ ] Implement file name builder
-- [ ] Add ripper_tag config option
+- [x] Add ripper_tag config option
 - [ ] Implement truncation logic (225 char limit)
 - [ ] Handle standalone vs series books differently
 

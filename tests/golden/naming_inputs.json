@@ -1,0 +1,147 @@
+{
+  "_comment": "Golden test inputs for naming functions. Each entry has an ID and the raw input values.",
+  "_version": "1.0.0",
+  "test_cases": [
+    {
+      "id": "light_novel_title_1",
+      "description": "Standard light novel title with format indicator",
+      "title": "Overlord (Light Novel), Vol. 3",
+      "series": "Overlord (Light Novel)",
+      "subtitle": "Light Novel"
+    },
+    {
+      "id": "light_novel_title_2",
+      "description": "Light novel with embedded format indicator",
+      "title": "Mushoku Tensei: Jobless Reincarnation, Vol. 17",
+      "series": "Mushoku Tensei: Jobless Reincarnation",
+      "subtitle": "Light Novel"
+    },
+    {
+      "id": "litrpg_genre_tag",
+      "description": "Title with LitRPG genre tag",
+      "title": "Dungeon Crawler Carl: A LitRPG Adventure",
+      "series": "Dungeon Crawler Carl",
+      "subtitle": null
+    },
+    {
+      "id": "series_suffix",
+      "description": "Series name with 'Series' suffix",
+      "title": "A Most Unlikely Hero, Book 1",
+      "series": "A Most Unlikely Hero Series",
+      "subtitle": null
+    },
+    {
+      "id": "trilogy_suffix",
+      "description": "Series name with 'Trilogy' suffix",
+      "title": "The Lord of the Rings",
+      "series": "The Lord of the Rings Trilogy",
+      "subtitle": null
+    },
+    {
+      "id": "preserve_exact_rezero",
+      "description": "Re:ZERO should be preserved exactly (special characters)",
+      "title": "Re:ZERO -Starting Life in Another World-, Vol. 1",
+      "series": "Re:ZERO -Starting Life in Another World-",
+      "subtitle": "Light Novel"
+    },
+    {
+      "id": "preserve_exact_86",
+      "description": "86--EIGHTY-SIX should be preserved exactly",
+      "title": "86--EIGHTY-SIX, Vol. 1",
+      "series": "86--EIGHTY-SIX",
+      "subtitle": "Light Novel"
+    },
+    {
+      "id": "publisher_tag",
+      "description": "Title with publisher tag in brackets",
+      "title": "Sword Art Online [Yen Audio], Vol. 1",
+      "series": "Sword Art Online",
+      "subtitle": null
+    },
+    {
+      "id": "multiple_indicators",
+      "description": "Title with multiple format indicators",
+      "title": "Kuma Kuma Kuma Bear (Light Novel) (Unabridged), Vol. 5",
+      "series": "Kuma Kuma Kuma Bear (Light Novel)",
+      "subtitle": "Light Novel"
+    },
+    {
+      "id": "progression_fantasy",
+      "description": "Title with progression fantasy genre tag",
+      "title": "Cradle: A Progression Fantasy",
+      "series": "Cradle",
+      "subtitle": "A Progression Fantasy"
+    },
+    {
+      "id": "book_number_format",
+      "description": "Title using Book number instead of Vol",
+      "title": "The Wandering Inn, Book 1",
+      "series": "The Wandering Inn",
+      "subtitle": "The Wandering Inn, Book 1"
+    },
+    {
+      "id": "volume_full_word",
+      "description": "Title using full 'Volume' word",
+      "title": "Spice and Wolf, Volume 12",
+      "series": "Spice and Wolf",
+      "subtitle": null
+    },
+    {
+      "id": "japanese_author",
+      "description": "Japanese author name needing transliteration",
+      "title": "Test Book",
+      "series": null,
+      "subtitle": null,
+      "author": "理不尽な孫の手"
+    },
+    {
+      "id": "clean_title",
+      "description": "Already clean title - no changes expected",
+      "title": "Project Hail Mary",
+      "series": null,
+      "subtitle": null
+    },
+    {
+      "id": "redundant_subtitle",
+      "description": "Subtitle that duplicates series info",
+      "title": "He Who Fights with Monsters 11",
+      "series": "He Who Fights with Monsters",
+      "subtitle": "He Who Fights with Monsters, Book 11"
+    },
+    {
+      "id": "meaningful_subtitle",
+      "description": "Subtitle that adds value (arc name)",
+      "title": "Sword Art Online, Vol. 1",
+      "series": "Sword Art Online",
+      "subtitle": "Aincrad"
+    },
+    {
+      "id": "unabridged_in_title",
+      "description": "Title with (Unabridged) marker",
+      "title": "The Way of Kings (Unabridged)",
+      "series": "The Stormlight Archive",
+      "subtitle": null
+    },
+    {
+      "id": "double_dash_cleanup",
+      "description": "Title that might result in double dashes after cleaning",
+      "title": "Title - (Light Novel) - Subtitle",
+      "series": null,
+      "subtitle": null
+    },
+    {
+      "id": "saga_suffix",
+      "description": "Series with Saga suffix",
+      "title": "The Inheritance Cycle",
+      "series": "The Inheritance Saga",
+      "subtitle": null
+    },
+    {
+      "id": "chronicles_suffix",
+      "description": "Series with Chronicles suffix",
+      "title": "The Spellmonger",
+      "series": "The Spellmonger Chronicles",
+      "subtitle": null
+    }
+  ]
+}

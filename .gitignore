@@ -60,3 +60,6 @@ config/.env
 *.bak
 *.backup
 *~
+
+# Sample data (contains personal library info)
+samples/

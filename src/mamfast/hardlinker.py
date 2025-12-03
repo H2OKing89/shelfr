@@ -71,13 +71,23 @@ def stage_release(release: AudiobookRelease) -> Path:
     # Find and hardlink allowed files (not recursive - just files in this folder)
     staged_files = []
     for src_file in find_allowed_files(release.source_dir):
-        # Keep original filename, just truncate if too long
-        dst_name = truncate_filename(src_file.name, settings.mam.max_filename_length)
+        # Apply same filtering to filename as we did to folder name
+        # Get the stem (filename without extension) and apply filters
+        src_stem = src_file.stem
+        filtered_stem = filter_title(src_stem, settings.filters.remove_phrases)
+        filtered_stem = transliterate_text(filtered_stem, settings.filters)
+
+        # Build new filename with original extension
+        new_name = filtered_stem + src_file.suffix
+        dst_name = truncate_filename(new_name, settings.mam.max_filename_length)
         dst_file = staging_dir / dst_name
 
         hardlink_file(src_file, dst_file)
         staged_files.append(dst_file)
-        logger.debug(f"  Hardlinked: {src_file.name}")
+        if src_file.name != dst_name:
+            logger.debug(f"  Hardlinked: {src_file.name} -> {dst_name}")
+        else:
+            logger.debug(f"  Hardlinked: {src_file.name}")
 
     # Update release
     release.staging_dir = staging_dir

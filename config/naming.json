@@ -1,0 +1,168 @@
+{
+  "_comment": "Naming rules for MAMFast. See docs/NAMING_PLAN.md for details.",
+  "_version": "1.3.0",
+
+  "format_indicators": {
+    "_comment": "Remove from titles, subtitles, series. Case-insensitive, whole phrase.",
+    "match_mode": "phrase",
+    "case_sensitive": false,
+    "phrases": [
+      "(Light Novel)",
+      "(light novel)",
+      "Light Novel",
+      "(Manga)",
+      "(Graphic Novel)",
+      "(Unabridged)",
+      "Unabridged",
+      "(Audiobook)",
+      "Audiobook"
+    ]
+  },
+
+  "genre_tags": {
+    "_comment": "Remove genre tags from titles/subtitles. Case-insensitive, typically suffix.",
+    "match_mode": "phrase",
+    "case_sensitive": false,
+    "phrases": [
+      "A LitRPG Adventure",
+      "LitRPG Adventure",
+      "A LitRPG",
+      "An Isekai LitRPG",
+      "A Fantasy Adventure",
+      "A Sci-Fi Light Novel",
+      "A Sci-Fi Adventure",
+      "A Novel",
+      "A GameLit Novel",
+      "A Cultivation Novel",
+      "A Progression Fantasy Epic",
+      "A Slice-of-Life Urban Fantasy",
+      "A Progression Fantasy",
+      "An Urban Fantasy",
+      ": A LitRPG Adventure",
+      ": A Fantasy Adventure"
+    ]
+  },
+
+  "series_suffixes": {
+    "_comment": "Remove from series names only. Regex patterns, end-anchored.",
+    "match_mode": "regex",
+    "case_sensitive": false,
+    "patterns": [
+      "[\\s—-]?[Ss]eries$",
+      "[\\s—-]?[Tt]rilogy$",
+      "[\\s—-]?[Ss]aga$",
+      "[\\s—-]?[Cc]hronicles$",
+      "\\s*\\([Ll]ight [Nn]ovel\\)$",
+      "\\s+[Ll]ight [Nn]ovel$",
+      "\\s+[Ll]ight [Nn]ovel [Ss]eries$"
+    ]
+  },
+
+  "publisher_tags": {
+    "_comment": "Remove publisher cruft sometimes embedded in titles.",
+    "match_mode": "phrase",
+    "case_sensitive": false,
+    "phrases": [
+      "[Yen Audio]",
+      "[J-Novel Club]",
+      "[Seven Seas]",
+      "(Yen Audio)",
+      "(J-Novel Club)",
+      "(Seven Seas)"
+    ]
+  },
+
+  "subtitle_patterns": {
+    "_comment": "Two-tier subtitle handling. Remove known garbage patterns, preserve useful content. Based on analysis of 1,295 books.",
+    "remove_if_matches_series": true,
+    "remove_patterns": [
+      "^[Ll]ight [Nn]ovel$",
+      "^[Aa]? ?[Nn]ovel$",
+      "^[Uu]nabridged$",
+      "^Vol\\. \\d+$",
+      "^[Aa] LitRPG(?: Adventure)?$",
+      "^[Aa] LitRPG/Gamelit Adventure$",
+      "^[Aa] (?:Slice of Life )?(?:Harem )?LitRPG(?: Epic)?$",
+      "^[Aa] (?:Summoner )?Fantasy LitRPG$",
+      "^[Aa] Progression(?: Fantasy| LitRPG| LitRPG Epic)?$",
+      "^[Aa] (?:Slice[- ]of[- ]Life )?(?:Fantasy|Urban Fantasy)(?: Adventure)?$",
+      "^[Aa] Thriller$",
+      "^[Aa] Drizzt Novel$",
+      "^[Aa] Hunger Games Novel$"
+    ],
+    "keep_patterns": [
+      ".*[Aa]ria.*",
+      ".*[Cc]hronicle.*",
+      ".*[Pp]rogressive.*",
+      ".*[Aa]incrad.*",
+      ".*[Ff]airy [Dd]ance.*",
+      ".*[Pp]hantom [Bb]ullet.*"
+    ]
+  },
+
+  "subtitle_redundancy_rules": {
+    "_comment": "Drop subtitle if it only repeats series/title + book number. Use {{series}} and {{title}} as placeholders. Skip rules with {{series}} if series is empty.",
+    "enabled": true,
+    "rules": [
+      {
+        "id": "series_book",
+        "description": "Subtitle is just 'Series, Book N'",
+        "pattern_template": "^{{series}},?\\s*Book\\s*\\d+$",
+        "action": "drop_subtitle"
+      },
+      {
+        "id": "series_volume",
+        "description": "Subtitle is just 'Series, Vol/Volume N'",
+        "pattern_template": "^{{series}},?\\s*Vol(?:ume)?\\.?\\s*\\d+$",
+        "action": "drop_subtitle"
+      },
+      {
+        "id": "title_book",
+        "description": "Subtitle is just 'Title, Book N'",
+        "pattern_template": "^{{title}},?\\s*Book\\s*\\d+$",
+        "action": "drop_subtitle"
+      },
+      {
+        "id": "series_in_parens",
+        "description": "Subtitle contains '(Series, Book N)' - strip the parens part, keep the rest",
+        "pattern_template": "\\({{series}},?\\s*Book\\s*\\d+\\)$",
+        "action": "strip_match"
+      }
+    ]
+  },
+
+  "preserve_exact": {
+    "_comment": "Titles that bypass ALL cleaning rules. Case-sensitive, exact match.",
+    "case_sensitive": true,
+    "titles": [
+      "Re:ZERO",
+      "86--EIGHTY-SIX",
+      "Sword Art Online: Progressive",
+      "Is It Wrong to Try to Pick Up Girls in a Dungeon?"
+    ]
+  },
+
+  "author_map": {
+    "_comment": "Foreign name -> Romanized name. Case-sensitive, exact match.",
+    "猫子": "Necoco",
+    "リュート": "Ryuto",
+    "赤井まつり": "Matsuri Akai",
+    "くまなの": "Kumanano",
+    "理不尽な孫の手": "Rifujin na Magonote",
+    "りゅうせんひろつぐ": "Ryusen Hirotsugu",
+    "一色一凛": "Isshiki Ichirin",
+    "三嶋与夢": "Mishima Yomu",
+    "五示正司": "Goji Shoji",
+    "橘 由華": "Tachibana Yuka",
+    "澪亜": "Mio-A"
+  },
+
+  "preserve_in_json": {
+    "_comment": "Patterns kept in MAM JSON but normalized/removed from folder/file names.",
+    "volume_patterns": [
+      "Vol\\. \\d+",
+      "Volume \\d+",
+      "Book \\d+"
+    ]
+  }
+}

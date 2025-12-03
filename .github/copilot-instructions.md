@@ -29,6 +29,7 @@ pre-commit run --all-files        # Run all quality checks
 - **Tests**: Mock external services (Docker, qBittorrent, Audnex API); one test file per module
 
 ## Critical Constraints
+- **Shell** If using shell for python scripts, always use `source .venv/bin/activate`
 - **MAM filename limit**: 225 chars max. Use `utils/naming.py` for sanitization/truncation
 - **Docker path mapping**: `utils/paths.py` converts host↔container paths for mkbrr
 - **Secrets**: Never commit `config/.env` or `config/config.yaml` (gitignored)
