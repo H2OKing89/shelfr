@@ -1,4 +1,4 @@
-# Naming & Cleaning Plan
+yoy# Naming & Cleaning Plan
 
 > **Document Version:** 1.5.0 | **Last Updated:** 2025-12-02 | **Status:** Implementation Complete ✅
 
@@ -619,6 +619,91 @@ Full:
 A Very Long Standalone Book Title That Goes On And On (2025) (Some Author Name) {ASIN.B0DEF67890} [H2OKing]
 
 If too long, drop order: Author → Year → Tag → Truncate Title
+```
+
+#### Real-World Examples (from Library)
+
+These examples come from actual `samples/library_full.json` data:
+
+**Example A: "I Parry Everything" Series (Light Novel with extremely long series name)**
+
+Source metadata:
+```
+Title:  "I Parry Everything: What Do You Mean I'm the Strongest? I'm Not Even an Adventurer Yet!, Volume 2"
+Series: "What Do You Mean I'm the Strongest? I'm Not Even an Adventurer Yet!"
+ASIN:   B0F259867P
+Author: Nabeshiki
+Year:   2025
+```
+
+Expected raw folder (230+ chars - exceeds 225 limit):
+```
+What Do You Mean I'm the Strongest? I'm Not Even an Adventurer Yet! vol_02 (2025) (Nabeshiki) {ASIN.B0F259867P} [H2OKing]
+```
+
+Actual result (120 chars ✅):
+```
+What Do You Mean I'm the Strongest I'm Not Even an Adventurer Yet! vol_02 (2025) (Nabeshiki) {ASIN.B0F259867P} [H2OKing]
+```
+
+> **Note:** Punctuation (`?`, `!`) is normalized/removed by `sanitize_filename()`, making the series name significantly shorter. No truncation needed.
+
+**Example B: "Campfire Cooking" Series (Long but fits)**
+
+Source metadata:
+```
+Title:  "Campfire Cooking in Another World with My Absurd Skill: Vol. 3"
+Series: "Campfire Cooking in Another World with My Absurd Skill"
+ASIN:   B0CL5FYFPS
+Author: Ren Eguchi
+Year:   2021
+```
+
+Actual result (109 chars ✅):
+```
+Campfire Cooking in Another World with My Absurd Skill vol_03 (2021) (Ren Eguchi) {ASIN.B0CL5FYFPS} [H2OKing]
+```
+
+**Example C: "Space Mercenary" Series (Subtitle in series name)**
+
+Source metadata:
+```
+Title:  "Reborn as a Space Mercenary: I Woke Up Piloting the Strongest Starship!, Vol. 10"
+Series: "Reborn as a Space Mercenary: I Woke Up Piloting the Strongest Starship!"
+ASIN:   B0DP1LDBYV
+Author: Ryuto
+Year:   2024
+```
+
+Actual result (122 chars ✅):
+```
+Reborn as a Space Mercenary - I Woke Up Piloting the Strongest Starship! vol_10 (2024) (Ryuto) {ASIN.B0DP1LDBYV} [H2OKing]
+```
+
+> **Note:** Colon (`:`) is replaced with ` - ` for filesystem safety.
+
+#### Progressive Truncation Demonstration
+
+Using a synthetic example to show the full truncation cascade:
+
+```python
+series = "The Chronicles of the Mystical Adventures in the Enchanted Realm of the Ancient Dragons and Their Legendary Treasures Across the Seven Kingdoms of Eternal Light"
+# Series alone: 160 chars
+```
+
+| max_length | Result Length | What's Dropped |
+|------------|---------------|----------------|
+| 300 | 224 | Nothing (full name) |
+| 225 | 224 | Nothing (fits MAM limit ✅) |
+| 200 | 195 | Author, Year dropped |
+| 150 | 150 | + Tag dropped, Series truncated with `...` |
+| 100 | 100 | Series further truncated |
+
+```
+max=225: ...Kingdoms of Eternal Light vol_05 (2024) (John Smith-Williams) {ASIN.B0ABCDEFGH} [H2OKing]
+max=200: ...Kingdoms of Eternal Light vol_05 {ASIN.B0ABCDEFGH} [H2OKing]
+max=150: ...Across the Seven Kingdoms of Eternal Light vol_05 {ASIN.B0ABCDEFGH}  (series truncated)
+max=100: ...the Enchanted Realm of the ... vol_05 {ASIN.B0ABCDEFGH}  (hard truncation)
 ```
 
 #### What's Preserved vs Dropped
