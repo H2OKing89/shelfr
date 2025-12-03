@@ -19,29 +19,31 @@
 
 ## Priority Matrix
 
-| Priority | Library | Purpose | Applies To |
-|----------|---------|---------|------------|
-| **A1** | `pydantic` | Schema validation | Config, naming.json, API responses, state files |
-| **A2** | `pathvalidate` | Cross-platform filename safety | Naming, hardlinker, torrent output |
-| **A3** | `rich` (enhance) | Debug/dry-run output | CLI, workflow, validation |
-| **A4** | `rapidfuzz` | Fuzzy matching & dedup | Naming validation, duplicate detection |
-| **B1** | `typer` | CLI improvements | All CLI commands |
-| **B2** | `tenacity` | Advanced retry logic | Audnex, qBittorrent, Docker calls |
-| **B3** | `orjson` | Performance for large JSON | State files, exports, metadata cache |
-| **B4** | `hypothesis` | Property-based testing | All string processing, invariants |
+| Priority | Library | Purpose | Applies To | Status |
+|----------|---------|---------|------------|--------|
+| **A1** | `pydantic` | Schema validation | Config, naming.json, API responses, state files | ✅ COMPLETE |
+| **A2** | `pathvalidate` | Cross-platform filename safety | Naming, hardlinker, torrent output | ✅ COMPLETE |
+| **A3** | `rich` (enhance) | Debug/dry-run output | CLI, workflow, validation | ⬜ TODO |
+| **A4** | `rapidfuzz` | Fuzzy matching & dedup | Naming validation, duplicate detection | ⬜ TODO |
+| **B1** | `typer` | CLI improvements | All CLI commands | ⬜ Future |
+| **B2** | `tenacity` | Advanced retry logic | Audnex, qBittorrent, Docker calls | ⬜ Future |
+| **B3** | `orjson` | Performance for large JSON | State files, exports, metadata cache | ⬜ Future |
+| **B4** | `hypothesis` | Property-based testing | All string processing, invariants | ⬜ Future |
 
 ---
 
-## Phase 1: Schema Validation (Pydantic)
+## Phase 1: Schema Validation (Pydantic) ✅ COMPLETE
+
+> **Status**: All high-value schemas complete: `naming.json`, `audnex.py`, `state.py`, `config.yaml`. Only `libation.py` remains (very low priority).
 
 ### Problem
 
 Multiple data sources lack runtime validation:
-- `naming.json` - typos silently fail
-- `config.yaml` - wrong types not caught until runtime
-- Audnex API responses - unexpected structure causes crashes
-- `processed.json` state - corruption goes undetected
-- Libation exports - malformed data causes pipeline failures
+- `naming.json` - typos silently fail ✅ SOLVED
+- `config.yaml` - wrong types not caught until runtime ✅ SOLVED
+- Audnex API responses - unexpected structure causes crashes ✅ SOLVED
+- `processed.json` state - corruption goes undetected ✅ SOLVED
+- Libation exports - malformed data causes pipeline failures (very low priority - simple format)
 
 ### Solution
 
@@ -49,19 +51,19 @@ Add Pydantic models for all external data boundaries. Keep existing dataclass-ba
 
 ### Implementation
 
-#### 1.1 Create schema modules
+#### 1.1 Create schema modules ✅ COMPLETE
 
 ```
 src/mamfast/schemas/
-├── __init__.py
-├── naming.py          # naming.json validation
-├── config.py          # config.yaml validation
-├── audnex.py          # Audnex API response validation
-├── state.py           # processed.json validation
-└── libation.py        # Libation export validation
+├── __init__.py         # ✅ Created - exports all schemas
+├── naming.py           # ✅ Created - naming.json validation
+├── audnex.py           # ✅ Created - Audnex API response validation
+├── state.py            # ✅ Created - processed.json validation
+├── config.py           # ✅ Created - config.yaml validation
+└── libation.py         # ⬜ Optional - Libation export validation (simple format)
 ```
 
-#### 1.2 Naming schema (naming.json)
+#### 1.2 Naming schema (naming.json) ✅ COMPLETE
 
 ```python
 # src/mamfast/schemas/naming.py
@@ -303,7 +305,7 @@ class ConfigSchema(BaseModel):
     model_config = {"extra": "allow"}  # Allow unknown sections for extensibility
 ```
 
-#### 1.6 Add validation to config loading
+#### 1.6 Add validation to config loading ✅ COMPLETE
 
 ```python
 # In src/mamfast/config.py
@@ -329,7 +331,7 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
         raise ConfigurationError(f"Invalid naming.json: {e}")
 ```
 
-#### 1.7 Add CLI command for validation
+#### 1.7 Add CLI command for validation ✅ COMPLETE
 
 ```bash
 mamfast validate-config
@@ -366,7 +368,7 @@ dependencies = [
 
 ### Tests
 
-- [ ] `test_naming_schema.py` - naming.json validation
+- [x] `test_schemas.py` - naming.json validation (18 tests) ✅
 - [ ] `test_config_schema.py` - config.yaml validation
 - [ ] `test_audnex_schema.py` - API response validation
 - [ ] `test_state_schema.py` - processed.json validation
@@ -376,7 +378,9 @@ dependencies = [
 
 ---
 
-## Phase 2: Bullet-Proof Filenames (pathvalidate)
+## Phase 2: Bullet-Proof Filenames (pathvalidate) ✅ COMPLETE
+
+> **Status**: pathvalidate integrated into `paths.py` and `naming.py`. Tests added.
 
 ### Problem
 
@@ -397,7 +401,7 @@ Wrap all path/filename generation with `pathvalidate` as a safety net.
 
 ### Implementation
 
-#### 2.1 Create centralized path safety module
+#### 2.1 Create centralized path safety module ✅ COMPLETE
 
 ```python
 # src/mamfast/utils/paths.py (extend existing)
@@ -486,11 +490,11 @@ dependencies = [
 
 ### Tests
 
-- [ ] `test_reserved_windows_names.py` - CON, PRN, NUL handled
-- [ ] `test_unicode_normalization.py` - Various Unicode edge cases
-- [ ] `test_platform_specific.py` - Windows vs Unix differences
-- [ ] `test_hardlinker_safe_paths.py` - Hardlink paths sanitized
-- [ ] `test_torrent_safe_names.py` - Torrent names sanitized
+- [x] `test_pathvalidate.py` - Comprehensive tests (20 tests) ✅
+  - Reserved Windows names (CON, PRN, NUL)
+  - Unicode handling
+  - Edge cases (empty, dots, spaces, null bytes)
+  - Integration with naming.py functions
 
 [↑ Back to top](#mamfast-improvements-plan)
 

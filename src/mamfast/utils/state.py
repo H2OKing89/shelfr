@@ -29,6 +29,7 @@ def load_state() -> dict[str, Any]:
     Load state from the JSON file.
 
     Returns empty state if file doesn't exist.
+    Validates state structure with Pydantic schema.
     """
     state_file = _get_state_file()
 
@@ -42,6 +43,16 @@ def load_state() -> dict[str, Any]:
     try:
         with open(state_file, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
+
+            # Validate state structure (warns but doesn't fail)
+            try:
+                from mamfast.schemas.state import validate_state
+
+                validate_state(data)
+                logger.debug("State file validated successfully")
+            except Exception as validation_error:
+                logger.warning(f"State file validation warning: {validation_error}")
+
             return data
     except json.JSONDecodeError as e:
         logger.warning(f"Invalid JSON in state file: {e}")

@@ -12,15 +12,20 @@ Settings are loaded from three sources:
    - qbittorrent: category, tags, auto_start
    - audnex: base_url, timeout_seconds
    - mediainfo: binary
-   - filters: remove_phrases, remove_book_numbers, author_map, transliterate_japanese
+   - filters: remove_book_numbers, transliterate_japanese
    - environment: can override any .env variable (see below)
 
-2. **.env file** (for secrets and environment-specific values):
+2. **naming.json** (title/author/series cleanup rules):
+   - format_indicators, genre_tags, publisher_tags (phrases to remove)
+   - author_map (foreign name -> romanized name mapping)
+   - series_suffixes, subtitle patterns, preserve_exact, etc.
+
+3. **.env file** (for secrets and environment-specific values):
    - QB_HOST, QB_USERNAME, QB_PASSWORD (qBittorrent credentials)
    - LIBATION_CONTAINER, DOCKER_BIN, TARGET_UID, TARGET_GID
    - MAMFAST_ENV, LOG_LEVEL
 
-3. **config/categories.json** (MAM category mappings):
+4. **config/categories.json** (MAM category mappings):
    - Maps genre names to MAM category IDs (e.g., "fantasy" -> 39)
 
 Precedence for environment section: YAML environment > .env file > defaults
@@ -43,6 +48,7 @@ from typing import Any
 
 import yaml
 from dotenv import load_dotenv
+from pydantic import ValidationError as PydanticValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -575,11 +581,16 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
     """
     Load naming rules from config/naming.json.
 
+    Validates the JSON structure using Pydantic schema before processing.
+
     Args:
         config_dir: Project root directory containing config/
 
     Returns:
         NamingConfig with all naming rules populated
+
+    Raises:
+        ConfigurationError: If naming.json has invalid structure or regex patterns
     """
     naming_path = config_dir / "config" / "naming.json"
 
@@ -590,6 +601,15 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
     try:
         with open(naming_path, encoding="utf-8") as f:
             data = json.load(f)
+
+        # Validate with Pydantic schema (catches invalid regex, wrong types, unknown keys)
+        from mamfast.schemas.naming import validate_naming_json
+
+        try:
+            schema = validate_naming_json(data)
+            logger.debug(f"naming.json v{schema.version} validated successfully")
+        except PydanticValidationError as e:
+            raise ConfigurationError(f"Invalid naming.json: {e}") from e
 
         # Extract format indicators
         format_indicators = data.get("format_indicators", {}).get("phrases", [])
@@ -838,23 +858,29 @@ def load_settings(
             ripper_tag=ripper_tag_value if ripper_tag_value else None,
         )
 
-    # Parse filters config and merge with naming.json
+    # Parse filters config
+    # Note: remove_phrases and author_map now come exclusively from naming.json
     filters_data = yaml_config.get("filters", {})
 
-    # Combine remove_phrases from config.yaml AND naming.json
-    # naming.json format_indicators + genre_tags + publisher_tags become remove_phrases
-    yaml_remove_phrases = filters_data.get("remove_phrases", [])
-    naming_remove_phrases = naming.format_indicators + naming.genre_tags + naming.publisher_tags
-    combined_remove_phrases = list(dict.fromkeys(yaml_remove_phrases + naming_remove_phrases))
+    # Log deprecation warning if legacy fields are present
+    if filters_data.get("remove_phrases"):
+        logger.warning(
+            "filters.remove_phrases in config.yaml is deprecated and ignored. "
+            "Use format_indicators/genre_tags/publisher_tags in naming.json instead."
+        )
+    if filters_data.get("author_map"):
+        logger.warning(
+            "filters.author_map in config.yaml is deprecated and ignored. "
+            "Use author_map in naming.json instead."
+        )
 
-    # Merge author_map from config.yaml AND naming.json (naming.json takes precedence)
-    yaml_author_map = filters_data.get("author_map", {})
-    combined_author_map = {**yaml_author_map, **naming.author_map}
+    # Build remove_phrases from naming.json only
+    remove_phrases = naming.format_indicators + naming.genre_tags + naming.publisher_tags
 
     filters = FiltersConfig(
-        remove_phrases=combined_remove_phrases,
+        remove_phrases=remove_phrases,
         remove_book_numbers=filters_data.get("remove_book_numbers", True),
-        author_map=combined_author_map,
+        author_map=naming.author_map,  # From naming.json only
         transliterate_japanese=filters_data.get("transliterate_japanese", True),
         naming=naming,
     )

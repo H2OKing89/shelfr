@@ -263,6 +263,16 @@ Examples:
     )
     validate_parser.set_defaults(func=cmd_validate)
 
+    # -------------------------------------------------------------------------
+    # validate-config: Validate configuration files
+    # -------------------------------------------------------------------------
+    validate_config_parser = subparsers.add_parser(
+        "validate-config",
+        help="Validate all configuration files (naming.json, config.yaml, etc.)",
+        epilog="Validates JSON structure, regex patterns, and required fields.",
+    )
+    validate_config_parser.set_defaults(func=cmd_validate_config)
+
     return parser
 
 
@@ -1028,6 +1038,115 @@ def cmd_validate(args: argparse.Namespace) -> int:
             )
 
     return 0 if total_errors == 0 else 1
+
+
+def cmd_validate_config(args: argparse.Namespace) -> int:
+    """Validate all configuration files."""
+    import json as json_module
+    from pathlib import Path
+
+    from pydantic import ValidationError as PydanticValidationError
+
+    from mamfast.schemas.naming import validate_naming_json
+
+    print_header("Validate Configuration Files")
+
+    config_dir = args.config.parent.parent if args.config else Path(".")
+    errors_found = False
+
+    # Validate naming.json
+    naming_path = config_dir / "config" / "naming.json"
+    console.print(f"\n[bold]Checking:[/] {naming_path}")
+
+    if not naming_path.exists():
+        print_warning(f"naming.json not found at {naming_path}")
+    else:
+        try:
+            with open(naming_path, encoding="utf-8") as f:
+                data = json_module.load(f)
+
+            schema = validate_naming_json(data)
+
+            # Count rules for summary
+            rule_count = (
+                len(schema.format_indicators.phrases)
+                + len(schema.genre_tags.phrases)
+                + len(schema.series_suffixes.patterns)
+                + len(schema.publisher_tags.phrases)
+                + len(schema.subtitle_patterns.remove_patterns)
+                + len(schema.subtitle_redundancy_rules.rules)
+            )
+
+            print_success(f"naming.json: valid (v{schema.version}, {rule_count} rules)")
+
+            # Show breakdown
+            print_info(f"  Format indicators: {len(schema.format_indicators.phrases)}")
+            print_info(f"  Genre tags: {len(schema.genre_tags.phrases)}")
+            print_info(f"  Series suffixes: {len(schema.series_suffixes.patterns)}")
+            print_info(f"  Publisher tags: {len(schema.publisher_tags.phrases)}")
+            print_info(
+                f"  Subtitle remove patterns: {len(schema.subtitle_patterns.remove_patterns)}"
+            )
+            print_info(f"  Subtitle keep patterns: {len(schema.subtitle_patterns.keep_patterns)}")
+            print_info(f"  Redundancy rules: {len(schema.subtitle_redundancy_rules.rules)}")
+            print_info(f"  Author mappings: {len(schema.author_map)}")
+            print_info(f"  Preserve exact: {len(schema.preserve_exact.titles)}")
+
+        except json_module.JSONDecodeError as e:
+            print_error(f"naming.json: invalid JSON - {e}")
+            errors_found = True
+        except PydanticValidationError as e:
+            print_error("naming.json: validation failed")
+            for error in e.errors():
+                loc = " -> ".join(str(x) for x in error["loc"])
+                print_error(f"  {loc}: {error['msg']}")
+            errors_found = True
+
+    # Validate config.yaml (basic check - loads without error)
+    config_path = args.config if args.config else config_dir / "config" / "config.yaml"
+    console.print(f"\n[bold]Checking:[/] {config_path}")
+
+    if not config_path.exists():
+        print_warning(f"config.yaml not found at {config_path}")
+    else:
+        try:
+            from mamfast.config import reload_settings
+
+            settings = reload_settings(config_file=config_path)
+            print_success("config.yaml: valid (loaded successfully)")
+            print_info(f"  Library root: {settings.paths.library_root}")
+            print_info(f"  Seed root: {settings.paths.seed_root}")
+        except Exception as e:
+            print_error(f"config.yaml: {e}")
+            errors_found = True
+
+    # Validate categories.json
+    categories_path = config_dir / "config" / "categories.json"
+    console.print(f"\n[bold]Checking:[/] {categories_path}")
+
+    if not categories_path.exists():
+        print_warning(f"categories.json not found at {categories_path}")
+    else:
+        try:
+            with open(categories_path, encoding="utf-8") as f:
+                categories = json_module.load(f)
+            if isinstance(categories, dict):
+                print_success(f"categories.json: valid ({len(categories)} genre mappings)")
+            else:
+                print_error("categories.json: expected a dictionary")
+                errors_found = True
+        except json_module.JSONDecodeError as e:
+            print_error(f"categories.json: invalid JSON - {e}")
+            errors_found = True
+
+    # Summary
+    console.print()
+    if errors_found:
+        console.print("[error]Validation failed with errors[/]")
+        return 1
+    else:
+        console.print("[success]All configuration files validated successfully ✅[/]")
+        return 0
 
 
 def cmd_config(args: argparse.Namespace) -> int:

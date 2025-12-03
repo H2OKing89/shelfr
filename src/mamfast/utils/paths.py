@@ -5,6 +5,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from pathvalidate import sanitize_filename as pv_sanitize_filename
+from pathvalidate import sanitize_filepath as pv_sanitize_filepath
+
 from mamfast.config import get_settings
 
 
@@ -131,3 +134,77 @@ def ensure_dir(path: Path) -> Path:
 def path_exists_on_host(path: str | Path) -> bool:
     """Check if a host path exists."""
     return os.path.exists(str(path))
+
+
+# ---------------------------------------------------------------------------
+# Cross-platform filename safety (pathvalidate wrappers)
+# ---------------------------------------------------------------------------
+
+
+def safe_filename(raw: str, max_length: int = 225) -> str:
+    """
+    Build a safe filename with truncation and cross-platform sanitization.
+
+    This is a safety net that runs AFTER MAM-specific sanitization.
+    Catches edge cases like:
+    - Reserved Windows names (CON, PRN, NUL, COM1, etc.)
+    - Invalid characters on specific platforms
+    - Trailing dots/spaces (Windows issue)
+
+    Order of operations:
+    1. Apply MAM-specific sanitization (naming.py functions)
+    2. Truncate to max length
+    3. Apply pathvalidate for OS-level safety
+
+    Args:
+        raw: Pre-sanitized filename (already processed by naming.py)
+        max_length: Maximum filename length (MAM limit is 225)
+
+    Returns:
+        Cross-platform safe filename
+    """
+    from mamfast.utils.naming import truncate_filename
+
+    # Truncate first (preserves extension via truncate_filename)
+    truncated = truncate_filename(raw, max_length=max_length)
+
+    # Apply pathvalidate as final safety net
+    # platform="auto" detects current OS but we use "universal" for cross-platform
+    return str(pv_sanitize_filename(truncated, platform="universal"))
+
+
+def safe_dirname(raw: str, max_length: int = 225) -> str:
+    """
+    Build a safe directory name with truncation and cross-platform sanitization.
+
+    Similar to safe_filename but for directory names (no extension handling).
+
+    Args:
+        raw: Pre-sanitized directory name
+        max_length: Maximum directory name length
+
+    Returns:
+        Cross-platform safe directory name
+    """
+    from mamfast.utils.naming import truncate_filename
+
+    # Truncate (truncate_filename works for dirnames too)
+    truncated = truncate_filename(raw, max_length=max_length)
+
+    # Apply pathvalidate
+    return str(pv_sanitize_filename(truncated, platform="universal"))
+
+
+def safe_filepath(raw: str | Path) -> Path:
+    """
+    Sanitize a full file path (handles each path component).
+
+    Use for paths that may contain user-provided components.
+
+    Args:
+        raw: Raw file path
+
+    Returns:
+        Sanitized Path object
+    """
+    return Path(pv_sanitize_filepath(str(raw), platform="universal"))
