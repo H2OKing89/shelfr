@@ -748,7 +748,7 @@ class TestDiscoveryValidation:
         assert title_check.passed is True
         assert title_check.severity == "info"
 
-    def test_aggressive_title_cleaning_warns(self, tmp_path):
+    def test_aggressive_title_cleaning_warns(self, tmp_path, monkeypatch):
         """Aggressive title cleaning should warn."""
         from mamfast.models import AudiobookRelease
         from mamfast.validation import DiscoveryValidation
@@ -764,12 +764,19 @@ class TestDiscoveryValidation:
             main_m4b=m4b_file,
         )
 
+        # Mock filter_title to return something very different (aggressive cleaning)
+        def mock_filter_title(title):
+            return "Title"  # Very short - triggers low similarity
+
+        monkeypatch.setattr("mamfast.utils.naming.filter_title", mock_filter_title)
+
         validator = DiscoveryValidation()
         result = validator.validate(release)
 
         title_check = next(c for c in result.checks if c.name == "title_cleaning")
         # Should pass but with warning severity if similarity is low
         assert title_check.passed is True
+        assert title_check.severity == "warning"
 
 
 class TestMetadataValidation:

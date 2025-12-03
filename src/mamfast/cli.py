@@ -1513,9 +1513,10 @@ def cmd_check_suspicious(args: argparse.Namespace) -> int:
         cleaned = filter_title(original)
 
         # Use fuzzy analysis to detect suspicious changes
-        analysis = analyze_change(original, cleaned)
+        # Pass CLI threshold so is_suspicious uses user-supplied value
+        analysis = analyze_change(original, cleaned, threshold=threshold)
 
-        if analysis.is_suspicious and analysis.similarity < threshold:
+        if analysis.is_suspicious:
             suspicious.append(
                 (
                     release.asin or "",

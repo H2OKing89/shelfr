@@ -278,7 +278,6 @@ def find_duplicates(
         List of DuplicatePair for items above threshold
     """
     duplicates: list[DuplicatePair] = []
-    seen_pairs: set[tuple[int, int]] = set()
 
     for i, item1 in enumerate(items):
         if not item1:
@@ -287,12 +286,6 @@ def find_duplicates(
         for j, item2 in enumerate(items[i + 1 :], start=i + 1):
             if not item2:
                 continue
-
-            # Skip if we've already compared these
-            pair_key = (i, j)
-            if pair_key in seen_pairs:
-                continue
-            seen_pairs.add(pair_key)
 
             ratio = similarity_ratio(item1, item2)
             if ratio >= threshold:

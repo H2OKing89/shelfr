@@ -986,19 +986,20 @@ def transliterate_text(
 
     result = text
 
-    # First, apply author_map for exact substring matches
-    for foreign, romanized in filters.author_map.items():
-        if foreign in result:
-            result = result.replace(foreign, romanized)
-
-    # If no exact match, try fuzzy matching against author_map keys
-    if filters.author_map and not result.isascii():
+    # Try fuzzy matching first against the original text for full replacements
+    if filters.author_map and not text.isascii():
         from mamfast.utils.fuzzy import find_best_match
 
-        fuzzy_match = find_best_match(result, list(filters.author_map.keys()), threshold=85)
+        fuzzy_match = find_best_match(text, list(filters.author_map.keys()), threshold=85)
         if fuzzy_match:
             result = filters.author_map[fuzzy_match]
             logger.debug(f"Fuzzy author match: '{text}' → '{result}' (via '{fuzzy_match}')")
+            return result  # Early return if fuzzy match found
+
+    # If no fuzzy match, apply exact substring matches
+    for foreign, romanized in filters.author_map.items():
+        if foreign in result:
+            result = result.replace(foreign, romanized)
 
     # Check if there are any remaining non-ASCII characters
     if result.isascii():
