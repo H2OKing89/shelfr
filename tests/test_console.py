@@ -761,6 +761,66 @@ class TestPrintValidationSummary:
             assert "✗" in call_str
             assert "1 error" in call_str
 
+    def test_pluralization_multiple_errors_and_warnings(self):
+        """print_validation_summary should use plural form for multiple errors/warnings."""
+        from mamfast.console import print_validation_summary
+        from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
+
+        result = ValidationResult()
+        # Add 2 errors
+        result.add(
+            ValidationCheck(
+                name="err1",
+                passed=False,
+                message="Fail",
+                severity="error",
+                category=CheckCategory.CONFIG,
+            )
+        )
+        result.add(
+            ValidationCheck(
+                name="err2",
+                passed=False,
+                message="Fail",
+                severity="error",
+                category=CheckCategory.PATHS,
+            )
+        )
+        # Add 3 warnings
+        result.add(
+            ValidationCheck(
+                name="warn1",
+                passed=False,
+                message="Warn",
+                severity="warning",
+                category=CheckCategory.CONFIG,
+            )
+        )
+        result.add(
+            ValidationCheck(
+                name="warn2",
+                passed=False,
+                message="Warn",
+                severity="warning",
+                category=CheckCategory.PATHS,
+            )
+        )
+        result.add(
+            ValidationCheck(
+                name="warn3",
+                passed=False,
+                message="Warn",
+                severity="warning",
+                category=CheckCategory.SERVICES,
+            )
+        )
+
+        with patch.object(console, "print") as mock_print:
+            print_validation_summary(result)
+            call_str = str(mock_print.call_args)
+            assert "2 errors" in call_str  # Plural
+            assert "3 warnings" in call_str  # Plural
+
 
 class TestPrintCheckCategory:
     """Test print_check_category function."""

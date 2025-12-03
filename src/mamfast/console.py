@@ -379,9 +379,11 @@ def print_validation_summary(result: ValidationResult) -> None:
     if result.passed_count > 0:
         parts.append(f"[success]{result.passed_count} passed[/]")
     if result.error_count > 0:
-        parts.append(f"[error]{result.error_count} errors[/]")
+        error_word = "error" if result.error_count == 1 else "errors"
+        parts.append(f"[error]{result.error_count} {error_word}[/]")
     if result.warning_count > 0:
-        parts.append(f"[warning]{result.warning_count} warnings[/]")
+        warning_word = "warning" if result.warning_count == 1 else "warnings"
+        parts.append(f"[warning]{result.warning_count} {warning_word}[/]")
 
     status_icon = "[success]✓[/]" if result.passed else "[error]✗[/]"
     summary = ", ".join(parts) if parts else "[dim]No checks[/]"
@@ -660,8 +662,6 @@ def print_error_summary(errors: list[tuple[str, Exception]], title: str = "Error
         )
 
     err_console.print(table)
-
-
 
 
 # Convenience function for quick messages
