@@ -66,6 +66,17 @@ _TRAILING_PUNCT_PATTERN = re.compile(r"\s*[,:;]\s*$")  # Trailing comma, colon, 
 _LEADING_PUNCT_PATTERN = re.compile(r"^\s*[,:;]\s*")  # Leading comma, colon, semicolon
 _SPACE_BEFORE_PUNCT_PATTERN = re.compile(r"\s+([,:;])")  # Space before punctuation
 
+# Volume/Book number extraction patterns for folder naming
+_VOL_EXTRACT_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r",?\s*Vol\.?\s*(\d+)", re.IGNORECASE),  # ", Vol. 3" or "Vol 3"
+    re.compile(r",?\s*Volume\s+(\d+)", re.IGNORECASE),  # ", Volume 3"
+    re.compile(r",?\s*Book\s+(\d+)", re.IGNORECASE),  # ", Book 3"
+    re.compile(r"\s+(\d+)$"),  # Trailing number "Title 3"
+]
+
+# MAM filename limit
+MAM_MAX_FILENAME_LENGTH = 225
+
 # Author role detection patterns - use word boundaries to avoid false positives
 # e.g., "translator" should match but "John Translator Smith" should NOT match
 # Pattern matches: "- translator", "(translator)", "translator" at end, standalone "translator"
@@ -731,3 +742,379 @@ def ensure_unique_name(name: str, existing: set[str]) -> str:
         if new_name not in existing:
             return new_name
         counter += 1
+
+
+def extract_volume_number(title: str, series_position: str | None = None) -> str | None:
+    """
+    Extract volume/book number from title or series_position.
+
+    Priority:
+    1. series_position if provided and numeric
+    2. Vol/Volume/Book number from title
+    3. Trailing number from title
+
+    Args:
+        title: Title string that may contain volume info
+        series_position: Explicit series position if available
+
+    Returns:
+        Volume number as string (e.g., "3", "12"), or None if not found
+    """
+    # Priority 1: Use explicit series_position if it's numeric
+    if series_position:
+        # Handle "1.5", "2", etc.
+        clean_pos = series_position.strip()
+        if clean_pos and (clean_pos.replace(".", "").isdigit() or clean_pos.isdigit()):
+            return clean_pos
+
+    # Priority 2-4: Extract from title using patterns
+    for pattern in _VOL_EXTRACT_PATTERNS:
+        match = pattern.search(title)
+        if match:
+            return match.group(1)
+
+    return None
+
+
+def format_volume_number(vol_num: str | None, zero_pad: bool = True) -> str:
+    """
+    Format volume number for folder/file naming.
+
+    Args:
+        vol_num: Volume number string (e.g., "3", "12", "1.5")
+        zero_pad: Whether to zero-pad to 2 digits
+
+    Returns:
+        Formatted string like "vol_03" or "vol_12", empty string if no volume
+    """
+    if not vol_num:
+        return ""
+
+    # Handle decimal volumes (e.g., "1.5" -> "01.5")
+    if "." in vol_num:
+        parts = vol_num.split(".")
+        if zero_pad and parts[0].isdigit():
+            parts[0] = parts[0].zfill(2)
+        return f"vol_{'.'.join(parts)}"
+
+    # Integer volumes
+    if vol_num.isdigit():
+        if zero_pad:
+            return f"vol_{vol_num.zfill(2)}"
+        return f"vol_{vol_num}"
+
+    return ""
+
+
+def build_mam_folder_name(
+    *,
+    series: str | None = None,
+    title: str,
+    volume_number: str | None = None,
+    arc: str | None = None,
+    year: str | None = None,
+    author: str | None = None,
+    asin: str | None = None,
+    ripper_tag: str | None = None,
+    naming_config: NamingConfig | None = None,
+    max_length: int = MAM_MAX_FILENAME_LENGTH,
+) -> str:
+    """
+    Build a MAM-compliant folder name for staging.
+
+    Schema for series books:
+        {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
+
+    Schema for standalone books:
+        {Title} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
+
+    Args:
+        series: Series name (cleaned). If None, treated as standalone.
+        title: Book title (used for standalone books or fallback)
+        volume_number: Volume/book number (e.g., "3", "12")
+        arc: Arc/subtitle name (optional, e.g., "Aincrad")
+        year: Release year (4 digits)
+        author: Primary author name (cleaned)
+        asin: Amazon ASIN
+        ripper_tag: Optional ripper tag (e.g., "H2OKing")
+        naming_config: NamingConfig for cleaning rules
+        max_length: Maximum filename length (default: 225 for MAM)
+
+    Returns:
+        Sanitized folder name within length limit
+    """
+    # Clean inputs
+    clean_series = (
+        filter_title(series, naming_config=naming_config, keep_volume=False) if series else None
+    )
+    clean_title = (
+        filter_title(title, naming_config=naming_config, keep_volume=False) if title else ""
+    )
+    clean_arc = filter_title(arc, naming_config=naming_config, keep_volume=False) if arc else None
+    clean_author = sanitize_filename(author) if author else None
+
+    # Format volume
+    vol_str = format_volume_number(volume_number)
+
+    # Format ASIN
+    asin_str = f"{{ASIN.{asin}}}" if asin else ""
+
+    # Format ripper tag
+    tag_str = f"[{ripper_tag}]" if ripper_tag else ""
+
+    # Build the name based on whether it's a series or standalone
+    if clean_series and vol_str:
+        # Series book: {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN} [{Tag}]
+        base_name = _build_series_folder_name(
+            series=clean_series,
+            vol_str=vol_str,
+            arc=clean_arc,
+            year=year,
+            author=clean_author,
+            asin_str=asin_str,
+            tag_str=tag_str,
+            max_length=max_length,
+        )
+    else:
+        # Standalone book: {Title} ({Year}) ({Author}) {ASIN} [{Tag}]
+        base_name = _build_standalone_folder_name(
+            title=clean_title,
+            year=year,
+            author=clean_author,
+            asin_str=asin_str,
+            tag_str=tag_str,
+            max_length=max_length,
+        )
+
+    # Final sanitization
+    return sanitize_filename(base_name)
+
+
+def _build_series_folder_name(
+    *,
+    series: str,
+    vol_str: str,
+    arc: str | None,
+    year: str | None,
+    author: str | None,
+    asin_str: str,
+    tag_str: str,
+    max_length: int,
+) -> str:
+    """
+    Build folder name for series book with truncation.
+
+    Components in priority order (lowest priority dropped first):
+    1. {Series} + vol_{NN} (identity - never truncate)
+    2. {ASIN} (lookup key - never truncate)
+    3. [{Tag}] (ripper credit)
+    4. ({Year}) (sorting)
+    5. ({Author}) (can truncate)
+    6. {Arc} (can truncate or omit)
+    """
+    # Start with full name
+    parts = [series, vol_str]
+
+    # Optional components (will be dropped in reverse order if too long)
+    optional_parts: list[tuple[str, str]] = []  # (component, label)
+
+    if arc:
+        optional_parts.append((arc, "arc"))
+    if year:
+        optional_parts.append((f"({year})", "year"))
+    if author:
+        optional_parts.append((f"({author})", "author"))
+
+    # Required suffix (ASIN + tag)
+    suffix_parts = []
+    if asin_str:
+        suffix_parts.append(asin_str)
+    if tag_str:
+        suffix_parts.append(tag_str)
+    suffix = " ".join(suffix_parts)
+
+    # Build name with all components
+    def build_name(include_optional: list[tuple[str, str]]) -> str:
+        result_parts = parts.copy()
+        for comp, _ in include_optional:
+            result_parts.append(comp)
+        if suffix:
+            result_parts.append(suffix)
+        return " ".join(result_parts)
+
+    # Try full name first
+    full_name = build_name(optional_parts)
+    if len(full_name) <= max_length:
+        return full_name
+
+    # Drop components from lowest priority (end of list) until it fits
+    # Priority for dropping: arc -> author -> year -> tag
+    drop_order = ["arc", "author", "year"]
+
+    current_optional = optional_parts.copy()
+    for drop_label in drop_order:
+        # Remove this component
+        current_optional = [
+            (comp, label) for comp, label in current_optional if label != drop_label
+        ]
+        name = build_name(current_optional)
+        if len(name) <= max_length:
+            return name
+
+    # Still too long? Try without tag
+    if tag_str and suffix:
+        suffix = asin_str
+        name = " ".join(parts + [suffix]) if suffix else " ".join(parts)
+        if len(name) <= max_length:
+            return name
+
+    # Last resort: truncate series name with "..."
+    # Keep: series... vol_XX {ASIN}
+    min_suffix_len = len(f" {vol_str} {asin_str}")
+    available_for_series = max_length - min_suffix_len - 3  # "..."
+
+    if available_for_series > 10:  # Reasonable minimum
+        truncated_series = series[:available_for_series] + "..."
+        return f"{truncated_series} {vol_str} {asin_str}"
+
+    # Absolute fallback
+    return f"{series[:50]}... {vol_str} {asin_str}"[:max_length]
+
+
+def _build_standalone_folder_name(
+    *,
+    title: str,
+    year: str | None,
+    author: str | None,
+    asin_str: str,
+    tag_str: str,
+    max_length: int,
+) -> str:
+    """
+    Build folder name for standalone book with truncation.
+
+    Schema: {Title} ({Year}) ({Author}) {ASIN} [{Tag}]
+
+    Components in priority order (lowest priority dropped first):
+    1. {Title} (identity - can truncate with ...)
+    2. {ASIN} (lookup key - never truncate)
+    3. [{Tag}] (ripper credit)
+    4. ({Year}) (sorting)
+    5. ({Author}) (can truncate)
+    """
+    parts = [title]
+
+    # Optional components
+    optional_parts: list[tuple[str, str]] = []
+    if year:
+        optional_parts.append((f"({year})", "year"))
+    if author:
+        optional_parts.append((f"({author})", "author"))
+
+    # Required suffix
+    suffix_parts = []
+    if asin_str:
+        suffix_parts.append(asin_str)
+    if tag_str:
+        suffix_parts.append(tag_str)
+    suffix = " ".join(suffix_parts)
+
+    def build_name(include_optional: list[tuple[str, str]]) -> str:
+        result_parts = parts.copy()
+        for comp, _ in include_optional:
+            result_parts.append(comp)
+        if suffix:
+            result_parts.append(suffix)
+        return " ".join(result_parts)
+
+    # Try full name first
+    full_name = build_name(optional_parts)
+    if len(full_name) <= max_length:
+        return full_name
+
+    # Drop components
+    drop_order = ["author", "year"]
+    current_optional = optional_parts.copy()
+    for drop_label in drop_order:
+        current_optional = [
+            (comp, label) for comp, label in current_optional if label != drop_label
+        ]
+        name = build_name(current_optional)
+        if len(name) <= max_length:
+            return name
+
+    # Try without tag
+    if tag_str:
+        suffix = asin_str
+        name = f"{title} {suffix}" if suffix else title
+        if len(name) <= max_length:
+            return name
+
+    # Truncate title
+    min_suffix_len = len(f" {asin_str}") if asin_str else 0
+    available_for_title = max_length - min_suffix_len - 3
+
+    if available_for_title > 10:
+        truncated_title = title[:available_for_title] + "..."
+        return f"{truncated_title} {asin_str}" if asin_str else truncated_title
+
+    return f"{title[:50]}... {asin_str}"[:max_length] if asin_str else title[:max_length]
+
+
+def build_mam_file_name(
+    *,
+    series: str | None = None,
+    title: str,
+    volume_number: str | None = None,
+    arc: str | None = None,
+    year: str | None = None,
+    author: str | None = None,
+    asin: str | None = None,
+    extension: str = ".m4b",
+    naming_config: NamingConfig | None = None,
+    max_length: int = MAM_MAX_FILENAME_LENGTH,
+) -> str:
+    """
+    Build a MAM-compliant file name (without ripper tag).
+
+    Same schema as folder name but:
+    - No ripper tag (only on folder)
+    - Includes file extension
+
+    Args:
+        series: Series name (cleaned)
+        title: Book title
+        volume_number: Volume/book number
+        arc: Arc/subtitle name
+        year: Release year
+        author: Primary author name
+        asin: Amazon ASIN
+        extension: File extension (default: ".m4b")
+        naming_config: NamingConfig for cleaning rules
+        max_length: Maximum filename length
+
+    Returns:
+        Sanitized filename with extension within length limit
+    """
+    # Ensure extension starts with dot
+    if extension and not extension.startswith("."):
+        extension = f".{extension}"
+
+    # Reserve space for extension
+    name_max_length = max_length - len(extension)
+
+    # Build folder name without ripper tag
+    base_name = build_mam_folder_name(
+        series=series,
+        title=title,
+        volume_number=volume_number,
+        arc=arc,
+        year=year,
+        author=author,
+        asin=asin,
+        ripper_tag=None,  # No tag on filename
+        naming_config=naming_config,
+        max_length=name_max_length,
+    )
+
+    return f"{base_name}{extension}"

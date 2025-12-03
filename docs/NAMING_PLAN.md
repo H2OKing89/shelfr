@@ -783,18 +783,20 @@ Save raw responses from metadata fetches for analysis.
 - [x] Fixed edge cases: trailing colons, trailing commas, space before punctuation
 - [x] Added cleanup patterns for dangling punctuation (`_TRAILING_PUNCT_PATTERN`, etc.)
 
-### Phase 5: Subtitle Handling
-- [ ] Implement two-tier subtitle strategy (remove_patterns + keep_patterns)
-- [ ] Implement subtitle_redundancy_rules with {{series}}/{{title}} templates
-- [ ] Test remove_if_matches_series logic
-- [ ] Support both `drop_subtitle` and `strip_match` actions
+### Phase 5: Subtitle Handling ✅
+- [x] Implement two-tier subtitle strategy (remove_patterns + keep_patterns)
+- [x] Implement subtitle_redundancy_rules with {{series}}/{{title}} templates
+- [x] Test remove_if_matches_series logic
+- [x] Support both `drop_subtitle` and `strip_match` actions
 
-### Phase 6: Folder/File Generation (NEW)
-- [ ] Implement folder name builder using schema
-- [ ] Implement file name builder
+### Phase 6: Folder/File Generation ✅
+- [x] Implement `extract_volume_number()` and `format_volume_number()`
+- [x] Implement `build_mam_folder_name()` using schema
+- [x] Implement `build_mam_file_name()` using schema
 - [x] Add ripper_tag config option
-- [ ] Implement truncation logic (225 char limit)
-- [ ] Handle standalone vs series books differently
+- [x] Implement truncation logic (225 char limit) with priority dropping
+- [x] Handle standalone vs series books differently (title-only fallbacks)
+- [x] Added 22 tests for folder/file generation
 
 ---
 

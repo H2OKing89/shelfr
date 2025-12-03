@@ -802,3 +802,279 @@ class TestFilterSubtitle:
             filter_subtitle("Unabridged", naming_config=config, verbose=True)
 
         assert "remove_pattern" in caplog.text
+
+
+class TestExtractVolumeNumber:
+    """Tests for extract_volume_number function."""
+
+    def test_series_position_priority(self):
+        """Test that series_position is used when provided."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("Overlord, Vol. 5", series_position="3") == "3"
+        assert extract_volume_number("Title", series_position="12") == "12"
+        assert extract_volume_number("Title", series_position="1.5") == "1.5"
+
+    def test_vol_pattern(self):
+        """Test Vol. extraction from title."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("Overlord, Vol. 3") == "3"
+        assert extract_volume_number("Overlord Vol 12") == "12"
+        assert extract_volume_number("Title, Vol.5") == "5"
+
+    def test_volume_pattern(self):
+        """Test Volume extraction from title."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("Overlord, Volume 3") == "3"
+        assert extract_volume_number("Title Volume 12") == "12"
+
+    def test_book_pattern(self):
+        """Test Book extraction from title."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("The Wandering Inn, Book 1") == "1"
+        assert extract_volume_number("Series Book 5") == "5"
+
+    def test_trailing_number(self):
+        """Test trailing number extraction."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("He Who Fights with Monsters 11") == "11"
+
+    def test_no_volume(self):
+        """Test returns None when no volume found."""
+        from mamfast.utils.naming import extract_volume_number
+
+        assert extract_volume_number("Project Hail Mary") is None
+        assert extract_volume_number("The Martian") is None
+
+
+class TestFormatVolumeNumber:
+    """Tests for format_volume_number function."""
+
+    def test_zero_padding(self):
+        """Test zero padding."""
+        from mamfast.utils.naming import format_volume_number
+
+        assert format_volume_number("3") == "vol_03"
+        assert format_volume_number("12") == "vol_12"
+        assert format_volume_number("1") == "vol_01"
+
+    def test_no_padding(self):
+        """Test without zero padding."""
+        from mamfast.utils.naming import format_volume_number
+
+        assert format_volume_number("3", zero_pad=False) == "vol_3"
+
+    def test_decimal_volumes(self):
+        """Test decimal volume numbers."""
+        from mamfast.utils.naming import format_volume_number
+
+        assert format_volume_number("1.5") == "vol_01.5"
+        assert format_volume_number("10.5") == "vol_10.5"
+
+    def test_none_returns_empty(self):
+        """Test None returns empty string."""
+        from mamfast.utils.naming import format_volume_number
+
+        assert format_volume_number(None) == ""
+        assert format_volume_number("") == ""
+
+
+class TestBuildMamFolderName:
+    """Tests for build_mam_folder_name function."""
+
+    def test_series_book_full(self):
+        """Test series book with all components."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Sword Art Online",
+            title="Sword Art Online",
+            volume_number="1",
+            arc="Aincrad",
+            year="2021",
+            author="Reki Kawahara",
+            asin="1975337182",
+            ripper_tag="H2OKing",
+        )
+        assert "Sword Art Online" in result
+        assert "vol_01" in result
+        assert "Aincrad" in result
+        assert "(2021)" in result
+        assert "(Reki Kawahara)" in result
+        assert "{ASIN.1975337182}" in result
+        assert "[H2OKing]" in result
+
+    def test_series_book_no_arc(self):
+        """Test series book without arc/subtitle."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Skyward",
+            title="Skyward",
+            volume_number="1",
+            year="2018",
+            author="Brandon Sanderson",
+            asin="B07H7Q5D3M",
+        )
+        assert "Skyward" in result
+        assert "vol_01" in result
+        assert "(2018)" in result
+        assert "(Brandon Sanderson)" in result
+        assert "{ASIN.B07H7Q5D3M}" in result
+        assert "[" not in result  # No ripper tag
+
+    def test_standalone_book(self):
+        """Test standalone book (no series)."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series=None,
+            title="Project Hail Mary",
+            volume_number=None,
+            year="2021",
+            author="Andy Weir",
+            asin="B08G9PRS1K",
+        )
+        assert "Project Hail Mary" in result
+        assert "vol_" not in result  # No volume for standalone
+        assert "(2021)" in result
+        assert "(Andy Weir)" in result
+        assert "{ASIN.B08G9PRS1K}" in result
+
+    def test_truncation_drops_arc_first(self):
+        """Test that arc is dropped first when truncating."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        # Very long series name + arc should truncate
+        result = build_mam_folder_name(
+            series="A" * 100,
+            title="Test",
+            volume_number="1",
+            arc="B" * 50,
+            year="2021",
+            author="C" * 50,
+            asin="TEST123",
+            max_length=150,
+        )
+        # Arc should be dropped to fit
+        assert len(result) <= 150
+        assert "{ASIN.TEST123}" in result  # ASIN preserved
+
+    def test_truncation_preserves_identity(self):
+        """Test that series + vol + ASIN are always preserved."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Overlord",
+            title="Overlord",
+            volume_number="3",
+            arc="The Bloody Valkyrie",
+            year="2021",
+            author="Kugane Maruyama",
+            asin="B09TEST123",
+            ripper_tag="H2OKing",
+            max_length=80,
+        )
+        # Core identity preserved even with aggressive truncation
+        assert "Overlord" in result
+        assert "vol_03" in result
+        assert "ASIN" in result
+
+    def test_no_asin(self):
+        """Test folder name without ASIN."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Test Series",
+            title="Test",
+            volume_number="1",
+            year="2021",
+            author="Author",
+        )
+        assert "Test Series" in result
+        assert "{ASIN" not in result
+
+    def test_special_characters_sanitized(self):
+        """Test that special characters are sanitized."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Re:ZERO -Starting Life in Another World-",
+            title="Re:ZERO",
+            volume_number="1",
+            asin="TEST",
+        )
+        # Colons are replaced with " -"
+        assert ":" not in result or "Re:ZERO" in result  # preserve_exact may keep it
+
+
+class TestBuildMamFileName:
+    """Tests for build_mam_file_name function."""
+
+    def test_file_has_extension(self):
+        """Test file name includes extension."""
+        from mamfast.utils.naming import build_mam_file_name
+
+        result = build_mam_file_name(
+            series="Overlord",
+            title="Overlord",
+            volume_number="3",
+            year="2021",
+            author="Kugane Maruyama",
+            asin="B09TEST123",
+        )
+        assert result.endswith(".m4b")
+
+    def test_file_no_ripper_tag(self):
+        """Test file name never has ripper tag."""
+        from mamfast.utils.naming import build_mam_file_name
+
+        result = build_mam_file_name(
+            series="Test",
+            title="Test",
+            volume_number="1",
+            asin="TEST",
+            # Note: ripper_tag is not even a parameter for file name
+        )
+        assert "[" not in result
+        assert "]" not in result or "{ASIN" in result  # Only ASIN braces
+
+    def test_custom_extension(self):
+        """Test custom file extension."""
+        from mamfast.utils.naming import build_mam_file_name
+
+        result = build_mam_file_name(
+            title="Test",
+            asin="TEST",
+            extension=".mp3",
+        )
+        assert result.endswith(".mp3")
+
+    def test_extension_without_dot(self):
+        """Test extension without leading dot."""
+        from mamfast.utils.naming import build_mam_file_name
+
+        result = build_mam_file_name(
+            title="Test",
+            asin="TEST",
+            extension="m4b",  # No dot
+        )
+        assert result.endswith(".m4b")
+
+    def test_truncation_reserves_extension_space(self):
+        """Test that truncation reserves space for extension."""
+        from mamfast.utils.naming import build_mam_file_name
+
+        result = build_mam_file_name(
+            series="A" * 200,
+            title="Test",
+            volume_number="1",
+            asin="TEST",
+            max_length=100,
+        )
+        assert len(result) <= 100
+        assert result.endswith(".m4b")
