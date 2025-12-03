@@ -48,24 +48,11 @@ mam:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Title Filters
+# Note: remove_phrases and author_map have moved to config/naming.json
 # ─────────────────────────────────────────────────────────────────────────────
 filters:
-  # Phrases to remove from titles (case-insensitive)
-  remove_phrases:
-    - "(Light Novel)"
-    - "Light Novel"
-    - "A LitRPG Adventure"
-    - "LitRPG Adventure"
-    - "(Unabridged)"
-    - "Unabridged"
-
   # Remove "Book XX" patterns (we keep vol_XX from Libation naming)
   remove_book_numbers: true
-
-  # Author name mapping (foreign name -> romanized name)
-  # Add entries as you encounter non-ASCII author names
-  author_map:
-    # "日本語名": "Romanized Name"
 
   # Use pykakasi to transliterate unknown Japanese text as fallback
   transliterate_japanese: true

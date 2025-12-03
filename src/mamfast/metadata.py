@@ -383,6 +383,16 @@ def fetch_audnex_book(asin: str) -> dict[str, Any] | None:
             response.raise_for_status()
             data: dict[str, Any] = response.json()
 
+            # Validate response structure (warns but doesn't fail)
+            try:
+                from mamfast.schemas.audnex import validate_audnex_book
+
+                validate_audnex_book(data)
+            except Exception as validation_error:
+                logger.warning(
+                    f"Audnex book response validation warning for {asin}: {validation_error}"
+                )
+
             logger.info(f"Fetched Audnex metadata for ASIN: {asin}")
             return data
 
@@ -459,6 +469,16 @@ def fetch_audnex_chapters(asin: str) -> dict[str, Any] | None:
 
             response.raise_for_status()
             data: dict[str, Any] = response.json()
+
+            # Validate response structure (warns but doesn't fail)
+            try:
+                from mamfast.schemas.audnex import validate_audnex_chapters
+
+                validate_audnex_chapters(data)
+            except Exception as validation_error:
+                logger.warning(
+                    f"Audnex chapters response validation warning for {asin}: {validation_error}"
+                )
 
             chapter_count = len(data.get("chapters", []))
             logger.info(f"Fetched {chapter_count} chapters from Audnex for ASIN: {asin}")

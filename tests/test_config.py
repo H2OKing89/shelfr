@@ -183,7 +183,7 @@ class TestGetEnvInt:
 class TestLoadSettings:
     """Tests for load_settings function."""
 
-    def test_loads_settings_from_yaml(self):
+    def test_loads_settings_from_yaml(self, caplog):
         """Test loading settings from config file."""
         yaml_content = """
 paths:
@@ -213,6 +213,8 @@ filters:
     - "Light Novel"
   author_map:
     "川原礫": "Reki Kawahara"
+  remove_book_numbers: true
+  transliterate_japanese: true
 
 environment:
   log_level: "DEBUG"
@@ -236,8 +238,14 @@ environment:
             assert settings.qbittorrent.category == "test-category"
             assert settings.audnex.timeout_seconds == 60
             assert settings.mediainfo.binary == "/usr/bin/mediainfo"
-            assert "Light Novel" in settings.filters.remove_phrases
+            # remove_phrases and author_map now come from naming.json, not config.yaml
+            # The deprecated fields in config.yaml should log warnings
+            assert settings.filters.remove_book_numbers is True
+            assert settings.filters.transliterate_japanese is True
             assert settings.log_level == "DEBUG"
+
+            # Check deprecation warnings were logged
+            assert "deprecated" in caplog.text.lower()
 
     def test_finds_env_next_to_config(self):
         """Test .env file is found next to config.yaml."""

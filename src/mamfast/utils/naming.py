@@ -1281,8 +1281,10 @@ def build_mam_folder_name(
             max_length=max_length,
         )
 
-    # Final sanitization
-    return sanitize_filename(base_name)
+    # Final sanitization (MAM-specific + cross-platform safety)
+    from mamfast.utils.paths import safe_dirname
+
+    return safe_dirname(sanitize_filename(base_name), max_length=max_length)
 
 
 def _build_series_folder_name(
@@ -1512,7 +1514,10 @@ def build_mam_file_name(
         max_length=name_max_length,
     )
 
-    return f"{base_name}{extension}"
+    # Final safety net (base_name already safe from build_mam_folder_name)
+    from mamfast.utils.paths import safe_filename
+
+    return safe_filename(f"{base_name}{extension}", max_length=max_length)
 
 
 # =============================================================================
