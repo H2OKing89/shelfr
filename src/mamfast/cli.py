@@ -10,6 +10,7 @@ from mamfast import __version__
 from mamfast.console import (
     console,
     fatal_error,
+    print_check_category,
     print_config_section,
     print_directory_status,
     print_dry_run,
@@ -21,6 +22,7 @@ from mamfast.console import (
     print_step,
     print_success,
     print_summary,
+    print_validation_summary,
     print_warning,
 )
 
@@ -837,6 +839,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     """Run health checks to verify environment setup."""
     from mamfast.config import reload_settings
     from mamfast.validation import (
+        CheckCategory,
+        ValidationResult,
         check_categories,
         check_config,
         check_paths,
@@ -860,62 +864,35 @@ def cmd_check(args: argparse.Namespace) -> int:
     run_services = args.services_only or not (args.config_only or args.paths_only)
     run_categories = not (args.config_only or args.paths_only or args.services_only)
 
-    from mamfast.validation import ValidationResult
-
     result = ValidationResult()
 
-    # Run selected checks
+    # Run selected checks using print_check_category helper
     if run_config:
-        console.print("\n[title]Configuration[/]")
         config_result = check_config(settings)
-        for check in config_result.checks:
-            console.print(f"  {check.icon} {check.message}")
         result.merge(config_result)
+        print_check_category(result, CheckCategory.CONFIG, "Configuration")
 
     if run_paths:
-        console.print("\n[title]Paths[/]")
         paths_result = check_paths(settings)
-        for check in paths_result.checks:
-            console.print(f"  {check.icon} {check.message}")
         result.merge(paths_result)
+        print_check_category(result, CheckCategory.PATHS, "Paths")
 
     if run_services:
-        console.print("\n[title]Services[/]")
         print_info("Checking connectivity (this may take a moment)...")
         services_result = check_services(settings)
-        for check in services_result.checks:
-            console.print(f"  {check.icon} {check.message}")
         result.merge(services_result)
+        print_check_category(result, CheckCategory.SERVICES, "Services")
 
     if run_categories:
-        console.print("\n[title]Categories[/]")
         cat_result = check_categories(settings)
-        for check in cat_result.checks:
-            console.print(f"  {check.icon} {check.message}")
         result.merge(cat_result)
+        print_check_category(result, CheckCategory.CATEGORIES, "Categories")
 
-    # Summary
+    # Summary using print_validation_summary helper
     console.print()
-    total = len(result.checks)
-    passed = result.passed_count
-    errors = result.error_count
-    warnings = result.warning_count
+    print_validation_summary(result)
 
-    if result.passed:
-        if warnings > 0:
-            console.print(
-                f"[success]Summary:[/] {passed}/{total} checks passed, "
-                f"[warning]{warnings} warning(s)[/] ⚠️"
-            )
-        else:
-            console.print(f"[success]Summary:[/] All {total} checks passed ✅")
-        return 0
-    else:
-        console.print(
-            f"[error]Summary:[/] {passed}/{total} checks passed, "
-            f"[error]{errors} error(s)[/], [warning]{warnings} warning(s)[/]"
-        )
-        return 1
+    return 0 if result.passed else 1
 
 
 def cmd_validate(args: argparse.Namespace) -> int:

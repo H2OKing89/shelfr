@@ -176,14 +176,22 @@ class TestFeatureName:
 - Catches Windows reserved names (CON, PRN, NUL), trailing dots/spaces, Unicode edge cases
 - Integrated into `build_mam_folder_name()` and `build_mam_file_name()` in `naming.py`
 
+## Phase 3 Complete: Rich Console Enhancements
+- **`src/mamfast/console.py`** - Enhanced with new output helpers for debugging/visibility
+- **Rule trace tables** - `log_title_transform()`, `print_rule_trace()`, `RuleTrace` dataclass
+- **Validation reports** - `print_validation_report()`, `print_validation_summary()`, `print_check_category()`
+- **Workflow progress** - `print_workflow_summary()`, `print_release_details()`, `print_pipeline_progress()`
+- **Error formatting** - `print_exception()` with Rich Traceback, `print_error_summary()` for multiple errors
+- No new dependencies - uses existing `rich>=13.0`
+
 ## Coming Soon (see docs/IMPROVEMENTS_PLAN.md)
-- **Rich enhancements** for debug/dry-run output (Phase 3)
 - **rapidfuzz** for fuzzy title matching and duplicate detection (Phase 4)
 
 ## Key Files Reference
 - `src/mamfast/workflow.py` - Pipeline orchestration
 - `src/mamfast/models.py` - `AudiobookRelease`, `ReleaseStatus`, `NormalizedBook`
 - `src/mamfast/config.py` - Config loading (~950 lines, complex precedence)
+- `src/mamfast/console.py` - Rich CLI output helpers (rule traces, validation reports, progress)
 - `src/mamfast/schemas/naming.py` - Pydantic schema for naming.json validation
 - `src/mamfast/schemas/audnex.py` - Pydantic schemas for Audnex API responses
 - `src/mamfast/schemas/state.py` - Pydantic schema for processed.json state

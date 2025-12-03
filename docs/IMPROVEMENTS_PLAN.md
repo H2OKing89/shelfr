@@ -23,7 +23,7 @@
 |----------|---------|---------|------------|--------|
 | **A1** | `pydantic` | Schema validation | Config, naming.json, API responses, state files | ✅ COMPLETE |
 | **A2** | `pathvalidate` | Cross-platform filename safety | Naming, hardlinker, torrent output | ✅ COMPLETE |
-| **A3** | `rich` (enhance) | Debug/dry-run output | CLI, workflow, validation | ⬜ TODO |
+| **A3** | `rich` (enhance) | Debug/dry-run output | CLI, workflow, validation | ✅ COMPLETE |
 | **A4** | `rapidfuzz` | Fuzzy matching & dedup | Naming validation, duplicate detection | ⬜ TODO |
 | **B1** | `typer` | CLI improvements | All CLI commands | ⬜ Future |
 | **B2** | `tenacity` | Advanced retry logic | Audnex, qBittorrent, Docker calls | ⬜ Future |
@@ -500,7 +500,9 @@ dependencies = [
 
 ---
 
-## Phase 3: Visibility & Debugging (Rich Enhancements)
+## Phase 3: Visibility & Debugging (Rich Enhancements) ✅ COMPLETE
+
+> **Status**: All Rich enhancements implemented in `console.py`. 27 new tests added.
 
 ### Current State
 
@@ -681,6 +683,14 @@ Output:
 ### No New Dependencies
 
 Already have `rich>=13.0`.
+
+### Tests
+
+- [x] `test_console.py` - Comprehensive tests (27 new tests for Phase 3) ✅
+  - RuleTrace dataclass and logging
+  - Validation report and summary tables
+  - Workflow progress helpers
+  - Exception and error formatting
 
 [↑ Back to top](#mamfast-improvements-plan)
 
