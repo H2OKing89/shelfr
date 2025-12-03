@@ -182,6 +182,7 @@ class TestStageRelease:
         release = AudiobookRelease(
             title="Test Book",
             author="Test Author",
+            asin="B0TEST123",
             source_dir=temp_source_dir,
         )
 
@@ -196,6 +197,7 @@ class TestStageRelease:
         release = AudiobookRelease(
             title="Test Book",
             author="Test Author",
+            asin="B0TEST123",
             source_dir=temp_source_dir,
         )
 
@@ -205,10 +207,10 @@ class TestStageRelease:
         staged_files = list(staging_dir.iterdir())
         staged_names = {f.name for f in staged_files}
 
-        # Files should be renamed to MAM-compliant format: "Title (Author).ext"
-        assert "Test Book (Test Author).m4b" in staged_names
-        assert "Test Book (Test Author).jpg" in staged_names
-        assert "Test Book (Test Author).pdf" in staged_names
+        # Files should be renamed to MAM-compliant format: "Title (Author) {ASIN}.ext"
+        assert "Test Book (Test Author) {ASIN.B0TEST123}.m4b" in staged_names
+        assert "Test Book (Test Author) {ASIN.B0TEST123}.jpg" in staged_names
+        assert "Test Book (Test Author) {ASIN.B0TEST123}.pdf" in staged_names
         # txt should still be excluded
         assert len([n for n in staged_names if n.endswith(".txt")]) == 0
 
@@ -217,6 +219,7 @@ class TestStageRelease:
         release = AudiobookRelease(
             title="Test Book",
             author="Test Author",
+            asin="B0TEST123",
             source_dir=temp_source_dir,
         )
 
@@ -230,6 +233,7 @@ class TestStageRelease:
         release = AudiobookRelease(
             title="Test Book",
             author="Test Author",
+            asin="B0TEST123",
             source_dir=temp_source_dir,
         )
 
@@ -254,6 +258,7 @@ class TestStageRelease:
             release = AudiobookRelease(
                 title="Test",
                 author="Author",
+                asin="B0TEST123",
                 source_dir=source,
             )
 

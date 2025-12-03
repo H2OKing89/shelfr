@@ -174,6 +174,45 @@ class ProcessingResult:
 
 
 @dataclass
+class MamPath:
+    """
+    Result of MAM path generation with truncation metadata.
+
+    The MAM path limit is 225 characters for the **full relative path**
+    (folder/filename combined). This dataclass tracks what was generated
+    and what truncation occurred.
+
+    Path structure: "{base} [{tag}]/{base}{ext}"
+
+    Budget formula (with tag):
+        2*len(base) + len(tag) + len(ext) + 4 ≤ max_path_length
+        max_base = (max_path_length - len(tag) - len(ext) - 4) // 2
+
+    Budget formula (no tag):
+        2*len(base) + len(ext) + 1 ≤ max_path_length
+        max_base = (max_path_length - len(ext) - 1) // 2
+
+    Examples with max_path_length=225 and ".m4b" (4 chars):
+        With "H2OKing" (7 chars): max_base ≤ 105 chars
+        With no tag:              max_base ≤ 110 chars
+
+    See docs/NAMING_PLAN.md Phase 8 for full details.
+    """
+
+    folder: str  # e.g., "Series vol_01 ... [H2OKing]"
+    filename: str  # e.g., "Series vol_01 ....m4b"
+    full_path: str  # folder + "/" + filename
+    length: int  # len(full_path)
+    truncated: bool  # True if any truncation occurred
+    dropped_components: list[str]  # e.g., ["arc", "author"] for logging
+
+    @property
+    def over_limit(self) -> bool:
+        """Check if path exceeds MAM's 225-char limit."""
+        return self.length > 225
+
+
+@dataclass
 class ProcessedState:
     """
     Persistent state tracking for processed releases.

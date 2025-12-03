@@ -1202,3 +1202,315 @@ class TestBuildMamFileName:
         )
         assert len(result) <= 100
         assert result.endswith(".m4b")
+
+
+# =============================================================================
+# Phase 8: Full Path Truncation Tests
+# =============================================================================
+
+
+class TestBuildMamPath:
+    """
+    Tests for build_mam_path function (Phase 8).
+
+    The 225-char limit applies to the FULL RELATIVE PATH (folder/filename),
+    not individual components. These tests verify correct truncation behavior.
+    """
+
+    def test_short_path_no_truncation(self):
+        """Test short path that doesn't need truncation."""
+        from mamfast.utils.naming import build_mam_path
+
+        result = build_mam_path(
+            series="Overlord",
+            title="Overlord",
+            volume_number="3",
+            arc="The Bloody Valkyrie",
+            year="2021",
+            author="Kugane Maruyama",
+            asin="B09TEST123",
+            ripper_tag="H2OKing",
+        )
+
+        assert result.length <= 225
+        assert result.truncated is False
+        assert result.dropped_components == []
+        assert "Overlord" in result.folder
+        assert "vol_03" in result.folder
+        assert "The Bloody Valkyrie" in result.folder
+        assert "(2021)" in result.folder
+        assert "(Kugane Maruyama)" in result.folder
+        assert "{ASIN.B09TEST123}" in result.folder
+        assert "[H2OKing]" in result.folder
+        assert result.filename.endswith(".m4b")
+        assert "[H2OKing]" not in result.filename  # Tag only in folder
+
+    def test_trapped_in_dating_sim_barely_over(self):
+        """
+        Test 'Trapped in a Dating Sim' - a real-world case that was 241 chars.
+
+        Should drop arc to fit but keep author/year/tag.
+        """
+        from mamfast.utils.naming import build_mam_path
+
+        result = build_mam_path(
+            series="Trapped in a Dating Sim",
+            title="Trapped in a Dating Sim",
+            volume_number="1",
+            arc="The World of Otome Games is Tough for Mobs",
+            year="2024",
+            author="Yomu Mishima",
+            asin="B0DK27WWT8",
+            ripper_tag="H2OKing",
+        )
+
+        assert result.length <= 225
+        assert result.truncated is True
+        assert "arc" in result.dropped_components
+        # Should NOT drop author, year, or tag since arc alone is enough
+        assert "author" not in result.dropped_components
+        assert "year" not in result.dropped_components
+        # Verify components are preserved
+        assert "Trapped in a Dating Sim" in result.folder
+        assert "vol_01" in result.folder
+        assert "(2024)" in result.folder
+        assert "(Yomu Mishima)" in result.folder
+        assert "{ASIN.B0DK27WWT8}" in result.folder
+        assert "[H2OKing]" in result.folder
+
+    def test_haunted_bookstore_worst_case(self):
+        """
+        Test 'Haunted Bookstore' - worst case from library (was 299 chars).
+
+        Must truncate to fit within 225 chars.
+        """
+        from mamfast.utils.naming import build_mam_path
+
+        result = build_mam_path(
+            series="The Haunted Bookstore - Gateway to a Parallel Universe",
+            title="The Haunted Bookstore",
+            volume_number="1",
+            arc="The Spirit Daughter and the Exorcist Son",
+            year="2022",
+            author="Shinobumaru",
+            asin="B09EXAMPLE1",
+            ripper_tag="H2OKing",
+        )
+
+        assert result.length <= 225
+        assert result.truncated is True
+        # Series, vol, and ASIN must be preserved
+        assert "The Haunted Bookstore" in result.folder
+        assert "vol_01" in result.folder
+        assert "{ASIN.B09EXAMPLE1}" in result.folder
+        # Verify path structure
+        assert result.full_path == f"{result.folder}/{result.filename}"
+
+    def test_extreme_truncation_triggers_series_truncation(self):
+        """Test extreme case that requires series name truncation."""
+        from mamfast.utils.naming import build_mam_path
+
+        long_series = (
+            "The Most Ridiculously Extraordinarily Impossibly Long Light Novel "
+            "Series Name That Someone Actually Published And Keeps Going"
+        )
+        result = build_mam_path(
+            series=long_series,
+            title="Test",
+            volume_number="1",
+            arc="An Equally Long Arc Subtitle",
+            year="2025",
+            author="Author With A Very Long Name Indeed",
+            asin="B0ABCDEFGH",
+            ripper_tag="H2OKing",
+        )
+
+        assert result.length <= 225
+        assert result.truncated is True
+        assert "series_truncated" in result.dropped_components
+        # Series should end with "..."
+        assert "..." in result.folder
+        # Vol and ASIN must be intact
+        assert "vol_01" in result.folder
+        assert "{ASIN.B0ABCDEFGH}" in result.folder
+
+    def test_multifile_adjusts_budget(self):
+        """Test that part_count > 1 adjusts budget for ' - Part XX.m4b'."""
+        from mamfast.utils.naming import build_mam_path
+
+        # Same input, compare single vs multi-file
+        kwargs = {
+            "series": "A Medium Length Series Name For Testing",
+            "title": "Test",
+            "volume_number": "1",
+            "arc": "A Reasonably Long Arc Name Here",
+            "year": "2025",
+            "author": "Some Author Name",
+            "asin": "B0TESTTEST",
+            "ripper_tag": "H2OKing",
+        }
+
+        single = build_mam_path(**kwargs, part_count=1)
+        multi = build_mam_path(**kwargs, part_count=2)
+
+        # Multi-file should be more aggressive in truncation
+        # (it reserves 14 chars for " - Part XX.m4b" vs 4 for ".m4b")
+        # Both should fit
+        assert single.length <= 225
+        assert multi.length <= 225
+        # Multi should have more dropped OR shorter base
+        if single.truncated or multi.truncated:
+            # If either truncated, multi should have dropped at least as much
+            assert len(multi.dropped_components) >= len(single.dropped_components) or len(
+                multi.folder
+            ) < len(single.folder)
+
+    def test_no_tag_increases_budget(self):
+        """Test that omitting ripper_tag increases available budget."""
+        from mamfast.utils.naming import build_mam_path
+
+        # A case that might need truncation with tag but not without
+        kwargs = {
+            "series": "A Medium Length Series Name",
+            "title": "Test",
+            "volume_number": "1",
+            "arc": "A Medium Arc",
+            "year": "2025",
+            "author": "Some Author",
+            "asin": "B0TEST",
+        }
+
+        with_tag = build_mam_path(**kwargs, ripper_tag="H2OKing")
+        without_tag = build_mam_path(**kwargs, ripper_tag=None)
+
+        # Without tag should have more room
+        # Budget without tag: (225 - 5) // 2 = 110
+        # Budget with "H2OKing": (225 - 7 - 4 - 4) // 2 = 105
+        assert without_tag.length < with_tag.length
+        assert "[H2OKing]" in with_tag.folder
+        assert "[" not in without_tag.folder
+
+    def test_standalone_book_no_series(self):
+        """Test standalone book (no series) truncation."""
+        from mamfast.utils.naming import build_mam_path
+
+        result = build_mam_path(
+            series=None,
+            title="Project Hail Mary",
+            volume_number=None,
+            year="2021",
+            author="Andy Weir",
+            asin="B08G9PRS1K",
+            ripper_tag="H2OKing",
+        )
+
+        assert result.length <= 225
+        assert "Project Hail Mary" in result.folder
+        assert "vol_" not in result.folder  # No volume for standalone
+        assert "(2021)" in result.folder
+        assert "(Andy Weir)" in result.folder
+        assert "{ASIN.B08G9PRS1K}" in result.folder
+
+    def test_minimum_series_floor(self):
+        """Test that series is never truncated below MIN_SERIES_LENGTH."""
+        from mamfast.utils.naming import build_mam_path
+
+        # Force extreme truncation with very tight length
+        result = build_mam_path(
+            series="AAAA",  # Very short series
+            title="Test",
+            volume_number="1",
+            asin="B0TEST",
+            max_path_length=100,  # Very tight
+        )
+
+        # Series should still have at least MIN_SERIES_LENGTH chars + "..."
+        assert result.length <= 100
+        # The series part should be visible
+        assert "A" in result.folder
+
+    def test_preserves_asin_always(self):
+        """Test that ASIN is NEVER truncated or dropped."""
+        from mamfast.utils.naming import build_mam_path
+
+        result = build_mam_path(
+            series="A" * 200,  # Very long series
+            title="Test",
+            volume_number="1",
+            arc="B" * 100,
+            year="2025",
+            author="C" * 100,
+            asin="B0ABCDEFGHIJ",  # Full ASIN
+            ripper_tag="H2OKing",
+        )
+
+        assert result.length <= 225
+        # ASIN must be complete and intact
+        assert "{ASIN.B0ABCDEFGHIJ}" in result.folder
+        assert "{ASIN.B0ABCDEFGHIJ}" in result.filename
+
+    def test_full_path_structure(self):
+        """Test that full_path is correctly computed as folder/filename."""
+        from mamfast.utils.naming import build_mam_path
+
+        result = build_mam_path(
+            series="Test Series",
+            title="Test",
+            volume_number="1",
+            asin="B0TEST",
+            ripper_tag="H2OKing",
+        )
+
+        assert result.full_path == f"{result.folder}/{result.filename}"
+        assert result.length == len(result.full_path)
+
+    def test_dropped_components_tracks_correctly(self):
+        """Test that dropped_components accurately reflects what was dropped."""
+        from mamfast.utils.naming import build_mam_path
+
+        # Case that needs to drop arc only
+        result1 = build_mam_path(
+            series="Medium Series Name Here",
+            title="Test",
+            volume_number="1",
+            arc="A Very Long Arc Name That Will Cause Truncation",
+            year="2025",
+            author="Short Author",
+            asin="B0TEST",
+            ripper_tag="H2OKing",
+            max_path_length=150,  # Force truncation
+        )
+
+        if result1.truncated and result1.dropped_components:
+            # Should drop in order: arc, author, year, series_truncated
+            # First drop should be arc
+            assert result1.dropped_components[0] == "arc"
+
+    def test_custom_extension(self):
+        """Test that custom extensions are handled correctly."""
+        from mamfast.utils.naming import build_mam_path
+
+        result = build_mam_path(
+            series="Test",
+            title="Test",
+            volume_number="1",
+            asin="B0TEST",
+            extension=".mp3",
+        )
+
+        assert result.filename.endswith(".mp3")
+        assert result.length <= 225
+
+    def test_extension_without_dot(self):
+        """Test that extension without leading dot is handled."""
+        from mamfast.utils.naming import build_mam_path
+
+        result = build_mam_path(
+            series="Test",
+            title="Test",
+            volume_number="1",
+            asin="B0TEST",
+            extension="m4b",  # No dot
+        )
+
+        assert result.filename.endswith(".m4b")

@@ -1251,8 +1251,8 @@ Save raw responses from metadata fetches for analysis.
 - [x] Added 20 tests for normalization (`tests/test_normalization.py`)
 - [x] Verified against live Audnex API - SAO vol_16, TBATE vols 1-4, Multiverse vol_7 confirmed swapped
 
-### Phase 8: Full Path Truncation (BUG FIX) 🔧
-**Status:** TODO
+### Phase 8: Full Path Truncation (BUG FIX) ✅
+**Status:** COMPLETE
 
 **Problem discovered:** The 225-char limit applies to the **full relative path** (`folder/filename`), not individual components. Current implementation truncates folder and filename separately, which can result in paths exceeding 225 chars.
 
@@ -1399,20 +1399,20 @@ if len(series) <= MIN_SERIES_LEN:
 
 #### Implementation
 
-**Fix required:**
-- [ ] Add `MamPath` dataclass to `models.py`
-- [ ] Add `build_mam_path()` function in `naming.py` that:
-  - [ ] Calculates max base length upfront using the formula
-  - [ ] Builds base name to fit exactly within budget
-  - [ ] Drops components in priority order: arc → author → year → tag
-  - [ ] Truncates series with `...` only as last resort (with warning)
-  - [ ] Returns `MamPath` with truncation metadata
-- [ ] Add `part_count` parameter for multi-file support
-- [ ] Use worst-case extension length for budget calculation
-- [ ] Update `hardlinker.py` to use new `build_mam_path()` function
-- [ ] Deprecate separate `build_mam_folder_name()` / `build_mam_file_name()` calls
-- [ ] Add tests for full path length validation
-- [ ] Add specific test: Haunted Bookstore (299 chars) → truncates to exactly ≤225
+**Completed:**
+- [x] Add `MamPath` dataclass to `models.py`
+- [x] Add `build_mam_path()` function in `naming.py` that:
+  - [x] Calculates max base length upfront using the formula
+  - [x] Builds base name to fit exactly within budget
+  - [x] Drops components in priority order: arc → author → year → tag
+  - [x] Truncates series with `...` only as last resort (with warning)
+  - [x] Returns `MamPath` with truncation metadata
+- [x] Add `part_count` parameter for multi-file support
+- [x] Use worst-case extension length for budget calculation
+- [x] Update `hardlinker.py` to use new `build_mam_path()` function
+- [x] Separate `build_mam_folder_name()` / `build_mam_file_name()` retained for backwards compatibility
+- [x] Add tests for full path length validation (13 tests in `TestBuildMamPath`)
+- [x] Add specific test: Haunted Bookstore (299 chars) → truncates to exactly ≤225
 
 ```python
 def build_mam_path(
