@@ -569,14 +569,71 @@ MAM torrent staging uses a **flat folder structure** (no Author/Series nesting) 
 
 - MAM filename limit: **225 characters max**
 - Truncation priority (preserve most important first):
-  1. `{Series}` + `vol_{NN}` (identity)
-  2. `{ASIN.xxxxx}` (lookup key)
-  3. `[{Tag}]` (ripper credit)
-  4. `({Year})` (sorting)
-  5. `({Author})` (can truncate)
-  6. `{Arc}` (can truncate or omit)
+  1. `{Series}` + `vol_{NN}` (identity - NEVER drop)
+  2. `{ASIN.xxxxx}` (lookup key - NEVER drop)
+  3. `[{Tag}]` (ripper credit - drop 4th)
+  4. `({Year})` (sorting - drop 3rd)
+  5. `({Author})` (attribution - drop 2nd)
+  6. `{Arc}` (subtitle/arc - drop 1st)
 
-**Truncation strategy:** Components are dropped right-to-left by priority. `{Arc}` is dropped first, then `({Author})`, then `({Year})`, then `[{Tag}]`. **`{Series}`, `vol_{NN}`, and `{ASIN}` are never truncated or broken mid-token.** If the name is still too long after dropping all optional components, truncate `{Series}` with `...` but never break the ASIN.
+**Truncation strategy:** Components are dropped right-to-left by priority. `{Arc}` is dropped first, then `({Author})`, then `({Year})`, then `[{Tag}]`. **`{Series}`, `vol_{NN}`, and `{ASIN}` are never dropped.** If the name is still too long after dropping all optional components, truncate `{Series}` with `...` but never break the ASIN.
+
+#### Truncation Examples
+
+**Example 1: Long series name with all components (fits)**
+```
+Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9} [H2OKing]
+└─ 95 chars ✅ OK
+```
+
+**Example 2: Very long series + arc that exceeds 225 chars**
+```
+Input (240 chars):
+The Extraordinarily Long Light Novel Series Name That Just Keeps Going vol_12 The Equally Long Arc Subtitle Name (2025) (Author With A Very Long Name Indeed) {ASIN.B0ABC12345} [H2OKing]
+
+Step 1 - Drop Arc (still 195 chars):
+The Extraordinarily Long Light Novel Series Name That Just Keeps Going vol_12 (2025) (Author With A Very Long Name Indeed) {ASIN.B0ABC12345} [H2OKing]
+
+Step 2 - Drop Author (still 140 chars - but let's say we need more):
+The Extraordinarily Long Light Novel Series Name That Just Keeps Going vol_12 (2025) {ASIN.B0ABC12345} [H2OKing]
+
+Final (fits at ~115 chars):
+The Extraordinarily Long Light Novel Series Name That Just Keeps Going vol_12 (2025) {ASIN.B0ABC12345} [H2OKing]
+```
+
+**Example 3: Extreme case - series name alone is too long**
+```
+Input:
+The Most Ridiculously Extraordinarily Impossibly Long Light Novel Series Name That Someone Actually Published vol_01 {ASIN.B0XYZ98765}
+
+If series alone + vol + ASIN exceeds 225:
+The Most Ridiculously Extraordinarily Impossibly Long Light Novel Series Na... vol_01 {ASIN.B0XYZ98765}
+└─ Series truncated with "..." to fit, ASIN preserved intact
+```
+
+**Example 4: Standalone book (no series)**
+```
+Schema: {Title} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
+
+Full:
+A Very Long Standalone Book Title That Goes On And On (2025) (Some Author Name) {ASIN.B0DEF67890} [H2OKing]
+
+If too long, drop order: Author → Year → Tag → Truncate Title
+```
+
+#### What's Preserved vs Dropped
+
+| Component | Priority | Action if Too Long |
+|-----------|----------|-------------------|
+| `{Series}` | 1 (highest) | Truncate with `...` as last resort |
+| `vol_{NN}` | 1 (highest) | NEVER drop or truncate |
+| `{ASIN.xxx}` | 2 | NEVER drop or truncate |
+| `[{Tag}]` | 3 | Drop 4th |
+| `({Year})` | 4 | Drop 3rd |
+| `({Author})` | 5 | Drop 2nd |
+| `{Arc}` | 6 (lowest) | Drop 1st |
+
+> **Why ASIN is sacred:** The ASIN is the unique identifier for MAM lookups and duplicate detection. Breaking or truncating it makes the upload useless for the tracker's systems.
 
 ### MAM JSON Output Schema
 
