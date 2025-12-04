@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from mamfast.libation import (
+    LibationStatus,
     ScanResult,
     check_container_running,
+    get_libation_status,
     run_liberate,
     run_scan,
 )
@@ -273,3 +278,355 @@ class TestRunScanInteractive:
             assert result.success is False
             assert result.returncode == -1
             assert "Docker crash" in result.stderr
+
+
+class TestLibationStatus:
+    """Tests for LibationStatus dataclass."""
+
+    def test_has_pending_true_when_not_liberated(self):
+        """Test has_pending is True when not_liberated > 0."""
+        status = LibationStatus(
+            total=100,
+            liberated=80,
+            not_liberated=20,
+        )
+        assert status.has_pending is True
+
+    def test_has_pending_false_when_all_liberated(self):
+        """Test has_pending is False when not_liberated == 0."""
+        status = LibationStatus(
+            total=100,
+            liberated=100,
+            not_liberated=0,
+        )
+        assert status.has_pending is False
+
+    def test_other_statuses_included(self):
+        """Test that other status types are captured."""
+        status = LibationStatus(
+            total=105,
+            liberated=100,
+            not_liberated=2,
+            error=1,
+            other_statuses={"Unknown": 2},
+        )
+        assert status.total == 105
+        assert status.error == 1
+        assert status.other_statuses == {"Unknown": 2}
+
+    def test_default_values(self):
+        """Test default values for optional fields."""
+        status = LibationStatus(
+            total=10,
+            liberated=10,
+            not_liberated=0,
+        )
+        assert status.error == 0
+        assert status.other_statuses == {}
+
+
+class TestGetLibationStatus:
+    """Tests for get_libation_status function."""
+
+    def _create_mock_settings(self):
+        """Create mock settings for tests."""
+        mock_settings = MagicMock()
+        mock_settings.docker_bin = "/usr/bin/docker"
+        mock_settings.libation_container = "Libation"
+        return mock_settings
+
+    def _make_export_json(
+        self,
+        liberated: int = 0,
+        not_liberated: int = 0,
+        error: int = 0,
+        other: dict[str, int] | None = None,
+    ) -> str:
+        """Create mock export JSON with given status counts."""
+        books = []
+        for _ in range(liberated):
+            books.append({"BookStatus": "Liberated", "Title": "Book"})
+        for _ in range(not_liberated):
+            books.append({"BookStatus": "NotLiberated", "Title": "Book"})
+        for _ in range(error):
+            books.append({"BookStatus": "Error", "Title": "Book"})
+        if other:
+            for status, count in other.items():
+                for _ in range(count):
+                    books.append({"BookStatus": status, "Title": "Book"})
+        return json.dumps(books)
+
+    def test_get_status_all_liberated(self):
+        """Test status check when all books are liberated."""
+        mock_settings = self._create_mock_settings()
+        export_json = self._make_export_json(liberated=100)
+
+        # Mock subprocess.run to return success for export, then JSON for cat
+        def side_effect(cmd, **kwargs):
+            result = MagicMock()
+            if "export" in cmd:
+                result.returncode = 0
+                result.stdout = "Library exported"
+                result.stderr = ""
+            elif "cat" in cmd:
+                result.returncode = 0
+                result.stdout = export_json
+                result.stderr = ""
+            else:  # cleanup rm
+                result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+        ):
+            status = get_libation_status()
+            assert status.total == 100
+            assert status.liberated == 100
+            assert status.not_liberated == 0
+            assert status.has_pending is False
+
+    def test_get_status_with_pending(self):
+        """Test status check when books are pending."""
+        mock_settings = self._create_mock_settings()
+        export_json = self._make_export_json(liberated=80, not_liberated=20)
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock()
+            if "export" in cmd:
+                result.returncode = 0
+            elif "cat" in cmd:
+                result.returncode = 0
+                result.stdout = export_json
+            else:
+                result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+        ):
+            status = get_libation_status()
+            assert status.total == 100
+            assert status.liberated == 80
+            assert status.not_liberated == 20
+            assert status.has_pending is True
+
+    def test_get_status_with_errors(self):
+        """Test status check with error books."""
+        mock_settings = self._create_mock_settings()
+        export_json = self._make_export_json(liberated=95, not_liberated=3, error=2)
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock()
+            if "export" in cmd:
+                result.returncode = 0
+            elif "cat" in cmd:
+                result.returncode = 0
+                result.stdout = export_json
+            else:
+                result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+        ):
+            status = get_libation_status()
+            assert status.total == 100
+            assert status.liberated == 95
+            assert status.not_liberated == 3
+            assert status.error == 2
+
+    def test_get_status_with_unknown_status(self):
+        """Test status check with unknown status types."""
+        mock_settings = self._create_mock_settings()
+        export_json = self._make_export_json(
+            liberated=90,
+            not_liberated=5,
+            other={"SomeNewStatus": 3, "AnotherStatus": 2},
+        )
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock()
+            if "export" in cmd:
+                result.returncode = 0
+            elif "cat" in cmd:
+                result.returncode = 0
+                result.stdout = export_json
+            else:
+                result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+        ):
+            status = get_libation_status()
+            assert status.total == 100
+            assert status.liberated == 90
+            assert status.not_liberated == 5
+            assert status.other_statuses == {"SomeNewStatus": 3, "AnotherStatus": 2}
+
+    def test_get_status_export_fails(self):
+        """Test error when export command fails."""
+        mock_settings = self._create_mock_settings()
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock()
+            if "export" in cmd:
+                result.returncode = 1
+                result.stderr = "Export failed"
+                result.stdout = ""
+            else:
+                result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            pytest.raises(RuntimeError, match="Libation export failed"),
+        ):
+            get_libation_status()
+
+    def test_get_status_cat_fails(self):
+        """Test error when reading export file fails."""
+        mock_settings = self._create_mock_settings()
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock()
+            if "export" in cmd:
+                result.returncode = 0
+            elif "cat" in cmd:
+                result.returncode = 1
+                result.stderr = "No such file"
+                result.stdout = ""
+            else:
+                result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            pytest.raises(RuntimeError, match="Failed to read export file"),
+        ):
+            get_libation_status()
+
+    def test_get_status_invalid_json(self):
+        """Test error when JSON is invalid."""
+        mock_settings = self._create_mock_settings()
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock()
+            if "export" in cmd:
+                result.returncode = 0
+            elif "cat" in cmd:
+                result.returncode = 0
+                result.stdout = "not valid json {{"
+            else:
+                result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            pytest.raises(RuntimeError, match="Failed to parse Libation export JSON"),
+        ):
+            get_libation_status()
+
+    def test_get_status_json_not_list(self):
+        """Test error when JSON is not a list."""
+        mock_settings = self._create_mock_settings()
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock()
+            if "export" in cmd:
+                result.returncode = 0
+            elif "cat" in cmd:
+                result.returncode = 0
+                result.stdout = '{"not": "a list"}'
+            else:
+                result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            pytest.raises(RuntimeError, match="Expected list from export"),
+        ):
+            get_libation_status()
+
+    def test_get_status_docker_not_found(self):
+        """Test error when docker binary is missing."""
+        mock_settings = self._create_mock_settings()
+        call_count = [0]
+
+        def side_effect(cmd, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call (export) raises FileNotFoundError
+                raise FileNotFoundError("docker")
+            # Subsequent calls (cleanup) should succeed
+            result = MagicMock()
+            result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            pytest.raises(RuntimeError, match="Docker binary not found"),
+        ):
+            get_libation_status()
+
+    def test_get_status_cleanup_runs_even_on_error(self):
+        """Test that cleanup runs even when export fails."""
+        mock_settings = self._create_mock_settings()
+        cleanup_called = []
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock()
+            if "export" in cmd:
+                result.returncode = 1
+                result.stderr = "Export failed"
+                result.stdout = ""
+            elif "rm" in cmd:
+                cleanup_called.append(True)
+                result.returncode = 0
+            else:
+                result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+        ):
+            with pytest.raises(RuntimeError):
+                get_libation_status()
+            # Cleanup should have been called
+            assert len(cleanup_called) == 1
+
+    def test_get_status_empty_library(self):
+        """Test status check with empty library."""
+        mock_settings = self._create_mock_settings()
+        export_json = "[]"
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock()
+            if "export" in cmd:
+                result.returncode = 0
+            elif "cat" in cmd:
+                result.returncode = 0
+                result.stdout = export_json
+            else:
+                result.returncode = 0
+            return result
+
+        with (
+            patch("subprocess.run", side_effect=side_effect),
+            patch("mamfast.libation.get_settings", return_value=mock_settings),
+        ):
+            status = get_libation_status()
+            assert status.total == 0
+            assert status.liberated == 0
+            assert status.not_liberated == 0
+            assert status.has_pending is False

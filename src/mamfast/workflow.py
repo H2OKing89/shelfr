@@ -34,7 +34,7 @@ from mamfast.console import (
     print_workflow_summary,
 )
 from mamfast.hardlinker import stage_release
-from mamfast.libation import run_liberate, run_scan
+from mamfast.libation import get_libation_status, run_liberate, run_scan
 from mamfast.metadata import fetch_metadata, generate_mam_json_for_release
 from mamfast.mkbrr import create_torrent
 from mamfast.models import AudiobookRelease, ProcessingResult, ReleaseStatus
@@ -480,24 +480,74 @@ def full_run(
             )
 
     # -------------------------------------------------------------------------
-    # 1. Libation scan + liberate (optional)
+    # 1. Libation scan + conditional liberate
+    # -------------------------------------------------------------------------
+    # Libation has a two-stage model:
+    #   - scan: Index NEW books from Audible → BookStatus=NotLiberated
+    #   - liberate: Download ALL books with BookStatus=NotLiberated
+    #
+    # Key insight: "New: 0" from scan does NOT mean nothing to download.
+    # There may be NotLiberated books from previous scans waiting.
+    # We check status AFTER scan to decide whether to run liberate.
     # -------------------------------------------------------------------------
     if not skip_scan:
         notify(ProgressStage.SCAN, "Running Libation scan...")
         print_step(1, 4, "Libation Scan")
         if not dry_run:
+            # Step 1a: Run scan to index new books from Audible
             scan_result = run_scan()
             if not scan_result.success:
                 print_warning(f"Libation scan returned non-zero: {scan_result.returncode}")
-
-            print_info("Running liberate (downloading new books)...")
-            liberate_result = run_liberate()
-            if not liberate_result.success:
-                print_warning(f"Libation liberate returned non-zero: {liberate_result.returncode}")
             else:
-                print_success("Libation scan complete")
+                print_success("Scan complete (indexed new books from Audible)")
+
+            # Step 1b: Check how many books are pending download
+            try:
+                status = get_libation_status()
+                print_info(
+                    f"Library status: {status.liberated} liberated, "
+                    f"{status.not_liberated} pending, "
+                    f"{status.error} errors"
+                )
+
+                # Step 1c: Only run liberate if there are pending books
+                if status.has_pending:
+                    print_info(f"Downloading {status.not_liberated} pending book(s)...")
+                    liberate_result = run_liberate()
+                    if not liberate_result.success:
+                        print_warning(
+                            f"Libation liberate returned non-zero: {liberate_result.returncode}"
+                        )
+                    else:
+                        print_success("Liberate complete")
+
+                        # Optional: Show updated status after liberate
+                        try:
+                            new_status = get_libation_status()
+                            if new_status.liberated > status.liberated:
+                                downloaded = new_status.liberated - status.liberated
+                                print_success(f"Downloaded {downloaded} new book(s)")
+                        except Exception:
+                            pass  # Non-critical, don't fail if post-check fails
+                else:
+                    print_info(
+                        "No audiobooks staged for download (NotLiberated=0). "
+                        "Skipping liberate."
+                    )
+
+            except Exception as e:
+                # Status check failed - fall back to always running liberate
+                print_warning(f"Could not check Libation status: {e}")
+                print_info("Running liberate anyway (fallback)...")
+                liberate_result = run_liberate()
+                if not liberate_result.success:
+                    print_warning(
+                        f"Libation liberate returned non-zero: {liberate_result.returncode}"
+                    )
         else:
-            print_dry_run("Would run Libation scan + liberate")
+            print_dry_run("Would run Libation scan")
+            print_dry_run("Would check library status (NotLiberated count)")
+            print_dry_run("Would run liberate if NotLiberated > 0")
 
     # -------------------------------------------------------------------------
     # 2. Discover new releases
