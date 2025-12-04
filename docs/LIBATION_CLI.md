@@ -438,3 +438,136 @@ docker exec -it Libation /libation/LibationCli export -p /data/library.json -j
 ```
 
 The default Docker container also includes `liberate.sh` which wraps common operations.
+
+---
+
+## Debugging & Diagnostics
+
+### Export Library JSON for Analysis
+
+The JSON export contains comprehensive book metadata that's useful for debugging status issues:
+
+```bash
+# Export library to JSON (inside container)
+docker exec Libation /libation/LibationCli export -p /tmp/lib.json -j
+
+# Analyze on host
+docker exec Libation cat /tmp/lib.json | python -c "
+import json, sys
+from collections import Counter
+d = json.load(sys.stdin)
+print(f'Total books: {len(d)}')
+statuses = Counter(b.get('BookStatus', 'Unknown') for b in d)
+for status, count in statuses.most_common():
+    print(f'  {status}: {count}')
+"
+```
+
+### Key JSON Fields
+
+| Field | Description |
+|-------|-------------|
+| `AudibleProductId` | ASIN (NOT `Asin` - that field is null) |
+| `BookStatus` | `Liberated`, `NotLiberated`, `Error` |
+| `PdfStatus` | `Liberated`, `NotLiberated`, or empty |
+| `LastDownloaded` | Timestamp when actually downloaded (null = never) |
+| `ContentType` | Usually `Product` |
+| `AuthorNames` | Author string (may be Japanese characters) |
+| `SeriesNames` | Series name |
+| `SeriesOrder` | Series position (e.g., "17 : Mushoku Tensei") |
+
+### Understanding Book Status
+
+```bash
+# Show status breakdown
+docker exec Libation cat /tmp/lib.json | python -c "
+import json, sys
+d = json.load(sys.stdin)
+
+liberated = [b for b in d if b.get('BookStatus') == 'Liberated']
+not_liberated = [b for b in d if b.get('BookStatus') == 'NotLiberated']
+actually_downloaded = [b for b in d if b.get('LastDownloaded')]
+
+print(f'BookStatus=Liberated: {len(liberated)}')
+print(f'BookStatus=NotLiberated: {len(not_liberated)}')
+print(f'Actually downloaded (LastDownloaded set): {len(actually_downloaded)}')
+print(f'Marked Liberated but never downloaded: {len(liberated) - len([b for b in liberated if b.get(\"LastDownloaded\")])}')
+"
+```
+
+**Important:** `BookStatus=Liberated` does NOT mean the file exists on disk. Check `LastDownloaded` for actual download confirmation. Books can be marked "Liberated" but have `LastDownloaded=null` if:
+- Files were moved/deleted after liberation
+- Status was manually set
+- Files exist in a different location
+
+### List Books Needing Liberation
+
+```bash
+# Show books that need to be downloaded
+docker exec Libation cat /tmp/lib.json | python -c "
+import json, sys
+d = json.load(sys.stdin)
+not_lib = [b for b in d if b.get('BookStatus') == 'NotLiberated']
+print(f'{len(not_lib)} books need liberation:')
+for b in not_lib[:20]:
+    print(f\"  • {b.get('Title')[:50]} ({b.get('AudibleProductId')})\")
+"
+```
+
+### Check Docker Volume Mounts
+
+```bash
+# See where Libation stores files
+docker inspect Libation --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{println}}{{end}}'
+
+# Typical output:
+# /mnt/user/data/audio/audiobook-import -> /data
+# /mnt/cache/appdata/Libation -> /config
+```
+
+The `Books` setting inside Libation (usually `/data`) maps to the host path shown above.
+
+---
+
+## MAMFast Integration Notes
+
+### How Discovery Works
+
+MAMFast's `discover` command scans `library_root` for `.m4b` files with `{ASIN.XXXXXXXXXX}` in the path. The flow is:
+
+1. **Libation scans** Audible → adds to database (status: `NotLiberated`)
+2. **Libation liberates** → downloads & decrypts to `Books` directory (status: `Liberated`)
+3. **MAMFast discovers** → finds new files in `library_root`
+4. **MAMFast processes** → stage → metadata → torrent → upload
+
+### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| "No new releases found" | `library_root` empty | Run `liberate` to download books |
+| Books marked Liberated but not on disk | Files moved to ABS | Normal if you moved them |
+| Wrong `library_root` | Config mismatch | Check `docker inspect` mounts |
+
+### Recommended Workflow
+
+```bash
+# 1. Scan Audible for new books
+mamfast scan
+# or: docker exec Libation /libation/LibationCli scan
+
+# 2. Liberate (download) new books
+docker exec Libation /libation/LibationCli liberate
+
+# 3. Run MAMFast pipeline on downloaded books
+mamfast run
+
+# 4. Move processed files to Audiobookshelf (manual or automated)
+```
+
+### Future Enhancement Ideas
+
+1. **Auto-liberate integration**: MAMFast could call `liberate` before `discover`
+2. **Status sync**: Query Libation JSON to show pending downloads in MAMFast
+3. **Direct ABS import**: After upload, automatically move to ABS and trigger scan
+4. **Libation webhook**: React to Libation liberation events
+
