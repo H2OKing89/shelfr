@@ -137,9 +137,7 @@ def get_libation_status() -> LibationStatus:
         )
 
         if read_result.returncode != 0:
-            raise RuntimeError(
-                f"Failed to read export file: {read_result.stderr}"
-            )
+            raise RuntimeError(f"Failed to read export file: {read_result.stderr}")
 
         # Step 3: Parse JSON and count statuses
         books = json.loads(read_result.stdout)
