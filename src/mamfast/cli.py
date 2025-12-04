@@ -1670,6 +1670,8 @@ def cmd_abs_init(args: argparse.Namespace) -> int:
 
     Tests API connectivity and discovers available libraries.
     """
+    from mamfast.abs.client import AbsAuthError, AbsClient, AbsConnectionError
+    from mamfast.abs.paths import PathMapper
     from mamfast.config import reload_settings
 
     print_header("Audiobookshelf Init", dry_run=args.dry_run)
@@ -1686,14 +1688,103 @@ def cmd_abs_init(args: argparse.Namespace) -> int:
         print_info("Set audiobookshelf.enabled: true in config.yaml")
         return 1
 
-    # Stub: Not implemented yet
-    print_info("abs-init: Not implemented yet")
-    print_info("This command will:")
-    print_info("  • Test connection to Audiobookshelf API")
-    print_info("  • Validate API token")
-    print_info("  • List available libraries")
-    print_info("  • Show path mappings (docker_mode)")
+    abs_config = settings.audiobookshelf
 
+    # Step 1: Test connection
+    print_step(1, 3, "Testing connection to Audiobookshelf")
+    print_info(f"Host: {abs_config.host}")
+
+    client = AbsClient.from_config(abs_config)
+
+    try:
+        user = client.authorize()
+        print_success(f"Connected as: {user.username} ({user.user_type})")
+        if user.has_admin:
+            print_info("User has admin permissions")
+    except AbsAuthError as e:
+        print_error(f"Authentication failed: {e}")
+        print_info("Check your API key in config/config.yaml or .env")
+        return 1
+    except AbsConnectionError as e:
+        print_error(f"Connection failed: {e}")
+        print_info("Check that Audiobookshelf is running and accessible")
+        return 1
+
+    # Step 2: List libraries
+    print_step(2, 3, "Discovering libraries")
+
+    try:
+        libraries = client.get_libraries()
+    except Exception as e:
+        print_error(f"Failed to fetch libraries: {e}")
+        return 1
+
+    # Filter to audiobook libraries only
+    audiobook_libs = [lib for lib in libraries if lib.media_type == "book"]
+
+    if not audiobook_libs:
+        print_warning("No audiobook libraries found")
+        return 1
+
+    print_success(f"Found {len(audiobook_libs)} audiobook library(ies)")
+
+    # Show configured vs discovered libraries
+    configured_ids = {lib.id for lib in abs_config.libraries}
+
+    for lib in audiobook_libs:
+        is_configured = lib.id in configured_ids
+        configured_lib = next((cl for cl in abs_config.libraries if cl.id == lib.id), None)
+        managed = configured_lib and configured_lib.mamfast_managed if configured_lib else False
+
+        status = ""
+        if is_configured and managed:
+            status = " [cyan](mamfast_managed)[/]"
+        elif is_configured:
+            status = " [dim](configured)[/]"
+        else:
+            status = " [yellow](not in config)[/]"
+
+        folders_str = ", ".join(lib.folders) if lib.folders else "(no folders)"
+        console.print(f"  • [bold]{lib.name}[/]{status}")
+        console.print(f"    ID: [dim]{lib.id}[/]")
+        console.print(f"    Folders: [dim]{folders_str}[/]")
+
+    # Step 3: Show path mappings
+    print_step(3, 3, "Path mapping configuration")
+
+    if abs_config.docker_mode:
+        if abs_config.path_map:
+            print_info("Docker mode enabled with path mappings:")
+            for pm in abs_config.path_map:
+                mapper = PathMapper(pm.container, pm.host)
+                console.print(f"  • Container: [cyan]{mapper.container_prefix}[/]")
+                console.print(f"    Host:      [cyan]{mapper.host_prefix}[/]")
+
+                # Test the mapping with a sample path
+                sample_container = f"{mapper.container_prefix}/Author/Book"
+                sample_host = mapper.to_host(sample_container)
+                console.print(f"    Example:   {sample_container} → [dim]{sample_host}[/]")
+        else:
+            print_warning("Docker mode enabled but no path_map configured")
+            print_info("Add path_map to audiobookshelf config for path translation")
+    else:
+        print_info("Docker mode disabled (paths used as-is)")
+
+    # Summary
+    console.print()
+    print_success("Audiobookshelf connection verified")
+
+    # Show hints for next steps
+    managed_libs = [lib for lib in abs_config.libraries if lib.mamfast_managed]
+    if not managed_libs:
+        print_info("Next: Add library IDs to config with mamfast_managed: true")
+        print_info("Then run: mamfast abs-index")
+    else:
+        print_info(
+            f"Next: Run 'mamfast abs-index' to index {len(managed_libs)} managed library(ies)"
+        )
+
+    client.close()
     return 0
 
 

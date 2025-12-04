@@ -1,6 +1,6 @@
 # Audiobookshelf Import Plan
 
-> **Document Version:** 3.4.0 | **Last Updated:** 2025-12-03 | **Status:** PR 1 Complete ✅
+> **Document Version:** 3.5.0 | **Last Updated:** 2025-01-06 | **Status:** PR 2 Complete ✅
 
 ---
 
@@ -8,12 +8,12 @@
 
 | PR | Branch | Status | Description |
 |----|--------|--------|-------------|
-| **PR 1** | `feature/abs-import-foundations` | ✅ Complete | Config, schemas, CLI stubs, test fixtures |
-| **PR 2** | `feature/abs-import-client` | 🔲 Next | `AbsClient` implementation |
-| **PR 3** | `feature/abs-import-index` | 🔲 Planned | SQLite indexer, `abs-index` |
+| **PR 1** | `feature/abs-import-foundations` | ✅ Merged (#15) | Config, schemas, CLI stubs, test fixtures |
+| **PR 2** | `feature/abs-import-client` | ✅ Complete | `AbsClient`, path mapping, `abs-init` wired |
+| **PR 3** | `feature/abs-import-index` | 🔲 Next | SQLite indexer, `abs-index` |
 | **PR 4** | `feature/abs-import-workflow` | 🔲 Planned | Workflow integration |
 
-### PR 1 Deliverables (Complete)
+### PR 1 Deliverables (Merged)
 - [x] `docs/AUDIOBOOKSHELF_API.md` - API reference
 - [x] `config.yaml` audiobookshelf section + Pydantic schemas
 - [x] `.env.example` with `AUDIOBOOKSHELF_HOST`, `AUDIOBOOKSHELF_API_KEY`
@@ -22,6 +22,26 @@
 - [x] `mamfast abs-index` CLI stub with `--full`, `--library` flags
 - [x] Test fixtures: `tests/fixtures/abs_responses/*.json`
 - [x] 27 new tests (14 schema + 13 CLI)
+
+### PR 2 Deliverables (Complete)
+- [x] `src/mamfast/abs/__init__.py` - Package init
+- [x] `src/mamfast/abs/client.py` - `AbsClient` with httpx
+  - `authorize()` - Test connection, get user info
+  - `ping()` - Quick connection test
+  - `get_libraries()` - List all libraries
+  - `get_library_items()` - Get items with pagination
+  - `get_all_library_items()` - Auto-paginated fetch
+  - `get_item_details()` - Single item details
+  - `scan_library()` - Trigger library scan
+- [x] `src/mamfast/abs/paths.py` - Path mapping utilities
+  - `abs_path_to_host()` - Container → Host path
+  - `host_path_to_abs()` - Host → Container path
+  - `PathMapper` class for convenient mapping
+- [x] `mamfast abs-init` wired to real API
+  - Tests ABS connection
+  - Lists discovered libraries
+  - Shows path mapping configuration
+- [x] 64 new tests (23 client + 25 paths + 16 CLI)
 
 ---
 
