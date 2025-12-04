@@ -250,3 +250,80 @@ class TestRealWorldPaths:
         host = mam_mapper.to_host(abs_path)
         assert "Rifujin na Magonote" in str(host)
         assert host.name == "Vol 1"
+
+
+class TestPrefixBoundaryMatching:
+    """Test that prefix matching respects path boundaries.
+
+    Ensures /audiobooks doesn't match /audiobooks2, /mnt/data doesn't match /mnt/data2.
+    """
+
+    def test_abs_path_to_host_rejects_similar_prefix(self) -> None:
+        """Test that /audiobooks doesn't match /audiobooks2."""
+        with pytest.raises(ValueError, match="does not start with container prefix"):
+            abs_path_to_host(
+                "/audiobooks2/Author/Book",
+                container_prefix="/audiobooks",
+                host_prefix="/mnt/data",
+            )
+
+    def test_abs_path_to_host_rejects_partial_match(self) -> None:
+        """Test that /audiobooks doesn't match /audiobookshelf."""
+        with pytest.raises(ValueError, match="does not start with container prefix"):
+            abs_path_to_host(
+                "/audiobookshelf/data",
+                container_prefix="/audiobooks",
+                host_prefix="/mnt/data",
+            )
+
+    def test_host_path_to_abs_rejects_similar_prefix(self) -> None:
+        """Test that /mnt/data doesn't match /mnt/data2."""
+        with pytest.raises(ValueError, match="does not start with host prefix"):
+            host_path_to_abs(
+                "/mnt/data2/Author/Book",
+                container_prefix="/audiobooks",
+                host_prefix="/mnt/data",
+            )
+
+    def test_host_path_to_abs_rejects_partial_match(self) -> None:
+        """Test that /mnt/data doesn't match /mnt/datafiles."""
+        with pytest.raises(ValueError, match="does not start with host prefix"):
+            host_path_to_abs(
+                "/mnt/datafiles/stuff",
+                container_prefix="/audiobooks",
+                host_prefix="/mnt/data",
+            )
+
+    def test_is_under_container_rejects_similar_prefix(self) -> None:
+        """Test that is_under_container rejects similar prefixes."""
+        mapper = PathMapper(container_prefix="/audiobooks", host_prefix="/mnt/data")
+        assert mapper.is_under_container("/audiobooks/Book") is True
+        assert mapper.is_under_container("/audiobooks") is True  # exact match
+        assert mapper.is_under_container("/audiobooks2/Book") is False
+        assert mapper.is_under_container("/audiobookshelf") is False
+
+    def test_is_under_host_rejects_similar_prefix(self) -> None:
+        """Test that is_under_host rejects similar prefixes."""
+        mapper = PathMapper(container_prefix="/audiobooks", host_prefix="/mnt/data")
+        assert mapper.is_under_host("/mnt/data/Book") is True
+        assert mapper.is_under_host("/mnt/data") is True  # exact match
+        assert mapper.is_under_host("/mnt/data2/Book") is False
+        assert mapper.is_under_host("/mnt/datafiles") is False
+
+    def test_exact_prefix_match_accepted(self) -> None:
+        """Test that exact prefix matches are still accepted."""
+        # Container exact match
+        result = abs_path_to_host(
+            "/audiobooks",
+            container_prefix="/audiobooks",
+            host_prefix="/mnt/data",
+        )
+        assert result == Path("/mnt/data")
+
+        # Host exact match
+        result2 = host_path_to_abs(
+            "/mnt/data",
+            container_prefix="/audiobooks",
+            host_prefix="/mnt/data",
+        )
+        assert result2 == "/audiobooks"

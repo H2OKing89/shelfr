@@ -1704,10 +1704,12 @@ def cmd_abs_init(args: argparse.Namespace) -> int:
     except AbsAuthError as e:
         print_error(f"Authentication failed: {e}")
         print_info("Check your API key in config/config.yaml or .env")
+        client.close()
         return 1
     except AbsConnectionError as e:
         print_error(f"Connection failed: {e}")
         print_info("Check that Audiobookshelf is running and accessible")
+        client.close()
         return 1
 
     # Step 2: List libraries
@@ -1717,6 +1719,7 @@ def cmd_abs_init(args: argparse.Namespace) -> int:
         libraries = client.get_libraries()
     except Exception as e:
         print_error(f"Failed to fetch libraries: {e}")
+        client.close()
         return 1
 
     # Filter to audiobook libraries only
@@ -1724,6 +1727,7 @@ def cmd_abs_init(args: argparse.Namespace) -> int:
 
     if not audiobook_libs:
         print_warning("No audiobook libraries found")
+        client.close()
         return 1
 
     print_success(f"Found {len(audiobook_libs)} audiobook library(ies)")
@@ -1734,7 +1738,7 @@ def cmd_abs_init(args: argparse.Namespace) -> int:
     for lib in audiobook_libs:
         is_configured = lib.id in configured_ids
         configured_lib = next((cl for cl in abs_config.libraries if cl.id == lib.id), None)
-        managed = configured_lib and configured_lib.mamfast_managed if configured_lib else False
+        managed = bool(configured_lib and configured_lib.mamfast_managed)
 
         status = ""
         if is_configured and managed:

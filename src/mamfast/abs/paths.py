@@ -44,7 +44,10 @@ def abs_path_to_host(
     container_prefix = container_prefix.rstrip("/")
     host_prefix = host_prefix.rstrip("/")
 
-    if not abs_path_str.startswith(container_prefix):
+    # Check for exact match OR path with separator (prevents /audiobooks2 matching /audiobooks)
+    if abs_path_str != container_prefix and not abs_path_str.startswith(
+        container_prefix + "/"
+    ):
         raise ValueError(
             f"Path '{abs_path_str}' does not start with container prefix '{container_prefix}'"
         )
@@ -92,8 +95,11 @@ def host_path_to_abs(
     container_prefix = container_prefix.rstrip("/")
     host_prefix = host_prefix.rstrip("/")
 
-    if not host_path_str.startswith(host_prefix):
-        raise ValueError(f"Path '{host_path_str}' does not start with host prefix '{host_prefix}'")
+    # Check for exact match OR path with separator (prevents /mnt/data2 matching /mnt/data)
+    if host_path_str != host_prefix and not host_path_str.startswith(host_prefix + "/"):
+        raise ValueError(
+            f"Path '{host_path_str}' does not start with host prefix '{host_prefix}'"
+        )
 
     # Get the relative portion after the host prefix
     relative = host_path_str[len(host_prefix) :]
@@ -132,8 +138,15 @@ class PathMapper:
 
     def is_under_container(self, path: str | Path) -> bool:
         """Check if a path is under the container prefix."""
-        return str(path).startswith(self.container_prefix)
+        path_str = str(path)
+        return (
+            path_str == self.container_prefix
+            or path_str.startswith(self.container_prefix + "/")
+        )
 
     def is_under_host(self, path: str | Path) -> bool:
         """Check if a path is under the host prefix."""
-        return str(path).startswith(self.host_prefix)
+        path_str = str(path)
+        return (
+            path_str == self.host_prefix or path_str.startswith(self.host_prefix + "/")
+        )
