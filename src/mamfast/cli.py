@@ -32,6 +32,7 @@ from mamfast.console import (
     print_summary,
     print_validation_summary,
     print_warning,
+    render_libation_status,
 )
 
 
@@ -409,7 +410,7 @@ Examples:
 def cmd_scan(args: argparse.Namespace) -> int:
     """Run Libation scan."""
     from mamfast.config import reload_settings
-    from mamfast.libation import run_scan
+    from mamfast.libation import get_libation_status, run_liberate, run_scan
 
     print_header("Libation Scan", dry_run=args.dry_run)
 
@@ -425,7 +426,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
             print_dry_run("Would execute: docker exec Libation /libation/LibationCli liberate")
         return 0
 
-    print_step(1, 2 if args.liberate else 1, "Running scan")
+    total_steps = 2 if args.liberate else 1
+    print_step(1, total_steps, "Running scan")
     result = run_scan()
 
     if result.stdout:
@@ -439,9 +441,20 @@ def cmd_scan(args: argparse.Namespace) -> int:
         print_error(f"Scan failed (exit code: {result.returncode})")
         return result.returncode
 
+    status = None
+    try:
+        status = get_libation_status()
+    except RuntimeError as exc:
+        print_warning(f"Unable to fetch Libation status: {exc}")
+    else:
+        console.print()
+        render_libation_status(status)
+
     # Optionally run liberate
     if args.liberate:
-        from mamfast.libation import run_liberate
+        if status is not None and not status.has_pending:
+            print_info("No audiobooks staged for download (NotLiberated=0). Skipping liberate.")
+            return 0
 
         console.print()
         print_step(2, 2, "Running liberate (downloading new books)")
@@ -454,9 +467,24 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
         if liberate_result.success:
             print_success("Liberate complete")
+
+            # Show updated status when available
+            try:
+                new_status = get_libation_status()
+            except RuntimeError:
+                pass
+            else:
+                console.print()
+                render_libation_status(new_status, title="Libation Status (Post-Liberate)")
         else:
             print_error(f"Liberate failed (exit code: {liberate_result.returncode})")
             return liberate_result.returncode
+    else:
+        if status is not None and status.has_pending:
+            print_warning(
+                f"{status.not_liberated} audiobooks are staged for download. "
+                "Run 'mamfast scan --liberate' or the full workflow to download them."
+            )
 
     return 0
 

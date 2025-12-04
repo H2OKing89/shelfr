@@ -275,7 +275,8 @@ class TestAbsClientErrors:
             patch.object(client, "_get_client", return_value=mock_client),
             pytest.raises(AbsConnectionError, match="Failed to connect"),
         ):
-            client._request("GET", "/api/test")
+            # Test via public method which wraps httpx exceptions
+            client.authorize()
 
     def test_timeout_error(self, client: AbsClient) -> None:
         """Test handling timeout errors."""
@@ -286,7 +287,8 @@ class TestAbsClientErrors:
             patch.object(client, "_get_client", return_value=mock_client),
             pytest.raises(AbsConnectionError, match="timed out"),
         ):
-            client._request("GET", "/api/test")
+            # Test via public method which wraps httpx exceptions
+            client.authorize()
 
     def test_401_raises_auth_error(self, client: AbsClient) -> None:
         """Test that 401 responses raise AbsAuthError."""

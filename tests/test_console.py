@@ -31,8 +31,10 @@ from mamfast.console import (
     print_success,
     print_summary,
     print_warning,
+    render_libation_status,
     status,
 )
+from mamfast.libation import LibationStatus
 
 # =============================================================================
 # Test fixtures
@@ -230,6 +232,39 @@ class TestPrintInfo:
             call_args = str(mock_print.call_args)
             assert "FYI" in call_args
             assert "→" in call_args
+
+
+class TestRenderLibationStatus:
+    """Test render_libation_status helper."""
+
+    def test_render_basic_status(self):
+        """Should render panel with status values."""
+        sample = LibationStatus(total=10, liberated=7, not_liberated=3)
+        with patch.object(console, "print") as mock_print:
+            render_libation_status(sample)
+            mock_print.assert_called_once()
+            panel = mock_print.call_args[0][0]
+            assert hasattr(panel, "renderable")
+            title_text = panel.title.plain if hasattr(panel.title, "plain") else str(panel.title)
+            assert "Libation Library Status" in title_text
+            table = panel.renderable
+            status_column = table.columns[0]
+            assert "NotLiberated" in status_column._cells
+
+    def test_render_includes_other_statuses(self):
+        """Additional status rows should be included."""
+        sample = LibationStatus(
+            total=12,
+            liberated=10,
+            not_liberated=1,
+            other_statuses={"Paused": 1},
+        )
+        with patch.object(console, "print") as mock_print:
+            render_libation_status(sample)
+            panel = mock_print.call_args[0][0]
+            table = panel.renderable
+            status_column = table.columns[0]
+            assert "Paused" in status_column._cells
 
 
 class TestPrintDryRun:

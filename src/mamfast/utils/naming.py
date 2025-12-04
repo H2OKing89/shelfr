@@ -208,6 +208,62 @@ def extract_translator(authors: list[dict[str, str]]) -> str | None:
 # =============================================================================
 
 
+def clean_series_name(series_name: str | None, title: str | None = None) -> str | None:
+    """
+    Clean up series name by removing common suffixes and tags.
+
+    Handles:
+    - " Series" suffix (e.g., "Holes Series" -> "Holes")
+    - " (Light Novel)" / " (light novel)" suffix
+    - " Light Novel" suffix (without parens)
+    - " [publication order]" and similar bracket tags
+    - " Trilogy", " Saga" suffixes
+    - "The" prefix inheritance from title
+
+    Args:
+        series_name: Raw series name from Audnex
+        title: Book title (used for "The" prefix inheritance)
+
+    Returns:
+        Cleaned series name, or None if input was None/empty
+    """
+    if not series_name:
+        return None
+
+    cleaned = series_name.strip()
+
+    # Remove bracket tags like "[publication order]", "[reading order]"
+    cleaned = re.sub(r"\s*\[[^\]]*\]\s*$", "", cleaned)
+
+    # Remove "(Light Novel)" / "(light novel)" suffix
+    cleaned = re.sub(r"\s*\([Ll]ight [Nn]ovel\)\s*$", "", cleaned)
+
+    # Remove " Light Novel" suffix (without parens) - but not if it's the whole name
+    cleaned = re.sub(r"\s+[Ll]ight [Nn]ovels?\s*$", "", cleaned)
+
+    # Remove common series type suffixes
+    cleaned = re.sub(r"[\s—-]+[Ss]eries\s*$", "", cleaned)
+    cleaned = re.sub(r"[\s—-]+[Tt]rilogy\s*$", "", cleaned)
+    cleaned = re.sub(r"[\s—-]+[Ss]aga\s*$", "", cleaned)
+
+    # Handle "The" prefix inheritance
+    # If title starts with "The " but series doesn't, inherit it
+    if title:
+        title_lower = title.lower()
+        cleaned_lower = cleaned.lower()
+
+        # Check if title starts with "The " and series doesn't, and series appears in title
+        # e.g., "The Rising of the Shield Hero" title with "Rising of the Shield Hero" series
+        if (
+            title_lower.startswith("the ")
+            and not cleaned_lower.startswith("the ")
+            and cleaned_lower in title_lower
+        ):
+            cleaned = f"The {cleaned}"
+
+    return cleaned.strip() if cleaned else None
+
+
 def detect_swapped_title_subtitle(
     title: str,
     subtitle: str | None,
@@ -334,9 +390,10 @@ def normalize_audnex_book(
 
     This is the main entry point for Audnex normalization. It:
     1. Extracts series info from seriesPrimary (source of truth)
-    2. Detects and fixes title/subtitle swaps
-    3. Extracts arc name from the appropriate field
-    4. Returns a NormalizedBook with canonical values
+    2. Cleans series name (removes suffixes, inherits "The" prefix)
+    3. Detects and fixes title/subtitle swaps
+    4. Extracts arc name from the appropriate field
+    5. Returns a NormalizedBook with canonical values
 
     Args:
         audnex_data: Raw Audnex API response for a book
@@ -352,17 +409,29 @@ def normalize_audnex_book(
 
     # Extract series info (source of truth)
     series_primary = audnex_data.get("seriesPrimary") or {}
-    series_name = series_primary.get("name", "").strip() or None
+    raw_series_name = series_primary.get("name", "").strip() or None
     series_position = series_primary.get("position")
     if series_position is not None:
         series_position = str(series_position)
 
-    # Detect and fix swapped title/subtitle
+    # Clean series name (remove suffixes, inherit "The" prefix)
+    series_name = clean_series_name(raw_series_name, raw_title)
+
+    # Log if series was cleaned
+    if raw_series_name and series_name and raw_series_name != series_name:
+        logger.debug(
+            "[normalize] %s: Cleaned series name: %r -> %r",
+            asin,
+            raw_series_name,
+            series_name,
+        )
+
+    # Detect and fix swapped title/subtitle (use cleaned series name)
     corrected_title, corrected_subtitle, was_swapped = detect_swapped_title_subtitle(
         raw_title, raw_subtitle, series_name, series_position
     )
 
-    # Extract arc name
+    # Extract arc name (use cleaned series name)
     arc_name = extract_arc_name(corrected_title, corrected_subtitle, series_name)
 
     # Build display values
@@ -915,6 +984,52 @@ def filter_subtitle(
     return result if result else None
 
 
+def inherit_the_prefix(series: str | None, title: str | None) -> str | None:
+    """
+    Inherit "The" prefix from title to series if series lacks it.
+
+    Some audiobooks (especially light novels) have inconsistent API data where
+    the title includes "The" but the series name doesn't. For example:
+    - Title: "The Great Cleric: Volume 1"
+    - Series (API): "Great Cleric"
+    - Series (desired): "The Great Cleric"
+
+    This function checks if the title starts with "The {series}" and if so,
+    adds "The " prefix to the series name.
+
+    Args:
+        series: Series name (may be None for standalone books)
+        title: Book title
+
+    Returns:
+        Series name with "The" prefix added if inherited, otherwise unchanged
+    """
+    if not series or not title:
+        return series
+
+    # Check if title starts with "The " followed by the series name
+    # Case-insensitive comparison
+    title_lower = title.lower()
+    series_lower = series.lower()
+
+    # Already has "The" prefix
+    if series_lower.startswith("the "):
+        return series
+
+    # Check if title starts with "The {series}"
+    the_prefix = "the "
+    if title_lower.startswith(the_prefix):
+        # Extract potential series portion from title
+        title_without_the = title_lower[len(the_prefix) :]
+
+        # Check if title (without "The") starts with the series name
+        if title_without_the.startswith(series_lower):
+            # The title starts with "The {series}", so inherit the prefix
+            return f"The {series}"
+
+    return series
+
+
 def _cleanup_string(text: str) -> str:
     """
     Clean up whitespace and punctuation artifacts from string.
@@ -1248,13 +1363,17 @@ def build_mam_folder_name(
     Returns:
         Sanitized folder name within length limit
     """
-    # Clean inputs
-    clean_series = (
-        filter_title(series, naming_config=naming_config, keep_volume=False) if series else None
-    )
+    # Clean inputs - use filter_series() for series to apply series-specific patterns
+    # (e.g., remove " Series", " Trilogy", "[publication order]" suffixes)
+    clean_series = filter_series(series, naming_config=naming_config) if series else None
     clean_title = (
         filter_title(title, naming_config=naming_config, keep_volume=False) if title else ""
     )
+
+    # Inherit "The" prefix from title to series if series lacks it
+    # (e.g., title="The Great Cleric", series="Great Cleric" -> series="The Great Cleric")
+    clean_series = inherit_the_prefix(clean_series, clean_title)
+
     clean_arc = filter_title(arc, naming_config=naming_config, keep_volume=False) if arc else None
     clean_author = sanitize_filename(author) if author else None
 
@@ -1812,13 +1931,17 @@ def build_mam_path(
     if extension and not extension.startswith("."):
         extension = f".{extension}"
 
-    # Clean inputs
-    clean_series = (
-        filter_title(series, naming_config=naming_config, keep_volume=False) if series else None
-    )
+    # Clean inputs - use filter_series() for series to apply series-specific patterns
+    # (e.g., remove " Series", " Trilogy", "[publication order]" suffixes)
+    clean_series = filter_series(series, naming_config=naming_config) if series else None
     clean_title = (
         filter_title(title, naming_config=naming_config, keep_volume=False) if title else ""
     )
+
+    # Inherit "The" prefix from title to series if series lacks it
+    # (e.g., title="The Great Cleric", series="Great Cleric" -> series="The Great Cleric")
+    clean_series = inherit_the_prefix(clean_series, clean_title)
+
     clean_arc = filter_title(arc, naming_config=naming_config, keep_volume=False) if arc else None
     clean_author = sanitize_filename(author) if author else None
 

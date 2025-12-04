@@ -1,11 +1,20 @@
 {
   "_comment": "Naming rules for MAMFast. See docs/NAMING_PLAN.md for details.",
-  "_version": "1.5.0",
+  "_version": "1.7.0",
 
   "title_subtitle_normalization": {
     "_comment": "Fix Audible's inconsistent title/subtitle swaps using seriesPrimary as source of truth.",
     "enabled": true,
     "log_swaps": true
+  },
+
+  "series_name_cleaning": {
+    "_comment": "Clean series names during normalization (before folder naming pipeline).",
+    "enabled": true,
+    "inherit_the_prefix": {
+      "_comment": "If title starts with 'The ' but series doesn't, add 'The ' to series. Requires series name to appear in title.",
+      "enabled": true
+    }
   },
 
   "author_roles": {
@@ -81,7 +90,8 @@
       "[\\s—-]?[Cc]hronicles$",
       "\\s*\\([Ll]ight [Nn]ovel\\)$",
       "\\s+[Ll]ight [Nn]ovel$",
-      "\\s+[Ll]ight [Nn]ovel [Ss]eries$"
+      "\\s+[Ll]ight [Nn]ovel [Ss]eries$",
+      "\\s*\\[[^\\]]*[Oo]rder\\]$"
     ]
   },
 
@@ -153,6 +163,24 @@
         "id": "series_in_parens",
         "description": "Subtitle contains '(Series, Book N)' - strip the parens part, keep the rest",
         "pattern_template": "\\({{series}},?\\s*Book\\s*\\d+\\)$",
+        "action": "strip_match"
+      },
+      {
+        "id": "series_suffix_book",
+        "description": "Subtitle is 'Series Series, Book N' (series name + 'Series' suffix)",
+        "pattern_template": "^{{series}}\\s*Series,?\\s*Book\\s*\\d+$",
+        "action": "drop_subtitle"
+      },
+      {
+        "id": "series_omnibus",
+        "description": "Subtitle is 'Series, Books N-M' (omnibus/box set)",
+        "pattern_template": "^{{series}},?\\s*Books?\\s*\\d+-\\d+$",
+        "action": "drop_subtitle"
+      },
+      {
+        "id": "series_vol_in_parens",
+        "description": "Subtitle contains '(Series, Vol N)' - strip the parens part, keep the rest",
+        "pattern_template": "\\({{series}},?\\s*Vol(?:ume)?\\.?\\s*\\d+\\)$",
         "action": "strip_match"
       }
     ]

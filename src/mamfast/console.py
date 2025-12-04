@@ -16,6 +16,7 @@ from rich.theme import Theme
 from rich.traceback import Traceback
 
 if TYPE_CHECKING:
+    from mamfast.libation import LibationStatus
     from mamfast.validation import ValidationResult
 
 # Custom theme for MAMFast
@@ -99,6 +100,50 @@ def print_info(message: str) -> None:
 def print_dry_run(message: str) -> None:
     """Print a dry-run message."""
     console.print(f"  [warning][DRY RUN][/] {message}")
+
+
+def render_libation_status(
+    status: LibationStatus,
+    title: str = "Libation Library Status",
+) -> None:
+    """Render a Rich table describing Libation book statuses."""
+
+    table = Table(
+        show_header=True,
+        header_style="bold cyan",
+        show_edge=False,
+        box=None,
+        pad_edge=False,
+    )
+    table.add_column("Status", style="bold")
+    table.add_column("Count", justify="right")
+    table.add_column("Meaning", overflow="fold")
+
+    def _add_row(label: str, count: int, meaning: str) -> None:
+        table.add_row(label, f"{count:,}", meaning)
+
+    _add_row("Liberated", status.liberated, "Downloaded and decrypted")
+    _add_row(
+        "NotLiberated",
+        status.not_liberated,
+        "Indexed but not yet downloaded (staged for download)",
+    )
+    _add_row("Error", status.error, "Failed to download")
+
+    if status.other_statuses:
+        for label, count in sorted(status.other_statuses.items()):
+            meaning = "Additional status reported by Libation"
+            _add_row(label, count, meaning)
+
+    _add_row("Total", status.total, "All books tracked by Libation")
+
+    panel = Panel(
+        table,
+        title=f"[b]{title}[/b]",
+        border_style="blue",
+        padding=(0, 1),
+    )
+    console.print(panel)
 
 
 def print_divider() -> None:

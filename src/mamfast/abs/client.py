@@ -15,6 +15,11 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from mamfast.schemas.abs import (
+    validate_authorize_response,
+    validate_libraries_response,
+    validate_library_items_response,
+)
 from mamfast.utils.retry import NETWORK_EXCEPTIONS, retry_with_backoff
 
 if TYPE_CHECKING:
@@ -219,12 +224,9 @@ class AbsClient:
         """
         client = self._get_client()
 
-        try:
-            response = client.request(method, path, **kwargs)
-        except httpx.ConnectError as e:
-            raise AbsConnectionError(f"Failed to connect to {self.host}: {e}") from e
-        except httpx.TimeoutException as e:
-            raise AbsConnectionError(f"Request to {self.host} timed out: {e}") from e
+        # Let httpx exceptions propagate so retry decorator can catch them
+        # They will be caught and wrapped in the public methods after retries exhaust
+        response = client.request(method, path, **kwargs)
 
         if response.status_code == 401:
             raise AbsAuthError("Invalid API key or unauthorized access")
@@ -252,18 +254,25 @@ class AbsClient:
             AbsConnectionError: If unable to connect
         """
         logger.debug("Testing authorization with ABS server")
-        response = self._request("GET", "/api/authorize")
+        try:
+            response = self._request("GET", "/api/authorize")
+        except httpx.ConnectError as e:
+            raise AbsConnectionError(f"Failed to connect to {self.host}: {e}") from e
+        except httpx.TimeoutException as e:
+            raise AbsConnectionError(f"Request to {self.host} timed out: {e}") from e
+
         data = response.json()
 
-        user_data = data.get("user", {})
-        permissions = user_data.get("permissions", {})
+        # Validate response structure using Pydantic schema
+        validated = validate_authorize_response(data)
+        user = validated.user
 
         return AbsUser(
-            id=user_data.get("id", ""),
-            username=user_data.get("username", ""),
-            user_type=user_data.get("type", ""),
-            is_active=user_data.get("isActive", False),
-            has_admin=permissions.get("delete", False),  # Admin-level permission
+            id=user.id,
+            username=user.username,
+            user_type=user.type,
+            is_active=user.is_active,
+            has_admin=user.has_admin,  # Uses type == "admin" check from schema
         )
 
     def ping(self) -> bool:
@@ -290,12 +299,29 @@ class AbsClient:
             AbsConnectionError: If unable to connect
         """
         logger.debug("Fetching libraries from ABS")
-        response = self._request("GET", "/api/libraries")
+        try:
+            response = self._request("GET", "/api/libraries")
+        except httpx.ConnectError as e:
+            raise AbsConnectionError(f"Failed to connect to {self.host}: {e}") from e
+        except httpx.TimeoutException as e:
+            raise AbsConnectionError(f"Request to {self.host} timed out: {e}") from e
+
         data = response.json()
 
+        # Validate response structure using Pydantic schema
+        validated = validate_libraries_response(data)
+
         libraries = []
-        for lib_data in data.get("libraries", []):
-            libraries.append(AbsLibrary.from_api_response(lib_data))
+        for lib_schema in validated.libraries:
+            libraries.append(
+                AbsLibrary(
+                    id=lib_schema.id,
+                    name=lib_schema.name,
+                    media_type=lib_schema.media_type,
+                    folders=lib_schema.get_folder_paths(),
+                    display_order=lib_schema.display_order,
+                )
+            )
 
         logger.info(f"Found {len(libraries)} libraries in ABS")
         return libraries
@@ -340,14 +366,43 @@ class AbsClient:
         if filter_str:
             params["filter"] = filter_str
 
-        response = self._request("GET", f"/api/libraries/{library_id}/items", params=params)
+        try:
+            response = self._request("GET", f"/api/libraries/{library_id}/items", params=params)
+        except httpx.ConnectError as e:
+            raise AbsConnectionError(f"Failed to connect to {self.host}: {e}") from e
+        except httpx.TimeoutException as e:
+            raise AbsConnectionError(f"Request to {self.host} timed out: {e}") from e
+
         data = response.json()
 
-        items = []
-        for item_data in data.get("results", []):
-            items.append(AbsLibraryItem.from_api_response(item_data))
+        # Validate response structure using Pydantic schema
+        validated = validate_library_items_response(data)
 
-        total = data.get("total", len(items))
+        items = []
+        for item_schema in validated.results:
+            items.append(
+                AbsLibraryItem(
+                    id=item_schema.id,
+                    library_id=item_schema.library_id,
+                    path=item_schema.path,
+                    rel_path=item_schema.rel_path,
+                    is_missing=item_schema.is_missing,
+                    media_type=item_schema.media_type,
+                    title=item_schema.title,
+                    subtitle=item_schema.subtitle,
+                    author_name=item_schema.author_name,
+                    narrator_name=item_schema.narrator_name,
+                    series_name=item_schema.series_name,
+                    asin=item_schema.asin,
+                    isbn=item_schema.isbn,
+                    duration=item_schema.duration,
+                    size=item_schema.size,
+                    added_at=item_schema.added_at,
+                    updated_at=item_schema.updated_at,
+                )
+            )
+
+        total = validated.total
         logger.info(f"Fetched {len(items)} items from library (total: {total})")
         return items, total
 
@@ -398,7 +453,12 @@ class AbsClient:
             AbsApiError: If item not found
         """
         logger.debug(f"Fetching details for item {item_id}")
-        response = self._request("GET", f"/api/items/{item_id}")
+        try:
+            response = self._request("GET", f"/api/items/{item_id}")
+        except httpx.ConnectError as e:
+            raise AbsConnectionError(f"Failed to connect to {self.host}: {e}") from e
+        except httpx.TimeoutException as e:
+            raise AbsConnectionError(f"Request to {self.host} timed out: {e}") from e
         result: dict[str, Any] = response.json()
         return result
 
@@ -416,7 +476,12 @@ class AbsClient:
         logger.info(f"Triggering scan for library {library_id} (force={force})")
 
         params = {"force": "1"} if force else {}
-        response = self._request("POST", f"/api/libraries/{library_id}/scan", params=params)
+        try:
+            response = self._request("POST", f"/api/libraries/{library_id}/scan", params=params)
+        except httpx.ConnectError as e:
+            raise AbsConnectionError(f"Failed to connect to {self.host}: {e}") from e
+        except httpx.TimeoutException as e:
+            raise AbsConnectionError(f"Request to {self.host} timed out: {e}") from e
 
         # ABS returns 200 on success
         return response.status_code == 200

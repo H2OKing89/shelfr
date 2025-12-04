@@ -16,9 +16,9 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        entry: mypy
+        entry: .venv/bin/mypy
         args: [src/]
-        language: system
+        language: script
         pass_filenames: false
         always_run: true
 
@@ -30,6 +30,8 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
+        args: ['--maxkb=1000']  # Allow up to 1MB for golden test fixtures
+        exclude: '^tests/fixtures/.*\.json$'
       - id: check-merge-conflict
       - id: debug-statements
 
@@ -38,8 +40,8 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: pytest
+        entry: .venv/bin/pytest
         args: [-q, --tb=short]
-        language: system
+        language: script
         pass_filenames: false
         always_run: true

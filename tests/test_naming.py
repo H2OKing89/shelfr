@@ -586,6 +586,89 @@ class TestFilterSeries:
         result = filter_series("Test Series", naming_config=config)
         assert result == "Test Series"
 
+    def test_removes_publication_order_tag(self):
+        """Test removing '[publication order]' sorting tag from series."""
+        config = NamingConfig(series_suffixes=[r"\s*\[[^\]]*[Oo]rder\]$"])
+        result = filter_series("Ascend Online [publication order]", naming_config=config)
+        assert result == "Ascend Online"
+
+    def test_removes_chronological_order_tag(self):
+        """Test removing '[chronological order]' sorting tag from series."""
+        config = NamingConfig(series_suffixes=[r"\s*\[[^\]]*[Oo]rder\]$"])
+        result = filter_series("Epic Fantasy [chronological order]", naming_config=config)
+        assert result == "Epic Fantasy"
+
+    def test_removes_reading_order_tag(self):
+        """Test removing '[reading order]' sorting tag from series."""
+        config = NamingConfig(series_suffixes=[r"\s*\[[^\]]*[Oo]rder\]$"])
+        result = filter_series("Some Series [reading order]", naming_config=config)
+        assert result == "Some Series"
+
+    def test_combined_series_suffix_and_order_tag(self):
+        """Test combined patterns (Series suffix and order tag)."""
+        config = NamingConfig(
+            series_suffixes=[
+                r"[\s—-]?[Ss]eries$",
+                r"\s*\[[^\]]*[Oo]rder\]$",
+            ]
+        )
+        # Both should work
+        assert filter_series("Epic Series", naming_config=config) == "Epic"
+        assert filter_series("Epic [publication order]", naming_config=config) == "Epic"
+
+
+class TestInheritThePrefix:
+    """Tests for inherit_the_prefix function."""
+
+    def test_inherits_the_from_title(self):
+        """Test 'The' is inherited when title starts with 'The {series}'."""
+        from mamfast.utils.naming import inherit_the_prefix
+
+        result = inherit_the_prefix("Great Cleric", "The Great Cleric: Volume 1")
+        assert result == "The Great Cleric"
+
+    def test_already_has_the_prefix(self):
+        """Test series with 'The' prefix is unchanged."""
+        from mamfast.utils.naming import inherit_the_prefix
+
+        result = inherit_the_prefix("The Great Cleric", "The Great Cleric: Volume 1")
+        assert result == "The Great Cleric"
+
+    def test_no_the_in_title(self):
+        """Test no inheritance when title doesn't start with 'The'."""
+        from mamfast.utils.naming import inherit_the_prefix
+
+        result = inherit_the_prefix("Ascend Online", "Ascend Online")
+        assert result == "Ascend Online"
+
+    def test_title_does_not_match_series(self):
+        """Test no inheritance when title doesn't match series."""
+        from mamfast.utils.naming import inherit_the_prefix
+
+        result = inherit_the_prefix("Epic Fantasy", "Volume 1: Epic Fantasy")
+        assert result == "Epic Fantasy"
+
+    def test_none_series(self):
+        """Test None series returns None."""
+        from mamfast.utils.naming import inherit_the_prefix
+
+        result = inherit_the_prefix(None, "The Great Cleric")
+        assert result is None
+
+    def test_none_title(self):
+        """Test None title returns series unchanged."""
+        from mamfast.utils.naming import inherit_the_prefix
+
+        result = inherit_the_prefix("Great Cleric", None)
+        assert result == "Great Cleric"
+
+    def test_case_insensitive_match(self):
+        """Test case-insensitive matching for 'The' inheritance."""
+        from mamfast.utils.naming import inherit_the_prefix
+
+        result = inherit_the_prefix("great cleric", "The Great Cleric: Volume 1")
+        assert result == "The great cleric"
+
 
 class TestFilterTitleKeepVolume:
     """Tests for the keep_volume parameter in filter_title.
@@ -1134,6 +1217,55 @@ class TestBuildMamFolderName:
         )
         # Colons are replaced with " -"
         assert ":" not in result or "Re:ZERO" in result  # preserve_exact may keep it
+
+    def test_inherits_the_prefix_from_title(self):
+        """Test 'The' prefix is inherited from title to series."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        result = build_mam_folder_name(
+            series="Great Cleric",
+            title="The Great Cleric: Volume 1",
+            volume_number="1",
+            year="2024",
+            author="Broccoli Lion",
+            asin="B0DW5D1JLQ",
+        )
+        assert "The Great Cleric" in result
+        assert result.startswith("The Great Cleric vol_01")  # Should have "The" prefix
+
+    def test_removes_series_suffix(self):
+        """Test ' Series' suffix is removed from series name."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        config = NamingConfig(series_suffixes=[r"[\s—-]?[Ss]eries$"])
+        result = build_mam_folder_name(
+            series="A Most Unlikely Hero Series",
+            title="A Most Unlikely Hero",
+            volume_number="2",
+            year="2024",
+            author="Brandon Varnell",
+            asin="B0DR9J6V2M",
+            naming_config=config,
+        )
+        assert "A Most Unlikely Hero vol_02" in result
+        assert "Series" not in result
+
+    def test_removes_order_tag_from_series(self):
+        """Test '[publication order]' tag is removed from series name."""
+        from mamfast.utils.naming import build_mam_folder_name
+
+        config = NamingConfig(series_suffixes=[r"\s*\[[^\]]*[Oo]rder\]$"])
+        result = build_mam_folder_name(
+            series="Ascend Online [publication order]",
+            title="Ascend Online",
+            volume_number="1",
+            year="2017",
+            author="Luke Chmilenko",
+            asin="B073PG4DX8",
+            naming_config=config,
+        )
+        assert "Ascend Online vol_01" in result
+        assert "[publication order]" not in result
 
 
 class TestBuildMamFileName:

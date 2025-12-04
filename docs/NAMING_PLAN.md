@@ -1,6 +1,6 @@
-yoy# Naming & Cleaning Plan
+# Naming & Cleaning Plan
 
-> **Document Version:** 1.6.0 | **Last Updated:** 2025-12-03 | **Status:** Phase 8 Pending (Full Path Truncation Fix) 🔧
+> **Document Version:** 1.9.0 | **Last Updated:** 2025-12-04 | **Status:** Phase 10 Complete ✅
 
 ---
 
@@ -88,7 +88,8 @@ config/
 |--------|-------------|
 | **`filter_title`** | Remove configured phrases/tags/suffixes (format indicators, genre tags, subtitle patterns). Case-insensitive matching. |
 | **`transliterate`** | Normalize non-ASCII characters to ASCII. For **titles/series/folders**: generic transliteration only (pykakasi → unidecode). For **authors/narrators**: first check `author_map`, then fall back to transliteration. |
-| **`filter_series`** | Like `filter_title` but also removes series suffixes (e.g., " Series", " Trilogy"). |
+| **`filter_series`** | Like `filter_title` but also removes series suffixes (e.g., " Series", " Trilogy", "[publication order]"). |
+| **`inherit_the_prefix`** | Inherit "The" prefix from title to series if series lacks it (e.g., title="The Great Cleric", series="Great Cleric" → series="The Great Cleric"). |
 | **`normalize_audnex`** | Fix Audible's inconsistent title/subtitle and extract canonical series data. See [Audnex Normalization](#audnex-normalization-layer). |
 | **Keep Vol/Book** | Whether volume/book indicators stay as human-readable text (JSON) or are normalized to `vol_XX` format (folders/files). |
 
@@ -221,6 +222,38 @@ After normalization, downstream naming uses these canonical sources:
 | MAM series | `series_name` | `Sword Art Online` |
 | MAM series_number | `series_position` | `16` |
 
+### Series Name Cleaning (Phase 9)
+
+The `clean_series_name()` function is called during normalization to clean raw series names before any downstream processing:
+
+```python
+def clean_series_name(series_name: str | None, title: str | None = None) -> str | None:
+    """
+    Clean up series name by removing common suffixes and tags.
+
+    Patterns removed:
+    - " Series" suffix      → "Holes Series" → "Holes"
+    - "(Light Novel)" suffix → "Rascal Does Not Dream (light novel)" → "Rascal Does Not Dream"
+    - " Light Novel" suffix  → "Kuma Kuma Kuma Bear Light Novel" → "Kuma Kuma Kuma Bear"
+    - "[tag]" bracket tags   → "Ascend Online [publication order]" → "Ascend Online"
+    - " Trilogy" suffix     → "Lord of the Rings Trilogy" → "Lord of the Rings"
+    - " Saga" suffix        → "Star Wars Saga" → "Star Wars"
+
+    Additionally inherits "The" prefix from title if series lacks it:
+    - title="The Rising of the Shield Hero", series="Rising of the Shield Hero"
+    - → series="The Rising of the Shield Hero"
+    """
+```
+
+**Impact analysis from 1,272 real library samples:**
+| Pattern | Books Affected |
+|---------|---------------|
+| " Series" suffix | 87 |
+| "(Light Novel)" suffix | 74 |
+| Bracket tags | 5 |
+| "The" prefix inheritance | 88 |
+| **Total cleaned** | **~254 (20%)** |
+
 ### Configuration
 
 ```yaml
@@ -246,6 +279,7 @@ Or in `naming.json`:
 | Both title AND subtitle have series name | Don't swap, let cleaning rules handle |
 | Multi-series books (`seriesSecondary`) | Ignore secondary, use primary only |
 | Standalone books | No series data → use raw title/subtitle |
+| Series name is only "Light Novel" | Not cleaned (would result in empty string) |
 
 ### Test Fixtures
 
@@ -841,7 +875,8 @@ Each category has specific matching behavior:
       "[\\s—-]?[Ss]aga$",
       "[\\s—-]?[Cc]hronicles$",
       "\\s*\\([Ll]ight [Nn]ovel\\)$",
-      "\\s+[Ll]ight [Nn]ovel$"
+      "\\s+[Ll]ight [Nn]ovel$",
+      "\\s*\\[[^\\]]*[Oo]rder\\]$"
     ]
   }
 }
@@ -850,7 +885,23 @@ Each category has specific matching behavior:
 **Examples:**
 - `"A Most Unlikely Hero Series"` → `"A Most Unlikely Hero"`
 - `"Kuma Kuma Kuma Bear Light Novel"` → `"Kuma Kuma Kuma Bear"`
+- `"Ascend Online [publication order]"` → `"Ascend Online"` (NEW - sorting tags)
+- `"Epic Fantasy [chronological order]"` → `"Epic Fantasy"` (NEW - sorting tags)
 - `"The Stormlight Archive"` → Keep (no suffix match)
+
+### "The" Prefix Inheritance (NEW)
+
+When the title starts with "The {series}" but the API series name lacks the "The" prefix, the prefix is inherited from the title. This ensures consistency in folder/file naming.
+
+**Logic in `inherit_the_prefix()`:**
+1. If series already starts with "The", no change
+2. If title starts with "The " followed by the series name, add "The " to series
+3. Otherwise, no change
+
+**Examples:**
+- Title: `"The Great Cleric: Volume 1"`, Series: `"Great Cleric"` → Series becomes `"The Great Cleric"`
+- Title: `"Ascend Online"`, Series: `"Ascend Online"` → No change (title doesn't start with "The")
+- Title: `"The Stormlight Archive"`, Series: `"The Stormlight Archive"` → No change (already has "The")
 
 ### Category: Publisher Tags (NEW)
 **Matching:** Case-insensitive, anywhere in string
@@ -979,6 +1030,49 @@ Based on library analysis: **55 books** have subtitles that are just "Series, Bo
 
 ## Author Map (Transliteration)
 
+### Author Role Filtering
+
+Before transliteration, non-primary authors are filtered out using `filter_authors()`.
+
+**Analysis Results (from 1,272 golden samples):**
+
+| Role Pattern | Count | Action |
+|-------------|-------|--------|
+| `- translator` | 242 | ✅ Filtered out |
+| `- illustrator` | 33 | ✅ Filtered out |
+| `- editor` | 1 | ✅ Filtered out |
+| `- narrator` | 0* | Kept (MAM lists separately) |
+
+*Narrators come from separate `narrators` field in Audnex, not author list.
+
+**Role Detection Patterns (configurable in `naming.json`):**
+```json
+{
+  "author_roles": {
+    "roles": ["translator", "illustrator", "editor", "adapter", "contributor", "compiler"],
+    "credit_roles": ["afterword", "foreword", "introduction", "cover design", "cover art"]
+  }
+}
+```
+
+**Pattern Matching:**
+- `Name - translator` (suffix with dash)
+- `Name (illustrator)` (parenthetical)
+- `Name, editor` (comma suffix)
+- `Foreword by Name` (credit prefix)
+- `with Name` (contributor prefix)
+
+### Translator Extraction
+
+Translators are extracted (not just filtered) for MAM metadata via `extract_translator()`:
+```
+"Roman Lempert - translator" → translator="Roman Lempert"
+```
+
+### Non-ASCII Name Transliteration
+
+**Analysis Results:** 11 non-ASCII author names found in library, all mapped in `author_map`.
+
 **Matching:** Case-sensitive, exact full match on author name
 
 ```json
@@ -1002,9 +1096,10 @@ Based on library analysis: **55 books** have subtitles that are just "Series, Bo
 
 **Fallback Behavior:**
 1. Check `author_map` for exact match → use mapped value
-2. If not in map and contains Japanese → use `pykakasi` transliteration
-3. If not Japanese but non-ASCII → use `unidecode`
-4. Otherwise → keep original
+2. Fuzzy match against `author_map` (threshold 85%) → use mapped value
+3. If not in map and contains Japanese → use `pykakasi` transliteration
+4. If not Japanese but non-ASCII → use `unidecode`
+5. Otherwise → keep original
 
 **Applied to:** MAM JSON authors and narrators fields only (not folder/file names)
 
@@ -1594,6 +1689,18 @@ When `LOG_LEVEL=DEBUG`, log with consistent rule IDs:
 
 ## Future Enhancements (Nice-to-Have)
 
+### Fuzzy Subtitle Matching (TODO)
+Currently subtitle redundancy rules require exact series/title match. Some edge cases (~47 books) have mismatched "The" prefix:
+- Subtitle: `"The F-Rank Foot Soldier Became..."`
+- Series: `"F-Rank Foot Soldier Became..."`
+
+**Proposed solution**: Use `rapidfuzz` similarity matching in `filter_subtitle()` when exact match fails:
+1. If subtitle contains series (exact) → apply rule
+2. Else if `similarity_ratio(subtitle_prefix, series) > 90%` → apply rule
+3. Log fuzzy matches for review
+
+This would require code changes to `filter_subtitle()` in `naming.py`. Separate PR recommended.
+
 ### Context-Based Rules
 Eventually could extend naming.json to support context overrides:
 ```json
@@ -1621,6 +1728,31 @@ Eventually could extend naming.json to support context overrides:
 
 ## Changelog
 
+- **2025-12-04**: **Phase 11 - Additional Subtitle Redundancy Rules**. Added 3 new rules to `naming.json` v1.7.0:
+  - `series_suffix_book`: Matches `"Series Series, Book N"` (series name + " Series" suffix)
+  - `series_omnibus`: Matches `"Series, Books N-M"` (omnibus/box set ranges)
+  - `series_vol_in_parens`: Matches `"(Series, Vol N)"` suffix (strip parens, keep rest)
+  - Improves subtitle redundancy coverage from 87% to ~90% (~13 more books)
+  - Added fuzzy matching TODO to Future Enhancements for remaining edge cases
+- **2025-12-04**: **Phase 10 - Author Name Normalization Analysis**. Validated existing author handling infrastructure:
+  - Analyzed 276 authors with role suffixes from 1,272 golden samples
+  - `filter_authors()` correctly removes translators (242), illustrators (33), editors (1)
+  - `extract_translator()` extracts translator names for MAM metadata
+  - All 11 non-ASCII Japanese author names have entries in `author_map`
+  - `transliterate_text()` with fuzzy matching (85% threshold) handles edge cases
+  - Updated Author Map section with role filtering documentation and analysis tables
+  - No code changes needed - existing infrastructure handles all cases
+- **2025-12-04**: **Phase 9 - Series Name Cleaning in Normalization**. Added `clean_series_name()` function to `normalize_audnex_book()` that cleans series names at the source:
+  - Strips " Series" suffix (e.g., "Holes Series" → "Holes") - 87 books affected
+  - Strips "(Light Novel)" / " Light Novel" suffix - 74 books affected
+  - Strips bracket tags like "[publication order]" - 5 books affected
+  - Strips " Trilogy" / " Saga" suffixes
+  - Inherits "The" prefix from title (e.g., title="The Rising of the Shield Hero", series="Rising of the Shield Hero" → "The Rising of the Shield Hero") - 88 books affected
+  - Added 13 unit tests for `clean_series_name()`, plus golden test coverage from 1,272 real library samples
+  - Created `scripts/build_golden_samples.py` to generate test fixtures from Audiobookshelf + Audnex API
+  - Created `tests/test_golden_normalization.py` with 17 tests validating all normalization categories
+- **2025-01-10**: **BUG FIX** - Fixed series name cleaning in folder names. `build_mam_folder_name()` and `build_mam_path()` now use `filter_series()` instead of `filter_title()` to apply series-specific suffix removal patterns (e.g., " Series", " Trilogy", "[publication order]"). Added `inherit_the_prefix()` function to inherit "The" prefix from title when API series lacks it.
+- **2025-01-10**: Added sorting tag removal pattern `\s*\[[^\]]*[Oo]rder\]$` to `series_suffixes` - removes "[publication order]", "[chronological order]", "[reading order]" from series names.
 - **2025-12-02**: Initial planning document created
 - **2025-12-02**: Added pipeline order, matching rules, glossary, preserve_exact, publisher_tags, testing strategy (feedback from ChatGPT/Claude review)
 - **2025-12-02**: Added subtitle_redundancy_rules with template-based patterns ({{series}}/{{title}}) to remove "Series, Book X" redundancy - affects 55+ books

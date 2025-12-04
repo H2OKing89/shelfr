@@ -720,7 +720,7 @@ This is **normal and expected**:
 4. But those 20 are still `NotLiberated` in DB
 5. Running `liberate` will download all 20
 
-**MAMFast handles this correctly** by always calling `liberate` after `scan`.
+**MAMFast now handles this correctly** by checking Libation's status after `scan` and only calling `liberate` when there are pending `NotLiberated` books.
 
 ---
 
@@ -731,5 +731,3 @@ This is **normal and expected**:
 3. **Health check**: Verify container mounts before running liberate
 4. **Progress tracking**: Parse liberate output for download progress
 5. **Direct ABS import**: After upload, automatically move to ABS and trigger scan
-
-
