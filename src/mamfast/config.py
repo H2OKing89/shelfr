@@ -233,6 +233,55 @@ class CategoriesConfig:
 
 
 @dataclass
+class AudiobookshelfPathMap:
+    """Docker path mapping for Audiobookshelf."""
+
+    container: str  # Path as seen inside ABS container
+    host: str  # Corresponding path on host filesystem
+
+
+@dataclass
+class AudiobookshelfLibrary:
+    """Audiobookshelf library configuration."""
+
+    id: str  # ABS library ID (e.g., lib_xxxxx)
+    name: str = ""  # Human-readable library name
+    mamfast_managed: bool = False  # Whether mamfast imports to this library
+
+
+@dataclass
+class AudiobookshelfImportConfig:
+    """Audiobookshelf import settings."""
+
+    duplicate_policy: str = "skip"  # skip | warn | overwrite
+    trigger_scan: str = "batch"  # none | each | batch
+
+
+@dataclass
+class AudiobookshelfConfig:
+    """Audiobookshelf integration settings (from config.yaml audiobookshelf section)."""
+
+    # Enable/disable ABS integration
+    enabled: bool = False
+    # ABS server URL (from .env: AUDIOBOOKSHELF_HOST)
+    host: str = ""
+    # API token (from .env: AUDIOBOOKSHELF_API_KEY)
+    api_key: str = ""
+    # Connection timeout
+    timeout_seconds: int = 30
+    # Whether ABS runs in Docker (requires path mapping)
+    docker_mode: bool = True
+    # Container-to-host path mappings
+    path_map: list[AudiobookshelfPathMap] = field(default_factory=list)
+    # Library configurations
+    libraries: list[AudiobookshelfLibrary] = field(default_factory=list)
+    # Import settings
+    import_settings: AudiobookshelfImportConfig = field(default_factory=AudiobookshelfImportConfig)
+    # Index database path
+    index_db: str = "./data/abs_index.db"
+
+
+@dataclass
 class Settings:
     """
     Complete application settings.
@@ -259,6 +308,7 @@ class Settings:
     filters: FiltersConfig
     categories: CategoriesConfig
     naming: NamingConfig
+    audiobookshelf: AudiobookshelfConfig = field(default_factory=AudiobookshelfConfig)
 
 
 def validate_url(url: str, field_name: str) -> None:
@@ -888,6 +938,48 @@ def load_settings(
     # Load categories from config/categories.json
     categories = _load_categories(config_dir)
 
+    # Parse Audiobookshelf config
+    abs_data = yaml_config.get("audiobookshelf", {})
+    abs_import_data = abs_data.get("import", {})
+
+    # Build path mappings
+    abs_path_map = []
+    for pm in abs_data.get("path_map", []):
+        if isinstance(pm, dict) and "container" in pm and "host" in pm:
+            abs_path_map.append(
+                AudiobookshelfPathMap(
+                    container=pm["container"].rstrip("/"),
+                    host=pm["host"].rstrip("/"),
+                )
+            )
+
+    # Build library configs
+    abs_libraries = []
+    for lib in abs_data.get("libraries", []):
+        if isinstance(lib, dict) and "id" in lib:
+            abs_libraries.append(
+                AudiobookshelfLibrary(
+                    id=lib["id"],
+                    name=lib.get("name", ""),
+                    mamfast_managed=lib.get("mamfast_managed", False),
+                )
+            )
+
+    audiobookshelf = AudiobookshelfConfig(
+        enabled=abs_data.get("enabled", False),
+        host=_get_env("AUDIOBOOKSHELF_HOST", ""),
+        api_key=_get_env("AUDIOBOOKSHELF_API_KEY", ""),
+        timeout_seconds=abs_data.get("timeout_seconds", 30),
+        docker_mode=abs_data.get("docker_mode", True),
+        path_map=abs_path_map,
+        libraries=abs_libraries,
+        import_settings=AudiobookshelfImportConfig(
+            duplicate_policy=abs_import_data.get("duplicate_policy", "skip"),
+            trigger_scan=abs_import_data.get("trigger_scan", "batch"),
+        ),
+        index_db=abs_data.get("index_db", "./data/abs_index.db"),
+    )
+
     # Parse environment section (YAML overrides env vars)
     env_data = yaml_config.get("environment", {})
 
@@ -912,6 +1004,7 @@ def load_settings(
         filters=filters,
         categories=categories,
         naming=naming,
+        audiobookshelf=audiobookshelf,
     )
 
     # Comprehensive validation if requested
