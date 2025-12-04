@@ -1,6 +1,27 @@
 # Audiobookshelf Import Plan
 
-> **Document Version:** 3.3.1 | **Last Updated:** 2025-12-03 | **Status:** Ready to Implement ✅
+> **Document Version:** 3.4.0 | **Last Updated:** 2025-12-03 | **Status:** PR 1 Complete ✅
+
+---
+
+## Implementation Progress
+
+| PR | Branch | Status | Description |
+|----|--------|--------|-------------|
+| **PR 1** | `feature/abs-import-foundations` | ✅ Complete | Config, schemas, CLI stubs, test fixtures |
+| **PR 2** | `feature/abs-import-client` | 🔲 Next | `AbsClient` implementation |
+| **PR 3** | `feature/abs-import-index` | 🔲 Planned | SQLite indexer, `abs-index` |
+| **PR 4** | `feature/abs-import-workflow` | 🔲 Planned | Workflow integration |
+
+### PR 1 Deliverables (Complete)
+- [x] `docs/AUDIOBOOKSHELF_API.md` - API reference
+- [x] `config.yaml` audiobookshelf section + Pydantic schemas
+- [x] `.env.example` with `AUDIOBOOKSHELF_HOST`, `AUDIOBOOKSHELF_API_KEY`
+- [x] `AudiobookshelfConfig` dataclass in `config.py`
+- [x] `mamfast abs-init` CLI stub
+- [x] `mamfast abs-index` CLI stub with `--full`, `--library` flags
+- [x] Test fixtures: `tests/fixtures/abs_responses/*.json`
+- [x] 27 new tests (14 schema + 13 CLI)
 
 ---
 
@@ -1960,8 +1981,8 @@ def cmd_abs_import(args):
 **Goal:** Connect to ABS API, handle Docker path translation
 
 **New Modules:**
-- [ ] `src/mamfast/abs_client.py` - ABS API client with httpx
-- [ ] Path mapping in `src/mamfast/utils/paths.py`
+- [ ] `src/mamfast/abs/client.py` - ABS API client with httpx
+- [x] Path mapping config in `src/mamfast/schemas/config.py` (AudiobookshelfPathMapSchema)
 
 **Features:**
 - [ ] `AbsClient` class:
@@ -1970,37 +1991,39 @@ def cmd_abs_import(args):
   - `get_item_details(item_id)` - detailed book info (optional)
 - [ ] `map_abs_path_to_host()` - container → host path
 - [ ] `map_host_path_to_abs()` - host → container path
-- [ ] Config validation (URL, token, path_map)
+- [x] Config validation (URL, token, path_map) - Pydantic schemas
 
 **CLI:**
-- [ ] `mamfast abs-init` command:
-  - Validate connection
-  - List libraries
-  - Generate config template
+- [x] `mamfast abs-init` command (stub - validates config, not yet connected to API)
+- [x] `mamfast abs-index` command (stub with `--full`, `--library` flags)
 
 **Config:**
 ```yaml
-abs:
+audiobookshelf:
   enabled: true
-  base_url: "https://audiobookshelf.domain.com"
-  api_token: "${ABS_API_TOKEN}"
+  timeout_seconds: 30
   docker_mode: true
+  path_map:
+    - container: "/audiobooks"
+      host: "/mnt/user/data/audio/audiobooks"
   libraries:
     - id: "lib_xxx"
       name: "Audiobooks"
       mamfast_managed: true
-      path_map:
-        - container: "/audiobooks"
-          host: "/mnt/user/data/audio/audiobooks"
+  import:
+    duplicate_policy: skip
+    trigger_scan: batch
+  index_db: "./data/abs_index.db"
 ```
 
 **Tests:**
 - [ ] Unit tests for path mapping (both directions)
-- [ ] Unit tests for config parsing
+- [x] Unit tests for config parsing (14 tests in test_config_schema.py)
 - [ ] Mock tests for API client
-- [ ] Integration test with real ABS (optional, needs credentials)
+- [x] Test fixtures for API responses (tests/fixtures/abs_responses/)
+- [x] CLI stub tests (13 tests in test_cli_abs.py)
 
-**Estimated Effort:** 3-4 hours
+**Estimated Effort:** 3-4 hours → **~2 hours remaining** (client implementation)
 
 ---
 
@@ -2138,14 +2161,15 @@ abs:
 
 ### Test Fixtures
 
-ABS API response mocks should live in `tests/fixtures/abs_responses/`:
+ABS API response mocks live in `tests/fixtures/abs_responses/`:
 
 ```
 tests/fixtures/abs_responses/
-├── libraries.json           # GET /api/libraries
-├── library_items.json       # GET /api/libraries/{id}/items
-├── library_item_detail.json # GET /api/items/{id}
-└── scan_response.json       # POST /api/libraries/{id}/scan
+├── authorize.json           # POST /api/authorize ✅
+├── libraries.json           # GET /api/libraries ✅
+├── library_items.json       # GET /api/libraries/{id}/items ✅
+├── library_item_detail.json # GET /api/items/{id} ✅
+└── scan_response.json       # POST /api/libraries/{id}/scan (TODO)
 ```
 
 ### Unit Tests
