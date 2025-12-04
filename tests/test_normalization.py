@@ -10,6 +10,7 @@ import pytest
 
 from mamfast.models import NormalizedBook
 from mamfast.utils.naming import (
+    clean_series_name,
     detect_swapped_title_subtitle,
     extract_arc_name,
     normalize_audnex_book,
@@ -24,6 +25,88 @@ def normalization_samples() -> dict[str, Any]:
     """Load normalization test fixtures."""
     with open(FIXTURES_PATH, encoding="utf-8") as f:
         return json.load(f)
+
+
+class TestCleanSeriesName:
+    """Tests for clean_series_name function."""
+
+    def test_none_input(self) -> None:
+        """None input returns None."""
+        assert clean_series_name(None) is None
+
+    def test_empty_string(self) -> None:
+        """Empty string returns None."""
+        assert clean_series_name("") is None
+        assert clean_series_name("   ") is None
+
+    def test_no_cleaning_needed(self) -> None:
+        """Series name without patterns passes through."""
+        assert clean_series_name("Sword Art Online") == "Sword Art Online"
+        assert clean_series_name("The Hunger Games") == "The Hunger Games"
+
+    def test_strips_series_suffix(self) -> None:
+        """Removes ' Series' suffix."""
+        assert clean_series_name("Holes Series") == "Holes"
+        assert clean_series_name("Solo Leveling Series") == "Solo Leveling"
+        assert clean_series_name("Hell Divers Series") == "Hell Divers"
+
+    def test_strips_light_novel_parens(self) -> None:
+        """Removes '(Light Novel)' suffix with parens."""
+        assert clean_series_name("Rascal Does Not Dream (light novel)") == "Rascal Does Not Dream"
+        assert (
+            clean_series_name("So I'm a Spider, So What? (Light Novel)")
+            == "So I'm a Spider, So What?"
+        )
+
+    def test_strips_light_novel_no_parens(self) -> None:
+        """Removes ' Light Novel' suffix without parens."""
+        assert clean_series_name("Kuma Kuma Kuma Bear Light Novel") == "Kuma Kuma Kuma Bear"
+
+    def test_strips_bracket_tags(self) -> None:
+        """Removes bracket tags like [publication order]."""
+        assert clean_series_name("Ascend Online [publication order]") == "Ascend Online"
+        assert clean_series_name("Dresden Files [reading order]") == "Dresden Files"
+
+    def test_strips_trilogy_saga(self) -> None:
+        """Removes Trilogy and Saga suffixes."""
+        assert clean_series_name("Lord of the Rings Trilogy") == "Lord of the Rings"
+        assert clean_series_name("Star Wars Saga") == "Star Wars"
+
+    def test_inherits_the_prefix(self) -> None:
+        """Inherits 'The' prefix from title when series lacks it."""
+        assert (
+            clean_series_name(
+                "Rising of the Shield Hero", title="The Rising of the Shield Hero, Volume 1"
+            )
+            == "The Rising of the Shield Hero"
+        )
+
+    def test_no_the_inheritance_when_already_has_the(self) -> None:
+        """Doesn't double 'The' prefix."""
+        assert clean_series_name("The Hunger Games", title="The Hunger Games") == "The Hunger Games"
+
+    def test_no_the_inheritance_when_title_missing(self) -> None:
+        """No inheritance when title is None."""
+        assert clean_series_name("Rising of the Shield Hero") == "Rising of the Shield Hero"
+
+    def test_no_the_inheritance_when_series_not_in_title(self) -> None:
+        """No inheritance when series name isn't in title."""
+        # "Witcher" isn't in "The Hunger Games" so no The inheritance
+        assert clean_series_name("Witcher", title="The Hunger Games") == "Witcher"
+
+    def test_combined_cleaning(self) -> None:
+        """Multiple patterns cleaned in one pass."""
+        # Series suffix + The inheritance
+        assert (
+            clean_series_name("Terminal List Series", title="The Terminal List")
+            == "The Terminal List"
+        )
+
+        # Bracket tag removal
+        assert (
+            clean_series_name("Ascend Online [publication order]", title="Hell to Pay")
+            == "Ascend Online"
+        )
 
 
 class TestDetectSwappedTitleSubtitle:

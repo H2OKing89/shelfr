@@ -208,6 +208,62 @@ def extract_translator(authors: list[dict[str, str]]) -> str | None:
 # =============================================================================
 
 
+def clean_series_name(series_name: str | None, title: str | None = None) -> str | None:
+    """
+    Clean up series name by removing common suffixes and tags.
+
+    Handles:
+    - " Series" suffix (e.g., "Holes Series" -> "Holes")
+    - " (Light Novel)" / " (light novel)" suffix
+    - " Light Novel" suffix (without parens)
+    - " [publication order]" and similar bracket tags
+    - " Trilogy", " Saga" suffixes
+    - "The" prefix inheritance from title
+
+    Args:
+        series_name: Raw series name from Audnex
+        title: Book title (used for "The" prefix inheritance)
+
+    Returns:
+        Cleaned series name, or None if input was None/empty
+    """
+    if not series_name:
+        return None
+
+    cleaned = series_name.strip()
+
+    # Remove bracket tags like "[publication order]", "[reading order]"
+    cleaned = re.sub(r"\s*\[[^\]]*\]\s*$", "", cleaned)
+
+    # Remove "(Light Novel)" / "(light novel)" suffix
+    cleaned = re.sub(r"\s*\([Ll]ight [Nn]ovel\)\s*$", "", cleaned)
+
+    # Remove " Light Novel" suffix (without parens) - but not if it's the whole name
+    cleaned = re.sub(r"\s+[Ll]ight [Nn]ovels?\s*$", "", cleaned)
+
+    # Remove common series type suffixes
+    cleaned = re.sub(r"[\s—-]+[Ss]eries\s*$", "", cleaned)
+    cleaned = re.sub(r"[\s—-]+[Tt]rilogy\s*$", "", cleaned)
+    cleaned = re.sub(r"[\s—-]+[Ss]aga\s*$", "", cleaned)
+
+    # Handle "The" prefix inheritance
+    # If title starts with "The " but series doesn't, inherit it
+    if title:
+        title_lower = title.lower()
+        cleaned_lower = cleaned.lower()
+
+        # Check if title starts with "The " and series doesn't, and series appears in title
+        # e.g., "The Rising of the Shield Hero" title with "Rising of the Shield Hero" series
+        if (
+            title_lower.startswith("the ")
+            and not cleaned_lower.startswith("the ")
+            and cleaned_lower in title_lower
+        ):
+            cleaned = f"The {cleaned}"
+
+    return cleaned.strip() if cleaned else None
+
+
 def detect_swapped_title_subtitle(
     title: str,
     subtitle: str | None,
@@ -334,9 +390,10 @@ def normalize_audnex_book(
 
     This is the main entry point for Audnex normalization. It:
     1. Extracts series info from seriesPrimary (source of truth)
-    2. Detects and fixes title/subtitle swaps
-    3. Extracts arc name from the appropriate field
-    4. Returns a NormalizedBook with canonical values
+    2. Cleans series name (removes suffixes, inherits "The" prefix)
+    3. Detects and fixes title/subtitle swaps
+    4. Extracts arc name from the appropriate field
+    5. Returns a NormalizedBook with canonical values
 
     Args:
         audnex_data: Raw Audnex API response for a book
@@ -352,17 +409,29 @@ def normalize_audnex_book(
 
     # Extract series info (source of truth)
     series_primary = audnex_data.get("seriesPrimary") or {}
-    series_name = series_primary.get("name", "").strip() or None
+    raw_series_name = series_primary.get("name", "").strip() or None
     series_position = series_primary.get("position")
     if series_position is not None:
         series_position = str(series_position)
 
-    # Detect and fix swapped title/subtitle
+    # Clean series name (remove suffixes, inherit "The" prefix)
+    series_name = clean_series_name(raw_series_name, raw_title)
+
+    # Log if series was cleaned
+    if raw_series_name and series_name and raw_series_name != series_name:
+        logger.debug(
+            "[normalize] %s: Cleaned series name: %r -> %r",
+            asin,
+            raw_series_name,
+            series_name,
+        )
+
+    # Detect and fix swapped title/subtitle (use cleaned series name)
     corrected_title, corrected_subtitle, was_swapped = detect_swapped_title_subtitle(
         raw_title, raw_subtitle, series_name, series_position
     )
 
-    # Extract arc name
+    # Extract arc name (use cleaned series name)
     arc_name = extract_arc_name(corrected_title, corrected_subtitle, series_name)
 
     # Build display values
