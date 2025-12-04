@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -27,24 +28,27 @@ def abs_fixtures_path() -> Path:
 
 
 @pytest.fixture
-def mock_authorize_response(abs_fixtures_path: Path) -> dict:
+def mock_authorize_response(abs_fixtures_path: Path) -> dict[str, Any]:
     """Load authorize.json fixture."""
     with open(abs_fixtures_path / "authorize.json") as f:
-        return json.load(f)
+        result: dict[str, Any] = json.load(f)
+        return result
 
 
 @pytest.fixture
-def mock_libraries_response(abs_fixtures_path: Path) -> dict:
+def mock_libraries_response(abs_fixtures_path: Path) -> dict[str, Any]:
     """Load libraries.json fixture."""
     with open(abs_fixtures_path / "libraries.json") as f:
-        return json.load(f)
+        result: dict[str, Any] = json.load(f)
+        return result
 
 
 @pytest.fixture
-def mock_library_items_response(abs_fixtures_path: Path) -> dict:
+def mock_library_items_response(abs_fixtures_path: Path) -> dict[str, Any]:
     """Load library_items.json fixture."""
     with open(abs_fixtures_path / "library_items.json") as f:
-        return json.load(f)
+        result: dict[str, Any] = json.load(f)
+        return result
 
 
 @pytest.fixture
@@ -107,7 +111,7 @@ class TestAbsClientAuthorize:
     def test_authorize_success(
         self,
         client: AbsClient,
-        mock_authorize_response: dict,
+        mock_authorize_response: dict[str, Any],
     ) -> None:
         """Test successful authorization."""
         mock_response = MagicMock()
@@ -139,7 +143,7 @@ class TestAbsClientAuthorize:
     def test_ping_success(
         self,
         client: AbsClient,
-        mock_authorize_response: dict,
+        mock_authorize_response: dict[str, Any],
     ) -> None:
         """Test ping returns True on success."""
         mock_response = MagicMock()
@@ -165,7 +169,7 @@ class TestAbsClientLibraries:
     def test_get_libraries(
         self,
         client: AbsClient,
-        mock_libraries_response: dict,
+        mock_libraries_response: dict[str, Any],
     ) -> None:
         """Test getting libraries."""
         mock_response = MagicMock()
@@ -198,7 +202,7 @@ class TestAbsClientLibraryItems:
     def test_get_library_items(
         self,
         client: AbsClient,
-        mock_library_items_response: dict,
+        mock_library_items_response: dict[str, Any],
     ) -> None:
         """Test getting library items."""
         mock_response = MagicMock()
@@ -224,7 +228,7 @@ class TestAbsClientLibraryItems:
     def test_get_library_items_with_pagination(
         self,
         client: AbsClient,
-        mock_library_items_response: dict,
+        mock_library_items_response: dict[str, Any],
     ) -> None:
         """Test pagination parameters are passed correctly."""
         mock_response = MagicMock()
@@ -242,7 +246,7 @@ class TestAbsClientLibraryItems:
     def test_item_without_asin(
         self,
         client: AbsClient,
-        mock_library_items_response: dict,
+        mock_library_items_response: dict[str, Any],
     ) -> None:
         """Test handling items without ASIN."""
         # The fixture includes a book without ASIN
