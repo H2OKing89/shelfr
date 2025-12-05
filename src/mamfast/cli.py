@@ -1875,7 +1875,8 @@ def cmd_abs_index(args: argparse.Namespace) -> int:
     """
     from pathlib import Path
 
-    from mamfast.abs import AbsClient, AbsIndex, PathMapper
+    from mamfast.abs import AbsClient, PathMapper
+    from mamfast.abs.indexer import AbsIndex
     from mamfast.config import reload_settings
 
     print_header("Audiobookshelf Index", dry_run=args.dry_run)
@@ -2006,12 +2007,15 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
 
     Moves staged books to ABS library structure with duplicate detection.
     Uses atomic rename to preserve hardlinks to seed folder.
+
+    Duplicate detection uses in-memory ASIN index built from ABS API,
+    always providing fresh data without needing to run abs-index first.
     """
     from pathlib import Path
 
     from mamfast.abs import (
         AbsClient,
-        AbsIndex,
+        build_asin_index,
         discover_staged_books,
         import_batch,
         trigger_scan_safe,
@@ -2056,14 +2060,9 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     # Get import source directory (library_root = where new audiobooks are staged)
     import_source = settings.paths.library_root
 
-    # Get index database path
-    db_path = Path(abs_config.index_db)
-    if not db_path.is_absolute():
-        db_path = Path.cwd() / db_path
-
-    # Validate prerequisites
-    print_step(1, 4, "Validating prerequisites")
-    errors = validate_import_prerequisites(import_source, abs_library_root, db_path)
+    # Validate prerequisites (no longer checks for index DB)
+    print_step(1, 5, "Validating prerequisites")
+    errors = validate_import_prerequisites(import_source, abs_library_root)
     if errors:
         for err in errors:
             print_error(err)
@@ -2071,7 +2070,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     print_success("Prerequisites validated")
 
     # Discover books to import
-    print_step(2, 4, "Discovering staged books")
+    print_step(2, 5, "Discovering staged books")
     if args.paths:
         # Specific paths provided
         staging_folders = [p for p in args.paths if p.is_dir()]
@@ -2090,8 +2089,31 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     # Determine duplicate policy
     dup_policy = args.duplicate_policy or abs_config.import_settings.duplicate_policy
 
-    # Open index and perform import
-    print_step(3, 4, "Importing to library")
+    # Connect to ABS and build ASIN index
+    print_step(3, 5, "Building ASIN index from ABS")
+    try:
+        client = AbsClient(
+            host=abs_config.host,
+            api_key=abs_config.api_key,
+            timeout=abs_config.timeout_seconds,
+        )
+        # Test connection first
+        user = client.authorize()
+        print_success(f"Connected as {user.username}")
+    except Exception as e:
+        fatal_error(f"Failed to connect to ABS: {e}")
+        return 1
+
+    # Build in-memory ASIN index (fetches all items, caches for this session)
+    try:
+        asin_index = build_asin_index(client, target_library.id)
+        print_success(f"Indexed {len(asin_index)} books with ASINs")
+    except Exception as e:
+        fatal_error(f"Failed to build ASIN index: {e}")
+        return 1
+
+    # Perform import
+    print_step(4, 5, "Importing to library")
     print_info(f"Source: {import_source}")
     print_info(f"Target: {abs_library_root}")
     print_info(f"Duplicate policy: {dup_policy}")
@@ -2100,16 +2122,14 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         print_dry_run(f"Would import {len(staging_folders)} book(s)")
 
     try:
-        with AbsIndex(db_path) as index:
-            result = import_batch(
-                staging_folders=staging_folders,
-                library_root=abs_library_root,
-                index=index,
-                library_id=target_library.id,
-                staging_root=import_source,
-                duplicate_policy=dup_policy,
-                dry_run=args.dry_run,
-            )
+        result = import_batch(
+            staging_folders=staging_folders,
+            library_root=abs_library_root,
+            asin_index=asin_index,
+            staging_root=import_source,
+            duplicate_policy=dup_policy,
+            dry_run=args.dry_run,
+        )
     except Exception as e:
         fatal_error(f"Import failed: {e}")
         return 1
@@ -2174,7 +2194,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
             console.print()
 
     # Summary
-    print_step(4, 4, "Import complete")
+    print_step(5, 5, "Import complete")
 
     if args.dry_run:
         print_dry_run(f"Would import {result.success_count} book(s)")
@@ -2210,13 +2230,11 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
 
 
 def cmd_abs_check_duplicate(args: argparse.Namespace) -> int:
-    """Check if an ASIN already exists in the library index.
+    """Check if an ASIN already exists in the ABS library.
 
-    Quick lookup for duplicate detection.
+    Quick lookup for duplicate detection using in-memory index from ABS API.
     """
-    from pathlib import Path
-
-    from mamfast.abs import AbsIndex, is_valid_asin
+    from mamfast.abs import AbsClient, asin_exists, build_asin_index, is_valid_asin
     from mamfast.config import reload_settings
 
     asin = args.asin.upper().strip()
@@ -2240,34 +2258,36 @@ def cmd_abs_check_duplicate(args: argparse.Namespace) -> int:
 
     abs_config = settings.audiobookshelf
 
-    # Get index database path
-    db_path = Path(abs_config.index_db)
-    if not db_path.is_absolute():
-        db_path = Path.cwd() / db_path
+    # Get managed library
+    managed_libs = [lib for lib in abs_config.libraries if lib.mamfast_managed]
+    if not managed_libs:
+        fatal_error("No mamfast_managed libraries configured")
+        return 1
+    target_library = managed_libs[0]
 
-    if not db_path.exists():
-        fatal_error(f"Index database not found: {db_path}")
-        print_info("Run 'mamfast abs-index' first to build the library index")
+    # Connect to ABS and build index
+    print_info(f"Checking ASIN {asin} against ABS library...")
+    try:
+        client = AbsClient(
+            host=abs_config.host,
+            api_key=abs_config.api_key,
+            timeout=abs_config.timeout_seconds,
+        )
+        asin_index = build_asin_index(client, target_library.id)
+    except Exception as e:
+        fatal_error(f"Failed to query ABS: {e}")
         return 1
 
     # Check index
-    try:
-        with AbsIndex(db_path) as index:
-            book = index.get_book_by_asin(asin)
-    except Exception as e:
-        fatal_error(f"Failed to query index: {e}")
-        return 1
+    exists, existing_path = asin_exists(asin_index, asin)
 
-    if book:
+    if exists:
+        entry = asin_index[asin]
         print_warning(f"ASIN {asin} already exists:")
-        print_info(f"  Title: {book.title}")
-        if book.subtitle:
-            print_info(f"  Subtitle: {book.subtitle}")
-        print_info(f"  Author: {book.author_display}")
-        if book.series_name:
-            pos = f" #{book.series_position}" if book.series_position else ""
-            print_info(f"  Series: {book.series_name}{pos}")
-        print_info(f"  Path: {book.folder_path_host}")
+        print_info(f"  Title: {entry.title}")
+        if entry.author:
+            print_info(f"  Author: {entry.author}")
+        print_info(f"  Path: {entry.path}")
         return 1
     else:
         print_success(f"ASIN {asin} not found in library - safe to import")

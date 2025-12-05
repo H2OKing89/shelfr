@@ -2,6 +2,9 @@
 
 Handles the final step of the MAM workflow: moving staged audiobooks
 to the ABS library structure while preserving hardlinks to seed folder.
+
+Uses in-memory ASIN index (from ABS API) for duplicate detection instead
+of SQLite for simplicity and always-fresh data.
 """
 
 from __future__ import annotations
@@ -13,12 +16,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mamfast.abs.asin import extract_asin
+from mamfast.abs.asin import AsinEntry, asin_exists, extract_asin
 from mamfast.utils.naming import build_mam_file_name, build_mam_folder_name, clean_series_name
 
 if TYPE_CHECKING:
     from mamfast.abs.client import AbsClient
-    from mamfast.abs.indexer import AbsIndex
 
 logger = logging.getLogger(__name__)
 
@@ -487,7 +489,6 @@ def _same_filesystem(path1: Path, path2: Path) -> bool:
 def validate_import_prerequisites(
     staging_root: Path,
     library_root: Path,
-    index_db_path: Path,
 ) -> list[str]:
     """Validate prerequisites for import operations.
 
@@ -495,12 +496,10 @@ def validate_import_prerequisites(
     1. Staging directory exists and is accessible
     2. Library root exists and is writable
     3. Both are on the same filesystem (for atomic moves)
-    4. Index database exists
 
     Args:
         staging_root: Staging directory (seed_root)
         library_root: ABS library root
-        index_db_path: Path to abs_index.db
 
     Returns:
         List of error messages (empty if all checks pass)
@@ -531,13 +530,6 @@ def validate_import_prerequisites(
             f"Staging ({staging_root}) and library ({library_root}) "
             "are on different filesystems. Atomic move requires same filesystem "
             "to preserve hardlinks."
-        )
-
-    # Check index exists
-    if not index_db_path.exists():
-        errors.append(
-            f"Index database not found: {index_db_path}. "
-            "Run 'mamfast abs-index' first to build the library index."
         )
 
     return errors
@@ -624,8 +616,7 @@ def build_target_path(
 def import_single(
     staging_folder: Path,
     library_root: Path,
-    index: AbsIndex,
-    library_id: str,
+    asin_index: dict[str, AsinEntry],
     *,
     staging_root: Path | None = None,
     duplicate_policy: str = "skip",
@@ -636,8 +627,7 @@ def import_single(
     Args:
         staging_folder: Path to staged audiobook folder
         library_root: ABS library root
-        index: AbsIndex for duplicate checking
-        library_id: Target ABS library ID (for logging)
+        asin_index: In-memory ASIN index from build_asin_index()
         staging_root: Root of staging directory (to preserve nested structure)
         duplicate_policy: "skip", "warn", or "overwrite"
         dry_run: If True, don't actually move files
@@ -645,8 +635,6 @@ def import_single(
     Returns:
         ImportResult with status and details
     """
-    from mamfast.abs.indexer import ImportStatus
-
     folder_name = staging_folder.name
 
     # Parse folder name
@@ -665,7 +653,7 @@ def import_single(
 
     # Check for duplicates if we have an ASIN
     if asin:
-        is_dup, existing_path = index.check_duplicate(asin)
+        is_dup, existing_path = asin_exists(asin_index, asin)
         if is_dup:
             if duplicate_policy == "skip":
                 return ImportResult(
@@ -749,20 +737,6 @@ def import_single(
     # Rename files to match clean MAM naming convention
     rename_files_in_folder(target_path, parsed)
 
-    # Log import to database
-    if asin:
-        try:
-            index.log_import(
-                asin=asin,
-                source_path=str(staging_folder),
-                target_path=str(target_path),
-                library_id=library_id,
-                status=ImportStatus.SUCCESS,
-            )
-        except Exception as e:
-            # Don't fail import for logging errors
-            logger.warning("Failed to log import: %s", e)
-
     return ImportResult(
         staging_path=staging_folder,
         target_path=target_path,
@@ -774,8 +748,7 @@ def import_single(
 def import_batch(
     staging_folders: list[Path],
     library_root: Path,
-    index: AbsIndex,
-    library_id: str,
+    asin_index: dict[str, AsinEntry],
     *,
     staging_root: Path | None = None,
     duplicate_policy: str = "skip",
@@ -786,8 +759,7 @@ def import_batch(
     Args:
         staging_folders: List of staging folders to import
         library_root: ABS library root
-        index: AbsIndex for duplicate checking
-        library_id: Target ABS library ID
+        asin_index: In-memory ASIN index from build_asin_index()
         staging_root: Root staging directory (for resolving author from path)
         duplicate_policy: "skip", "warn", or "overwrite"
         dry_run: If True, don't actually move files
@@ -801,8 +773,7 @@ def import_batch(
         result = import_single(
             staging_folder=folder,
             library_root=library_root,
-            index=index,
-            library_id=library_id,
+            asin_index=asin_index,
             staging_root=staging_root,
             duplicate_policy=duplicate_policy,
             dry_run=dry_run,
@@ -883,6 +854,4 @@ def discover_staged_books(staging_root: Path, *, recursive: bool = True) -> list
             pass
 
     search_directory(staging_root)
-    return sorted(staged)
-
     return sorted(staged)

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from mamfast.abs.asin import AsinEntry
 from mamfast.abs.importer import (
     BatchImportResult,
     ImportResult,
@@ -17,7 +18,6 @@ from mamfast.abs.importer import (
     parse_mam_folder_name,
     validate_import_prerequisites,
 )
-from mamfast.abs.indexer import AbsIndex
 
 # =============================================================================
 # Test Fixtures
@@ -41,18 +41,23 @@ def temp_library(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def temp_index_db(tmp_path: Path) -> Path:
-    """Create a temporary index database path."""
-    return tmp_path / "abs_index.db"
+def empty_asin_index() -> dict[str, AsinEntry]:
+    """Create an empty ASIN index for tests."""
+    return {}
 
 
 @pytest.fixture
-def mock_index(temp_index_db: Path) -> AbsIndex:
-    """Create a real AbsIndex with empty database."""
-    index = AbsIndex(temp_index_db)
-    # Initialize the schema by accessing connection
-    index._get_conn()
-    return index
+def mock_asin_index() -> dict[str, AsinEntry]:
+    """Create an ASIN index with some existing entries for duplicate testing."""
+    return {
+        "B08G9PRS1K": AsinEntry(
+            asin="B08G9PRS1K",
+            path="/audiobooks/Andy Weir/Project Hail Mary",
+            library_item_id="li_existing1",
+            title="Project Hail Mary",
+            author="Andy Weir",
+        ),
+    }
 
 
 def create_audiobook_folder(staging: Path, name: str, *, with_audio: bool = True) -> Path:
@@ -225,58 +230,38 @@ class TestBuildTargetPath:
 class TestValidateImportPrerequisites:
     """Tests for prerequisite validation."""
 
-    def test_all_valid(self, temp_staging: Path, temp_library: Path, temp_index_db: Path) -> None:
+    def test_all_valid(self, temp_staging: Path, temp_library: Path) -> None:
         """No errors when all prerequisites met."""
-        # Create index file
-        temp_index_db.touch()
-
-        errors = validate_import_prerequisites(temp_staging, temp_library, temp_index_db)
+        errors = validate_import_prerequisites(temp_staging, temp_library)
         assert errors == []
 
-    def test_staging_not_exists(
-        self, tmp_path: Path, temp_library: Path, temp_index_db: Path
-    ) -> None:
+    def test_staging_not_exists(self, tmp_path: Path, temp_library: Path) -> None:
         """Error when staging doesn't exist."""
-        temp_index_db.touch()
         nonexistent = tmp_path / "nonexistent"
 
-        errors = validate_import_prerequisites(nonexistent, temp_library, temp_index_db)
+        errors = validate_import_prerequisites(nonexistent, temp_library)
 
         assert len(errors) >= 1
         assert any("staging" in e.lower() or "does not exist" in e.lower() for e in errors)
 
-    def test_library_not_exists(
-        self, temp_staging: Path, tmp_path: Path, temp_index_db: Path
-    ) -> None:
+    def test_library_not_exists(self, temp_staging: Path, tmp_path: Path) -> None:
         """Error when library doesn't exist."""
-        temp_index_db.touch()
         nonexistent = tmp_path / "nonexistent"
 
-        errors = validate_import_prerequisites(temp_staging, nonexistent, temp_index_db)
+        errors = validate_import_prerequisites(temp_staging, nonexistent)
 
         assert len(errors) >= 1
         assert any("library" in e.lower() or "does not exist" in e.lower() for e in errors)
-
-    def test_index_not_exists(self, temp_staging: Path, temp_library: Path, tmp_path: Path) -> None:
-        """Error when index database doesn't exist."""
-        nonexistent_db = tmp_path / "nonexistent.db"
-
-        errors = validate_import_prerequisites(temp_staging, temp_library, nonexistent_db)
-
-        assert len(errors) >= 1
-        assert any("index" in e.lower() or "abs-index" in e.lower() for e in errors)
 
     def test_multiple_errors(self, tmp_path: Path) -> None:
         """Collect multiple errors at once."""
         nonexistent_staging = tmp_path / "no_staging"
         nonexistent_library = tmp_path / "no_library"
-        nonexistent_db = tmp_path / "no_db.db"
 
-        errors = validate_import_prerequisites(
-            nonexistent_staging, nonexistent_library, nonexistent_db
-        )
+        errors = validate_import_prerequisites(nonexistent_staging, nonexistent_library)
 
-        assert len(errors) >= 3
+        # At least staging and library errors
+        assert len(errors) >= 2
 
 
 # =============================================================================
@@ -369,7 +354,7 @@ class TestImportSingle:
     """Tests for single book import."""
 
     def test_successful_import(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Successfully import a book."""
         folder_name = "Andy Weir - Project Hail Mary (2021) [ASIN.B08G9PRS1K]"
@@ -378,8 +363,7 @@ class TestImportSingle:
         result = import_single(
             staging_folder=staging_folder,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=empty_asin_index,
         )
 
         assert result.status == "success"
@@ -389,7 +373,7 @@ class TestImportSingle:
         assert not staging_folder.exists()  # Was moved
 
     def test_dry_run_no_move(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Dry run doesn't move files."""
         folder_name = "Andy Weir - Project Hail Mary [B08G9PRS1K]"
@@ -398,8 +382,7 @@ class TestImportSingle:
         result = import_single(
             staging_folder=staging_folder,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=empty_asin_index,
             dry_run=True,
         )
 
@@ -409,28 +392,17 @@ class TestImportSingle:
         assert not result.target_path.exists()  # Target not created
 
     def test_duplicate_skip(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
+        self, temp_staging: Path, temp_library: Path, mock_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Skip when ASIN already in index."""
         # Add existing book to index
-        mock_index._get_conn().execute(
-            """
-            INSERT INTO books (library_item_id, library_id, asin, title, author_display,
-                              author_folder, folder_path_host, indexed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                "li_existing",
-                "lib_test",
-                "B08G9PRS1K",
-                "Existing Book",
-                "Author",
-                "Author",
-                "/existing/path",
-                "2024-01-01T00:00:00",
-            ),
+        mock_asin_index["B08G9PRS1K"] = AsinEntry(
+            asin="B08G9PRS1K",
+            path="/existing/path",
+            library_item_id="li_existing",
+            title="Existing Book",
+            author="Author",
         )
-        mock_index._get_conn().commit()
 
         folder_name = "Author - New Book [B08G9PRS1K]"
         staging_folder = create_audiobook_folder(temp_staging, folder_name)
@@ -438,8 +410,7 @@ class TestImportSingle:
         result = import_single(
             staging_folder=staging_folder,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=mock_asin_index,
             duplicate_policy="skip",
         )
 
@@ -447,7 +418,7 @@ class TestImportSingle:
         assert staging_folder.exists()  # Not moved
 
     def test_duplicate_overwrite(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
+        self, temp_staging: Path, temp_library: Path, mock_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Overwrite when duplicate policy is overwrite."""
         # Create existing target
@@ -456,24 +427,13 @@ class TestImportSingle:
         (target / "old.m4b").write_text("old content")
 
         # Add to index
-        mock_index._get_conn().execute(
-            """
-            INSERT INTO books (library_item_id, library_id, asin, title, author_display,
-                              author_folder, folder_path_host, indexed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                "li_old",
-                "lib_test",
-                "B08G9PRS1K",
-                "Old Book",
-                "Author",
-                "Author",
-                str(target),
-                "2024-01-01",
-            ),
+        mock_asin_index["B08G9PRS1K"] = AsinEntry(
+            asin="B08G9PRS1K",
+            path=str(target),
+            library_item_id="li_old",
+            title="Old Book",
+            author="Author",
         )
-        mock_index._get_conn().commit()
 
         folder_name = "Author - New Book [B08G9PRS1K]"
         staging_folder = create_audiobook_folder(temp_staging, folder_name)
@@ -481,8 +441,7 @@ class TestImportSingle:
         result = import_single(
             staging_folder=staging_folder,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=mock_asin_index,
             duplicate_policy="overwrite",
         )
 
@@ -493,7 +452,7 @@ class TestImportSingle:
         self,
         temp_staging: Path,
         temp_library: Path,
-        mock_index: AbsIndex,
+        empty_asin_index: dict[str, AsinEntry],
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn when no ASIN in folder name."""
@@ -507,32 +466,12 @@ class TestImportSingle:
         result = import_single(
             staging_folder=staging_folder,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=empty_asin_index,
         )
 
         assert result.status == "success"
         assert result.asin is None
         assert "No ASIN" in caplog.text
-
-    def test_logs_import_to_database(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
-    ) -> None:
-        """Import is logged to database."""
-        folder_name = "Author - Title [B012345678]"
-        staging_folder = create_audiobook_folder(temp_staging, folder_name)
-
-        import_single(
-            staging_folder=staging_folder,
-            library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
-        )
-
-        # Check import log
-        history = mock_index.get_import_history(asin="B012345678")
-        assert len(history) == 1
-        assert history[0]["status"] == "success"
 
 
 # =============================================================================
@@ -544,7 +483,7 @@ class TestImportBatch:
     """Tests for batch import."""
 
     def test_batch_import_multiple(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Import multiple books in batch."""
         # Use valid ASIN format (10 chars starting with B0)
@@ -556,8 +495,7 @@ class TestImportBatch:
         result = import_batch(
             staging_folders=folders,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=empty_asin_index,
         )
 
         assert result.success_count == 3
@@ -566,28 +504,17 @@ class TestImportBatch:
         assert len(result.results) == 3
 
     def test_batch_with_duplicates(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
+        self, temp_staging: Path, temp_library: Path, mock_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Batch handles duplicates correctly."""
-        # Add one existing book
-        mock_index._get_conn().execute(
-            """
-            INSERT INTO books (library_item_id, library_id, asin, title, author_display,
-                              author_folder, folder_path_host, indexed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                "li_dup",
-                "lib_test",
-                "B000000002",
-                "Existing",
-                "Author",
-                "Author",
-                "/path",
-                "2024-01-01",
-            ),
+        # Add one existing book to index
+        mock_asin_index["B000000002"] = AsinEntry(
+            asin="B000000002",
+            path="/path",
+            library_item_id="li_dup",
+            title="Existing",
+            author="Author",
         )
-        mock_index._get_conn().commit()
 
         folders = [
             create_audiobook_folder(temp_staging, "Author - Book 1 [B000000001]"),
@@ -598,15 +525,14 @@ class TestImportBatch:
         result = import_batch(
             staging_folders=folders,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=mock_asin_index,
         )
 
         assert result.success_count == 2
         assert result.duplicate_count == 1
 
     def test_batch_dry_run(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Batch dry run doesn't move files."""
         folders = [
@@ -617,8 +543,7 @@ class TestImportBatch:
         result = import_batch(
             staging_folders=folders,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=empty_asin_index,
             dry_run=True,
         )
 
@@ -676,7 +601,7 @@ class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
     def test_target_path_already_exists(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Handle target path already existing on disk."""
         # Use valid ASIN format (B0 + 8 alphanumeric chars)
@@ -693,8 +618,7 @@ class TestEdgeCases:
         result = import_single(
             staging_folder=staging_folder,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=empty_asin_index,
             duplicate_policy="skip",
         )
 
@@ -702,7 +626,7 @@ class TestEdgeCases:
         assert staging_folder.exists()
 
     def test_special_characters_in_author(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Handle special characters in author name."""
         folder_name = "O'Brien & Sons - Book {ASIN.B0ABCDEFGH}"
@@ -711,14 +635,13 @@ class TestEdgeCases:
         result = import_single(
             staging_folder=staging_folder,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=empty_asin_index,
         )
 
         assert result.status == "success"
 
     def test_very_long_folder_name(
-        self, temp_staging: Path, temp_library: Path, mock_index: AbsIndex
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Handle long folder names."""
         long_title = "A" * 100
@@ -728,8 +651,7 @@ class TestEdgeCases:
         result = import_single(
             staging_folder=staging_folder,
             library_root=temp_library,
-            index=mock_index,
-            library_id="lib_test",
+            asin_index=empty_asin_index,
         )
 
         assert result.status == "success"

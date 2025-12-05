@@ -3,7 +3,7 @@
 Provides methods to interact with an Audiobookshelf server including:
 - Connection testing (ping/authorize)
 - Library listing
-- Library item retrieval
+- Library item retrieval (with in-memory caching)
 - Library scanning
 """
 
@@ -157,6 +157,9 @@ class AbsClient:
         self.api_key = api_key
         self.timeout = timeout
         self._client: httpx.Client | None = None
+        # In-memory cache: {library_id: [AbsLibraryItem, ...]}
+        # Populated on first access per library, cleared on close()
+        self._library_cache: dict[str, list[AbsLibraryItem]] = {}
 
     @classmethod
     def from_config(cls, config: AudiobookshelfConfig) -> AbsClient:
@@ -188,10 +191,11 @@ class AbsClient:
         return self._client
 
     def close(self) -> None:
-        """Close the HTTP client connection."""
+        """Close the HTTP client connection and clear cache."""
         if self._client is not None:
             self._client.close()
             self._client = None
+        self._library_cache.clear()
 
     def __enter__(self) -> AbsClient:
         """Context manager entry."""
@@ -486,3 +490,44 @@ class AbsClient:
 
         # ABS returns 200 on success
         return response.status_code == 200
+
+    def get_library_items_cached(
+        self,
+        library_id: str,
+        *,
+        force_refresh: bool = False,
+    ) -> list[AbsLibraryItem]:
+        """Get all items from a library, caching in memory for this session.
+
+        This is the preferred method for import operations - fetch once, use many.
+        Cache is cleared when client is closed or force_refresh=True.
+
+        Args:
+            library_id: ID of the library to query
+            force_refresh: If True, bypass cache and fetch fresh data
+
+        Returns:
+            List of all items in the library (from cache if available)
+        """
+        if force_refresh or library_id not in self._library_cache:
+            logger.info(f"Fetching all items from library {library_id}")
+            items = self.get_all_library_items(library_id)
+            self._library_cache[library_id] = items
+            logger.info(f"Cached {len(items)} items for library {library_id}")
+        else:
+            cached_count = len(self._library_cache[library_id])
+            logger.debug(f"Using cached {cached_count} items for library {library_id}")
+
+        return self._library_cache[library_id]
+
+    def clear_cache(self, library_id: str | None = None) -> None:
+        """Clear the in-memory library cache.
+
+        Args:
+            library_id: If provided, clear only that library's cache.
+                       If None, clear all cached libraries.
+        """
+        if library_id:
+            self._library_cache.pop(library_id, None)
+        else:
+            self._library_cache.clear()

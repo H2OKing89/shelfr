@@ -250,7 +250,8 @@ class TestAbsIndexCommand:
 
     def test_abs_index_stub_returns_success(self, args: argparse.Namespace, tmp_path: Path) -> None:
         """Test abs-index returns 0 when sync succeeds."""
-        from mamfast.abs import AbsLibrary, AbsUser, SyncResult
+        from mamfast.abs import AbsLibrary, AbsUser
+        from mamfast.abs.indexer import SyncResult
 
         # Create proper mock settings
         mock_lib_config = MagicMock()
@@ -292,7 +293,7 @@ class TestAbsIndexCommand:
         with (
             patch("mamfast.config.reload_settings", return_value=mock_settings),
             patch("mamfast.abs.AbsClient") as mock_client_cls,
-            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+            patch("mamfast.abs.indexer.AbsIndex") as mock_index_cls,
         ):
             mock_client = MagicMock()
             mock_client.authorize.return_value = mock_user
@@ -310,7 +311,8 @@ class TestAbsIndexCommand:
 
     def test_abs_index_full_mode(self, args: argparse.Namespace, tmp_path: Path) -> None:
         """Test abs-index with --full flag."""
-        from mamfast.abs import AbsLibrary, AbsUser, SyncResult
+        from mamfast.abs import AbsLibrary, AbsUser
+        from mamfast.abs.indexer import SyncResult
 
         args.full = True
 
@@ -353,7 +355,7 @@ class TestAbsIndexCommand:
         with (
             patch("mamfast.config.reload_settings", return_value=mock_settings),
             patch("mamfast.abs.AbsClient") as mock_client_cls,
-            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+            patch("mamfast.abs.indexer.AbsIndex") as mock_index_cls,
         ):
             mock_client = MagicMock()
             mock_client.authorize.return_value = mock_user
@@ -375,7 +377,8 @@ class TestAbsIndexCommand:
 
     def test_abs_index_specific_library(self, args: argparse.Namespace, tmp_path: Path) -> None:
         """Test abs-index with --library flag."""
-        from mamfast.abs import AbsLibrary, AbsUser, SyncResult
+        from mamfast.abs import AbsLibrary, AbsUser
+        from mamfast.abs.indexer import SyncResult
 
         args.library = "lib_specific123"
 
@@ -418,7 +421,7 @@ class TestAbsIndexCommand:
         with (
             patch("mamfast.config.reload_settings", return_value=mock_settings),
             patch("mamfast.abs.AbsClient") as mock_client_cls,
-            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+            patch("mamfast.abs.indexer.AbsIndex") as mock_index_cls,
         ):
             mock_client = MagicMock()
             mock_client.authorize.return_value = mock_user
@@ -609,11 +612,8 @@ class TestAbsImportCommand:
 
         library = tmp_path / "audiobooks"
         library.mkdir()
-        index_db = tmp_path / "abs_index.db"
-        index_db.touch()
 
         mock_abs_config.path_map = [MockAbsPathMap(host=str(library))]
-        mock_abs_config.index_db = str(index_db)
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
@@ -629,16 +629,18 @@ class TestAbsImportCommand:
             )
         )
 
+        # Mock the AbsClient and build_asin_index
+        mock_user = MagicMock()
+        mock_user.username = "testuser"
+        mock_client = MagicMock()
+        mock_client.authorize.return_value = mock_user
+
         with (
             patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+            patch("mamfast.abs.AbsClient", return_value=mock_client),
+            patch("mamfast.abs.build_asin_index", return_value={}),
             patch("mamfast.abs.import_batch", return_value=mock_result),
         ):
-            mock_index = MagicMock()
-            mock_index.__enter__ = MagicMock(return_value=mock_index)
-            mock_index.__exit__ = MagicMock(return_value=False)
-            mock_index_cls.return_value = mock_index
-
             result = cmd_abs_import(args)
             assert result == 0
 
@@ -684,9 +686,7 @@ class TestAbsCheckDuplicateCommand:
         result = cmd_abs_check_duplicate(args)
         assert result == 1
 
-    def test_abs_check_duplicate_config_not_found(
-        self, args: argparse.Namespace
-    ) -> None:
+    def test_abs_check_duplicate_config_not_found(self, args: argparse.Namespace) -> None:
         """Test abs-check-duplicate handles missing config file."""
         from mamfast.cli import cmd_abs_check_duplicate
 
@@ -706,86 +706,91 @@ class TestAbsCheckDuplicateCommand:
             result = cmd_abs_check_duplicate(args)
             assert result == 1
 
-    def test_abs_check_duplicate_index_not_found(
+    def test_abs_check_duplicate_abs_connection_error(
         self, args: argparse.Namespace, tmp_path: Path
     ) -> None:
-        """Test abs-check-duplicate fails when index doesn't exist."""
+        """Test abs-check-duplicate handles ABS connection errors."""
         from mamfast.cli import cmd_abs_check_duplicate
+
+        mock_lib_config = MagicMock()
+        mock_lib_config.id = "lib_test"
+        mock_lib_config.mamfast_managed = True
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = True
-        mock_settings.audiobookshelf.index_db = str(tmp_path / "nonexistent.db")
+        mock_settings.audiobookshelf.host = "http://localhost:13378"
+        mock_settings.audiobookshelf.api_key = "test-key"
+        mock_settings.audiobookshelf.timeout_seconds = 30
+        mock_settings.audiobookshelf.libraries = [mock_lib_config]
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.AbsClient"),
+            patch("mamfast.abs.build_asin_index", side_effect=Exception("Connection refused")),
+        ):
             result = cmd_abs_check_duplicate(args)
-            assert result == 1
+            assert result == 1  # Error = non-zero
 
-    def test_abs_check_duplicate_not_found(
-        self, args: argparse.Namespace, tmp_path: Path
-    ) -> None:
+    def test_abs_check_duplicate_not_found(self, args: argparse.Namespace, tmp_path: Path) -> None:
         """Test abs-check-duplicate returns 0 when ASIN not found."""
         from mamfast.cli import cmd_abs_check_duplicate
 
-        index_db = tmp_path / "abs_index.db"
-        index_db.touch()
+        mock_lib_config = MagicMock()
+        mock_lib_config.id = "lib_test"
+        mock_lib_config.mamfast_managed = True
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = True
-        mock_settings.audiobookshelf.index_db = str(index_db)
+        mock_settings.audiobookshelf.host = "http://localhost:13378"
+        mock_settings.audiobookshelf.api_key = "test-key"
+        mock_settings.audiobookshelf.timeout_seconds = 30
+        mock_settings.audiobookshelf.libraries = [mock_lib_config]
+
+        mock_client = MagicMock()
+
+        # Empty ASIN index = no duplicates
+        empty_index: dict[str, MagicMock] = {}
 
         with (
             patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+            patch("mamfast.abs.AbsClient", return_value=mock_client),
+            patch("mamfast.abs.build_asin_index", return_value=empty_index),
         ):
-            mock_index = MagicMock()
-            mock_index.get_book_by_asin.return_value = None
-            mock_index.__enter__ = MagicMock(return_value=mock_index)
-            mock_index.__exit__ = MagicMock(return_value=False)
-            mock_index_cls.return_value = mock_index
-
             result = cmd_abs_check_duplicate(args)
             assert result == 0  # Not found = safe to import
 
-    def test_abs_check_duplicate_found(
-        self, args: argparse.Namespace, tmp_path: Path
-    ) -> None:
+    def test_abs_check_duplicate_found(self, args: argparse.Namespace, tmp_path: Path) -> None:
         """Test abs-check-duplicate returns 1 when ASIN exists."""
-        from mamfast.abs.indexer import BookRecord
+        from mamfast.abs import AsinEntry
         from mamfast.cli import cmd_abs_check_duplicate
 
-        index_db = tmp_path / "abs_index.db"
-        index_db.touch()
+        mock_lib_config = MagicMock()
+        mock_lib_config.id = "lib_test"
+        mock_lib_config.mamfast_managed = True
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = True
-        mock_settings.audiobookshelf.index_db = str(index_db)
+        mock_settings.audiobookshelf.host = "http://localhost:13378"
+        mock_settings.audiobookshelf.api_key = "test-key"
+        mock_settings.audiobookshelf.timeout_seconds = 30
+        mock_settings.audiobookshelf.libraries = [mock_lib_config]
 
-        mock_book = BookRecord(
-            library_item_id="li_test",
-            library_id="lib_test",
+        mock_client = MagicMock()
+
+        # Index with the ASIN we're looking for
+        mock_entry = AsinEntry(
             asin="B0ABCDEFGH",
+            path="/audiobooks/Test Author/Test Book",
+            library_item_id="li_test",
             title="Test Book",
-            subtitle=None,
-            author_display="Test Author",
-            author_folder="Test Author",
-            series_name="Test Series",
-            series_position="1",
-            folder_path_host="/audiobooks/Test Author/Test Series/Test Book",
-            main_audio_file_host="/audiobooks/Test Author/Test Series/Test Book/book.m4b",
-            mtime_ms=None,
-            size_bytes=None,
-            indexed_at="2025-12-04T00:00:00Z",
+            author="Test Author",
         )
+        asin_index = {"B0ABCDEFGH": mock_entry}
 
         with (
             patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+            patch("mamfast.abs.AbsClient", return_value=mock_client),
+            patch("mamfast.abs.build_asin_index", return_value=asin_index),
         ):
-            mock_index = MagicMock()
-            mock_index.get_book_by_asin.return_value = mock_book
-            mock_index.__enter__ = MagicMock(return_value=mock_index)
-            mock_index.__exit__ = MagicMock(return_value=False)
-            mock_index_cls.return_value = mock_index
-
             result = cmd_abs_check_duplicate(args)
             assert result == 1  # Found = duplicate
