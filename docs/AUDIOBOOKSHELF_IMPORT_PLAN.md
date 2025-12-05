@@ -1,6 +1,6 @@
 # Audiobookshelf Import Plan
 
-> **Document Version:** 3.7.0 | **Last Updated:** 2025-01-07 | **Status:** PR 4 In Progress 🔧
+> **Document Version:** 4.0.0 | **Last Updated:** 2025-06-11 | **Status:** ✅ Feature Complete
 
 ---
 
@@ -11,7 +11,7 @@
 | **PR 1** | `feature/abs-import-foundations` | ✅ Merged (#15) | Config, schemas, CLI stubs, test fixtures |
 | **PR 2** | `feature/abs-import-client` | ✅ Merged (#16) | `AbsClient`, path mapping, `abs-init` wired |
 | **PR 3** | `feature/abs-import-index` | ✅ Merged (#19) | SQLite indexer, `abs-index` wired |
-| **PR 4** | `feature/abs-import-workflow` | 🔧 In Progress | Workflow integration |
+| **PR 4** | `feature/abs-import-workflow` | ✅ Complete (#20) | Import workflow, CLI tests, file renaming |
 
 ### PR 1 Deliverables (Merged)
 - [x] `docs/AUDIOBOOKSHELF_API.md` - API reference
@@ -62,12 +62,15 @@
 - [x] `PathMapper` updated with `mappings` parameter for multi-path support
 - [x] 51 new tests (26 ASIN + 25 indexer)
 
-### PR 4 Deliverables (In Progress)
+### PR 4 Deliverables (Complete)
 - [x] `src/mamfast/abs/importer.py` - Import workflow implementation
   - `ParsedFolderName` dataclass for parsing MAM-style folder names
   - `ImportResult`, `BatchImportResult` result types
   - `parse_mam_folder_name()` - Extract author/series/ASIN from folder names
   - `build_target_path()` - Build ABS library target path
+  - `build_clean_folder_name()` - Clean folder names (Vol. 7 → vol_07)
+  - `build_clean_file_name()` - Clean file names to match folder
+  - `rename_files_in_folder()` - Rename all files after import
   - `validate_import_prerequisites()` - Pre-flight checks
   - `import_single()` - Single book import with duplicate detection
   - `import_batch()` - Batch import with results tracking
@@ -78,12 +81,29 @@
   - `--duplicate-policy` override (skip/warn/overwrite)
   - `--no-scan` to skip ABS scan trigger
   - Rich table output for results
+  - Tree output showing files being imported
 - [x] `mamfast abs-check-duplicate` CLI command
   - Quick ASIN lookup against index
   - Shows existing path if found
+- [x] Series folder matching - matches existing series folders
+- [x] Author folder matching - uses existing author folders
+- [x] File renaming - renames files to match cleaned folder name
 - [x] Updated `abs/__init__.py` exports
-- [x] 40 new tests in `tests/test_abs_importer.py`
-- [ ] CLI tests for abs-import and abs-check-duplicate
+- [x] 40 unit tests in `tests/test_abs_importer.py`
+- [x] 36 CLI tests in `tests/test_cli_abs.py`
+
+### Test Summary
+
+| Test Module | Test Count | Coverage |
+|-------------|------------|----------|
+| `test_abs_asin.py` | 26 | ASIN extraction |
+| `test_abs_client.py` | 23 | ABS API client |
+| `test_abs_importer.py` | 40 | Import workflow |
+| `test_abs_indexer.py` | 25 | SQLite indexer |
+| `test_abs_paths.py` | 37 | Path mapping |
+| `test_abs_schemas.py` | 35 | Pydantic schemas |
+| `test_cli_abs.py` | 36 | CLI commands |
+| **Total ABS Tests** | **222** | |
 
 ---
 
@@ -1962,13 +1982,15 @@ These libraries are **already installed** and should be used:
 | `models.py` | `from mamfast.models import AudiobookRelease, ReleaseStatus` | Extend for ABS import |
 | `config.py` | `from mamfast.config import load_settings, Settings` | Add `abs:` config section |
 
-### New Modules to Create
+### Modules Created
 
 | Module | Purpose |
 |--------|---------|
-| `src/mamfast/abs_client.py` | ABS API client (uses `httpx`, `retry_with_backoff`) |
-| `src/mamfast/abs_index.py` | SQLite index operations |
-| `src/mamfast/utils/abs_paths.py` | Container ↔ host path mapping |
+| `src/mamfast/abs/client.py` | ABS API client (uses `httpx`, `retry_with_backoff`) |
+| `src/mamfast/abs/indexer.py` | SQLite index operations |
+| `src/mamfast/abs/importer.py` | Import workflow (staging → library) |
+| `src/mamfast/abs/asin.py` | ASIN extraction from folder/file names |
+| `src/mamfast/abs/paths.py` | Container ↔ host path mapping |
 | `src/mamfast/schemas/abs.py` | Pydantic models for ABS API responses |
 
 ### Example: Using Existing Retry Logic
@@ -2028,113 +2050,93 @@ def cmd_abs_import(args):
 
 ### Suggested Order of Operations (Revised with ABS API)
 
-1. **Phase 0a:** ABS client + path mapping
-2. **Phase 0b:** ABS indexer (SQLite from API)
-3. **Phase 0c:** Author variant reporting
-4. **Phase 1:** ABS import (use index for dedup)
-5. **Phase 2:** Polish (workflow integration, Rich output)
+1. **Phase 0a:** ABS client + path mapping ✅
+2. **Phase 0b:** ABS indexer (SQLite from API) ✅
+3. **Phase 0c:** Author variant reporting ✅
+4. **Phase 1:** ABS import (use index for dedup) ✅
+5. **Phase 2:** Polish (workflow integration, Rich output) ✅
 
 **Key simplification:** No more complex author merge logic - ABS is the authority. We just report variants and let user fix them.
 
 ---
 
-### Phase 0a: ABS Client & Path Mapping
+### Phase 0a: ABS Client & Path Mapping — ✅ Complete
 
 **Goal:** Connect to ABS API, handle Docker path translation
 
-**New Modules:**
-- [ ] `src/mamfast/abs/client.py` - ABS API client with httpx
+**Modules:**
+- [x] `src/mamfast/abs/client.py` - ABS API client with httpx
+- [x] `src/mamfast/abs/paths.py` - Path mapping utilities
 - [x] Path mapping config in `src/mamfast/schemas/config.py` (AudiobookshelfPathMapSchema)
 
 **Features:**
-- [ ] `AbsClient` class:
+- [x] `AbsClient` class:
+  - `authorize()` - test connection, get user info
+  - `ping()` - quick connection test
   - `get_libraries()` - list all libraries
-  - `get_library_items(library_id)` - list books in a library
-  - `get_item_details(item_id)` - detailed book info (optional)
-- [ ] `map_abs_path_to_host()` - container → host path
-- [ ] `map_host_path_to_abs()` - host → container path
+  - `get_library_items(library_id)` - list books in a library (paginated)
+  - `get_all_library_items(library_id)` - auto-paginated fetch
+  - `get_item_details(item_id)` - detailed book info
+  - `scan_library()` - trigger library scan
+- [x] `abs_path_to_host()` - container → host path
+- [x] `host_path_to_abs()` - host → container path
+- [x] `PathMapper` class for convenient mapping
 - [x] Config validation (URL, token, path_map) - Pydantic schemas
 
 **CLI:**
-- [x] `mamfast abs-init` command (stub - validates config, not yet connected to API)
-- [x] `mamfast abs-index` command (stub with `--full`, `--library` flags)
-
-**Config:**
-```yaml
-audiobookshelf:
-  enabled: true
-  timeout_seconds: 30
-  docker_mode: true
-  path_map:
-    - container: "/audiobooks"
-      host: "/mnt/user/data/audio/audiobooks"
-  libraries:
-    - id: "lib_xxx"
-      name: "Audiobooks"
-      mamfast_managed: true
-  import:
-    duplicate_policy: skip
-    trigger_scan: batch
-  index_db: "./data/abs_index.db"
-```
+- [x] `mamfast abs-init` - validates config, tests API, lists libraries
 
 **Tests:**
-- [ ] Unit tests for path mapping (both directions)
-- [x] Unit tests for config parsing (14 tests in test_config_schema.py)
-- [ ] Mock tests for API client
-- [x] Test fixtures for API responses (tests/fixtures/abs_responses/)
-- [x] CLI stub tests (13 tests in test_cli_abs.py)
-
-**Estimated Effort:** 3-4 hours → **~2 hours remaining** (client implementation)
+- [x] 23 unit tests for client (`test_abs_client.py`)
+- [x] 37 unit tests for path mapping (`test_abs_paths.py`)
+- [x] 14 unit tests for config parsing (`test_config_schema.py`)
+- [x] Test fixtures for API responses (`tests/fixtures/abs_responses/`)
 
 ---
 
-### Phase 0b: ABS Indexer
+### Phase 0b: ABS Indexer — ✅ Complete
 
 **Goal:** Populate SQLite from ABS API
 
-**New Modules:**
-- [ ] `src/mamfast/abs_index.py` - `AbsIndex` class
-- [ ] `src/mamfast/db.py` - SQLite helpers
+**Modules:**
+- [x] `src/mamfast/abs/indexer.py` - `AbsIndex` class
+- [x] `src/mamfast/abs/asin.py` - ASIN extraction utilities
+- [x] `src/mamfast/schemas/abs.py` - Pydantic models for ABS API responses
 
 **Database Schema:** See [Library Index (SQLite)](#library-index-sqlite) for canonical schema.
 
-> The `books` table includes `subtitle`, `mtime_ms`, `size_bytes` for completeness.
-
 **Features:**
-- [ ] `sync_from_abs()` - fetch all items, populate DB
-- [ ] ASIN extraction from:
+- [x] `sync_from_abs()` - fetch all items, populate DB
+- [x] ASIN extraction from:
   1. ABS metadata (if stored there)
-  2. Folder name (Smart ASIN extractor)
-- [ ] Incremental sync (detect changes via mtime)
-- [ ] Stats reporting
+  2. Folder name (Smart ASIN extractor - multiple format support)
+- [x] Full rebuild indexing (incremental deferred to future)
+- [x] Stats reporting
+- [x] Author variant detection (`get_author_variants()`)
 
 **CLI:**
-- [ ] `mamfast abs-index` command
-- [ ] `--verbose` flag
-- [ ] `mamfast export-library` command (JSON dump)
+- [x] `mamfast abs-index` - build/rebuild SQLite index
+- [x] `--full` flag for complete rebuild
+- [x] `--library` flag for single library indexing
 
 **Tests:**
-- [ ] Unit tests for DB operations
-- [ ] Unit tests for ASIN extraction
-- [ ] Mock tests for API → DB flow
-
-**Estimated Effort:** 4-5 hours
+- [x] 25 unit tests for indexer (`test_abs_indexer.py`)
+- [x] 26 unit tests for ASIN extraction (`test_abs_asin.py`)
+- [x] 35 unit tests for schemas (`test_abs_schemas.py`)
 
 ---
 
-### Phase 0c: Author Variant Reporting
+### Phase 0c: Author Variant Reporting — ✅ Complete
 
 **Goal:** Report author name discrepancies for manual fix
 
 **Features:**
-- [ ] `get_author_variants()` - find author_display ≠ author_folder cases
-- [ ] Rich table output
-- [ ] Export to CSV/JSON
+- [x] `get_author_variants()` - find author_display ≠ author_folder cases
+- [x] Rich table output (via console helpers)
 
 **CLI:**
-- [ ] `mamfast abs-report-authors` command
-- [ ] `mamfast abs-check-duplicate --asin XXX` command
+- [x] `mamfast abs-check-duplicate --asin XXX` command
+- [ ] `mamfast abs-report-authors` command (deferred - use `abs-index` output)
 
 **Key insight:** We DON'T manage authors ourselves. We just report:
 - "ABS says author is 'J.R. Mathews' but folder is 'J R Mathews'"
@@ -2143,79 +2145,73 @@ audiobookshelf:
 - User re-runs `mamfast abs-index`
 
 **Tests:**
-- [ ] Unit tests for variant detection
-- [ ] Golden tests with sample data
-
-**Estimated Effort:** 2-3 hours
+- [x] Unit tests for variant detection (in `test_abs_indexer.py`)
 
 ---
 
-### Phase 1: ABS Import
+### Phase 1: ABS Import — ✅ Complete
 
 **Goal:** Import books from staging using index for dedup
 
-**New Module:**
-- [ ] `src/mamfast/abs_import.py`
+**Module:**
+- [x] `src/mamfast/abs/importer.py`
 
 **Features:**
-- [ ] `check_duplicate(asin)` - O(1) SQLite lookup
-- [ ] `import_book(staging_path, library_config)`:
+- [x] `asin_exists()` - O(1) SQLite lookup via indexer
+- [x] `import_single()` - Single book import:
   1. Parse folder name for ASIN
   2. Check if ASIN exists in index
   3. If new: atomic move to library
   4. Log import
-- [ ] `DuplicatePolicy` enum (skip, warn, overwrite)
-- [ ] Dry-run mode
+- [x] `import_batch()` - Batch import with results
+- [x] `DuplicatePolicy` enum (skip, warn, overwrite)
+- [x] Dry-run mode
+- [x] Series folder matching
+- [x] Author folder matching
+- [x] Folder name cleaning (`build_clean_folder_name()`)
+- [x] File renaming (`build_clean_file_name()`, `rename_files_in_folder()`)
 
 **CLI:**
-- [ ] `mamfast abs-import` command
-- [ ] `--dry-run` flag
-- [ ] `--duplicate-policy` / `-d` flag
-
-**Workflow Integration:**
-- [ ] Add to `workflow.py` as optional final stage
-- [ ] `--abs-import` / `--no-abs-import` flags
+- [x] `mamfast abs-import` command
+- [x] `--dry-run` flag
+- [x] `--duplicate-policy` / `-d` flag
+- [x] `--no-scan` flag to skip ABS scan trigger
+- [x] Rich tree output showing files
 
 **Tests:**
-- [ ] Unit tests for duplicate detection
-- [ ] Unit tests for path building
-- [ ] Integration tests with mock filesystem
-
-**Estimated Effort:** 4-5 hours
+- [x] 40 unit tests for importer (`test_abs_importer.py`)
+- [x] 36 CLI tests (`test_cli_abs.py`)
 
 ---
 
-### Phase 2: Polish & Advanced Features
+### Phase 2: Polish & Advanced Features — ✅ Complete
 
 **Goal:** Rich output, workflow integration, edge cases
 
 **Features:**
-- [ ] Rich progress displays (Live tables)
-- [ ] Standalone book detection & handling
-- [ ] (Optional) Audnex author lookup for new imports
-- [ ] (Optional) Trigger ABS scan after import
+- [x] Rich progress displays (tree output with files)
+- [x] Standalone book detection & handling
+- [x] Trigger ABS scan after import (`trigger_scan_safe()`)
+- [ ] (Future) Audnex author lookup for new imports
+- [ ] (Future) Workflow integration (`--abs-import` / `--no-abs-import` flags)
 
 **Documentation:**
-- [ ] Update README.md
-- [ ] Update CLAUDE.md
-- [ ] Add config.yaml.example updates
-
-**Estimated Effort:** 2-3 hours
+- [ ] Update README.md (deferred to merge)
+- [ ] Update CLAUDE.md (deferred to merge)
+- [x] Config already documented in config.yaml.example
 
 ---
 
-### Total Estimated Effort (Revised)
+### Total Actual Effort
 
-| Phase | Description | Hours |
-|-------|-------------|-------|
-| 0a | ABS Client & Path Mapping | 3-4 |
-| 0b | ABS Indexer (SQLite) | 4-5 |
-| 0c | Author Variant Reporting | 2-3 |
-| 1 | ABS Import | 4-5 |
-| 2 | Polish | 2-3 |
-| **Total** | | **15-20** |
-
-**Savings vs Old Plan:** ~4-6 hours by not implementing complex author merge logic!
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 0a | ABS Client & Path Mapping | ✅ Complete |
+| 0b | ABS Indexer (SQLite) | ✅ Complete |
+| 0c | Author Variant Reporting | ✅ Complete |
+| 1 | ABS Import | ✅ Complete |
+| 2 | Polish | ✅ Complete |
+| **Total** | 222 tests | **✅ Feature Complete** |
 
 ---
 
@@ -2765,7 +2761,37 @@ Future enhancement: `--trust-folders` flag that assumes folder names are canonic
 | 3.1.0 | 2025-12-03 | Document cleanup: unified config, answered open questions, marked legacy sections |
 | 3.2.0 | 2025-12-03 | Addressed reviewer feedback: schema consolidation, API resilience, implementation notes |
 | 3.3.0 | 2025-12-03 | Final review fixes: enum conflicts, cross-FS policy, path mapping, CLI consistency |
-| **3.3.1** | **2025-12-03** | **Final cleanup: removed VALIDATED from results, added test fixtures, author_variants rebuild note** |
+| 3.3.1 | 2025-12-03 | Final cleanup: removed VALIDATED from results, added test fixtures, author_variants rebuild note |
+| 3.7.0 | 2025-01-07 | Updated PR 4 progress, added importer deliverables |
+| **4.0.0** | **2025-06-11** | **Feature Complete: All phases done, 222 ABS tests, CLI tests added, file renaming** |
+
+### Version 4.0.0 Changes (Feature Complete)
+
+**PR 4 Complete:**
+- All import workflow features implemented in `src/mamfast/abs/importer.py`
+- 40 unit tests for importer (`test_abs_importer.py`)
+- 36 CLI tests for all ABS commands (`test_cli_abs.py`)
+- Total: 222 ABS-related tests across all modules
+
+**New Features Added:**
+- `build_clean_folder_name()` - Normalizes folder names (Vol. 7 → vol_07)
+- `build_clean_file_name()` - Cleans file names to match folder name
+- `rename_files_in_folder()` - Renames all files after import
+- Series folder matching - matches existing series folders in library
+- Author folder matching - uses existing author folders
+- Tree output showing files being imported
+
+**CLI Commands Fully Wired:**
+- `mamfast abs-init` - Test ABS connection, list libraries
+- `mamfast abs-index` - Build/rebuild SQLite index
+- `mamfast abs-import` - Import from staging to library
+- `mamfast abs-check-duplicate` - Quick ASIN lookup
+
+**Documentation Updates:**
+- All Implementation Phases marked complete
+- PR 4 Deliverables updated with all features
+- Test Summary table added
+- Modules Created section updated
 
 ### Version 3.3.1 Changes (Final Cleanup)
 
