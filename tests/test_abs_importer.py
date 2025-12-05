@@ -1232,3 +1232,47 @@ class TestMixedAudioFormats:
 
         assert ctx.file_count == 3
         assert ctx.is_multi_file is True
+
+
+class TestGetUniqueDestinationBounded:
+    """Tests for bounded loop in get_unique_destination."""
+
+    def test_unique_destination_finds_available_suffix(self, tmp_path: Path) -> None:
+        """get_unique_destination finds next available suffix."""
+        base = tmp_path / "My Book"
+        base.mkdir()
+        (tmp_path / "My Book_2").mkdir()
+        (tmp_path / "My Book_3").mkdir()
+
+        result = get_unique_destination(base)
+
+        assert result == tmp_path / "My Book_4"
+
+    def test_unique_destination_returns_base_if_no_collision(self, tmp_path: Path) -> None:
+        """get_unique_destination returns base path if it doesn't exist."""
+        base = tmp_path / "New Book"
+
+        result = get_unique_destination(base)
+
+        assert result == base
+
+
+class TestClassifyUnknownAsinErrorHandling:
+    """Tests for error handling in classify_unknown_asin."""
+
+    def test_classify_deleted_folder_returns_zero_files(self, tmp_path: Path) -> None:
+        """Deleted folder during classification returns file_count=0."""
+        folder = tmp_path / "Deleted Book"
+        folder.mkdir()
+        (folder / "book.m4b").touch()
+
+        parsed = parse_mam_folder_name(folder.name)
+
+        # Delete folder after parsing but before classify
+        import shutil
+
+        shutil.rmtree(folder)
+
+        # Should not raise, returns 0 files
+        ctx = classify_unknown_asin(folder, parsed)
+        assert ctx.file_count == 0

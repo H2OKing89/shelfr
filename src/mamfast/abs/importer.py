@@ -504,10 +504,14 @@ def classify_unknown_asin(
     Returns:
         UnknownAsinContext with classification and metadata
     """
-    # Count audio files
-    audio_files = [
-        f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in AUDIO_EXTENSIONS
-    ]
+    # Count audio files (handle I/O errors gracefully)
+    try:
+        audio_files = [
+            f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in AUDIO_EXTENSIONS
+        ]
+    except (OSError, PermissionError) as e:
+        logger.warning("Failed to list files in folder '%s': %s", folder, e)
+        audio_files = []
     file_count = len(audio_files)
 
     # Classify content type using homebrew heuristic
@@ -535,17 +539,30 @@ def get_unique_destination(base_path: Path) -> Path:
 
     Returns:
         base_path if it doesn't exist, otherwise base_path with _N suffix
+
+    Raises:
+        RuntimeError: If no unique path found after 1000 attempts
     """
     if not base_path.exists():
         return base_path
 
     # Append suffix: "My Book (2020)" → "My Book (2020)_2"
     counter = 2
-    while True:
+    max_attempts = 1000
+    while counter <= max_attempts:
         candidate = base_path.parent / f"{base_path.name}_{counter}"
         if not candidate.exists():
             return candidate
         counter += 1
+
+    logger.error(
+        "Failed to find unique destination for %s after %d attempts",
+        base_path,
+        max_attempts,
+    )
+    raise RuntimeError(
+        f"Could not find unique destination for {base_path} after {max_attempts} attempts"
+    )
 
 
 def build_unknown_target_path(

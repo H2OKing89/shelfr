@@ -779,7 +779,7 @@ class TestMultiFileProtection:
 ## Changelog
 
 | Version | Date | Changes |
-|---------|------|---------||
+|---------|------|---------|
 | 1.0.0 | 2025-12-05 | Initial plan with Phase 1 implementation |
 | 1.1.0 | 2025-12-05 | Added core philosophy, first-class unknowns, test matrix |
 | 1.2.0 | 2025-12-05 | Decoupled content type from file structure; added edge cases section; collision handling; assumptions/constraints; expanded test matrix |
