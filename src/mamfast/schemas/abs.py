@@ -28,15 +28,9 @@ class AbsLibrarySettings(BaseModel):
 
     cover_aspect_ratio: int = Field(default=1, alias="coverAspectRatio")
     disable_watcher: bool = Field(default=False, alias="disableWatcher")
-    skip_matching_media_with_asin: bool = Field(
-        default=False, alias="skipMatchingMediaWithAsin"
-    )
-    skip_matching_media_with_isbn: bool = Field(
-        default=False, alias="skipMatchingMediaWithIsbn"
-    )
-    auto_scan_cron_expression: str | None = Field(
-        default=None, alias="autoScanCronExpression"
-    )
+    skip_matching_media_with_asin: bool = Field(default=False, alias="skipMatchingMediaWithAsin")
+    skip_matching_media_with_isbn: bool = Field(default=False, alias="skipMatchingMediaWithIsbn")
+    auto_scan_cron_expression: str | None = Field(default=None, alias="autoScanCronExpression")
 
     model_config = {"extra": "ignore", "populate_by_name": True}
 
@@ -223,12 +217,8 @@ class AbsUserSchema(BaseModel):
     last_seen: int | None = Field(default=None, alias="lastSeen")
     created_at: int = Field(alias="createdAt")
     permissions: AbsUserPermissions = Field(default_factory=AbsUserPermissions)
-    libraries_accessible: list[str] = Field(
-        default_factory=list, alias="librariesAccessible"
-    )
-    item_tags_accessible: list[str] = Field(
-        default_factory=list, alias="itemTagsAccessible"
-    )
+    libraries_accessible: list[str] = Field(default_factory=list, alias="librariesAccessible")
+    item_tags_accessible: list[str] = Field(default_factory=list, alias="itemTagsAccessible")
 
     model_config = {"extra": "ignore", "populate_by_name": True}
 

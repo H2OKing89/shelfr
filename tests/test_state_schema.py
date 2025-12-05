@@ -56,7 +56,7 @@ class TestProcessedRelease:
     def test_missing_required_fields_rejected(self):
         """Test that missing required fields are rejected."""
         with pytest.raises(ValidationError):
-            ProcessedRelease(asin="B0G4NFQDWR")  # Missing title, processed_at
+            ProcessedRelease(asin="B0G4NFQDWR")  # type: ignore[call-arg]
 
     def test_extra_fields_ignored(self):
         """Test that extra fields are ignored for forward compatibility."""
@@ -64,7 +64,7 @@ class TestProcessedRelease:
             asin="B0G4NFQDWR",
             title="Some Book",
             processed_at="2025-12-02T06:51:26.717690",
-            unknown_field="should be ignored",
+            unknown_field="should be ignored",  # type: ignore[call-arg]
         )
         assert release.asin == "B0G4NFQDWR"
 
