@@ -104,8 +104,9 @@ def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
     Returns:
         ParsedFolderName with extracted components
 
-    Raises:
-        ValueError: If folder name doesn't match expected format
+    Note:
+        This function is lenient and will always return a ParsedFolderName,
+        even if parsing fails (fields may be set to "Unknown" or None).
     """
     # Try to extract ASIN first (multiple formats supported)
     asin = extract_asin(folder_name)
@@ -149,11 +150,25 @@ def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
         if year and narrator:
             break
 
-    # Remove found parentheticals for further parsing
+    # Remove specific parentheticals by position (from end to preserve indices)
+    # Only remove the last occurrence of each to avoid unintended replacements
+    remove_spans: list[tuple[int, int]] = []
     if narrator:
-        clean_name = clean_name.replace(f"({narrator})", "").strip()
+        for match in reversed(paren_matches):
+            if match.group(1) == narrator:
+                remove_spans.append((match.start(), match.end()))
+                break
     if year:
-        clean_name = clean_name.replace(f"({year})", "").strip()
+        for match in reversed(paren_matches):
+            if match.group(1) == year:
+                remove_spans.append((match.start(), match.end()))
+                break
+    # Remove spans from the string (sort by start, process from end to preserve indices)
+    if remove_spans:
+        remove_spans.sort(reverse=True)  # Process from end first
+        for start, end in remove_spans:
+            clean_name = clean_name[:start] + clean_name[end:]
+        clean_name = clean_name.strip()
 
     # Split by " - " to get author and rest
     parts = clean_name.split(" - ", 1)
@@ -683,8 +698,18 @@ def import_single(
             if not dry_run:
                 import shutil
 
-                shutil.rmtree(target_path)
-                logger.info("Removed existing target: %s", target_path)
+                try:
+                    shutil.rmtree(target_path)
+                    logger.info("Removed existing target: %s", target_path)
+                except Exception as e:
+                    logger.error("Failed to remove existing target %s: %s", target_path, e)
+                    return ImportResult(
+                        staging_path=staging_folder,
+                        target_path=target_path,
+                        asin=asin,
+                        status="failed",
+                        error=f"Failed to remove existing target: {e}",
+                    )
         else:
             return ImportResult(
                 staging_path=staging_folder,

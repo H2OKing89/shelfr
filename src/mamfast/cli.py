@@ -2165,9 +2165,10 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
 
             # Second line: status and target/error path in tree format
             if r.status == "success" and r.target_path:
-                try:
+                if r.target_path.is_relative_to(abs_library_root):
                     rel_path = r.target_path.relative_to(abs_library_root)
-                except ValueError:
+                else:
+                    # Fallback: show absolute path
                     rel_path = r.target_path
                 console.print(f"  ├─ {status_text} → [dim]{rel_path}[/dim]")
 
