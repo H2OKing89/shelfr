@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+from mamfast.config import Settings
 from mamfast.validation import (
     CheckCategory,
     ValidationCheck,
@@ -99,6 +101,11 @@ class MockSettings:
     qbittorrent: MockQBittorrentConfig = field(default_factory=MockQBittorrentConfig)
     audnex: MockAudnexConfig = field(default_factory=MockAudnexConfig)
     categories: MockCategoriesConfig = field(default_factory=MockCategoriesConfig)
+
+
+def build_settings(**overrides: Any) -> Settings:
+    """Return a Settings-typed mock instance for type checkers."""
+    return cast(Settings, MockSettings(**overrides))
 
 
 # =============================================================================
@@ -217,7 +224,7 @@ class TestCheckConfig:
 
     def test_valid_config_passes(self):
         """Valid config should pass all checks."""
-        settings = MockSettings()
+        settings = build_settings()
         result = check_config(settings)
 
         assert result.passed is True
@@ -225,7 +232,7 @@ class TestCheckConfig:
 
     def test_missing_container_fails(self):
         """Missing libation_container should fail."""
-        settings = MockSettings(libation_container="")
+        settings = build_settings(libation_container="")
         result = check_config(settings)
 
         failed = [c for c in result.checks if c.name == "libation_container"]
@@ -234,7 +241,7 @@ class TestCheckConfig:
 
     def test_invalid_uid_fails(self):
         """Negative UID should fail."""
-        settings = MockSettings(target_uid=-1)
+        settings = build_settings(target_uid=-1)
         result = check_config(settings)
 
         failed = [c for c in result.checks if c.name == "target_uid"]
@@ -243,7 +250,7 @@ class TestCheckConfig:
 
     def test_missing_qb_host_fails(self):
         """Missing qBittorrent host should fail."""
-        settings = MockSettings()
+        settings = build_settings()
         settings.qbittorrent.host = ""
         result = check_config(settings)
 
@@ -271,7 +278,7 @@ class TestCheckPaths:
         state_dir = tmp_path / "data"
         state_dir.mkdir()
 
-        settings = MockSettings()
+        settings = cast(Any, build_settings())
         settings.paths = MockPathsConfig(
             library_root=library,
             seed_root=seed,
@@ -291,7 +298,7 @@ class TestCheckPaths:
 
     def test_missing_library_fails(self, tmp_path):
         """Missing library_root should fail."""
-        settings = MockSettings()
+        settings = cast(Any, build_settings())
         settings.paths = MockPathsConfig(
             library_root=tmp_path / "nonexistent",
             seed_root=tmp_path / "seed",
@@ -314,7 +321,7 @@ class TestCheckPaths:
         state_dir = tmp_path / "data"
         state_dir.mkdir()
 
-        settings = MockSettings()
+        settings = cast(Any, build_settings())
         settings.paths = MockPathsConfig(
             library_root=library,
             seed_root=seed,
@@ -357,7 +364,7 @@ class TestCheckServices:
         mock_qb.return_value = (True, "qBittorrent: Connected (v4.5.0)")
         mock_audnex.return_value = True
 
-        settings = MockSettings()
+        settings = build_settings()
         result = check_services(settings)
 
         assert result.passed is True
@@ -368,7 +375,7 @@ class TestCheckServices:
         """Docker not running should fail."""
         mock_docker.return_value = False
 
-        settings = MockSettings()
+        settings = build_settings()
         result = check_services(settings)
 
         docker_check = next(c for c in result.checks if c.name == "docker_daemon")
@@ -385,14 +392,14 @@ class TestCheckCategories:
 
     def test_valid_categories_pass(self):
         """Valid categories should pass."""
-        settings = MockSettings()
+        settings = build_settings()
         result = check_categories(settings)
 
         assert result.passed is True
 
     def test_empty_categories_fail(self):
         """Empty genre_map should fail."""
-        settings = MockSettings()
+        settings = build_settings()
         settings.categories.genre_map = {}
         result = check_categories(settings)
 
@@ -401,7 +408,7 @@ class TestCheckCategories:
 
     def test_invalid_category_id_fails(self):
         """Non-integer category ID should fail."""
-        settings = MockSettings()
+        settings = cast(Any, build_settings())
         settings.categories.genre_map = {"fantasy": "invalid"}  # type: ignore[dict-item]
         result = check_categories(settings)
 
@@ -442,7 +449,7 @@ class TestRunAllChecks:
         state_dir = tmp_path / "data"
         state_dir.mkdir()
 
-        settings = MockSettings()
+        settings = cast(Any, build_settings())
         settings.paths = MockPathsConfig(
             library_root=library,
             seed_root=seed,
@@ -512,7 +519,7 @@ class TestQBittorrentHelper:
 
     def test_missing_host_fails(self):
         """Missing host should fail."""
-        settings = MockSettings()
+        settings = build_settings()
         settings.qbittorrent.host = ""
 
         success, message = _check_qbittorrent(settings)
@@ -524,7 +531,7 @@ class TestQBittorrentHelper:
         """Successful connection should return True."""
         mock_get.return_value = MagicMock(status_code=200, text="4.5.0")
 
-        settings = MockSettings()
+        settings = build_settings()
         success, message = _check_qbittorrent(settings)
 
         assert success is True
@@ -537,7 +544,7 @@ class TestQBittorrentHelper:
 
         mock_get.side_effect = httpx.ConnectError("Connection refused")
 
-        settings = MockSettings()
+        settings = build_settings()
         success, message = _check_qbittorrent(settings)
 
         assert success is False
@@ -906,7 +913,7 @@ class TestPreUploadValidation:
             staging_dir=tmp_path,
         )
 
-        settings = MockSettings()
+        settings = build_settings()
         settings.paths.seed_root = tmp_path
 
         validator = PreUploadValidation(settings)
@@ -925,7 +932,7 @@ class TestPreUploadValidation:
             staging_dir=tmp_path,
         )
 
-        settings = MockSettings()
+        settings = build_settings()
         settings.paths.seed_root = tmp_path
 
         validator = PreUploadValidation(settings)
@@ -947,7 +954,7 @@ class TestPreUploadValidation:
             staging_dir=staging,
         )
 
-        settings = MockSettings()
+        settings = build_settings()
         settings.paths.seed_root = tmp_path
 
         validator = PreUploadValidation(settings)
@@ -969,7 +976,7 @@ class TestPreUploadValidation:
             staging_dir=staging,
         )
 
-        settings = MockSettings()
+        settings = build_settings()
         settings.paths.seed_root = tmp_path
 
         validator = PreUploadValidation(settings)

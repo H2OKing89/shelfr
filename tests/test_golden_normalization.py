@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -36,7 +36,12 @@ def golden_samples() -> dict[str, Any]:
             "Run: python scripts/build_golden_samples.py"
         )
     with open(GOLDEN_SAMPLES_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+        # tests expect a mapping of categories -> list[dict]. json.load() returns
+        # Any so cast it to the declared return type and assert at runtime to
+        # keep mypy happy while still failing loudly if the fixture is bad.
+        assert isinstance(data, dict), "golden samples file must be an object/dict"
+        return cast(dict[str, Any], data)
 
 
 def build_audnex_data(sample: dict[str, Any]) -> dict[str, Any]:

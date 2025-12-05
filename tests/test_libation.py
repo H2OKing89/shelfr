@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,12 +22,12 @@ from mamfast.libation import (
 class TestScanResult:
     """Tests for ScanResult dataclass."""
 
-    def test_success_when_returncode_zero(self):
+    def test_success_when_returncode_zero(self) -> None:
         """Test success property is True when returncode is 0."""
         result = ScanResult(returncode=0, stdout="OK")
         assert result.success is True
 
-    def test_failure_when_returncode_nonzero(self):
+    def test_failure_when_returncode_nonzero(self) -> None:
         """Test success property is False when returncode is non-zero."""
         result = ScanResult(returncode=1, stderr="Error")
         assert result.success is False
@@ -34,7 +36,7 @@ class TestScanResult:
 class TestCheckContainerRunning:
     """Tests for check_container_running function."""
 
-    def test_container_running(self):
+    def test_container_running(self) -> None:
         """Test detecting running container."""
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -50,7 +52,7 @@ class TestCheckContainerRunning:
         ):
             assert check_container_running() is True
 
-    def test_container_not_running(self):
+    def test_container_not_running(self) -> None:
         """Test detecting stopped container."""
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -66,7 +68,7 @@ class TestCheckContainerRunning:
         ):
             assert check_container_running() is False
 
-    def test_docker_command_fails(self):
+    def test_docker_command_fails(self) -> None:
         """Test handling docker command failure."""
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -82,7 +84,7 @@ class TestCheckContainerRunning:
         ):
             assert check_container_running() is False
 
-    def test_exception_returns_false(self):
+    def test_exception_returns_false(self) -> None:
         """Test that exceptions return False."""
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -98,7 +100,7 @@ class TestCheckContainerRunning:
 class TestRunScan:
     """Tests for run_scan function."""
 
-    def test_scan_success(self):
+    def test_scan_success(self) -> None:
         """Test successful scan."""
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -117,7 +119,7 @@ class TestRunScan:
             assert result.success is True
             assert result.returncode == 0
 
-    def test_scan_failure(self):
+    def test_scan_failure(self) -> None:
         """Test failed scan."""
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -135,7 +137,7 @@ class TestRunScan:
             result = run_scan()
             assert result.success is False
 
-    def test_scan_docker_not_found(self):
+    def test_scan_docker_not_found(self) -> None:
         """Test scan when docker binary is missing."""
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/nonexistent/docker"
@@ -153,7 +155,7 @@ class TestRunScan:
 class TestRunLiberate:
     """Tests for run_liberate function."""
 
-    def test_liberate_success(self):
+    def test_liberate_success(self) -> None:
         """Test successful liberate."""
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -171,7 +173,7 @@ class TestRunLiberate:
             result = run_liberate()
             assert result.success is True
 
-    def test_liberate_with_asin(self):
+    def test_liberate_with_asin(self) -> None:
         """Test liberate with specific ASIN."""
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -192,7 +194,7 @@ class TestRunLiberate:
             call_args = mock_run.call_args[0][0]
             assert "B01234567X" in call_args
 
-    def test_liberate_failure(self):
+    def test_liberate_failure(self) -> None:
         """Test failed liberate."""
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -210,7 +212,7 @@ class TestRunLiberate:
             result = run_liberate()
             assert result.success is False
 
-    def test_liberate_exception(self):
+    def test_liberate_exception(self) -> None:
         """Test liberate when exception occurs."""
         mock_settings = MagicMock()
         mock_settings.libation_container = "Libation"
@@ -229,7 +231,7 @@ class TestRunLiberate:
 class TestRunScanInteractive:
     """Tests for run_scan interactive mode."""
 
-    def test_scan_interactive_success(self):
+    def test_scan_interactive_success(self) -> None:
         """Test successful interactive scan."""
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -248,7 +250,7 @@ class TestRunScanInteractive:
             call_args = mock_run.call_args[0][0]
             assert "-it" in call_args
 
-    def test_scan_interactive_failure(self):
+    def test_scan_interactive_failure(self) -> None:
         """Test failed interactive scan."""
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -264,7 +266,7 @@ class TestRunScanInteractive:
             result = run_scan(interactive=True)
             assert result.success is False
 
-    def test_scan_exception_generic(self):
+    def test_scan_exception_generic(self) -> None:
         """Test scan with generic exception."""
         mock_settings = MagicMock()
         mock_settings.libation_container = "Libation"
@@ -283,7 +285,7 @@ class TestRunScanInteractive:
 class TestLibationStatus:
     """Tests for LibationStatus dataclass."""
 
-    def test_has_pending_true_when_not_liberated(self):
+    def test_has_pending_true_when_not_liberated(self) -> None:
         """Test has_pending is True when not_liberated > 0."""
         status = LibationStatus(
             total=100,
@@ -292,7 +294,7 @@ class TestLibationStatus:
         )
         assert status.has_pending is True
 
-    def test_has_pending_false_when_all_liberated(self):
+    def test_has_pending_false_when_all_liberated(self) -> None:
         """Test has_pending is False when not_liberated == 0."""
         status = LibationStatus(
             total=100,
@@ -301,7 +303,7 @@ class TestLibationStatus:
         )
         assert status.has_pending is False
 
-    def test_other_statuses_included(self):
+    def test_other_statuses_included(self) -> None:
         """Test that other status types are captured."""
         status = LibationStatus(
             total=105,
@@ -314,7 +316,7 @@ class TestLibationStatus:
         assert status.error == 1
         assert status.other_statuses == {"Unknown": 2}
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default values for optional fields."""
         status = LibationStatus(
             total=10,
@@ -328,7 +330,7 @@ class TestLibationStatus:
 class TestGetLibationStatus:
     """Tests for get_libation_status function."""
 
-    def _create_mock_settings(self):
+    def _create_mock_settings(self) -> MagicMock:
         """Create mock settings for tests."""
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -356,13 +358,13 @@ class TestGetLibationStatus:
                     books.append({"BookStatus": status, "Title": "Book"})
         return json.dumps(books)
 
-    def test_get_status_all_liberated(self):
+    def test_get_status_all_liberated(self) -> None:
         """Test status check when all books are liberated."""
         mock_settings = self._create_mock_settings()
         export_json = self._make_export_json(liberated=100)
 
         # Mock subprocess.run to return success for export, then JSON for cat
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             result = MagicMock()
             if "export" in cmd:
                 result.returncode = 0
@@ -386,12 +388,12 @@ class TestGetLibationStatus:
             assert status.not_liberated == 0
             assert status.has_pending is False
 
-    def test_get_status_with_pending(self):
+    def test_get_status_with_pending(self) -> None:
         """Test status check when books are pending."""
         mock_settings = self._create_mock_settings()
         export_json = self._make_export_json(liberated=80, not_liberated=20)
 
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             result = MagicMock()
             if "export" in cmd:
                 result.returncode = 0
@@ -412,12 +414,12 @@ class TestGetLibationStatus:
             assert status.not_liberated == 20
             assert status.has_pending is True
 
-    def test_get_status_with_errors(self):
+    def test_get_status_with_errors(self) -> None:
         """Test status check with error books."""
         mock_settings = self._create_mock_settings()
         export_json = self._make_export_json(liberated=95, not_liberated=3, error=2)
 
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             result = MagicMock()
             if "export" in cmd:
                 result.returncode = 0
@@ -438,7 +440,7 @@ class TestGetLibationStatus:
             assert status.not_liberated == 3
             assert status.error == 2
 
-    def test_get_status_with_unknown_status(self):
+    def test_get_status_with_unknown_status(self) -> None:
         """Test status check with unknown status types."""
         mock_settings = self._create_mock_settings()
         export_json = self._make_export_json(
@@ -447,7 +449,7 @@ class TestGetLibationStatus:
             other={"SomeNewStatus": 3, "AnotherStatus": 2},
         )
 
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             result = MagicMock()
             if "export" in cmd:
                 result.returncode = 0
@@ -468,11 +470,11 @@ class TestGetLibationStatus:
             assert status.not_liberated == 5
             assert status.other_statuses == {"SomeNewStatus": 3, "AnotherStatus": 2}
 
-    def test_get_status_export_fails(self):
+    def test_get_status_export_fails(self) -> None:
         """Test error when export command fails."""
         mock_settings = self._create_mock_settings()
 
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             result = MagicMock()
             if "export" in cmd:
                 result.returncode = 1
@@ -489,11 +491,11 @@ class TestGetLibationStatus:
         ):
             get_libation_status()
 
-    def test_get_status_cat_fails(self):
+    def test_get_status_cat_fails(self) -> None:
         """Test error when reading export file fails."""
         mock_settings = self._create_mock_settings()
 
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             result = MagicMock()
             if "export" in cmd:
                 result.returncode = 0
@@ -512,11 +514,11 @@ class TestGetLibationStatus:
         ):
             get_libation_status()
 
-    def test_get_status_invalid_json(self):
+    def test_get_status_invalid_json(self) -> None:
         """Test error when JSON is invalid."""
         mock_settings = self._create_mock_settings()
 
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             result = MagicMock()
             if "export" in cmd:
                 result.returncode = 0
@@ -534,11 +536,11 @@ class TestGetLibationStatus:
         ):
             get_libation_status()
 
-    def test_get_status_json_not_list(self):
+    def test_get_status_json_not_list(self) -> None:
         """Test error when JSON is not a list."""
         mock_settings = self._create_mock_settings()
 
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             result = MagicMock()
             if "export" in cmd:
                 result.returncode = 0
@@ -556,12 +558,12 @@ class TestGetLibationStatus:
         ):
             get_libation_status()
 
-    def test_get_status_docker_not_found(self):
+    def test_get_status_docker_not_found(self) -> None:
         """Test error when docker binary is missing."""
         mock_settings = self._create_mock_settings()
         call_count = [0]
 
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             call_count[0] += 1
             if call_count[0] == 1:
                 # First call (export) raises FileNotFoundError
@@ -578,12 +580,12 @@ class TestGetLibationStatus:
         ):
             get_libation_status()
 
-    def test_get_status_cleanup_runs_even_on_error(self):
+    def test_get_status_cleanup_runs_even_on_error(self) -> None:
         """Test that cleanup runs even when export fails."""
         mock_settings = self._create_mock_settings()
         cleanup_called = []
 
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             result = MagicMock()
             if "export" in cmd:
                 result.returncode = 1
@@ -605,12 +607,12 @@ class TestGetLibationStatus:
             # Cleanup should have been called
             assert len(cleanup_called) == 1
 
-    def test_get_status_empty_library(self):
+    def test_get_status_empty_library(self) -> None:
         """Test status check with empty library."""
         mock_settings = self._create_mock_settings()
         export_json = "[]"
 
-        def side_effect(cmd, **kwargs):
+        def side_effect(cmd: Sequence[str] | str, **kwargs: Any) -> MagicMock:
             result = MagicMock()
             if "export" in cmd:
                 result.returncode = 0

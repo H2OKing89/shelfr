@@ -17,49 +17,50 @@ from mamfast.schemas.audnex import (
 class TestAudnexAuthor:
     """Tests for AudnexAuthor schema."""
 
-    def test_valid_author_with_asin(self):
+    def test_valid_author_with_asin(self) -> None:
         """Test valid author with ASIN."""
         author = AudnexAuthor(asin="B000APZGGS", name="Reki Kawahara")
         assert author.asin == "B000APZGGS"
         assert author.name == "Reki Kawahara"
 
-    def test_valid_author_without_asin(self):
+    def test_valid_author_without_asin(self) -> None:
         """Test valid author without ASIN (optional)."""
         author = AudnexAuthor(name="Unknown Author")
         assert author.asin is None
         assert author.name == "Unknown Author"
 
-    def test_missing_name_rejected(self):
+    def test_missing_name_rejected(self) -> None:
         """Test that missing name is rejected."""
+        # Use model_validate with dict to avoid static type checker complaining
         with pytest.raises(ValidationError):
-            AudnexAuthor(asin="B000APZGGS")
+            AudnexAuthor.model_validate({"asin": "B000APZGGS"})
 
 
 class TestAudnexSeries:
     """Tests for AudnexSeries schema."""
 
-    def test_valid_series(self):
+    def test_valid_series(self) -> None:
         """Test valid series with all fields."""
         series = AudnexSeries(asin="B08XXX", name="Sword Art Online", position="16")
         assert series.asin == "B08XXX"
         assert series.name == "Sword Art Online"
         assert series.position == "16"
 
-    def test_series_without_position(self):
+    def test_series_without_position(self) -> None:
         """Test series without position (optional)."""
         series = AudnexSeries(name="Standalone Series")
         assert series.position is None
 
-    def test_missing_name_rejected(self):
+    def test_missing_name_rejected(self) -> None:
         """Test that missing name is rejected."""
         with pytest.raises(ValidationError):
-            AudnexSeries(asin="B08XXX", position="1")
+            AudnexSeries.model_validate({"asin": "B08XXX", "position": "1"})
 
 
 class TestAudnexBook:
     """Tests for AudnexBook schema."""
 
-    def test_valid_book_minimal(self):
+    def test_valid_book_minimal(self) -> None:
         """Test valid book with minimal fields."""
         book = validate_audnex_book(
             {
@@ -72,7 +73,7 @@ class TestAudnexBook:
         assert book.subtitle is None
         assert book.authors == []
 
-    def test_valid_book_full(self):
+    def test_valid_book_full(self) -> None:
         """Test valid book with all common fields."""
         data = {
             "asin": "B0BHLHRMJH",
@@ -99,19 +100,19 @@ class TestAudnexBook:
         assert book.series_primary.position == "7"
         assert book.publisher_name == "Yen Audio"
 
-    def test_missing_asin_rejected(self):
+    def test_missing_asin_rejected(self) -> None:
         """Test that missing ASIN is rejected."""
         with pytest.raises(ValidationError) as exc_info:
             validate_audnex_book({"title": "Some Book"})
         assert "asin" in str(exc_info.value)
 
-    def test_missing_title_rejected(self):
+    def test_missing_title_rejected(self) -> None:
         """Test that missing title is rejected."""
         with pytest.raises(ValidationError) as exc_info:
             validate_audnex_book({"asin": "B0BHLHRMJH"})
         assert "title" in str(exc_info.value)
 
-    def test_extra_fields_ignored(self):
+    def test_extra_fields_ignored(self) -> None:
         """Test that extra fields are ignored (API may add new fields)."""
         book = validate_audnex_book(
             {
@@ -124,7 +125,7 @@ class TestAudnexBook:
         assert book.asin == "B0BHLHRMJH"
         # Should not raise, extra fields ignored
 
-    def test_swapped_title_subtitle(self):
+    def test_swapped_title_subtitle(self) -> None:
         """Test a book where Audible swapped title/subtitle."""
         # This is the SAO vol 16 case from the test fixtures
         book = validate_audnex_book(
@@ -144,7 +145,7 @@ class TestAudnexBook:
 class TestAudnexChaptersResponse:
     """Tests for AudnexChaptersResponse schema."""
 
-    def test_valid_chapters_response(self):
+    def test_valid_chapters_response(self) -> None:
         """Test valid chapters response."""
         data = {
             "asin": "B0BHLHRMJH",
@@ -169,7 +170,7 @@ class TestAudnexChaptersResponse:
         assert response.chapters[0].title == "Opening"
         assert response.chapters[1].start_offset_sec == 180
 
-    def test_chapters_response_minimal(self):
+    def test_chapters_response_minimal(self) -> None:
         """Test chapters response with minimal fields."""
         data = {
             "asin": "B0BHLHRMJH",
@@ -180,7 +181,7 @@ class TestAudnexChaptersResponse:
         assert response.chapters == []
         assert response.brand_intro_duration_ms == 0  # Default
 
-    def test_missing_asin_rejected(self):
+    def test_missing_asin_rejected(self) -> None:
         """Test that missing ASIN is rejected."""
         with pytest.raises(ValidationError):
             validate_audnex_chapters({"chapters": []})
@@ -189,7 +190,7 @@ class TestAudnexChaptersResponse:
 class TestAudnexChapter:
     """Tests for AudnexChapter schema."""
 
-    def test_valid_chapter(self):
+    def test_valid_chapter(self) -> None:
         """Test valid chapter via validation from API-style data."""
         chapter = AudnexChapter.model_validate(
             {
@@ -202,7 +203,7 @@ class TestAudnexChapter:
         assert chapter.length_ms == 180000
         assert chapter.title == "Opening Credits"
 
-    def test_missing_fields_rejected(self):
+    def test_missing_fields_rejected(self) -> None:
         """Test that missing required fields are rejected."""
         with pytest.raises(ValidationError):
             AudnexChapter.model_validate(
@@ -213,7 +214,7 @@ class TestAudnexChapter:
 class TestRealWorldSamples:
     """Test with real-world API response patterns from fixtures."""
 
-    def test_correct_mapping_sample(self):
+    def test_correct_mapping_sample(self) -> None:
         """Test a correctly mapped book (title has series+num)."""
         # SAO vol 7 - Title has series+num, subtitle has arc (CORRECT)
         book = validate_audnex_book(
@@ -227,7 +228,7 @@ class TestRealWorldSamples:
         assert book.title == "Sword Art Online 7"
         assert book.subtitle == "Mother's Rosary"
 
-    def test_swapped_mapping_sample(self):
+    def test_swapped_mapping_sample(self) -> None:
         """Test a swapped book (title has arc, subtitle has series+num)."""
         # SAO vol 16 - SWAPPED
         book = validate_audnex_book(
@@ -242,7 +243,7 @@ class TestRealWorldSamples:
         assert book.title == "Alicization Exploding"
         assert book.subtitle == "Sword Art Online 16"
 
-    def test_standalone_book_sample(self):
+    def test_standalone_book_sample(self) -> None:
         """Test a standalone book (no series)."""
         book = validate_audnex_book(
             {

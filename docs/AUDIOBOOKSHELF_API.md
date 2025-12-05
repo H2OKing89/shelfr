@@ -143,7 +143,7 @@ curl "https://abs.example.com/api/libraries" \
 
 Lists all items in a library. This is the **primary endpoint** for indexing.
 
-**Use Case:** `mamfast abs-index` - Build SQLite index of all books.
+**Use Case:** `mamfast abs-import` - Build in-memory ASIN index for duplicate detection.
 
 ```bash
 # Get all items (no pagination for full index)

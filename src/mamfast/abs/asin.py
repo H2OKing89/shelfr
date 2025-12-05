@@ -1,4 +1,4 @@
-"""ASIN extraction from various folder/file naming formats.
+"""ASIN extraction and in-memory index for duplicate detection.
 
 Handles multiple naming conventions from different eras of the library:
 - Current MAMFast: {ASIN.B0xxx}
@@ -6,7 +6,8 @@ Handles multiple naming conventions from different eras of the library:
 - Bare bracket: [B0xxxxxxxx]
 - Bare ASIN: B0xxxxxxxx (word boundary)
 
-Also extracts ASINs from ABS metadata when available.
+Also extracts ASINs from ABS metadata when available and provides
+in-memory ASIN indexing for fast duplicate detection without SQLite.
 """
 
 from __future__ import annotations
@@ -14,7 +15,10 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mamfast.abs.client import AbsClient
 
 logger = logging.getLogger(__name__)
 
@@ -181,3 +185,87 @@ def extract_all_asins(text: str) -> list[str]:
                 results.append(asin)
 
     return results
+
+
+# =============================================================================
+# In-memory ASIN index for duplicate detection
+# =============================================================================
+
+
+@dataclass
+class AsinEntry:
+    """Entry in the in-memory ASIN index."""
+
+    asin: str
+    path: str  # Host path to the book folder
+    library_item_id: str
+    title: str
+    author: str | None
+
+
+def build_asin_index(
+    client: AbsClient,
+    library_id: str,
+) -> dict[str, AsinEntry]:
+    """Build in-memory ASIN index from ABS library.
+
+    Fetches all items from ABS (cached per session) and builds a dict
+    for O(1) ASIN lookups. This replaces SQLite for duplicate detection.
+
+    Args:
+        client: AbsClient instance (will use cached items if available)
+        library_id: ABS library ID to index
+
+    Returns:
+        Dict mapping ASIN to AsinEntry for all books with ASINs
+    """
+    items = client.get_library_items_cached(library_id)
+    index: dict[str, AsinEntry] = {}
+    no_asin_count = 0
+
+    for item in items:
+        # Get ASIN from the item (metadata, folder name, or file name)
+        asin = item.asin  # AbsLibraryItem already has this parsed
+
+        # If not in metadata, try extracting from path
+        if not asin:
+            asin = extract_asin(item.path)
+
+        if not asin:
+            no_asin_count += 1
+            continue
+
+        # Skip if we've seen this ASIN (keep first occurrence)
+        if asin in index:
+            logger.debug(f"Duplicate ASIN {asin} found, keeping first at {index[asin].path}")
+            continue
+
+        index[asin] = AsinEntry(
+            asin=asin,
+            path=item.path,
+            library_item_id=item.id,
+            title=item.title,
+            author=item.author_name,
+        )
+
+    logger.info(f"Built ASIN index: {len(index)} books with ASIN, {no_asin_count} without")
+    return index
+
+
+def asin_exists(
+    asin_index: dict[str, AsinEntry],
+    asin: str,
+) -> tuple[bool, str | None]:
+    """Check if ASIN exists in the index.
+
+    Args:
+        asin_index: Pre-built ASIN index from build_asin_index()
+        asin: ASIN to look up
+
+    Returns:
+        Tuple of (exists: bool, path: str | None)
+    """
+    entry = asin_index.get(asin)
+    if entry:
+        return True, entry.path
+    return False, None

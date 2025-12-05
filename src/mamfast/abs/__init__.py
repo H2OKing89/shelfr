@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from mamfast.abs.asin import (
     AUDIO_EXTENSIONS,
+    AsinEntry,
     AsinSource,
+    asin_exists,
+    build_asin_index,
     extract_all_asins,
     extract_asin,
     extract_asin_from_abs_item,
@@ -20,20 +23,34 @@ from mamfast.abs.client import (
     AbsLibraryItem,
     AbsUser,
 )
-from mamfast.abs.indexer import (
-    AbsIndex,
-    AuthorVariant,
-    BookRecord,
-    ImportStatus,
-    IndexStats,
-    SyncResult,
+from mamfast.abs.importer import (
+    BatchImportResult,
+    DuplicateError,
+    FilesystemMismatchError,
+    ImportError,
+    ImportResult,
+    ParsedFolderName,
+    build_target_path,
+    discover_staged_books,
+    import_batch,
+    import_single,
+    parse_mam_folder_name,
+    trigger_scan_safe,
+    validate_import_prerequisites,
 )
 from mamfast.abs.paths import PathMapper, abs_path_to_host, host_path_to_abs
 
+# Optional: SQLite indexer (kept for abs-index command and reports)
+# Import these explicitly if needed:
+# from mamfast.abs.indexer import AbsIndex, SyncResult, etc.
+
 __all__ = [
-    # ASIN extraction
+    # ASIN extraction and in-memory index
     "AUDIO_EXTENSIONS",
+    "AsinEntry",
     "AsinSource",
+    "asin_exists",
+    "build_asin_index",
     "extract_asin",
     "extract_asin_from_abs_item",
     "extract_asin_with_source",
@@ -47,13 +64,20 @@ __all__ = [
     "AbsLibrary",
     "AbsLibraryItem",
     "AbsUser",
-    # Indexer
-    "AbsIndex",
-    "AuthorVariant",
-    "BookRecord",
-    "ImportStatus",
-    "IndexStats",
-    "SyncResult",
+    # Importer
+    "BatchImportResult",
+    "DuplicateError",
+    "FilesystemMismatchError",
+    "ImportError",
+    "ImportResult",
+    "ParsedFolderName",
+    "build_target_path",
+    "discover_staged_books",
+    "import_batch",
+    "import_single",
+    "parse_mam_folder_name",
+    "trigger_scan_safe",
+    "validate_import_prerequisites",
     # Paths
     "PathMapper",
     "abs_path_to_host",

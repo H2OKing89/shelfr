@@ -19,6 +19,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, cast
 
 import httpx
 from dotenv import load_dotenv
@@ -36,19 +37,21 @@ AUDNEX_BASE_URL = "https://api.audnex.us"
 AUDNEX_DELAY = 0.5  # seconds between Audnex requests (be nice to the API)
 
 
-def fetch_abs_libraries(client: httpx.Client) -> list[dict]:
+def fetch_abs_libraries(client: httpx.Client) -> list[dict[str, Any]]:
     """Fetch all libraries from Audiobookshelf."""
     response = client.get(
         f"{ABS_HOST}/api/libraries",
         headers={"Authorization": f"Bearer {ABS_API_KEY}"},
     )
     response.raise_for_status()
-    return response.json().get("libraries", [])
+    payload = response.json()
+    libs = payload.get("libraries", [])
+    return cast(list[dict[str, Any]], libs)
 
 
-def fetch_abs_library_items(client: httpx.Client, library_id: str) -> list[dict]:
+def fetch_abs_library_items(client: httpx.Client, library_id: str) -> list[dict[str, Any]]:
     """Fetch all items from a specific library."""
-    items = []
+    items: list[dict[str, Any]] = []
     page = 0
     limit = 100
 
@@ -62,7 +65,7 @@ def fetch_abs_library_items(client: httpx.Client, library_id: str) -> list[dict]
         data = response.json()
 
         results = data.get("results", [])
-        items.extend(results)
+        items.extend(cast(list[dict[str, Any]], results))
 
         if len(results) < limit:
             break
@@ -71,18 +74,18 @@ def fetch_abs_library_items(client: httpx.Client, library_id: str) -> list[dict]
     return items
 
 
-def extract_asin(item: dict) -> str | None:
+def extract_asin(item: dict[str, Any]) -> str | None:
     """Extract ASIN from an Audiobookshelf item."""
-    media = item.get("media", {})
-    metadata = media.get("metadata", {})
+    media = cast(dict[str, Any], item.get("media", {}))
+    metadata = cast(dict[str, Any], media.get("metadata", {}))
 
     # Try direct ASIN field
     asin = metadata.get("asin")
-    if asin:
+    if isinstance(asin, str) and asin:
         return asin
 
     # Try parsing from folder name pattern {ASIN.XXXXXXXXXX}
-    rel_path = item.get("relPath", "")
+    rel_path = str(item.get("relPath", ""))
     import re
 
     match = re.search(r"\{ASIN\.([A-Z0-9]{10})\}", rel_path)
@@ -92,12 +95,13 @@ def extract_asin(item: dict) -> str | None:
     return None
 
 
-def fetch_audnex_book(client: httpx.Client, asin: str) -> dict | None:
+def fetch_audnex_book(client: httpx.Client, asin: str) -> dict[str, Any] | None:
     """Fetch book metadata from Audnex API."""
     try:
         response = client.get(f"{AUDNEX_BASE_URL}/books/{asin}", timeout=10.0)
         if response.status_code == 200:
-            return response.json()
+            payload = response.json()
+            return cast(dict[str, Any], payload)
         elif response.status_code == 404:
             print(f"  ⚠ ASIN {asin} not found in Audnex")
             return None
@@ -109,18 +113,18 @@ def fetch_audnex_book(client: httpx.Client, asin: str) -> dict | None:
         return None
 
 
-def fetch_audnex_chapters(client: httpx.Client, asin: str) -> dict | None:
+def fetch_audnex_chapters(client: httpx.Client, asin: str) -> dict[str, Any] | None:
     """Fetch chapter data from Audnex API."""
     try:
         response = client.get(f"{AUDNEX_BASE_URL}/books/{asin}/chapters", timeout=10.0)
         if response.status_code == 200:
-            return response.json()
+            return cast(dict[str, Any], response.json())
         return None
     except httpx.RequestError:
         return None
 
 
-def categorize_sample(audnex_data: dict) -> str:
+def categorize_sample(audnex_data: dict[str, Any]) -> str:
     """Determine which category a sample belongs to based on its data."""
     title = audnex_data.get("title", "")
     subtitle = audnex_data.get("subtitle")
@@ -167,7 +171,9 @@ def categorize_sample(audnex_data: dict) -> str:
     return "correct_mapping"
 
 
-def build_expected_output(audnex_data: dict, category: str) -> tuple[dict, bool]:
+def build_expected_output(
+    audnex_data: dict[str, Any], category: str
+) -> tuple[dict[str, Any], bool]:
     """
     Build expected normalization output using actual normalize_audnex_book.
 
@@ -195,7 +201,9 @@ def build_expected_output(audnex_data: dict, category: str) -> tuple[dict, bool]
     }, result.was_swapped
 
 
-def build_sample(audnex_data: dict, abs_item: dict | None = None) -> dict:
+def build_sample(
+    audnex_data: dict[str, Any], abs_item: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Build a complete sample entry."""
     # Get expected output and actual swap status from real function
     expected, actual_was_swapped = build_expected_output(audnex_data, "")
@@ -225,7 +233,7 @@ def build_sample(audnex_data: dict, abs_item: dict | None = None) -> dict:
     return sample
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Build golden test samples from ABS + Audnex")
     parser.add_argument("--limit", type=int, default=0, help="Limit number of books (0=all)")
     parser.add_argument(
@@ -248,7 +256,7 @@ def main():
     print()
 
     # Collect all samples by category
-    samples_by_category: dict[str, list] = {
+    samples_by_category: dict[str, list[dict[str, Any]]] = {
         "correct_mapping": [],
         "swapped_mapping": [],
         "series_suffix": [],
@@ -268,6 +276,10 @@ def main():
         all_items = []
         for lib in libraries:
             lib_id = lib.get("id")
+            # Skip invalid library IDs
+            if not isinstance(lib_id, str) or not lib_id:
+                print(f"   ⚠ Skipping library with missing id: {lib.get('name', lib_id)}")
+                continue
             lib_name = lib.get("name", "Unknown")
             print(f"   📁 {lib_name}...", end=" ", flush=True)
             items = fetch_abs_library_items(client, lib_id)
@@ -277,7 +289,7 @@ def main():
         print(f"\n📚 Total items: {len(all_items)}")
 
         # Step 3: Extract ASINs
-        asins = []
+        asins: list[tuple[str, dict[str, Any]]] = []
         for item in all_items:
             asin = extract_asin(item)
             if asin:
@@ -330,7 +342,7 @@ def main():
         return
 
     # Build output structure
-    output = {
+    output: dict[str, Any] = {
         "_comment": "Golden test samples generated from Audiobookshelf + Audnex API",
         "_generated": time.strftime("%Y-%m-%d %H:%M:%S"),
         "_source": f"Audiobookshelf: {ABS_HOST}",

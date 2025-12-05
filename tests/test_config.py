@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -32,7 +33,7 @@ from mamfast.config import (
 class TestPathsConfig:
     """Tests for PathsConfig dataclass."""
 
-    def test_paths_config_creation(self):
+    def test_paths_config_creation(self) -> None:
         """Test creating PathsConfig with required fields."""
         config = PathsConfig(
             library_root=Path("/tmp/library"),
@@ -49,14 +50,14 @@ class TestPathsConfig:
 class TestMamConfig:
     """Tests for MamConfig dataclass."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default values are set correctly."""
         config = MamConfig()
         assert config.max_filename_length == 225
         assert ".m4b" in config.allowed_extensions
         assert ".jpg" in config.allowed_extensions
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test custom values override defaults."""
         config = MamConfig(max_filename_length=200)
         assert config.max_filename_length == 200
@@ -65,7 +66,7 @@ class TestMamConfig:
 class TestFiltersConfig:
     """Tests for FiltersConfig dataclass."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default values."""
         config = FiltersConfig()
         assert config.remove_phrases == []
@@ -73,7 +74,7 @@ class TestFiltersConfig:
         assert config.author_map == {}
         assert config.transliterate_japanese is True
 
-    def test_custom_phrases(self):
+    def test_custom_phrases(self) -> None:
         """Test custom remove phrases."""
         config = FiltersConfig(
             remove_phrases=["Light Novel", "Unabridged"],
@@ -86,7 +87,7 @@ class TestFiltersConfig:
 class TestMkbrrConfig:
     """Tests for MkbrrConfig dataclass."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default mkbrr configuration."""
         config = MkbrrConfig()
         assert config.preset == "mam"
@@ -96,7 +97,7 @@ class TestMkbrrConfig:
 class TestQBittorrentConfig:
     """Tests for QBittorrentConfig dataclass."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default qBittorrent configuration."""
         config = QBittorrentConfig()
         assert config.auto_start is True
@@ -106,7 +107,7 @@ class TestQBittorrentConfig:
 class TestLoadYamlConfig:
     """Tests for YAML config loading."""
 
-    def test_load_valid_yaml(self):
+    def test_load_valid_yaml(self) -> None:
         """Test loading a valid YAML config file."""
         yaml_content = """
 paths:
@@ -125,12 +126,12 @@ mam:
         assert config["paths"]["library_root"] == "/tmp/library"
         assert config["mam"]["max_filename_length"] == 200
 
-    def test_load_missing_file(self):
+    def test_load_missing_file(self) -> None:
         """Test that FileNotFoundError is raised for missing file."""
         with pytest.raises(FileNotFoundError):
             load_yaml_config(Path("/nonexistent/config.yaml"))
 
-    def test_load_empty_yaml(self):
+    def test_load_empty_yaml(self) -> None:
         """Test loading empty YAML returns empty dict."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("")
@@ -143,19 +144,19 @@ mam:
 class TestGetEnv:
     """Tests for _get_env function."""
 
-    def test_returns_env_value(self):
+    def test_returns_env_value(self) -> None:
         """Test returns environment variable value."""
         with patch.dict(os.environ, {"TEST_VAR": "test_value"}):
             result = _get_env("TEST_VAR")
             assert result == "test_value"
 
-    def test_returns_default(self):
+    def test_returns_default(self) -> None:
         """Test returns default when env var not set."""
         with patch.dict(os.environ, {}, clear=True):
             result = _get_env("NONEXISTENT_VAR", "default_value")
             assert result == "default_value"
 
-    def test_raises_without_default(self):
+    def test_raises_without_default(self) -> None:
         """Test raises ValueError when no default and var not set."""
         with (
             patch.dict(os.environ, {}, clear=True),
@@ -167,13 +168,13 @@ class TestGetEnv:
 class TestGetEnvInt:
     """Tests for _get_env_int function."""
 
-    def test_returns_int_value(self):
+    def test_returns_int_value(self) -> None:
         """Test returns integer from environment."""
         with patch.dict(os.environ, {"TEST_INT": "42"}):
             result = _get_env_int("TEST_INT", 0)
             assert result == 42
 
-    def test_returns_default(self):
+    def test_returns_default(self) -> None:
         """Test returns default when env var not set."""
         with patch.dict(os.environ, {}, clear=True):
             result = _get_env_int("NONEXISTENT_INT", 99)
@@ -183,7 +184,7 @@ class TestGetEnvInt:
 class TestLoadSettings:
     """Tests for load_settings function."""
 
-    def test_loads_settings_from_yaml(self, caplog):
+    def test_loads_settings_from_yaml(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test loading settings from config file."""
         yaml_content = """
 paths:
@@ -247,7 +248,7 @@ environment:
             # Check deprecation warnings were logged
             assert "deprecated" in caplog.text.lower()
 
-    def test_finds_env_next_to_config(self):
+    def test_finds_env_next_to_config(self) -> None:
         """Test .env file is found next to config.yaml."""
         yaml_content = """
 paths:
@@ -286,7 +287,7 @@ paths:
 class TestReloadSettings:
     """Tests for reload_settings function."""
 
-    def test_reloads_settings(self):
+    def test_reloads_settings(self) -> None:
         """Test reloading settings clears cache."""
         yaml_content = """
 paths:
@@ -309,7 +310,7 @@ paths:
 class TestValidatePaths:
     """Tests for validate_paths function."""
 
-    def test_returns_empty_for_existing_paths(self):
+    def test_returns_empty_for_existing_paths(self) -> None:
         """Test no warnings when all paths exist."""
         with tempfile.TemporaryDirectory() as tmpdir:
             library = Path(tmpdir) / "library"
@@ -331,7 +332,7 @@ class TestValidatePaths:
             # Only library_root is strictly required
             assert not any("library_root" in w for w in warnings)
 
-    def test_warns_on_missing_library_root(self):
+    def test_warns_on_missing_library_root(self) -> None:
         """Test warning when library_root doesn't exist."""
         paths = PathsConfig(
             library_root=Path("/nonexistent/library"),
@@ -344,7 +345,7 @@ class TestValidatePaths:
         warnings = validate_paths(paths)
         assert any("library_root" in w for w in warnings)
 
-    def test_strict_raises_on_missing_library_root(self):
+    def test_strict_raises_on_missing_library_root(self) -> None:
         """Test ConfigurationError raised when library_root missing and strict=True."""
         paths = PathsConfig(
             library_root=Path("/nonexistent/library"),
@@ -357,7 +358,7 @@ class TestValidatePaths:
         with pytest.raises(ConfigurationError, match="library_root does not exist"):
             validate_paths(paths, strict=True)
 
-    def test_warns_on_missing_seed_root(self):
+    def test_warns_on_missing_seed_root(self) -> None:
         """Test warning for non-existent seed_root (will be created)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             library = Path(tmpdir) / "library"
@@ -378,7 +379,7 @@ class TestValidatePaths:
 class TestClearSettings:
     """Tests for clear_settings function."""
 
-    def test_clears_cached_settings(self):
+    def test_clears_cached_settings(self) -> None:
         """Test that clear_settings resets the global cache."""
         yaml_content = """
 paths:
@@ -403,7 +404,7 @@ paths:
             # but we can at least verify clear_settings doesn't raise
             assert True  # No exception means success
 
-    def test_allows_fresh_reload_after_clear(self):
+    def test_allows_fresh_reload_after_clear(self) -> None:
         """Test settings can be reloaded after clearing."""
         yaml_content = """
 paths:
@@ -434,7 +435,7 @@ paths:
 class TestValidateSameFilesystem:
     """Tests for validate_same_filesystem function."""
 
-    def test_same_filesystem_passes(self):
+    def test_same_filesystem_passes(self) -> None:
         """Test paths on same filesystem don't raise."""
         with tempfile.TemporaryDirectory() as tmpdir:
             path1 = Path(tmpdir) / "dir1"
@@ -445,7 +446,7 @@ class TestValidateSameFilesystem:
             # Should not raise
             validate_same_filesystem(path1, path2, "path1", "path2")
 
-    def test_nonexistent_paths_resolve_to_parent(self):
+    def test_nonexistent_paths_resolve_to_parent(self) -> None:
         """Test nonexistent paths resolve to existing parent."""
         with tempfile.TemporaryDirectory() as tmpdir:
             path1 = Path(tmpdir) / "nonexistent1" / "deep" / "path"
@@ -454,7 +455,7 @@ class TestValidateSameFilesystem:
             # Should not raise - resolves to tmpdir which exists
             validate_same_filesystem(path1, path2, "path1", "path2")
 
-    def test_different_filesystem_raises(self):
+    def test_different_filesystem_raises(self) -> None:
         """Test paths on different filesystems raise ConfigurationError."""
         # This test mocks stat to simulate different devices
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -468,7 +469,9 @@ class TestValidateSameFilesystem:
 
             original_stat = os.stat
 
-            def mock_stat(p, *args, **kwargs):
+            def mock_stat(
+                p: os.PathLike[str] | str | bytes | int, *args: Any, **kwargs: Any
+            ) -> object:
                 result = original_stat(p, *args, **kwargs)
 
                 class MockStatResult:
@@ -501,7 +504,7 @@ class TestValidateSameFilesystem:
                 # For simpler testing, just test the existing path behavior
                 pass
 
-    def test_both_paths_nonexistent(self):
+    def test_both_paths_nonexistent(self) -> None:
         """Test when both paths don't exist and can't resolve."""
         # Use paths that definitely don't have any existing parent we can find
         # In practice this is hard to test, so we just verify no crash
@@ -511,7 +514,7 @@ class TestValidateSameFilesystem:
         # Should not raise - just returns early when can't validate
         validate_same_filesystem(path1, path2, "path1", "path2")
 
-    def test_validates_in_validate_paths(self):
+    def test_validates_in_validate_paths(self) -> None:
         """Test that validate_paths calls validate_same_filesystem."""
         with tempfile.TemporaryDirectory() as tmpdir:
             library = Path(tmpdir) / "library"
@@ -535,7 +538,7 @@ class TestValidateSameFilesystem:
 class TestNamingConfig:
     """Tests for NamingConfig dataclass and loading."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default NamingConfig values."""
         config = NamingConfig()
         assert config.format_indicators == []
@@ -550,7 +553,7 @@ class TestNamingConfig:
         assert config.preserve_volume_in_json is True
         assert config.ripper_tag is None
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test NamingConfig with custom values."""
         config = NamingConfig(
             format_indicators=["(Light Novel)", "Unabridged"],
@@ -569,7 +572,7 @@ class TestNamingConfig:
         assert config.author_map["猫子"] == "Necoco"
         assert config.ripper_tag == "H2OKing"
 
-    def test_ripper_tag_none_when_empty_string(self):
+    def test_ripper_tag_none_when_empty_string(self) -> None:
         """Test ripper_tag is effectively disabled with empty string."""
         config = NamingConfig(ripper_tag="")
         # Empty string is truthy-false, so folder builder should treat as disabled
@@ -577,7 +580,7 @@ class TestNamingConfig:
         # In practice, the config loader converts empty string to None
         # but direct instantiation preserves the value
 
-    def test_load_naming_config_from_file(self):
+    def test_load_naming_config_from_file(self) -> None:
         """Test loading NamingConfig from naming.json file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_dir = Path(tmpdir)
@@ -623,7 +626,7 @@ class TestNamingConfig:
             assert "Re:ZERO" in config.preserve_exact
             assert config.author_map["テスト"] == "Test"
 
-    def test_load_naming_config_missing_file(self):
+    def test_load_naming_config_missing_file(self) -> None:
         """Test loading NamingConfig returns defaults when file missing."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_dir = Path(tmpdir)
@@ -637,7 +640,7 @@ class TestNamingConfig:
             assert config.genre_tags == []
             assert config.author_map == {}
 
-    def test_load_naming_config_empty_file(self):
+    def test_load_naming_config_empty_file(self) -> None:
         """Test loading NamingConfig from empty JSON."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_dir = Path(tmpdir)
@@ -652,7 +655,7 @@ class TestNamingConfig:
             assert config.genre_tags == []
             assert config.author_map == {}
 
-    def test_load_naming_config_partial_file(self):
+    def test_load_naming_config_partial_file(self) -> None:
         """Test loading NamingConfig with only some fields."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_dir = Path(tmpdir)
@@ -673,14 +676,14 @@ class TestNamingConfig:
             assert config.genre_tags == []
             assert config.series_suffixes == []
 
-    def test_filters_config_includes_naming(self):
+    def test_filters_config_includes_naming(self) -> None:
         """Test FiltersConfig includes NamingConfig."""
         naming = NamingConfig(format_indicators=["Test"])
         filters = FiltersConfig(naming=naming)
 
         assert filters.naming.format_indicators == ["Test"]
 
-    def test_naming_integrated_with_load_settings(self):
+    def test_naming_integrated_with_load_settings(self) -> None:
         """Test that naming config is properly loaded with full settings."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
@@ -739,7 +742,7 @@ qbittorrent:
             assert "(Light Novel)" in settings.filters.remove_phrases
             assert "A Test Genre" in settings.filters.remove_phrases
 
-    def test_ripper_tag_from_config_yaml(self):
+    def test_ripper_tag_from_config_yaml(self) -> None:
         """Test that ripper_tag is loaded from config.yaml naming section."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
@@ -772,7 +775,7 @@ naming:
 
             assert settings.naming.ripper_tag == "H2OKing"
 
-    def test_ripper_tag_null_in_config_yaml(self):
+    def test_ripper_tag_null_in_config_yaml(self) -> None:
         """Test that ripper_tag is None when set to null in config.yaml."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
@@ -805,7 +808,7 @@ naming:
 
             assert settings.naming.ripper_tag is None
 
-    def test_ripper_tag_empty_string_becomes_none(self):
+    def test_ripper_tag_empty_string_becomes_none(self) -> None:
         """Test that empty string ripper_tag becomes None."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)

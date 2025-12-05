@@ -380,24 +380,47 @@ Examples:
     abs_init_parser.set_defaults(func=cmd_abs_init)
 
     # -------------------------------------------------------------------------
-    # abs-index: Build/update ASIN index from Audiobookshelf library
+    # abs-import: Import staged books to Audiobookshelf library
     # -------------------------------------------------------------------------
-    abs_index_parser = subparsers.add_parser(
-        "abs-index",
-        help="Build or update ASIN index from Audiobookshelf library",
-        epilog="Scans ABS library and caches ASINs for duplicate detection.",
+    abs_import_parser = subparsers.add_parser(
+        "abs-import",
+        help="Import staged audiobooks to Audiobookshelf library",
+        epilog="Moves staged books to ABS library structure with duplicate detection.",
     )
-    abs_index_parser.add_argument(
-        "--full",
+    abs_import_parser.add_argument(
+        "paths",
+        nargs="*",
+        type=Path,
+        help="Specific folder(s) to import (default: all in staging)",
+    )
+    abs_import_parser.add_argument(
+        "-d",
+        "--duplicate-policy",
+        choices=["skip", "warn", "overwrite"],
+        default=None,
+        help="Override duplicate handling policy (default: from config)",
+    )
+    abs_import_parser.add_argument(
+        "--no-scan",
         action="store_true",
-        help="Full rebuild (default: incremental update)",
+        help="Don't trigger ABS library scan after import",
     )
-    abs_index_parser.add_argument(
-        "--library",
+    abs_import_parser.set_defaults(func=cmd_abs_import)
+
+    # -------------------------------------------------------------------------
+    # abs-check-duplicate: Check if ASIN exists in library
+    # -------------------------------------------------------------------------
+    abs_check_parser = subparsers.add_parser(
+        "abs-check-duplicate",
+        help="Check if an ASIN already exists in the library index",
+        epilog="Quick lookup to check for duplicates before importing.",
+    )
+    abs_check_parser.add_argument(
+        "asin",
         type=str,
-        help="Specific library ID to index (default: all mamfast_managed libraries)",
+        help="ASIN to check (e.g., B0DK27WWT8)",
     )
-    abs_index_parser.set_defaults(func=cmd_abs_index)
+    abs_check_parser.set_defaults(func=cmd_abs_check_duplicate)
 
     return parser
 
@@ -1810,27 +1833,40 @@ def cmd_abs_init(args: argparse.Namespace) -> int:
     managed_libs = [lib for lib in abs_config.libraries if lib.mamfast_managed]
     if not managed_libs:
         print_info("Next: Add library IDs to config with mamfast_managed: true")
-        print_info("Then run: mamfast abs-index")
+        print_info("Then run: mamfast abs-import")
     else:
         print_info(
-            f"Next: Run 'mamfast abs-index' to index {len(managed_libs)} managed library(ies)"
+            f"Next: Run 'mamfast abs-import' to import staged books "
+            f"to {len(managed_libs)} managed library(ies)"
         )
 
     client.close()
     return 0
 
 
-def cmd_abs_index(args: argparse.Namespace) -> int:
-    """Build or update ASIN index from Audiobookshelf library.
+def cmd_abs_import(args: argparse.Namespace) -> int:
+    """Import staged audiobooks to Audiobookshelf library.
 
-    Scans ABS library items and caches ASINs for duplicate detection.
+    Moves staged books to ABS library structure with duplicate detection.
+    Uses atomic rename to preserve hardlinks to seed folder.
+
+    Duplicate detection uses in-memory ASIN index built from ABS API,
+    always providing fresh data.
     """
     from pathlib import Path
 
-    from mamfast.abs import AbsClient, AbsIndex, PathMapper
+    from mamfast.abs import (
+        AbsClient,
+        build_asin_index,
+        discover_staged_books,
+        import_batch,
+        trigger_scan_safe,
+        validate_import_prerequisites,
+    )
+    from mamfast.abs.importer import build_clean_file_name, parse_mam_folder_name
     from mamfast.config import reload_settings
 
-    print_header("Audiobookshelf Index", dry_run=args.dry_run)
+    print_header("Audiobookshelf Import", dry_run=args.dry_run)
 
     try:
         settings = reload_settings(config_file=args.config)
@@ -1838,7 +1874,7 @@ def cmd_abs_index(args: argparse.Namespace) -> int:
         fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
-    # Check if ABS is enabled in config
+    # Check if ABS is enabled
     if not hasattr(settings, "audiobookshelf") or not settings.audiobookshelf.enabled:
         print_warning("Audiobookshelf integration is not enabled in config")
         print_info("Set audiobookshelf.enabled: true in config.yaml")
@@ -1846,111 +1882,286 @@ def cmd_abs_index(args: argparse.Namespace) -> int:
 
     abs_config = settings.audiobookshelf
 
-    # Initialize client
+    # Get managed library (for now, use first managed library)
+    managed_libs = [lib for lib in abs_config.libraries if lib.mamfast_managed]
+    if not managed_libs:
+        fatal_error("No mamfast_managed libraries configured")
+        print_info("Set mamfast_managed: true on a library in config.yaml")
+        return 1
+
+    # Use first managed library
+    target_library = managed_libs[0]
+
+    # Get ABS library root from path_map (destination for imports)
+    if not abs_config.path_map:
+        fatal_error("No path_map configured for Audiobookshelf")
+        return 1
+
+    # Use first path map's host path as ABS library root
+    abs_library_root = Path(abs_config.path_map[0].host)
+
+    # Get import source directory (library_root = where new audiobooks are staged)
+    import_source = settings.paths.library_root
+
+    # Validate prerequisites (no longer checks for index DB)
+    print_step(1, 5, "Validating prerequisites")
+    errors = validate_import_prerequisites(import_source, abs_library_root)
+    if errors:
+        for err in errors:
+            print_error(err)
+        return 1
+    print_success("Prerequisites validated")
+
+    # Discover books to import
+    print_step(2, 5, "Discovering staged books")
+    if args.paths:
+        # Specific paths provided
+        staging_folders = [p for p in args.paths if p.is_dir()]
+        if not staging_folders:
+            print_warning("No valid directories in provided paths")
+            return 1
+    else:
+        staging_folders = discover_staged_books(import_source)
+
+    if not staging_folders:
+        print_info("No staged books to import")
+        return 0
+
+    print_info(f"Found {len(staging_folders)} audiobook(s) to import")
+
+    # Determine duplicate policy
+    dup_policy = args.duplicate_policy or abs_config.import_settings.duplicate_policy
+
+    # Connect to ABS and build ASIN index
+    print_step(3, 5, "Building ASIN index from ABS")
     try:
         client = AbsClient(
             host=abs_config.host,
             api_key=abs_config.api_key,
             timeout=abs_config.timeout_seconds,
         )
-    except Exception as e:
-        fatal_error(f"Failed to create ABS client: {e}")
-        return 1
-
-    # Test connection
-    print_step(1, 4, "Testing ABS connection")
-    try:
+        # Test connection first
         user = client.authorize()
         print_success(f"Connected as {user.username}")
     except Exception as e:
         fatal_error(f"Failed to connect to ABS: {e}")
         return 1
 
-    # Get libraries
-    print_step(2, 4, "Fetching libraries")
+    # Build in-memory ASIN index (fetches all items, caches for this session)
     try:
-        libraries = client.get_libraries()
+        asin_index = build_asin_index(client, target_library.id)
+        print_success(f"Indexed {len(asin_index)} books with ASINs")
     except Exception as e:
-        fatal_error(f"Failed to fetch libraries: {e}")
+        fatal_error(f"Failed to build ASIN index: {e}")
         return 1
 
-    # Filter to managed libraries if configured
-    managed_ids = {lib.id for lib in abs_config.libraries if lib.mamfast_managed}
-    if managed_ids:
-        libraries = [lib for lib in libraries if lib.id in managed_ids]
-        print_info(f"Filtering to {len(libraries)} managed libraries")
+    # Perform import
+    print_step(4, 5, "Importing to library")
+    print_info(f"Source: {import_source}")
+    print_info(f"Target: {abs_library_root}")
+    print_info(f"Duplicate policy: {dup_policy}")
 
-    # Further filter by --library flag if provided
-    if args.library:
-        libraries = [lib for lib in libraries if lib.id == args.library]
-        if not libraries:
-            fatal_error(f"Library '{args.library}' not found or not managed")
-            return 1
-
-    if not libraries:
-        print_warning("No libraries to index")
-        return 0
-
-    for lib in libraries:
-        print_info(f"  • {lib.name} ({lib.id})")
-
-    # Set up path mapper with all configured mappings (from abs_config.path_map)
-    path_maps: list[dict[str, str]] = []
-    for pm in abs_config.path_map:
-        path_maps.append({"container": pm.container, "host": pm.host})
-    path_mapper = PathMapper(mappings=path_maps)
-
-    # Get index database path
-    db_path = Path(abs_config.index_db)
-    if not db_path.is_absolute():
-        # Make relative to current working directory
-        db_path = Path.cwd() / db_path
-
-    # Dry run check
     if args.dry_run:
-        print_dry_run(f"Would sync index to {db_path}")
-        for lib in libraries:
-            print_dry_run(f"Would index library: {lib.name}")
-        return 0
-
-    # Sync index
-    print_step(3, 4, "Syncing index from ABS")
-    mode_str = "full rebuild" if args.full else "incremental"
-    print_info(f"Mode: {mode_str}")
+        print_dry_run(f"Would import {len(staging_folders)} book(s)")
 
     try:
-        with AbsIndex(db_path) as index:
-            library_ids = [lib.id for lib in libraries]
-            result = index.sync_from_abs(
-                client=client,
-                path_mapper=path_mapper,
-                library_ids=library_ids,
-                full_rebuild=args.full,
-            )
+        result = import_batch(
+            staging_folders=staging_folders,
+            library_root=abs_library_root,
+            asin_index=asin_index,
+            staging_root=import_source,
+            duplicate_policy=dup_policy,
+            dry_run=args.dry_run,
+        )
     except Exception as e:
-        fatal_error(f"Sync failed: {e}")
+        fatal_error(f"Import failed: {e}")
         return 1
 
-    # Report results
-    print_step(4, 4, "Index complete")
-    print_success(f"Indexed {result.books_indexed} books from {result.libraries_synced} libraries")
-    print_info(f"  • With ASIN: {result.with_asin}")
-    print_info(f"  • Without ASIN: {result.without_asin}")
+    # Display results
+    if result.results:
+        console.print()
+        console.print("[bold]Import Results[/bold]")
+        console.print()
 
-    if result.author_variants_found > 0:
-        print_warning(f"  • Author variants: {result.author_variants_found}")
-        print_info("    Run 'mamfast abs-report-authors' to see details")
+        for r in result.results:
+            # Status icon and color
+            if r.status == "success":
+                if args.dry_run:
+                    status_icon = "[green]✓[/green]"
+                    status_text = "[green]Ready[/green]"
+                else:
+                    status_icon = "[green]✓[/green]"
+                    status_text = "[green]Imported[/green]"
+            elif r.status == "duplicate":
+                status_icon = "[yellow]⏭[/yellow]"
+                status_text = "[yellow]Exists[/yellow]"
+            elif r.status == "skipped":
+                status_icon = "[yellow]⏭[/yellow]"
+                status_text = "[yellow]Skipped[/yellow]"
+            else:
+                status_icon = "[red]✗[/red]"
+                status_text = "[red]Failed[/red]"
 
-    if result.errors:
-        print_warning(f"  • Errors: {len(result.errors)}")
-        for err in result.errors[:5]:  # Show first 5
-            print_info(f"    - {err}")
-        if len(result.errors) > 5:
-            print_info(f"    ... and {len(result.errors) - 5} more")
+            # Main line: status icon, folder name, ASIN
+            asin_display = f"[dim]({r.asin})[/dim]" if r.asin else ""
+            console.print(f"{status_icon} [cyan]{r.staging_path.name}[/cyan] {asin_display}")
 
-    print_info(f"Index saved to: {db_path}")
+            # Second line: status and target/error path in tree format
+            if r.status == "success" and r.target_path:
+                if r.target_path.is_relative_to(abs_library_root):
+                    rel_path = r.target_path.relative_to(abs_library_root)
+                else:
+                    # Fallback: show absolute path
+                    rel_path = r.target_path
+                console.print(f"  ├─ {status_text} → [dim]{rel_path}[/dim]")
 
-    return 0
+                # List files in the folder (for dry-run, use staging; for actual, use target)
+                source_folder = r.staging_path if args.dry_run else r.target_path
+                if source_folder.exists():
+                    files = sorted(f.name for f in source_folder.iterdir() if f.is_file())
+
+                    # In dry-run, compute what files would be renamed to
+                    rename_map: dict[str, str] = {}
+                    if args.dry_run:
+                        try:
+                            parsed = parse_mam_folder_name(r.staging_path.name)
+                            for f in source_folder.iterdir():
+                                if not f.is_file():
+                                    continue
+                                ext = f.suffix.lower()
+                                # Handle compound extensions
+                                if f.name.lower().endswith(".metadata.json"):
+                                    ext = ".metadata.json"
+                                clean_name = build_clean_file_name(parsed, extension=ext)
+                                if f.name != clean_name:
+                                    rename_map[f.name] = clean_name
+                        except (ValueError, KeyError):
+                            pass  # Can't parse, just show original names
+
+                    for i, filename in enumerate(files):
+                        is_last = i == len(files) - 1
+                        prefix = "  └─" if is_last else "  ├─"
+                        if filename in rename_map:
+                            # Show rename: old → new
+                            console.print(
+                                f"{prefix} [dim]{filename}[/dim] → "
+                                f"[green]{rename_map[filename]}[/green]"
+                            )
+                        else:
+                            console.print(f"{prefix} [dim]{filename}[/dim]")
+            elif r.status == "duplicate" and r.error:
+                # Extract path from "Already exists at {path}" message
+                if "Already exists at " in r.error:
+                    existing_path = r.error.replace("Already exists at ", "")
+                    console.print(f"  └─ {status_text} → [dim]{existing_path}[/dim]")
+                else:
+                    console.print(f"  └─ {status_text}")
+            elif r.error:
+                console.print(f"  └─ {status_text}: [red]{r.error}[/red]")
+            else:
+                console.print(f"  └─ {status_text}")
+
+            console.print()
+
+    # Summary
+    print_step(5, 5, "Import complete")
+
+    if args.dry_run:
+        print_dry_run(f"Would import {result.success_count} book(s)")
+        if result.duplicate_count > 0:
+            print_info(f"  • {result.duplicate_count} duplicate(s) would be skipped")
+    else:
+        print_success(f"Imported {result.success_count} book(s)")
+        if result.duplicate_count > 0:
+            print_info(f"  • Duplicates skipped: {result.duplicate_count}")
+        if result.failed_count > 0:
+            print_warning(f"  • Failed: {result.failed_count}")
+
+    # Trigger ABS scan (if not dry run and not --no-scan)
+    if not args.dry_run and not args.no_scan and result.success_count > 0:
+        trigger_mode = abs_config.import_settings.trigger_scan
+        if trigger_mode != "none":
+            try:
+                client = AbsClient(
+                    host=abs_config.host,
+                    api_key=abs_config.api_key,
+                    timeout=abs_config.timeout_seconds,
+                )
+                if trigger_scan_safe(client, target_library.id):
+                    print_success("Triggered ABS library scan")
+                else:
+                    print_warning(
+                        "Failed to trigger ABS scan (files will appear on next scheduled scan)"
+                    )
+            except Exception as e:
+                print_warning(f"Could not trigger ABS scan: {e}")
+
+    return 1 if result.failed_count > 0 else 0
+
+
+def cmd_abs_check_duplicate(args: argparse.Namespace) -> int:
+    """Check if an ASIN already exists in the ABS library.
+
+    Quick lookup for duplicate detection using in-memory index from ABS API.
+    """
+    from mamfast.abs import AbsClient, asin_exists, build_asin_index, is_valid_asin
+    from mamfast.config import reload_settings
+
+    asin = args.asin.upper().strip()
+
+    # Validate ASIN format
+    if not is_valid_asin(asin):
+        print_error(f"Invalid ASIN format: {asin}")
+        print_info("ASIN should be 10 characters starting with B0")
+        return 1
+
+    try:
+        settings = reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+
+    # Check if ABS is enabled
+    if not hasattr(settings, "audiobookshelf") or not settings.audiobookshelf.enabled:
+        print_warning("Audiobookshelf integration is not enabled in config")
+        return 1
+
+    abs_config = settings.audiobookshelf
+
+    # Get managed library
+    managed_libs = [lib for lib in abs_config.libraries if lib.mamfast_managed]
+    if not managed_libs:
+        fatal_error("No mamfast_managed libraries configured")
+        return 1
+    target_library = managed_libs[0]
+
+    # Connect to ABS and build index
+    print_info(f"Checking ASIN {asin} against ABS library...")
+    try:
+        client = AbsClient(
+            host=abs_config.host,
+            api_key=abs_config.api_key,
+            timeout=abs_config.timeout_seconds,
+        )
+        asin_index = build_asin_index(client, target_library.id)
+    except Exception as e:
+        fatal_error(f"Failed to query ABS: {e}")
+        return 1
+
+    # Check index
+    exists, existing_path = asin_exists(asin_index, asin)
+
+    if exists:
+        entry = asin_index[asin]
+        print_warning(f"ASIN {asin} already exists:")
+        print_info(f"  Title: {entry.title}")
+        if entry.author:
+            print_info(f"  Author: {entry.author}")
+        print_info(f"  Path: {entry.path}")
+        return 1
+    else:
+        print_success(f"ASIN {asin} not found in library - safe to import")
+        return 0
 
 
 def main() -> int:

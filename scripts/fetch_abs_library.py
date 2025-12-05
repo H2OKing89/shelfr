@@ -15,7 +15,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from dotenv import load_dotenv
@@ -44,7 +44,8 @@ def get_libraries(host: str, headers: dict[str, str]) -> list[dict[str, Any]]:
     response = httpx.get(f"{host}/api/libraries", headers=headers, timeout=30)
     response.raise_for_status()
     data = response.json()
-    return data.get("libraries", [])
+    libs = data.get("libraries", [])
+    return cast(list[dict[str, Any]], libs)
 
 
 def get_library_items(
@@ -70,7 +71,7 @@ def get_library_items(
         data = response.json()
 
         results = data.get("results", [])
-        all_items.extend(results)
+        all_items.extend(cast(list[dict[str, Any]], results))
 
         total = data.get("total", 0)
         print(f"    Got {len(results)} items (total: {len(all_items)}/{total})")
@@ -162,15 +163,22 @@ def main() -> None:
         print(f"  - {lib.get('name')} (id: {lib.get('id')})")
 
     # Fetch all items from all book libraries
-    all_books = []
+    all_books: list[dict[str, Any]] = []
     for lib in book_libraries:
         lib_id = lib.get("id")
         lib_name = lib.get("name")
         print(f"\nFetching items from '{lib_name}'...")
 
+        # Ensure library id is a string
+        if not isinstance(lib_id, str) or not lib_id:
+            print(f"  ⚠ Skipping library with invalid id: {lib_id}")
+            continue
+
         items = get_library_items(host, headers, lib_id)
-        books = [extract_book_data(item) for item in items]
-        books = [b for b in books if b is not None]
+
+        books_raw = [extract_book_data(item) for item in items]
+        # Filter out None and cast to concrete dicts for static typing
+        books: list[dict[str, Any]] = [b for b in books_raw if isinstance(b, dict)]
 
         print(f"  Extracted {len(books)} books")
         all_books.extend(books)
@@ -203,9 +211,9 @@ def main() -> None:
     print("Library Statistics")
     print("=" * 60)
 
-    with_subtitle = sum(1 for b in all_books if b.get("subtitle"))
-    with_series = sum(1 for b in all_books if b.get("series"))
-    with_asin = sum(1 for b in all_books if b.get("asin"))
+    with_subtitle = sum(1 for b in all_books if bool(b.get("subtitle")))
+    with_series = sum(1 for b in all_books if bool(b.get("series")))
+    with_asin = sum(1 for b in all_books if bool(b.get("asin")))
 
     print(
         f"  Books with subtitle:  {with_subtitle:4d} ({with_subtitle / len(all_books) * 100:.1f}%)"

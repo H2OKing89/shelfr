@@ -16,6 +16,23 @@ class TitleSubtitleNormalization(BaseModel):
     log_swaps: bool = True
 
 
+class InheritThePrefixConfig(BaseModel):
+    """Config for inheriting 'The' prefix from title to series name."""
+
+    enabled: bool = True
+
+    model_config = {"extra": "allow"}  # Allow _comment fields
+
+
+class SeriesNameCleaningConfig(BaseModel):
+    """Series name cleaning configuration."""
+
+    enabled: bool = True
+    inherit_the_prefix: InheritThePrefixConfig = Field(default_factory=InheritThePrefixConfig)
+
+    model_config = {"extra": "allow"}  # Allow _comment fields
+
+
 class AuthorRolesConfig(BaseModel):
     """Author roles configuration for filtering non-primary authors."""
 
@@ -148,6 +165,9 @@ class NamingSchema(BaseModel):
     title_subtitle_normalization: TitleSubtitleNormalization = Field(
         default_factory=TitleSubtitleNormalization
     )
+
+    # Series name cleaning settings
+    series_name_cleaning: SeriesNameCleaningConfig = Field(default_factory=SeriesNameCleaningConfig)
 
     # Author role filtering
     author_roles: AuthorRolesConfig = Field(default_factory=AuthorRolesConfig)

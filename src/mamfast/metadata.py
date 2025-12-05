@@ -1012,6 +1012,7 @@ def build_mam_json(
     # Title - use normalized title if available, else Audnex title or fallback to release title
     # Apply filter_title to remove format indicators, genre tags, etc.
     # keep_volume=True to preserve "Vol. X" for human-readable JSON
+    cleaned_title: str | None = None
     title = normalized.display_title if normalized else audnex.get("title") or release.title
     if title:
         cleaned_title = filter_title(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -37,21 +37,21 @@ def fixtures_dir() -> Path:
 def libraries_response(fixtures_dir: Path) -> dict[str, Any]:
     """Load libraries.json fixture."""
     with open(fixtures_dir / "libraries.json") as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 @pytest.fixture
 def library_items_response(fixtures_dir: Path) -> dict[str, Any]:
     """Load library_items.json fixture."""
     with open(fixtures_dir / "library_items.json") as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 @pytest.fixture
 def authorize_response(fixtures_dir: Path) -> dict[str, Any]:
     """Load authorize.json fixture."""
     with open(fixtures_dir / "authorize.json") as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 class TestAbsFolder:
@@ -347,9 +347,12 @@ class TestAbsUserSchema:
     """Tests for AbsUserSchema."""
 
     def test_admin_user(self, authorize_response: dict[str, Any]) -> None:
-        """Test parsing admin user."""
-        user_data = authorize_response["user"]
-        user = AbsUserSchema.model_validate(user_data)
+        """Test parsing admin user.
+
+        Note: authorize_response fixture now matches /api/me format which
+        returns user data directly (not wrapped in {"user": ...}).
+        """
+        user = AbsUserSchema.model_validate(authorize_response)
         assert user.username == "mamfast"
         assert user.type == "admin"
         assert user.has_admin is True
@@ -370,17 +373,25 @@ class TestAbsUserSchema:
 
 
 class TestAbsAuthorizeResponse:
-    """Tests for AbsAuthorizeResponse."""
+    """Tests for AbsAuthorizeResponse.
+
+    Note: The actual API (/api/me) returns user data directly. The client wraps it
+    in {"user": ...} for schema validation. These tests use wrapped format.
+    """
 
     def test_full_response(self, authorize_response: dict[str, Any]) -> None:
-        """Test parsing full authorize response."""
-        response = AbsAuthorizeResponse.model_validate(authorize_response)
+        """Test parsing full authorize response (wrapped format)."""
+        # Client wraps /api/me response in {"user": ...} for schema validation
+        wrapped = {"user": authorize_response}
+        response = AbsAuthorizeResponse.model_validate(wrapped)
         assert response.user.username == "mamfast"
         assert response.user.has_admin is True
 
     def test_validate_helper(self, authorize_response: dict[str, Any]) -> None:
-        """Test validate_authorize_response helper."""
-        response = validate_authorize_response(authorize_response)
+        """Test validate_authorize_response helper (wrapped format)."""
+        # Client wraps /api/me response in {"user": ...} for schema validation
+        wrapped = {"user": authorize_response}
+        response = validate_authorize_response(wrapped)
         assert response.user.id == "usr_mamfast"
 
 
