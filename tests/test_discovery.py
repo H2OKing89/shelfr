@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from mamfast.discovery import (
     ASIN_PATTERN,
     build_release_from_dir,
@@ -26,34 +28,34 @@ from mamfast.models import AudiobookRelease
 class TestIsValidAsin:
     """Tests for ASIN validation."""
 
-    def test_valid_b_prefix_asin(self):
+    def test_valid_b_prefix_asin(self) -> None:
         """Test valid B-prefix ASIN (Audible format)."""
         assert is_valid_asin("B09GHD1R2R") is True
         assert is_valid_asin("B0DSM1KYJ2") is True
         assert is_valid_asin("B000000000") is True
 
-    def test_valid_isbn_asin(self):
+    def test_valid_isbn_asin(self) -> None:
         """Test valid 10-digit ISBN format."""
         assert is_valid_asin("1774248182") is True
         assert is_valid_asin("0123456789") is True
 
-    def test_invalid_too_short(self):
+    def test_invalid_too_short(self) -> None:
         """Test invalid ASIN - too short."""
         assert is_valid_asin("B1234") is False
         assert is_valid_asin("123456789") is False
 
-    def test_invalid_too_long(self):
+    def test_invalid_too_long(self) -> None:
         """Test invalid ASIN - too long."""
         assert is_valid_asin("B09GHD1R2RX") is False
         assert is_valid_asin("12345678901") is False
 
-    def test_invalid_format(self):
+    def test_invalid_format(self) -> None:
         """Test invalid ASIN - wrong format."""
         assert is_valid_asin("A09GHD1R2R") is False  # Wrong prefix
         assert is_valid_asin("b09ghd1r2r") is False  # Lowercase
         assert is_valid_asin("B09GHD-R2R") is False  # Contains hyphen
 
-    def test_none_or_empty(self):
+    def test_none_or_empty(self) -> None:
         """Test None or empty string."""
         assert is_valid_asin(None) is False
         assert is_valid_asin("") is False
@@ -62,27 +64,27 @@ class TestIsValidAsin:
 class TestExtractAsin:
     """Tests for ASIN extraction from folder names."""
 
-    def test_standard_asin(self):
+    def test_standard_asin(self) -> None:
         """Test extracting standard ASIN format."""
         name = "He Who Fights with Monsters vol_01 (2021) (Shirtaloon) {ASIN.1774248182}"
         assert extract_asin_from_name(name) == "1774248182"
 
-    def test_b_prefix_asin(self):
+    def test_b_prefix_asin(self) -> None:
         """Test extracting B-prefix ASIN format."""
         name = "Some Book (2022) (Author) {ASIN.B09GHD1R2R}"
         assert extract_asin_from_name(name) == "B09GHD1R2R"
 
-    def test_with_source_tag(self):
+    def test_with_source_tag(self) -> None:
         """Test extracting ASIN when source tag is present."""
         name = "Book Title (2021) (Author) {ASIN.1234567890} [H2OKing]"
         assert extract_asin_from_name(name) == "1234567890"
 
-    def test_no_asin(self):
+    def test_no_asin(self) -> None:
         """Test when no ASIN is present."""
         name = "Some Book Without ASIN"
         assert extract_asin_from_name(name) is None
 
-    def test_invalid_asin_still_returned(self):
+    def test_invalid_asin_still_returned(self) -> None:
         """Test that invalid ASIN is still returned (with warning logged)."""
         name = "Book Title {ASIN.1234}"  # Too short, invalid format
         # Still returns it - might be a format we don't know about
@@ -92,7 +94,7 @@ class TestExtractAsin:
 class TestParseFolderName:
     """Tests for folder name parsing."""
 
-    def test_full_format(self):
+    def test_full_format(self) -> None:
         """Test parsing complete folder name format."""
         name = "He Who Fights with Monsters vol_01 (2021) (Shirtaloon) {ASIN.1774248182} [H2OKing]"
         result = parse_folder_name(name)
@@ -104,7 +106,7 @@ class TestParseFolderName:
         assert result["asin"] == "1774248182"
         assert result["source"] == "H2OKing"
 
-    def test_no_source_tag(self):
+    def test_no_source_tag(self) -> None:
         """Test parsing without source tag."""
         name = "Some Book vol_03 (2020) (Jane Doe) {ASIN.B001234567}"
         result = parse_folder_name(name)
@@ -116,14 +118,14 @@ class TestParseFolderName:
         assert result["asin"] == "B001234567"
         assert result["source"] is None
 
-    def test_decimal_volume(self):
+    def test_decimal_volume(self) -> None:
         """Test parsing decimal volume number."""
         name = "Book vol_10.5 (2023) (Author) {ASIN.1234567890}"
         result = parse_folder_name(name)
 
         assert result["volume"] == "10.5"
 
-    def test_volume_with_dash_prefix(self):
+    def test_volume_with_dash_prefix(self) -> None:
         """Test parsing volume with ' - vol_XX' format (alternate style)."""
         name = "Epic Fantasy Series - vol_05 (2022) (Jane Author) {ASIN.B012345678}"
         result = parse_folder_name(name)
@@ -134,7 +136,7 @@ class TestParseFolderName:
         assert result["author"] == "Jane Author"
         assert result["asin"] == "B012345678"
 
-    def test_minimal_format(self):
+    def test_minimal_format(self) -> None:
         """Test parsing minimal folder name (just title and ASIN)."""
         name = "Simple Book Title {ASIN.B09ABCDEFG}"
         result = parse_folder_name(name)
@@ -149,7 +151,7 @@ class TestParseFolderName:
 class TestAsinPattern:
     """Tests for the ASIN regex pattern."""
 
-    def test_pattern_matches_both_bracket_styles(self):
+    def test_pattern_matches_both_bracket_styles(self) -> None:
         """Verify pattern matches both curly and square brackets."""
         # Should match curly braces
         assert ASIN_PATTERN.search("{ASIN.1234567890}")
@@ -166,7 +168,7 @@ class TestAsinPattern:
 class TestLoadMetadataJson:
     """Tests for metadata.json loading."""
 
-    def test_loads_valid_json(self):
+    def test_loads_valid_json(self) -> None:
         """Test loading valid metadata.json."""
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "metadata.json"
@@ -194,7 +196,7 @@ class TestLoadMetadataJson:
             assert result.narrators == ["Jane Doe"]
             assert result.year == "2023"
 
-    def test_handles_author_dicts(self):
+    def test_handles_author_dicts(self) -> None:
         """Test handling authors as list of dicts."""
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "metadata.json"
@@ -211,7 +213,7 @@ class TestLoadMetadataJson:
             assert result is not None
             assert result.authors == ["John Smith", "Jane Doe"]
 
-    def test_handles_series_as_dict(self):
+    def test_handles_series_as_dict(self) -> None:
         """Test handling series as dict."""
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "metadata.json"
@@ -229,7 +231,7 @@ class TestLoadMetadataJson:
             assert result.series_name == "Epic Series"
             assert result.series_position == "3"
 
-    def test_handles_series_as_list(self):
+    def test_handles_series_as_list(self) -> None:
         """Test handling series as list of dicts."""
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "metadata.json"
@@ -247,12 +249,12 @@ class TestLoadMetadataJson:
             assert result.series_name == "Series 1"
             assert result.series_position == "1"
 
-    def test_returns_none_for_missing_file(self):
+    def test_returns_none_for_missing_file(self) -> None:
         """Test returning None for missing file."""
         result = load_metadata_json(Path("/nonexistent/metadata.json"))
         assert result is None
 
-    def test_returns_none_for_invalid_json(self):
+    def test_returns_none_for_invalid_json(self) -> None:
         """Test returning None for invalid JSON."""
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "metadata.json"
@@ -261,7 +263,7 @@ class TestLoadMetadataJson:
             result = load_metadata_json(meta_path)
             assert result is None
 
-    def test_handles_runtime_minutes(self):
+    def test_handles_runtime_minutes(self) -> None:
         """Test parsing runtime minutes (Libation uses runtime_length_min)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "metadata.json"
@@ -276,7 +278,7 @@ class TestLoadMetadataJson:
 class TestFindMetadataFile:
     """Tests for find_metadata_file function."""
 
-    def test_finds_metadata_file(self):
+    def test_finds_metadata_file(self) -> None:
         """Test finding *.metadata.json file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             book_dir = Path(tmpdir)
@@ -288,7 +290,7 @@ class TestFindMetadataFile:
             assert result is not None
             assert result.name == "Book Title {ASIN.B09TEST123}.metadata.json"
 
-    def test_returns_none_when_no_metadata(self):
+    def test_returns_none_when_no_metadata(self) -> None:
         """Test returning None when no *.metadata.json exists."""
         with tempfile.TemporaryDirectory() as tmpdir:
             book_dir = Path(tmpdir)
@@ -299,7 +301,7 @@ class TestFindMetadataFile:
 
             assert result is None
 
-    def test_finds_first_when_multiple(self):
+    def test_finds_first_when_multiple(self) -> None:
         """Test finding first file when multiple *.metadata.json exist."""
         with tempfile.TemporaryDirectory() as tmpdir:
             book_dir = Path(tmpdir)
@@ -317,7 +319,7 @@ class TestFindMetadataFile:
 class TestIsAudiobookDir:
     """Tests for audiobook directory detection."""
 
-    def test_directory_with_m4b(self):
+    def test_directory_with_m4b(self) -> None:
         """Test directory containing m4b file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir)
@@ -325,7 +327,7 @@ class TestIsAudiobookDir:
 
             assert is_audiobook_dir(path) is True
 
-    def test_directory_without_m4b(self):
+    def test_directory_without_m4b(self) -> None:
         """Test directory without m4b file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir)
@@ -333,7 +335,7 @@ class TestIsAudiobookDir:
 
             assert is_audiobook_dir(path) is False
 
-    def test_not_a_directory(self):
+    def test_not_a_directory(self) -> None:
         """Test non-directory path."""
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "file.txt"
@@ -341,7 +343,7 @@ class TestIsAudiobookDir:
 
             assert is_audiobook_dir(path) is False
 
-    def test_case_insensitive_extension(self):
+    def test_case_insensitive_extension(self) -> None:
         """Test case-insensitive .M4B extension."""
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir)
@@ -353,7 +355,7 @@ class TestIsAudiobookDir:
 class TestFindAudiobookDirs:
     """Tests for finding audiobook directories."""
 
-    def test_finds_audiobooks_in_tree(self):
+    def test_finds_audiobooks_in_tree(self) -> None:
         """Test finding audiobooks in library structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -374,12 +376,12 @@ class TestFindAudiobookDirs:
             assert book1 in dirs
             assert book2 in dirs
 
-    def test_nonexistent_library(self):
+    def test_nonexistent_library(self) -> None:
         """Test handling non-existent library."""
         dirs = find_audiobook_dirs(Path("/nonexistent/library"))
         assert dirs == []
 
-    def test_empty_library(self):
+    def test_empty_library(self) -> None:
         """Test empty library."""
         with tempfile.TemporaryDirectory() as tmpdir:
             dirs = find_audiobook_dirs(Path(tmpdir))
@@ -389,7 +391,7 @@ class TestFindAudiobookDirs:
 class TestBuildReleaseFromDir:
     """Tests for building release from directory."""
 
-    def test_builds_release_from_folder_name(self):
+    def test_builds_release_from_folder_name(self) -> None:
         """Test building release from folder name."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create settings mock
@@ -410,7 +412,7 @@ class TestBuildReleaseFromDir:
             assert release.source_dir == book_dir
             assert len(release.files) >= 1
 
-    def test_builds_release_from_metadata_json(self):
+    def test_builds_release_from_metadata_json(self) -> None:
         """Test building release preferring *.metadata.json."""
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_settings = MagicMock()
@@ -445,7 +447,7 @@ class TestBuildReleaseFromDir:
 class TestScanLibrary:
     """Tests for library scanning."""
 
-    def test_scans_library(self):
+    def test_scans_library(self) -> None:
         """Test scanning library for audiobooks."""
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_settings = MagicMock()
@@ -472,7 +474,7 @@ class TestScanLibrary:
 class TestGetNewReleases:
     """Tests for getting new (unprocessed) releases."""
 
-    def test_filters_processed_releases(self):
+    def test_filters_processed_releases(self) -> None:
         """Test filtering out already processed releases."""
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_settings = MagicMock()
@@ -504,7 +506,7 @@ class TestGetNewReleases:
 class TestGetReleaseByAsin:
     """Tests for finding release by ASIN."""
 
-    def test_finds_release_by_asin(self):
+    def test_finds_release_by_asin(self) -> None:
         """Test finding specific release by ASIN."""
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_settings = MagicMock()
@@ -522,7 +524,7 @@ class TestGetReleaseByAsin:
             assert release is not None
             assert release.asin == "B09TARGET"
 
-    def test_returns_none_for_not_found(self):
+    def test_returns_none_for_not_found(self) -> None:
         """Test returning None when ASIN not found."""
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_settings = MagicMock()
@@ -538,7 +540,7 @@ class TestGetReleaseByAsin:
 class TestPrintReleaseSummary:
     """Tests for release summary printing."""
 
-    def test_prints_summary(self, capsys):
+    def test_prints_summary(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test printing release summary."""
         releases = [
             AudiobookRelease(
@@ -567,7 +569,7 @@ class TestPrintReleaseSummary:
         assert "Series #1" in captured.out
         assert "NO ASIN" in captured.out
 
-    def test_prints_no_releases(self, capsys):
+    def test_prints_no_releases(self, capsys) -> None:
         """Test printing when no releases."""
         print_release_summary([])
 
@@ -578,7 +580,7 @@ class TestPrintReleaseSummary:
 class TestFindDuplicateReleases:
     """Tests for find_duplicate_releases fuzzy matching."""
 
-    def test_finds_similar_titles(self):
+    def test_finds_similar_titles(self) -> None:
         """Should find releases with similar titles."""
         from mamfast.discovery import find_duplicate_releases
 
@@ -606,7 +608,7 @@ class TestFindDuplicateReleases:
         assert duplicates[0]["title_similarity"] > 75
         assert duplicates[0]["same_author"] is True
 
-    def test_no_duplicates_different_titles(self):
+    def test_no_duplicates_different_titles(self) -> None:
         """Should return empty for completely different titles."""
         from mamfast.discovery import find_duplicate_releases
 
@@ -620,14 +622,14 @@ class TestFindDuplicateReleases:
 
         assert len(duplicates) == 0
 
-    def test_empty_list_returns_empty(self):
+    def test_empty_list_returns_empty(self) -> None:
         """Empty list should return empty."""
         from mamfast.discovery import find_duplicate_releases
 
         assert find_duplicate_releases([]) == []
         assert find_duplicate_releases([AudiobookRelease(title="One")]) == []
 
-    def test_marks_likely_duplicate_with_same_author(self):
+    def test_marks_likely_duplicate_with_same_author(self) -> None:
         """Should mark as likely duplicate when same author."""
         from mamfast.discovery import find_duplicate_releases
 
@@ -649,7 +651,7 @@ class TestFindDuplicateReleases:
         assert len(duplicates) == 1
         assert duplicates[0]["likely_duplicate"] is True
 
-    def test_marks_likely_duplicate_with_same_series(self):
+    def test_marks_likely_duplicate_with_same_series(self) -> None:
         """Should mark as likely duplicate when same series."""
         from mamfast.discovery import find_duplicate_releases
 
