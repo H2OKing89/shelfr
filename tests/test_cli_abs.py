@@ -433,3 +433,359 @@ class TestAbsIndexCommand:
 
             result = cmd_abs_index(args)
             assert result == 0
+
+
+# =============================================================================
+# Tests: abs-import command
+# =============================================================================
+
+
+class TestAbsImportParser:
+    """Tests for abs-import command parser setup."""
+
+    def test_abs_import_parser_exists(self) -> None:
+        """Test abs-import subcommand is registered."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-import"])
+        assert args.command == "abs-import"
+        assert hasattr(args, "func")
+
+    def test_abs_import_dry_run_flag(self) -> None:
+        """Test abs-import --dry-run flag is parsed."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-import", "--dry-run"])
+        assert args.dry_run is True
+
+    def test_abs_import_duplicate_policy_option(self) -> None:
+        """Test abs-import --duplicate-policy option is parsed."""
+        parser = build_parser()
+        for policy in ["skip", "warn", "overwrite"]:
+            args = parser.parse_args(["abs-import", "--duplicate-policy", policy])
+            assert args.duplicate_policy == policy
+
+    def test_abs_import_no_scan_flag(self) -> None:
+        """Test abs-import --no-scan flag is parsed."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-import", "--no-scan"])
+        assert args.no_scan is True
+
+    def test_abs_import_paths_positional(self, tmp_path: Path) -> None:
+        """Test abs-import accepts positional paths."""
+        parser = build_parser()
+        path1 = str(tmp_path / "book1")
+        path2 = str(tmp_path / "book2")
+        args = parser.parse_args(["abs-import", path1, path2])
+        assert len(args.paths) == 2
+
+    def test_abs_import_defaults(self) -> None:
+        """Test abs-import default values."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-import"])
+        assert args.duplicate_policy is None
+        assert args.no_scan is False
+        assert args.paths == []
+
+
+class TestAbsImportCommand:
+    """Tests for abs-import command implementation."""
+
+    @pytest.fixture
+    def args(self) -> argparse.Namespace:
+        """Create basic args namespace."""
+        return argparse.Namespace(
+            config="config/config.yaml",
+            dry_run=False,
+            verbose=False,
+            duplicate_policy=None,
+            no_scan=False,
+            paths=[],
+        )
+
+    @pytest.fixture
+    def mock_abs_config(self, tmp_path: Path) -> MagicMock:
+        """Create mock audiobookshelf config."""
+        config = MagicMock()
+        config.enabled = True
+        config.host = "http://localhost:13378"
+        config.api_key = "test-key"
+        config.timeout_seconds = 30
+        config.docker_mode = True
+        config.path_map = [MockAbsPathMap(host=str(tmp_path / "audiobooks"))]
+        config.libraries = [MockAbsLibrary()]
+        config.index_db = str(tmp_path / "abs_index.db")
+        config.import_settings = MagicMock()
+        config.import_settings.duplicate_policy = "skip"
+        config.import_settings.trigger_scan = "batch"
+        return config
+
+    def test_abs_import_config_not_found(self, args: argparse.Namespace) -> None:
+        """Test abs-import handles missing config file."""
+        from mamfast.cli import cmd_abs_import
+
+        with patch("mamfast.config.reload_settings") as mock_reload:
+            mock_reload.side_effect = FileNotFoundError("config not found")
+            result = cmd_abs_import(args)
+            assert result == 1
+
+    def test_abs_import_abs_disabled(self, args: argparse.Namespace) -> None:
+        """Test abs-import warns when ABS is disabled."""
+        from mamfast.cli import cmd_abs_import
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf.enabled = False
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_import(args)
+            assert result == 1
+
+    def test_abs_import_no_managed_libraries(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock
+    ) -> None:
+        """Test abs-import fails when no managed libraries configured."""
+        from mamfast.cli import cmd_abs_import
+
+        mock_abs_config.libraries = []  # No libraries
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_import(args)
+            assert result == 1
+
+    def test_abs_import_no_path_map(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock
+    ) -> None:
+        """Test abs-import fails when no path_map configured."""
+        from mamfast.cli import cmd_abs_import
+
+        mock_abs_config.path_map = []  # No path map
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_import(args)
+            assert result == 1
+
+    def test_abs_import_no_books_to_import(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-import with empty staging directory."""
+        from mamfast.cli import cmd_abs_import
+
+        # Create required directories
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        library = tmp_path / "audiobooks"
+        library.mkdir()
+        index_db = tmp_path / "abs_index.db"
+        index_db.touch()
+
+        mock_abs_config.path_map = [MockAbsPathMap(host=str(library))]
+        mock_abs_config.index_db = str(index_db)
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = staging
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_import(args)
+            assert result == 0  # Success with nothing to do
+
+    def test_abs_import_dry_run_success(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-import dry run mode."""
+        from mamfast.abs.importer import BatchImportResult, ImportResult
+        from mamfast.cli import cmd_abs_import
+
+        args.dry_run = True
+
+        # Create staging directory with a book
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        book_folder = staging / "Author - Book {ASIN.B0ABCDEFGH}"
+        book_folder.mkdir()
+        (book_folder / "book.m4b").write_text("audio")
+
+        library = tmp_path / "audiobooks"
+        library.mkdir()
+        index_db = tmp_path / "abs_index.db"
+        index_db.touch()
+
+        mock_abs_config.path_map = [MockAbsPathMap(host=str(library))]
+        mock_abs_config.index_db = str(index_db)
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = staging
+
+        mock_result = BatchImportResult()
+        mock_result.add(
+            ImportResult(
+                staging_path=book_folder,
+                target_path=library / "Author" / book_folder.name,
+                asin="B0ABCDEFGH",
+                status="success",
+            )
+        )
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+            patch("mamfast.abs.import_batch", return_value=mock_result),
+        ):
+            mock_index = MagicMock()
+            mock_index.__enter__ = MagicMock(return_value=mock_index)
+            mock_index.__exit__ = MagicMock(return_value=False)
+            mock_index_cls.return_value = mock_index
+
+            result = cmd_abs_import(args)
+            assert result == 0
+
+
+# =============================================================================
+# Tests: abs-check-duplicate command
+# =============================================================================
+
+
+class TestAbsCheckDuplicateParser:
+    """Tests for abs-check-duplicate command parser setup."""
+
+    def test_abs_check_duplicate_parser_exists(self) -> None:
+        """Test abs-check-duplicate subcommand is registered."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-check-duplicate", "B0ABCDEFGH"])
+        assert args.command == "abs-check-duplicate"
+        assert hasattr(args, "func")
+
+    def test_abs_check_duplicate_asin_argument(self) -> None:
+        """Test abs-check-duplicate requires ASIN argument."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-check-duplicate", "B0TESTTEST"])
+        assert args.asin == "B0TESTTEST"
+
+
+class TestAbsCheckDuplicateCommand:
+    """Tests for abs-check-duplicate command implementation."""
+
+    @pytest.fixture
+    def args(self) -> argparse.Namespace:
+        """Create basic args namespace."""
+        return argparse.Namespace(
+            config="config/config.yaml",
+            asin="B0ABCDEFGH",
+        )
+
+    def test_abs_check_duplicate_invalid_asin(self, args: argparse.Namespace) -> None:
+        """Test abs-check-duplicate rejects invalid ASIN."""
+        from mamfast.cli import cmd_abs_check_duplicate
+
+        args.asin = "invalid"
+        result = cmd_abs_check_duplicate(args)
+        assert result == 1
+
+    def test_abs_check_duplicate_config_not_found(
+        self, args: argparse.Namespace
+    ) -> None:
+        """Test abs-check-duplicate handles missing config file."""
+        from mamfast.cli import cmd_abs_check_duplicate
+
+        with patch("mamfast.config.reload_settings") as mock_reload:
+            mock_reload.side_effect = FileNotFoundError("config not found")
+            result = cmd_abs_check_duplicate(args)
+            assert result == 1
+
+    def test_abs_check_duplicate_abs_disabled(self, args: argparse.Namespace) -> None:
+        """Test abs-check-duplicate warns when ABS is disabled."""
+        from mamfast.cli import cmd_abs_check_duplicate
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf.enabled = False
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_check_duplicate(args)
+            assert result == 1
+
+    def test_abs_check_duplicate_index_not_found(
+        self, args: argparse.Namespace, tmp_path: Path
+    ) -> None:
+        """Test abs-check-duplicate fails when index doesn't exist."""
+        from mamfast.cli import cmd_abs_check_duplicate
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf.enabled = True
+        mock_settings.audiobookshelf.index_db = str(tmp_path / "nonexistent.db")
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_check_duplicate(args)
+            assert result == 1
+
+    def test_abs_check_duplicate_not_found(
+        self, args: argparse.Namespace, tmp_path: Path
+    ) -> None:
+        """Test abs-check-duplicate returns 0 when ASIN not found."""
+        from mamfast.cli import cmd_abs_check_duplicate
+
+        index_db = tmp_path / "abs_index.db"
+        index_db.touch()
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf.enabled = True
+        mock_settings.audiobookshelf.index_db = str(index_db)
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+        ):
+            mock_index = MagicMock()
+            mock_index.get_book_by_asin.return_value = None
+            mock_index.__enter__ = MagicMock(return_value=mock_index)
+            mock_index.__exit__ = MagicMock(return_value=False)
+            mock_index_cls.return_value = mock_index
+
+            result = cmd_abs_check_duplicate(args)
+            assert result == 0  # Not found = safe to import
+
+    def test_abs_check_duplicate_found(
+        self, args: argparse.Namespace, tmp_path: Path
+    ) -> None:
+        """Test abs-check-duplicate returns 1 when ASIN exists."""
+        from mamfast.abs.indexer import BookRecord
+        from mamfast.cli import cmd_abs_check_duplicate
+
+        index_db = tmp_path / "abs_index.db"
+        index_db.touch()
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf.enabled = True
+        mock_settings.audiobookshelf.index_db = str(index_db)
+
+        mock_book = BookRecord(
+            library_item_id="li_test",
+            library_id="lib_test",
+            asin="B0ABCDEFGH",
+            title="Test Book",
+            subtitle=None,
+            author_display="Test Author",
+            author_folder="Test Author",
+            series_name="Test Series",
+            series_position="1",
+            folder_path_host="/audiobooks/Test Author/Test Series/Test Book",
+            main_audio_file_host="/audiobooks/Test Author/Test Series/Test Book/book.m4b",
+            mtime_ms=None,
+            size_bytes=None,
+            indexed_at="2025-12-04T00:00:00Z",
+        )
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+        ):
+            mock_index = MagicMock()
+            mock_index.get_book_by_asin.return_value = mock_book
+            mock_index.__enter__ = MagicMock(return_value=mock_index)
+            mock_index.__exit__ = MagicMock(return_value=False)
+            mock_index_cls.return_value = mock_index
+
+            result = cmd_abs_check_duplicate(args)
+            assert result == 1  # Found = duplicate
