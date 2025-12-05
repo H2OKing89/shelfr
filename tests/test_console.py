@@ -42,7 +42,7 @@ from mamfast.libation import LibationStatus
 
 
 @pytest.fixture
-def mock_console():
+def mock_console() -> tuple[Console, StringIO]:
     """Create a mock console for testing output."""
     output = StringIO()
     test_console = Console(file=output, force_terminal=True, theme=MAMFAST_THEME)
@@ -50,7 +50,7 @@ def mock_console():
 
 
 @pytest.fixture
-def mock_release():
+def mock_release() -> type:
     """Create a mock release object for table tests."""
 
     @dataclass
@@ -71,7 +71,7 @@ def mock_release():
 class TestConsoleSetup:
     """Test console setup and theme."""
 
-    def test_theme_has_required_styles(self):
+    def test_theme_has_required_styles(self) -> None:
         """Theme should have all required styles."""
         assert "info" in MAMFAST_THEME.styles
         assert "success" in MAMFAST_THEME.styles
@@ -82,16 +82,16 @@ class TestConsoleSetup:
         assert "dim" in MAMFAST_THEME.styles
         assert "highlight" in MAMFAST_THEME.styles
 
-    def test_console_instances_exist(self):
+    def test_console_instances_exist(self) -> None:
         """Console instances should be created."""
         assert console is not None
         assert err_console is not None
 
-    def test_console_uses_stdout(self):
+    def test_console_uses_stdout(self) -> None:
         """Main console should write to stdout."""
         assert console.stderr is False
 
-    def test_err_console_uses_stderr(self):
+    def test_err_console_uses_stderr(self) -> None:
         """Error console should write to stderr."""
         assert err_console.stderr is True
 
@@ -104,21 +104,21 @@ class TestConsoleSetup:
 class TestStepResult:
     """Test StepResult dataclass."""
 
-    def test_step_result_success(self):
+    def test_step_result_success(self) -> None:
         """StepResult should work with success=True."""
         result = StepResult(success=True, message="OK")
         assert result.success is True
         assert result.message == "OK"
         assert result.details is None
 
-    def test_step_result_failure(self):
+    def test_step_result_failure(self) -> None:
         """StepResult should work with success=False."""
         result = StepResult(success=False, message="Failed", details=["Error 1", "Error 2"])
         assert result.success is False
         assert result.message == "Failed"
         assert result.details == ["Error 1", "Error 2"]
 
-    def test_step_result_defaults(self):
+    def test_step_result_defaults(self) -> None:
         """StepResult should have sensible defaults."""
         result = StepResult(success=True)
         assert result.message == ""
@@ -133,19 +133,19 @@ class TestStepResult:
 class TestPrintHeader:
     """Test print_header function."""
 
-    def test_print_header_basic(self, capsys):
+    def test_print_header_basic(self, capsys: pytest.CaptureFixture[str]) -> None:
         """print_header should print a panel with title."""
         with patch.object(console, "print") as mock_print:
             print_header("Test Title")
             assert mock_print.call_count == 2  # Panel + empty line
 
-    def test_print_header_with_subtitle(self):
+    def test_print_header_with_subtitle(self) -> None:
         """print_header should include subtitle if provided."""
         with patch.object(console, "print") as mock_print:
             print_header("Test Title", subtitle="Test Subtitle")
             assert mock_print.call_count == 2
 
-    def test_print_header_with_dry_run(self):
+    def test_print_header_with_dry_run(self) -> None:
         """print_header should show DRY RUN indicator."""
         with patch.object(console, "print") as mock_print:
             print_header("Test Title", dry_run=True)
@@ -155,7 +155,7 @@ class TestPrintHeader:
 class TestPrintStep:
     """Test print_step function."""
 
-    def test_print_step(self):
+    def test_print_step(self) -> None:
         """print_step should format step number correctly."""
         with patch.object(console, "print") as mock_print:
             print_step(1, 3, "Processing")
@@ -168,7 +168,7 @@ class TestPrintStep:
 class TestPrintSubstep:
     """Test print_substep function."""
 
-    def test_print_substep(self):
+    def test_print_substep(self) -> None:
         """print_substep should print indented message."""
         with patch.object(console, "print") as mock_print:
             print_substep("Sub message")
@@ -176,7 +176,7 @@ class TestPrintSubstep:
             call_args = str(mock_print.call_args)
             assert "Sub message" in call_args
 
-    def test_print_substep_custom_style(self):
+    def test_print_substep_custom_style(self) -> None:
         """print_substep should use custom style."""
         with patch.object(console, "print") as mock_print:
             print_substep("Sub message", style="info")
@@ -186,7 +186,7 @@ class TestPrintSubstep:
 class TestPrintSuccess:
     """Test print_success function."""
 
-    def test_print_success(self):
+    def test_print_success(self) -> None:
         """print_success should print checkmark and message."""
         with patch.object(console, "print") as mock_print:
             print_success("Operation complete")
@@ -199,7 +199,7 @@ class TestPrintSuccess:
 class TestPrintError:
     """Test print_error function."""
 
-    def test_print_error(self):
+    def test_print_error(self) -> None:
         """print_error should print X and message."""
         with patch.object(console, "print") as mock_print:
             print_error("Something failed")
@@ -212,7 +212,7 @@ class TestPrintError:
 class TestPrintWarning:
     """Test print_warning function."""
 
-    def test_print_warning(self):
+    def test_print_warning(self) -> None:
         """print_warning should print warning message."""
         with patch.object(console, "print") as mock_print:
             print_warning("Be careful")
@@ -224,7 +224,7 @@ class TestPrintWarning:
 class TestPrintInfo:
     """Test print_info function."""
 
-    def test_print_info(self):
+    def test_print_info(self) -> None:
         """print_info should print info message."""
         with patch.object(console, "print") as mock_print:
             print_info("FYI")
@@ -237,7 +237,7 @@ class TestPrintInfo:
 class TestRenderLibationStatus:
     """Test render_libation_status helper."""
 
-    def test_render_basic_status(self):
+    def test_render_basic_status(self) -> None:
         """Should render panel with status values."""
         sample = LibationStatus(total=10, liberated=7, not_liberated=3)
         with patch.object(console, "print") as mock_print:
@@ -251,7 +251,7 @@ class TestRenderLibationStatus:
             status_column = table.columns[0]
             assert "NotLiberated" in status_column._cells
 
-    def test_render_includes_other_statuses(self):
+    def test_render_includes_other_statuses(self) -> None:
         """Additional status rows should be included."""
         sample = LibationStatus(
             total=12,
@@ -270,7 +270,7 @@ class TestRenderLibationStatus:
 class TestPrintDryRun:
     """Test print_dry_run function."""
 
-    def test_print_dry_run(self):
+    def test_print_dry_run(self) -> None:
         """print_dry_run should print DRY RUN prefix."""
         with patch.object(console, "print") as mock_print:
             print_dry_run("Would do something")
@@ -283,7 +283,7 @@ class TestPrintDryRun:
 class TestPrintDivider:
     """Test print_divider function."""
 
-    def test_print_divider(self):
+    def test_print_divider(self) -> None:
         """print_divider should print a line of dashes."""
         with patch.object(console, "print") as mock_print:
             print_divider()
@@ -300,33 +300,33 @@ class TestPrintDivider:
 class TestPrintSummary:
     """Test print_summary function."""
 
-    def test_summary_all_success(self):
+    def test_summary_all_success(self) -> None:
         """print_summary should show successful count."""
         with patch.object(console, "print"):
             # Should not raise
             print_summary(5, 0)
 
-    def test_summary_all_failed(self):
+    def test_summary_all_failed(self) -> None:
         """print_summary should show failed count."""
         with patch.object(console, "print"):
             print_summary(0, 3)
 
-    def test_summary_mixed(self):
+    def test_summary_mixed(self) -> None:
         """print_summary should show both counts."""
         with patch.object(console, "print"):
             print_summary(2, 1)
 
-    def test_summary_with_skipped(self):
+    def test_summary_with_skipped(self) -> None:
         """print_summary should show skipped count."""
         with patch.object(console, "print"):
             print_summary(2, 1, skipped=3)
 
-    def test_summary_with_duration(self):
+    def test_summary_with_duration(self) -> None:
         """print_summary should show duration."""
         with patch.object(console, "print"):
             print_summary(2, 0, duration=1.5)
 
-    def test_summary_none_processed(self):
+    def test_summary_none_processed(self) -> None:
         """print_summary should handle zero counts."""
         with patch.object(console, "print"):
             print_summary(0, 0)
@@ -340,7 +340,7 @@ class TestPrintSummary:
 class TestPrintReleaseTable:
     """Test print_release_table function."""
 
-    def test_release_table_empty(self):
+    def test_release_table_empty(self) -> None:
         """print_release_table should handle empty list."""
         with patch.object(console, "print") as mock_print:
             print_release_table([])
@@ -348,19 +348,19 @@ class TestPrintReleaseTable:
             call_args = str(mock_print.call_args)
             assert "No releases found" in call_args
 
-    def test_release_table_with_releases(self, mock_release):
+    def test_release_table_with_releases(self, mock_release: type) -> None:
         """print_release_table should display releases in table."""
         releases = [mock_release(), mock_release()]
         with patch.object(console, "print"):
             print_release_table(releases)
 
-    def test_release_table_custom_title(self, mock_release):
+    def test_release_table_custom_title(self, mock_release: type) -> None:
         """print_release_table should use custom title."""
         releases = [mock_release()]
         with patch.object(console, "print"):
             print_release_table(releases, title="New Audiobooks")
 
-    def test_release_table_with_status(self, mock_release):
+    def test_release_table_with_status(self, mock_release: type) -> None:
         """print_release_table should show status column when requested."""
 
         @dataclass
@@ -372,14 +372,14 @@ class TestPrintReleaseTable:
         with patch.object(console, "print"):
             print_release_table([release], show_status=True)
 
-    def test_release_table_with_status_none(self, mock_release):
+    def test_release_table_with_status_none(self, mock_release: type) -> None:
         """print_release_table should handle None status when show_status=True."""
         release = mock_release()
         release.status = None
         with patch.object(console, "print"):
             print_release_table([release], show_status=True)
 
-    def test_release_table_missing_fields(self):
+    def test_release_table_missing_fields(self) -> None:
         """print_release_table should handle missing fields."""
 
         @dataclass
@@ -401,7 +401,7 @@ class TestPrintReleaseTable:
 class TestPrintConfigSection:
     """Test print_config_section function."""
 
-    def test_config_section(self):
+    def test_config_section(self) -> None:
         """print_config_section should print title and items."""
         with patch.object(console, "print") as mock_print:
             print_config_section("Settings", {"key1": "value1", "key2": "value2"})
@@ -416,7 +416,7 @@ class TestPrintConfigSection:
 class TestPrintStatusTable:
     """Test print_status_table function."""
 
-    def test_status_table_processed(self):
+    def test_status_table_processed(self) -> None:
         """print_status_table should display processed releases."""
         processed = {
             "B001234567": {
@@ -428,9 +428,9 @@ class TestPrintStatusTable:
         with patch.object(console, "print"):
             print_status_table(processed)
 
-    def test_status_table_with_failed(self):
+    def test_status_table_with_failed(self) -> None:
         """print_status_table should display failed releases."""
-        processed = {}
+        processed: dict[str, dict[str, object]] = {}
         failed = {
             "B009876543": {
                 "title": "Failed Book",
@@ -440,7 +440,7 @@ class TestPrintStatusTable:
         with patch.object(console, "print"):
             print_status_table(processed, failed=failed)
 
-    def test_status_table_respects_limit(self):
+    def test_status_table_respects_limit(self) -> None:
         """print_status_table should respect limit parameter."""
         processed = {
             f"B00000000{i}": {
@@ -453,7 +453,7 @@ class TestPrintStatusTable:
         with patch.object(console, "print"):
             print_status_table(processed, limit=5)
 
-    def test_status_table_empty(self):
+    def test_status_table_empty(self) -> None:
         """print_status_table should handle empty dicts."""
         with patch.object(console, "print"):
             print_status_table({})
@@ -467,7 +467,7 @@ class TestPrintStatusTable:
 class TestPrintDirectoryStatus:
     """Test print_directory_status function."""
 
-    def test_directory_exists(self):
+    def test_directory_exists(self) -> None:
         """print_directory_status should show checkmark for existing dir."""
         with patch.object(console, "print") as mock_print:
             print_directory_status("Library", "/path/to/lib", exists=True)
@@ -475,7 +475,7 @@ class TestPrintDirectoryStatus:
             assert "✓" in call_args
             assert "Library" in call_args
 
-    def test_directory_not_exists(self):
+    def test_directory_not_exists(self) -> None:
         """print_directory_status should show X for missing dir."""
         with patch.object(console, "print") as mock_print:
             print_directory_status("Library", "/path/to/lib", exists=False)
@@ -483,7 +483,7 @@ class TestPrintDirectoryStatus:
             assert "✗" in call_args
             assert "not found" in call_args
 
-    def test_directory_with_count(self):
+    def test_directory_with_count(self) -> None:
         """print_directory_status should show item count."""
         with patch.object(console, "print") as mock_print:
             print_directory_status("Library", "/path/to/lib", exists=True, count=42)
@@ -499,32 +499,32 @@ class TestPrintDirectoryStatus:
 class TestConfirm:
     """Test confirm function."""
 
-    def test_confirm_yes(self):
+    def test_confirm_yes(self) -> None:
         """confirm should return True for 'y' input."""
         with patch.object(console, "input", return_value="y"):
             assert confirm("Continue?") is True
 
-    def test_confirm_yes_full(self):
+    def test_confirm_yes_full(self) -> None:
         """confirm should return True for 'yes' input."""
         with patch.object(console, "input", return_value="yes"):
             assert confirm("Continue?") is True
 
-    def test_confirm_no(self):
+    def test_confirm_no(self) -> None:
         """confirm should return False for 'n' input."""
         with patch.object(console, "input", return_value="n"):
             assert confirm("Continue?") is False
 
-    def test_confirm_empty_default_false(self):
+    def test_confirm_empty_default_false(self) -> None:
         """confirm should return default=False for empty input."""
         with patch.object(console, "input", return_value=""):
             assert confirm("Continue?", default=False) is False
 
-    def test_confirm_empty_default_true(self):
+    def test_confirm_empty_default_true(self) -> None:
         """confirm should return default=True for empty input."""
         with patch.object(console, "input", return_value=""):
             assert confirm("Continue?", default=True) is True
 
-    def test_confirm_keyboard_interrupt(self):
+    def test_confirm_keyboard_interrupt(self) -> None:
         """confirm should return False on KeyboardInterrupt."""
         with (
             patch.object(console, "input", side_effect=KeyboardInterrupt),
@@ -532,7 +532,7 @@ class TestConfirm:
         ):
             assert confirm("Continue?") is False
 
-    def test_confirm_eof_error(self):
+    def test_confirm_eof_error(self) -> None:
         """confirm should return False on EOFError."""
         with (
             patch.object(console, "input", side_effect=EOFError),
@@ -549,7 +549,7 @@ class TestConfirm:
 class TestFatalError:
     """Test fatal_error function."""
 
-    def test_fatal_error_basic(self):
+    def test_fatal_error_basic(self) -> None:
         """fatal_error should print error message."""
         with patch.object(err_console, "print") as mock_print:
             fatal_error("Something went wrong")
@@ -558,7 +558,7 @@ class TestFatalError:
             assert "Error" in call_args
             assert "Something went wrong" in call_args
 
-    def test_fatal_error_with_hint(self):
+    def test_fatal_error_with_hint(self) -> None:
         """fatal_error should print hint if provided."""
         with patch.object(err_console, "print") as mock_print:
             fatal_error("Something went wrong", hint="Try this instead")
@@ -576,7 +576,7 @@ class TestFatalError:
 class TestStatus:
     """Test status convenience function."""
 
-    def test_status_default_style(self):
+    def test_status_default_style(self) -> None:
         """status should use default info style."""
         with patch.object(console, "print") as mock_print:
             status("Hello world")
@@ -584,7 +584,7 @@ class TestStatus:
             call_args = str(mock_print.call_args)
             assert "Hello world" in call_args
 
-    def test_status_custom_style(self):
+    def test_status_custom_style(self) -> None:
         """status should use custom style."""
         with patch.object(console, "print") as mock_print:
             status("Warning message", style="warning")
@@ -599,7 +599,7 @@ class TestStatus:
 class TestRuleTrace:
     """Test RuleTrace dataclass and related functions."""
 
-    def test_rule_trace_dataclass(self):
+    def test_rule_trace_dataclass(self) -> None:
         """RuleTrace should store transformation data."""
         from mamfast.console import RuleTrace
 
@@ -616,7 +616,7 @@ class TestRuleTrace:
         assert trace.rule_id == "format_indicators"
         assert trace.rule_type == "phrase_removal"
 
-    def test_rule_trace_defaults(self):
+    def test_rule_trace_defaults(self) -> None:
         """RuleTrace should have None defaults for optional fields."""
         from mamfast.console import RuleTrace
 
@@ -628,7 +628,7 @@ class TestRuleTrace:
 class TestLogTitleTransform:
     """Test log_title_transform function."""
 
-    def test_no_output_when_not_verbose(self):
+    def test_no_output_when_not_verbose(self) -> None:
         """log_title_transform should not print when verbose=False."""
         from mamfast.console import log_title_transform
 
@@ -636,7 +636,7 @@ class TestLogTitleTransform:
             log_title_transform("title", "Before", "After", verbose=False)
             mock_print.assert_not_called()
 
-    def test_no_output_when_no_change(self):
+    def test_no_output_when_no_change(self) -> None:
         """log_title_transform should not print when before==after."""
         from mamfast.console import log_title_transform
 
@@ -644,7 +644,7 @@ class TestLogTitleTransform:
             log_title_transform("title", "Same", "Same", verbose=True)
             mock_print.assert_not_called()
 
-    def test_output_when_verbose_and_changed(self):
+    def test_output_when_verbose_and_changed(self) -> None:
         """log_title_transform should print table when verbose and changed."""
         from mamfast.console import log_title_transform
 
@@ -652,7 +652,7 @@ class TestLogTitleTransform:
             log_title_transform("title", "Before", "After", verbose=True)
             assert mock_print.call_count >= 1
 
-    def test_output_includes_rule_id(self):
+    def test_output_includes_rule_id(self) -> None:
         """log_title_transform should show rule_id if provided."""
         from mamfast.console import log_title_transform
 
@@ -665,7 +665,7 @@ class TestLogTitleTransform:
 class TestPrintRuleTrace:
     """Test print_rule_trace function."""
 
-    def test_empty_traces(self):
+    def test_empty_traces(self) -> None:
         """print_rule_trace should handle empty list."""
         from mamfast.console import print_rule_trace
 
@@ -674,7 +674,7 @@ class TestPrintRuleTrace:
             mock_print.assert_called_once()
             assert "No" in str(mock_print.call_args)
 
-    def test_no_changes_message(self):
+    def test_no_changes_message(self) -> None:
         """print_rule_trace should show message when no changes made."""
         from mamfast.console import RuleTrace, print_rule_trace
 
@@ -687,7 +687,7 @@ class TestPrintRuleTrace:
             call_str = str(mock_print.call_args)
             assert "No changes" in call_str
 
-    def test_shows_changes_only(self):
+    def test_shows_changes_only(self) -> None:
         """print_rule_trace should only show traces where before != after."""
         from mamfast.console import RuleTrace, print_rule_trace
 
@@ -709,7 +709,7 @@ class TestPrintRuleTrace:
 class TestPrintValidationReport:
     """Test print_validation_report function."""
 
-    def test_empty_result(self):
+    def test_empty_result(self) -> None:
         """print_validation_report should handle empty result."""
         from mamfast.console import print_validation_report
         from mamfast.validation import ValidationResult
@@ -719,7 +719,7 @@ class TestPrintValidationReport:
             print_validation_report(result)
             assert mock_print.call_count >= 1
 
-    def test_shows_all_checks(self):
+    def test_shows_all_checks(self) -> None:
         """print_validation_report should show all checks in table."""
         from mamfast.console import print_validation_report
         from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
@@ -752,7 +752,7 @@ class TestPrintValidationReport:
 class TestPrintValidationSummary:
     """Test print_validation_summary function."""
 
-    def test_all_passed(self):
+    def test_all_passed(self) -> None:
         """print_validation_summary should show checkmark when all passed."""
         from mamfast.console import print_validation_summary
         from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
@@ -771,7 +771,7 @@ class TestPrintValidationSummary:
             assert "✓" in call_str
             assert "2 passed" in call_str
 
-    def test_with_errors(self):
+    def test_with_errors(self) -> None:
         """print_validation_summary should show X when errors present."""
         from mamfast.console import print_validation_summary
         from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
@@ -796,7 +796,7 @@ class TestPrintValidationSummary:
             assert "✗" in call_str
             assert "1 error" in call_str
 
-    def test_pluralization_multiple_errors_and_warnings(self):
+    def test_pluralization_multiple_errors_and_warnings(self) -> None:
         """print_validation_summary should use plural form for multiple errors/warnings."""
         from mamfast.console import print_validation_summary
         from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
@@ -860,7 +860,7 @@ class TestPrintValidationSummary:
 class TestPrintCheckCategory:
     """Test print_check_category function."""
 
-    def test_prints_category_checks(self):
+    def test_prints_category_checks(self) -> None:
         """print_check_category should print checks for given category."""
         from mamfast.console import print_check_category
         from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
@@ -880,7 +880,7 @@ class TestPrintCheckCategory:
             # Should print title + 2 check lines
             assert mock_print.call_count == 3
 
-    def test_skips_empty_category(self):
+    def test_skips_empty_category(self) -> None:
         """print_check_category should not print if category has no checks."""
         from mamfast.console import print_check_category
         from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
@@ -903,7 +903,7 @@ class TestPrintCheckCategory:
 class TestPrintWorkflowSummary:
     """Test print_workflow_summary function."""
 
-    def test_basic_stats(self):
+    def test_basic_stats(self) -> None:
         """print_workflow_summary should display stats table."""
         from mamfast.console import print_workflow_summary
 
@@ -920,7 +920,7 @@ class TestPrintWorkflowSummary:
             print_workflow_summary(stats)
             assert mock_print.call_count >= 1
 
-    def test_with_duration(self):
+    def test_with_duration(self) -> None:
         """print_workflow_summary should show duration if provided."""
         from mamfast.console import print_workflow_summary
 
@@ -936,7 +936,7 @@ class TestPrintWorkflowSummary:
 class TestPrintReleaseDetails:
     """Test print_release_details function."""
 
-    def test_basic_release(self):
+    def test_basic_release(self) -> None:
         """print_release_details should show release in panel."""
         from mamfast.console import print_release_details
 
@@ -952,7 +952,7 @@ class TestPrintReleaseDetails:
             print_release_details(release)
             mock_print.assert_called_once()
 
-    def test_verbose_mode(self):
+    def test_verbose_mode(self) -> None:
         """print_release_details should show extra fields in verbose mode."""
         from pathlib import Path
 
@@ -974,7 +974,7 @@ class TestPrintReleaseDetails:
 class TestPrintPipelineProgress:
     """Test print_pipeline_progress function."""
 
-    def test_basic_progress(self):
+    def test_basic_progress(self) -> None:
         """print_pipeline_progress should show stage progress."""
         from mamfast.console import print_pipeline_progress
 
@@ -985,7 +985,7 @@ class TestPrintPipelineProgress:
             assert "3/10" in call_str
             assert "Staging" in call_str
 
-    def test_with_release_name(self):
+    def test_with_release_name(self) -> None:
         """print_pipeline_progress should show release name."""
         from mamfast.console import print_pipeline_progress
 
@@ -994,7 +994,7 @@ class TestPrintPipelineProgress:
             call_str = str(mock_print.call_args)
             assert "Test Book Title" in call_str
 
-    def test_truncates_long_name(self):
+    def test_truncates_long_name(self) -> None:
         """print_pipeline_progress should truncate very long names."""
         from mamfast.console import print_pipeline_progress
 
@@ -1013,7 +1013,7 @@ class TestPrintPipelineProgress:
 class TestPrintException:
     """Test print_exception function."""
 
-    def test_basic_exception(self):
+    def test_basic_exception(self) -> None:
         """print_exception should show error message."""
         from mamfast.console import err_console, print_exception
 
@@ -1025,7 +1025,7 @@ class TestPrintException:
             assert "ValueError" in call_str
             assert "Test error message" in call_str
 
-    def test_with_context(self):
+    def test_with_context(self) -> None:
         """print_exception should show context dict."""
         from mamfast.console import err_console, print_exception
 
@@ -1037,7 +1037,7 @@ class TestPrintException:
             assert "asin" in call_str
             assert "B001234567" in call_str
 
-    def test_without_traceback(self):
+    def test_without_traceback(self) -> None:
         """print_exception should skip traceback if requested."""
         from mamfast.console import err_console, print_exception
 
@@ -1051,7 +1051,7 @@ class TestPrintException:
 class TestPrintErrorSummary:
     """Test print_error_summary function."""
 
-    def test_empty_errors(self):
+    def test_empty_errors(self) -> None:
         """print_error_summary should handle empty list."""
         from mamfast.console import err_console, print_error_summary
 
@@ -1059,7 +1059,7 @@ class TestPrintErrorSummary:
             print_error_summary([])
             mock_print.assert_not_called()
 
-    def test_multiple_errors(self):
+    def test_multiple_errors(self) -> None:
         """print_error_summary should show table of errors."""
         from mamfast.console import err_console, print_error_summary
 
@@ -1080,7 +1080,7 @@ class TestPrintErrorSummary:
 class TestProgressContext:
     """Test progress_context context manager."""
 
-    def test_progress_context_creates_progress(self):
+    def test_progress_context_creates_progress(self) -> None:
         """progress_context should yield a Progress and TaskID."""
         from mamfast.console import progress_context
 
@@ -1090,7 +1090,7 @@ class TestProgressContext:
             # Advance and verify no errors
             progress.update(task, advance=1)
 
-    def test_progress_context_with_none_total(self):
+    def test_progress_context_with_none_total(self) -> None:
         """progress_context should work with indeterminate total."""
         from mamfast.console import progress_context
 
@@ -1103,7 +1103,7 @@ class TestProgressContext:
 class TestCreatePipelineProgress:
     """Test create_pipeline_progress function."""
 
-    def test_creates_progress_instance(self):
+    def test_creates_progress_instance(self) -> None:
         """create_pipeline_progress should return a Progress instance."""
         from rich.progress import Progress
 
@@ -1112,7 +1112,7 @@ class TestCreatePipelineProgress:
         progress = create_pipeline_progress()
         assert isinstance(progress, Progress)
 
-    def test_can_use_as_context_manager(self):
+    def test_can_use_as_context_manager(self) -> None:
         """create_pipeline_progress result should work as context manager."""
         from mamfast.console import create_pipeline_progress
 
@@ -1130,7 +1130,7 @@ class TestCreatePipelineProgress:
 class TestDryRunTransform:
     """Test DryRunTransform dataclass."""
 
-    def test_create_transform(self):
+    def test_create_transform(self) -> None:
         """DryRunTransform should store field transformation data."""
         from mamfast.console import DryRunTransform
 
@@ -1145,7 +1145,7 @@ class TestDryRunTransform:
         assert t.after == "Overlord"
         assert t.rule == "format_indicators"
 
-    def test_create_transform_without_rule(self):
+    def test_create_transform_without_rule(self) -> None:
         """DryRunTransform should work without rule specified."""
         from mamfast.console import DryRunTransform
 
@@ -1156,7 +1156,7 @@ class TestDryRunTransform:
 class TestPrintDryRunHeader:
     """Test print_dry_run_header function."""
 
-    def test_single_release(self):
+    def test_single_release(self) -> None:
         """print_dry_run_header should use singular for 1 release."""
         from mamfast.console import print_dry_run_header
 
@@ -1168,7 +1168,7 @@ class TestPrintDryRunHeader:
             panel_arg = mock_print.call_args_list[0][0][0]
             assert "1 release" in str(panel_arg.renderable)
 
-    def test_multiple_releases(self):
+    def test_multiple_releases(self) -> None:
         """print_dry_run_header should use plural for multiple releases."""
         from mamfast.console import print_dry_run_header
 
@@ -1181,7 +1181,7 @@ class TestPrintDryRunHeader:
 class TestPrintDryRunRelease:
     """Test print_dry_run_release function."""
 
-    def test_with_transforms(self):
+    def test_with_transforms(self) -> None:
         """print_dry_run_release should display transforms table."""
         from mamfast.console import DryRunTransform, print_dry_run_release
 
@@ -1198,7 +1198,7 @@ class TestPrintDryRunRelease:
             print_dry_run_release(transforms, release_title="Overlord")
             assert mock_print.called
 
-    def test_with_no_changes(self):
+    def test_with_no_changes(self) -> None:
         """print_dry_run_release should show source/target when paths provided."""
         from mamfast.console import DryRunTransform, print_dry_run_release
 
@@ -1212,7 +1212,7 @@ class TestPrintDryRunRelease:
             assert "Source" in call_str
             assert "unchanged" in call_str
 
-    def test_shows_different_target(self):
+    def test_shows_different_target(self) -> None:
         """print_dry_run_release should highlight different target path."""
         from mamfast.console import DryRunTransform, print_dry_run_release
 
@@ -1230,7 +1230,7 @@ class TestPrintDryRunRelease:
             assert "Source" in call_str
             assert "Target" in call_str
 
-    def test_filters_unchanged_fields(self):
+    def test_filters_unchanged_fields(self) -> None:
         """print_dry_run_release should only show fields that changed."""
         from mamfast.console import DryRunTransform, print_dry_run_release
 
@@ -1248,7 +1248,7 @@ class TestPrintDryRunRelease:
 class TestPrintDryRunSummary:
     """Test print_dry_run_summary function."""
 
-    def test_summary_output(self):
+    def test_summary_output(self) -> None:
         """print_dry_run_summary should display counts."""
         from mamfast.console import print_dry_run_summary
 
@@ -1263,7 +1263,7 @@ class TestPrintDryRunSummary:
 class TestPrintDuplicatePairs:
     """Tests for print_duplicate_pairs function."""
 
-    def test_empty_list_shows_success(self):
+    def test_empty_list_shows_success(self) -> None:
         """Should show success message when no duplicates."""
         from mamfast.console import print_duplicate_pairs
 
@@ -1272,7 +1272,7 @@ class TestPrintDuplicatePairs:
             call_str = str(mock_print.call_args)
             assert "No potential duplicates" in call_str
 
-    def test_displays_pairs(self):
+    def test_displays_pairs(self) -> None:
         """Should display duplicate pairs in table."""
         from mamfast.console import print_duplicate_pairs
 
@@ -1285,7 +1285,7 @@ class TestPrintDuplicatePairs:
             print_duplicate_pairs(duplicates)
             assert mock_print.called
 
-    def test_limits_output(self):
+    def test_limits_output(self) -> None:
         """Should respect limit parameter."""
         from mamfast.console import print_duplicate_pairs
 
@@ -1297,7 +1297,7 @@ class TestPrintDuplicatePairs:
             call_str = str(mock_print.call_args_list)
             assert "Showing 10 of 30" in call_str
 
-    def test_truncates_long_titles(self):
+    def test_truncates_long_titles(self) -> None:
         """Should truncate very long titles for display."""
         from mamfast.console import print_duplicate_pairs
 
@@ -1313,7 +1313,7 @@ class TestPrintDuplicatePairs:
 class TestPrintSuspiciousChanges:
     """Tests for print_suspicious_changes function."""
 
-    def test_empty_list_shows_success(self):
+    def test_empty_list_shows_success(self) -> None:
         """Should show success message when no suspicious changes."""
         from mamfast.console import print_suspicious_changes
 
@@ -1322,7 +1322,7 @@ class TestPrintSuspiciousChanges:
             call_str = str(mock_print.call_args)
             assert "No suspicious" in call_str
 
-    def test_displays_changes(self):
+    def test_displays_changes(self) -> None:
         """Should display suspicious changes in table."""
         from mamfast.console import print_suspicious_changes
 
@@ -1335,7 +1335,7 @@ class TestPrintSuspiciousChanges:
             print_suspicious_changes(changes)
             assert mock_print.called
 
-    def test_shows_tip(self):
+    def test_shows_tip(self) -> None:
         """Should show naming.json tip when suspicious changes exist."""
         from mamfast.console import print_suspicious_changes
 
@@ -1350,7 +1350,7 @@ class TestPrintSuspiciousChanges:
 class TestPrintChangeAnalysis:
     """Tests for print_change_analysis function."""
 
-    def test_ok_change(self):
+    def test_ok_change(self) -> None:
         """Should display OK status for non-suspicious changes."""
         from mamfast.console import print_change_analysis
 
@@ -1366,7 +1366,7 @@ class TestPrintChangeAnalysis:
             assert "OK" in call_str
             assert "B001234567" in call_str
 
-    def test_suspicious_change(self):
+    def test_suspicious_change(self) -> None:
         """Should display warning for suspicious changes."""
         from mamfast.console import print_change_analysis
 
@@ -1382,7 +1382,7 @@ class TestPrintChangeAnalysis:
             assert "SUSPICIOUS" in call_str
             assert "over-aggressive" in call_str
 
-    def test_handles_none_asin(self):
+    def test_handles_none_asin(self) -> None:
         """Should handle None ASIN gracefully."""
         from mamfast.console import print_change_analysis
 
