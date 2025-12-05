@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -37,21 +37,21 @@ def fixtures_dir() -> Path:
 def libraries_response(fixtures_dir: Path) -> dict[str, Any]:
     """Load libraries.json fixture."""
     with open(fixtures_dir / "libraries.json") as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 @pytest.fixture
 def library_items_response(fixtures_dir: Path) -> dict[str, Any]:
     """Load library_items.json fixture."""
     with open(fixtures_dir / "library_items.json") as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 @pytest.fixture
 def authorize_response(fixtures_dir: Path) -> dict[str, Any]:
     """Load authorize.json fixture."""
     with open(fixtures_dir / "authorize.json") as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 class TestAbsFolder:
