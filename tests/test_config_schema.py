@@ -46,7 +46,9 @@ class TestEnvironmentSchema:
 
     def test_uid_gid_string_coercion(self) -> None:
         """Test UID/GID can be provided as strings."""
-        schema = EnvironmentSchema(target_uid="1000", target_gid="1000")
+        # Use model_validate to allow passing strings (runtime coercion) without
+        # static type-checker complaints about constructor argument types.
+        schema = EnvironmentSchema.model_validate({"target_uid": "1000", "target_gid": "1000"})
         assert schema.target_uid == 1000
         assert schema.target_gid == 1000
 
@@ -66,8 +68,9 @@ class TestPathsSchema:
 
     def test_required_paths(self) -> None:
         """Test required paths must be provided."""
+        # Use model_validate with empty dict to avoid static error for missing args
         with pytest.raises(ValidationError):
-            PathsSchema()
+            PathsSchema.model_validate({})
 
     def test_empty_path_rejected(self) -> None:
         """Test empty required paths are rejected."""
@@ -300,15 +303,17 @@ class TestAudiobookshelfSchema:
         """Test full valid audiobookshelf configuration."""
         from mamfast.schemas.config import AudiobookshelfSchema
 
-        schema = AudiobookshelfSchema(
-            enabled=True,
-            timeout_seconds=60,
-            docker_mode=True,
-            path_map=[{"container": "/audiobooks", "host": "/mnt/data/audiobooks"}],
-            libraries=[{"id": "lib_abc123", "name": "Audiobooks", "mamfast_managed": True}],
-            import_settings={"duplicate_policy": "skip", "trigger_scan": "batch"},
-            index_db="./data/abs_index.db",
-        )
+        # Build a data dict and validate via model_validate to avoid static ctor type issues
+        data = {
+            "enabled": True,
+            "timeout_seconds": 60,
+            "docker_mode": True,
+            "path_map": [{"container": "/audiobooks", "host": "/mnt/data/audiobooks"}],
+            "libraries": [{"id": "lib_abc123", "name": "Audiobooks", "mamfast_managed": True}],
+            "import_settings": {"duplicate_policy": "skip", "trigger_scan": "batch"},
+            "index_db": "./data/abs_index.db",
+        }
+        schema = AudiobookshelfSchema.model_validate(data)
         assert schema.enabled is True
         assert schema.timeout_seconds == 60
         assert len(schema.path_map) == 1
