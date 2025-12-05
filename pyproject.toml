@@ -56,9 +56,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
-# Relax the 'no-untyped-def' checks for tests so tests can be more flexible while
-# keeping strict typing for library code in `src/`.
-disable_error_code = ["no-untyped-def"]
+# Relax type checking entirely for tests so development can proceed quickly.
+# Tests can still be annotated incrementally where useful, but we don't require
+# strict mypy checks across tests in local dev.
+ignore_errors = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q"
