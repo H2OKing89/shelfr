@@ -1,6 +1,6 @@
 # Audiobookshelf Import Plan
 
-> **Document Version:** 3.5.0 | **Last Updated:** 2025-01-06 | **Status:** PR 2 Complete ✅
+> **Document Version:** 3.6.0 | **Last Updated:** 2025-01-06 | **Status:** PR 3 Complete ✅
 
 ---
 
@@ -9,9 +9,9 @@
 | PR | Branch | Status | Description |
 |----|--------|--------|-------------|
 | **PR 1** | `feature/abs-import-foundations` | ✅ Merged (#15) | Config, schemas, CLI stubs, test fixtures |
-| **PR 2** | `feature/abs-import-client` | ✅ Complete | `AbsClient`, path mapping, `abs-init` wired |
-| **PR 3** | `feature/abs-import-index` | 🔲 Next | SQLite indexer, `abs-index` |
-| **PR 4** | `feature/abs-import-workflow` | 🔲 Planned | Workflow integration |
+| **PR 2** | `feature/abs-import-client` | ✅ Merged (#16) | `AbsClient`, path mapping, `abs-init` wired |
+| **PR 3** | `feature/abs-import-index` | ✅ Complete (#19) | SQLite indexer, `abs-index` wired |
+| **PR 4** | `feature/abs-import-workflow` | 🔲 Next | Workflow integration |
 
 ### PR 1 Deliverables (Merged)
 - [x] `docs/AUDIOBOOKSHELF_API.md` - API reference
@@ -23,7 +23,7 @@
 - [x] Test fixtures: `tests/fixtures/abs_responses/*.json`
 - [x] 27 new tests (14 schema + 13 CLI)
 
-### PR 2 Deliverables (Complete)
+### PR 2 Deliverables (Merged)
 - [x] `src/mamfast/abs/__init__.py` - Package init
 - [x] `src/mamfast/abs/client.py` - `AbsClient` with httpx
   - `authorize()` - Test connection, get user info
@@ -42,6 +42,25 @@
   - Lists discovered libraries
   - Shows path mapping configuration
 - [x] 64 new tests (23 client + 25 paths + 16 CLI)
+
+### PR 3 Deliverables (Complete)
+- [x] `src/mamfast/abs/asin.py` - ASIN extraction from folder/file names
+  - Multi-format pattern cascade: `{ASIN.B0xxx}`, `[ASIN.B0xxx]`, `[B0xxxxxxxx]`, `B0xxxxxxxx`
+  - `AsinSource` dataclass tracking extraction source
+  - `extract_asin()`, `extract_asin_from_abs_item()`, `is_valid_asin()`
+- [x] `src/mamfast/abs/indexer.py` - SQLite index for fast ASIN lookups
+  - 4-table schema: `books`, `author_variants`, `import_log`, `index_meta`
+  - `AbsIndex` class with sync, lookup, variant detection
+  - `sync_from_abs()` - incremental or full rebuild
+  - `get_book_by_asin()`, `asin_exists()` - fast lookups
+  - `get_author_variants()` - folder vs display name mismatches
+  - `log_import()`, `get_import_history()` - import tracking
+- [x] `mamfast abs-index` wired to real implementation
+  - `--full` flag for complete rebuild
+  - `--library` flag for single library indexing
+  - Filters to managed libraries from config
+- [x] `PathMapper` updated with `mappings` parameter for multi-path support
+- [x] 51 new tests (26 ASIN + 25 indexer)
 
 ---
 

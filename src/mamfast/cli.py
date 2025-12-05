@@ -1825,6 +1825,9 @@ def cmd_abs_index(args: argparse.Namespace) -> int:
 
     Scans ABS library items and caches ASINs for duplicate detection.
     """
+    from pathlib import Path
+
+    from mamfast.abs import AbsClient, AbsIndex, PathMapper
     from mamfast.config import reload_settings
 
     print_header("Audiobookshelf Index", dry_run=args.dry_run)
@@ -1841,16 +1844,111 @@ def cmd_abs_index(args: argparse.Namespace) -> int:
         print_info("Set audiobookshelf.enabled: true in config.yaml")
         return 1
 
-    # Stub: Not implemented yet
-    mode = "full rebuild" if args.full else "incremental update"
-    library_msg = f"library {args.library}" if args.library else "all mamfast_managed libraries"
+    abs_config = settings.audiobookshelf
 
-    print_info(f"abs-index: Not implemented yet (mode: {mode}, target: {library_msg})")
-    print_info("This command will:")
-    print_info("  • Fetch all items from Audiobookshelf library")
-    print_info("  • Extract ASINs from folder names and metadata")
-    print_info("  • Store in local SQLite index for fast lookup")
-    print_info("  • Report duplicate/missing ASIN statistics")
+    # Initialize client
+    try:
+        client = AbsClient(
+            host=abs_config.host,
+            api_key=abs_config.api_key,
+            timeout=abs_config.timeout_seconds,
+        )
+    except Exception as e:
+        fatal_error(f"Failed to create ABS client: {e}")
+        return 1
+
+    # Test connection
+    print_step(1, 4, "Testing ABS connection")
+    try:
+        user = client.authorize()
+        print_success(f"Connected as {user.username}")
+    except Exception as e:
+        fatal_error(f"Failed to connect to ABS: {e}")
+        return 1
+
+    # Get libraries
+    print_step(2, 4, "Fetching libraries")
+    try:
+        libraries = client.get_libraries()
+    except Exception as e:
+        fatal_error(f"Failed to fetch libraries: {e}")
+        return 1
+
+    # Filter to managed libraries if configured
+    managed_ids = {lib.id for lib in abs_config.libraries if lib.mamfast_managed}
+    if managed_ids:
+        libraries = [lib for lib in libraries if lib.id in managed_ids]
+        print_info(f"Filtering to {len(libraries)} managed libraries")
+
+    # Further filter by --library flag if provided
+    if args.library:
+        libraries = [lib for lib in libraries if lib.id == args.library]
+        if not libraries:
+            fatal_error(f"Library '{args.library}' not found or not managed")
+            return 1
+
+    if not libraries:
+        print_warning("No libraries to index")
+        return 0
+
+    for lib in libraries:
+        print_info(f"  • {lib.name} ({lib.id})")
+
+    # Set up path mapper with all configured mappings (from abs_config.path_map)
+    path_maps: list[dict[str, str]] = []
+    for pm in abs_config.path_map:
+        path_maps.append({"container": pm.container, "host": pm.host})
+    path_mapper = PathMapper(mappings=path_maps)
+
+    # Get index database path
+    db_path = Path(abs_config.index_db)
+    if not db_path.is_absolute():
+        # Make relative to current working directory
+        db_path = Path.cwd() / db_path
+
+    # Dry run check
+    if args.dry_run:
+        print_dry_run(f"Would sync index to {db_path}")
+        for lib in libraries:
+            print_dry_run(f"Would index library: {lib.name}")
+        return 0
+
+    # Sync index
+    print_step(3, 4, "Syncing index from ABS")
+    mode_str = "full rebuild" if args.full else "incremental"
+    print_info(f"Mode: {mode_str}")
+
+    try:
+        with AbsIndex(db_path) as index:
+            library_ids = [lib.id for lib in libraries]
+            result = index.sync_from_abs(
+                client=client,
+                path_mapper=path_mapper,
+                library_ids=library_ids,
+                full_rebuild=args.full,
+            )
+    except Exception as e:
+        fatal_error(f"Sync failed: {e}")
+        return 1
+
+    # Report results
+    print_step(4, 4, "Index complete")
+    print_success(f"Indexed {result.books_indexed} books from {result.libraries_synced} libraries")
+    print_info(f"  • With ASIN: {result.with_asin}")
+    print_info(f"  • Without ASIN: {result.without_asin}")
+
+    if result.author_variants_found > 0:
+        print_warning(f"  • Author variants: {result.author_variants_found}")
+        print_info("    Run 'mamfast abs-report-authors' to see details")
+
+    if result.errors:
+        print_warning(f"  • Errors: {len(result.errors)}")
+        for err in result.errors[:5]:  # Show first 5
+            print_info(f"    - {err}")
+        if len(result.errors) > 5:
+            print_info(f"    ... and {len(result.errors) - 5} more")
+
+    print_info(f"Index saved to: {db_path}")
 
     return 0
 
