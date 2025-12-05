@@ -2009,8 +2009,6 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     """
     from pathlib import Path
 
-    from rich.table import Table
-
     from mamfast.abs import (
         AbsClient,
         AbsIndex,
@@ -2116,47 +2114,55 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         fatal_error(f"Import failed: {e}")
         return 1
 
-    # Display results table
+    # Display results
     if result.results:
-        table = Table(title="Import Results", show_header=True)
-        table.add_column("Folder", style="cyan", no_wrap=True, max_width=50)
-        table.add_column("ASIN", style="yellow")
-        table.add_column("Status", style="green")
-        table.add_column("Target/Error", style="dim", max_width=40)
+        console.print()
+        console.print("[bold]Import Results[/bold]")
+        console.print()
 
         for r in result.results:
-            folder_name = (
-                r.staging_path.name[:47] + "..."
-                if len(r.staging_path.name) > 50
-                else r.staging_path.name
-            )
-            status_style = {
-                "success": "[green]✓ Ready[/green]"
-                if args.dry_run
-                else "[green]✓ Imported[/green]",
-                "duplicate": "[yellow]⏭ Exists[/yellow]",
-                "skipped": "[yellow]⏭ Skipped[/yellow]",
-                "failed": "[red]✗ Failed[/red]",
-            }.get(r.status, r.status)
+            # Status icon and color
+            if r.status == "success":
+                if args.dry_run:
+                    status_icon = "[green]✓[/green]"
+                    status_text = "[green]Ready[/green]"
+                else:
+                    status_icon = "[green]✓[/green]"
+                    status_text = "[green]Imported[/green]"
+            elif r.status == "duplicate":
+                status_icon = "[yellow]⏭[/yellow]"
+                status_text = "[yellow]Exists[/yellow]"
+            elif r.status == "skipped":
+                status_icon = "[yellow]⏭[/yellow]"
+                status_text = "[yellow]Skipped[/yellow]"
+            else:
+                status_icon = "[red]✗[/red]"
+                status_text = "[red]Failed[/red]"
 
-            detail = ""
+            # Main line: status icon, folder name, ASIN
+            asin_display = f"[dim]({r.asin})[/dim]" if r.asin else ""
+            console.print(f"{status_icon} [cyan]{r.staging_path.name}[/cyan] {asin_display}")
+
+            # Second line: status and target/error path in tree format
             if r.status == "success" and r.target_path:
                 try:
-                    detail = str(r.target_path.relative_to(abs_library_root))[:37] + "..."
+                    rel_path = r.target_path.relative_to(abs_library_root)
                 except ValueError:
-                    detail = r.target_path.name[:37] + "..."
+                    rel_path = r.target_path
+                console.print(f"  └─ {status_text} → [dim]{rel_path}[/dim]")
+            elif r.status == "duplicate" and r.error:
+                # Extract path from "Already exists at {path}" message
+                if "Already exists at " in r.error:
+                    existing_path = r.error.replace("Already exists at ", "")
+                    console.print(f"  └─ {status_text} → [dim]{existing_path}[/dim]")
+                else:
+                    console.print(f"  └─ {status_text}")
             elif r.error:
-                detail = r.error[:37] + "..." if len(r.error) > 40 else r.error
+                console.print(f"  └─ {status_text}: [red]{r.error}[/red]")
+            else:
+                console.print(f"  └─ {status_text}")
 
-            table.add_row(
-                folder_name,
-                r.asin or "—",
-                status_style,
-                detail,
-            )
-
-        console.print(table)
-        console.print()
+            console.print()
 
     # Summary
     print_step(4, 4, "Import complete")
