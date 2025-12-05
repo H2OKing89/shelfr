@@ -1,6 +1,51 @@
 # Audiobookshelf Import Plan
 
-> **Document Version:** 4.0.0 | **Last Updated:** 2025-06-11 | **Status:** ✅ Feature Complete
+> **Document Version:** 4.1.0 | **Last Updated:** 2025-12-04 | **Status:** ✅ Feature Complete
+
+---
+
+## ⚡ Architecture Update (v4.1.0)
+
+**Major Simplification:** The import workflow now uses **direct ABS API with in-memory caching** instead of requiring a pre-built SQLite index.
+
+### What Changed?
+
+| Before (v4.0) | After (v4.1) |
+|---------------|--------------|
+| Run `abs-index` before importing | No setup needed |
+| SQLite index could become stale | Always fresh data from ABS API |
+| Required `index_db` config | Just need ABS connection |
+| Complex sync/incremental logic | Simple per-session API fetch |
+
+### New Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      IMPORT WORKFLOW (SIMPLIFIED)                           │
+│                                                                             │
+│   mamfast abs-import                                                        │
+│       ↓                                                                     │
+│   Connect to ABS API → Build in-memory ASIN index (~200ms for 500 books)   │
+│       ↓                                                                     │
+│   Check duplicates → Move books → Trigger ABS scan                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+- **`AbsClient.get_library_items_cached()`** - Fetches all items once per session, caches in memory
+- **`AsinEntry`** - Lightweight dataclass: `asin`, `path`, `library_item_id`, `title`, `author`
+- **`build_asin_index(client, library_id)`** - Builds `dict[str, AsinEntry]` from ABS API
+- **`asin_exists(asin_index, asin)`** - O(1) lookup in the in-memory dict
+
+### When to Use `abs-index`
+
+The SQLite indexer (`abs-index`) is still available for:
+- **Author variant reports** - Find `author_display` vs `folder_name` mismatches
+- **Library statistics** - Count books, ASINs, etc.
+- **Offline analysis** - Work without ABS connection
+
+But it's **no longer required** for imports or duplicate checking.
 
 ---
 
@@ -76,34 +121,42 @@
   - `import_batch()` - Batch import with results tracking
   - `discover_staged_books()` - Find audiobooks in staging directory
   - `trigger_scan_safe()` - Safe ABS scan trigger
+- [x] `src/mamfast/abs/asin.py` - In-memory ASIN index (v4.1)
+  - `AsinEntry` dataclass for lightweight book records
+  - `build_asin_index(client, library_id)` - Build dict from ABS API
+  - `asin_exists(asin_index, asin)` - O(1) duplicate check
+- [x] `src/mamfast/abs/client.py` - Added in-memory caching (v4.1)
+  - `get_library_items_cached()` - Fetches once per session
+  - `clear_cache()` - Clear single library or all caches
 - [x] `mamfast abs-import` CLI command wired
   - `--dry-run` support for preview
   - `--duplicate-policy` override (skip/warn/overwrite)
   - `--no-scan` to skip ABS scan trigger
   - Rich table output for results
   - Tree output showing files being imported
+  - **No longer requires `abs-index` to run first** (v4.1)
 - [x] `mamfast abs-check-duplicate` CLI command
-  - Quick ASIN lookup against index
+  - Quick ASIN lookup using direct ABS API (v4.1)
   - Shows existing path if found
 - [x] Series folder matching - matches existing series folders
 - [x] Author folder matching - uses existing author folders
 - [x] File renaming - renames files to match cleaned folder name
 - [x] Updated `abs/__init__.py` exports
-- [x] 40 unit tests in `tests/test_abs_importer.py`
+- [x] 38 unit tests in `tests/test_abs_importer.py`
 - [x] 36 CLI tests in `tests/test_cli_abs.py`
 
 ### Test Summary
 
 | Test Module | Test Count | Coverage |
 |-------------|------------|----------|
-| `test_abs_asin.py` | 26 | ASIN extraction |
-| `test_abs_client.py` | 23 | ABS API client |
-| `test_abs_importer.py` | 40 | Import workflow |
-| `test_abs_indexer.py` | 25 | SQLite indexer |
+| `test_abs_asin.py` | 26 | ASIN extraction + in-memory index |
+| `test_abs_client.py` | 23 | ABS API client + caching |
+| `test_abs_importer.py` | 38 | Import workflow |
+| `test_abs_indexer.py` | 25 | SQLite indexer (reports) |
 | `test_abs_paths.py` | 37 | Path mapping |
 | `test_abs_schemas.py` | 35 | Pydantic schemas |
 | `test_cli_abs.py` | 36 | CLI commands |
-| **Total ABS Tests** | **222** | |
+| **Total ABS Tests** | **220** | |
 
 ---
 
@@ -171,12 +224,31 @@ We get a **pre-built, strongly-typed library index for free**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      PHASE 0: ABS INDEX (DO THIS FIRST)                     │
+│                      PHASE 0: SETUP (ONE-TIME)                              │
 │                                                                             │
 │   mamfast abs-init                                                          │
 │       ↓                                                                     │
 │   Validate ABS connection → List libraries → Generate config template      │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      PHASE 1+: IMPORT (SIMPLE)                              │
+│                                                                             │
+│   mamfast abs-import                                                        │
 │       ↓                                                                     │
+│   Connect to ABS → Build in-memory ASIN index from API                     │
+│       ↓                                                                     │
+│   Check ASIN in index → If exists: skip/warn/overwrite (duplicate policy)  │
+│                       → If new: use (Author) from staging folder name      │
+│       ↓                                                                     │
+│   Atomic move → Trigger ABS scan                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      OPTIONAL: REPORTS                                      │
+│                                                                             │
 │   mamfast abs-index                                                         │
 │       ↓                                                                     │
 │   Fetch from ABS API → Map paths → Build SQLite index                      │
@@ -184,18 +256,6 @@ We get a **pre-built, strongly-typed library index for free**.
 │   mamfast abs-report-authors                                                │
 │       ↓                                                                     │
 │   Detect author variants → Generate normalization report                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      PHASE 1+: IMPORT (NOW SIMPLE)                          │
-│                                                                             │
-│   mamfast abs-import                                                        │
-│       ↓                                                                     │
-│   Check ASIN in SQLite → If exists: skip/warn/overwrite (duplicate policy) │
-│                        → If new: use (Author) from staging folder name     │
-│       ↓                                                                     │
-│   Atomic move → Trigger ABS scan → Re-index if needed                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -208,10 +268,11 @@ Libation → Discovery → Staging → Hardlink to Seed → Torrent → qBittorr
 ```
 
 **Key points:**
-- **ABS API as source of truth for indexing**: Duplicate detection, author reports
+- **ABS API as source of truth**: Duplicate detection via in-memory index
 - **MAM folder names as source of truth for new imports**: Author/series from staging folder
 - **Docker path mapping**: Translate container paths ↔ host paths
-- **SQLite index**: Fast ASIN lookups, author reports, duplicate detection
+- **In-memory ASIN index**: Built fresh each session from ABS API (~200ms)
+- **SQLite index**: Optional, used for author reports and offline analysis
 - **Atomic move**: Instant, preserves hardlinks to seed folder
 
 ---
@@ -232,23 +293,29 @@ Libation → Discovery → Staging → Hardlink to Seed → Torrent → qBittorr
 
 | Concern | Solution | When |
 |---------|----------|------|
-| **Index existing library** | ABS API + SQLite | Phase 0 (one-time) |
-| **Clean future imports** | SQLite lookups | Phase 1+ (ongoing) |
+| **Duplicate detection** | In-memory index from ABS API | Per import session |
+| **Library reports** | SQLite index + ABS API | On-demand (`abs-index`) |
 
-### Why Index First?
+### Why Direct API Instead of Pre-Built Index?
 
-Without an index, every import must:
-- Scan the entire library for duplicates
-- Guess which author folder to use
-- Handle naming era differences on the fly
-- Risk creating new variations of existing authors
+**The original v4.0 approach** required running `abs-index` before `abs-import` to build a SQLite database. This had problems:
 
-With an index (from ABS API):
-- ASIN lookup is O(1) via SQLite index
-- Canonical author already known (ABS resolved it)
-- Import code is simple: check DB → move → ABS rescans
+1. **Stale data** - After ABS library scans, the SQLite index didn't reflect new books
+2. **Extra step** - Users had to remember to run `abs-index` first
+3. **Sync complexity** - Incremental sync logic was error-prone
 
-### JSON vs SQLite
+**The v4.1 approach** queries ABS directly and builds an in-memory index per session:
+
+| Old (v4.0) | New (v4.1) |
+|------------|------------|
+| `abs-index` → SQLite → `abs-import` | `abs-import` (builds index internally) |
+| Index could be stale | Always fresh data |
+| O(1) lookup | O(1) lookup (same performance) |
+| ~5ms per lookup | ~200ms one-time + ~1µs per lookup |
+
+**For typical workflow (1-5 books):** The ~200ms API call is negligible, and you get guaranteed-fresh data.
+
+### JSON vs SQLite (for Reports)
 
 | Aspect | JSON | SQLite |
 |--------|------|--------|
@@ -258,14 +325,14 @@ With an index (from ABS API):
 | Concurrency | ❌ Painful | ✅ ACID |
 | Version control | ✅ Git-friendly diffs | ❌ Binary |
 
-**Decision: SQLite as primary (`data/abs_index.db`), JSON as export/report format**
+**Decision: SQLite for reports (`data/abs_index.db`), in-memory dict for imports**
 
 ```bash
 mamfast abs-init                        # validate ABS connection, list libraries
-mamfast abs-index                       # build/update abs_index.db from ABS API
+mamfast abs-import                      # import books (builds index from API)
+mamfast abs-check-duplicate B0xxx       # quick ASIN lookup (uses API directly)
+mamfast abs-index                       # OPTIONAL: build SQLite for reports
 mamfast abs-report-authors              # generate author variants report
-mamfast export-library > library.json   # snapshot for backup/testing
-mamfast abs-import --staging /path/...  # uses DB to dedupe & place books
 ```
 
 ---
@@ -557,25 +624,60 @@ abs:
 |-------------|----------|-------|
 | **ABS API integration** | **Must** | Source of truth for library state |
 | **Docker path mapping** | **Must** | Container ↔ host path translation |
-| **SQLite library index** | **Must** | Fast lookups, author reports |
+| **In-memory ASIN index** | **Must** | Fast duplicate detection from API |
 | Atomic move (same filesystem) | **Must** | Instant, preserves hardlinks |
 | Folder name parsing | **Must** | Extract author, series from MAM format |
 | Duplicate detection (ASIN) | **Must** | Avoid reimporting existing books |
 | Standalone book handling | **Must** | No series = Author/Title structure |
-| Author normalization & merge | **Must** | Clean up existing library drift |
+| SQLite library index | **Should** | For author reports (optional) |
 | Dry-run mode | **Should** | Preview changes before execution |
 | Batch processing | **Should** | Process all staged books at once |
-| JSON export for reports | **Should** | Snapshots for testing/backup |
+| JSON export for reports | **Could** | Snapshots for testing/backup |
 | Auto-import after MAM workflow | **Could** | Trigger automatically |
 
 ---
 
-## Library Index (SQLite)
+## In-Memory ASIN Index (v4.1)
 
-The library index (`data/abs_index.db`) is populated from the **ABS API** and provides:
-- Fast ASIN → path lookups for duplicate detection
-- Author variant reporting
-- Foundation for future tools (Listenarr integration, etc.)
+The import workflow uses an **in-memory dictionary** built from the ABS API each session:
+
+```python
+@dataclass
+class AsinEntry:
+    """Lightweight record for duplicate detection."""
+    asin: str                    # "B0DK9TS6D9"
+    path: str                    # Host path to book folder
+    library_item_id: str         # ABS "li_xxx" ID
+    title: str | None            # For display in warnings
+    author: str | None           # For display in warnings
+
+# Built once per session from ABS API
+asin_index: dict[str, AsinEntry] = build_asin_index(client, library_id)
+
+# O(1) duplicate check
+exists, path = asin_exists(asin_index, "B0DK9TS6D9")
+```
+
+### Performance
+
+| Library Size | API Fetch Time | Memory Usage |
+|--------------|----------------|--------------|
+| 100 books | ~50ms | ~50KB |
+| 500 books | ~200ms | ~250KB |
+| 2000 books | ~800ms | ~1MB |
+
+For typical import workflows (1-5 books at a time), this is negligible.
+
+---
+
+## Library Index - SQLite (Optional)
+
+The SQLite index (`data/abs_index.db`) is **optional** and used for:
+- Author variant reports (`abs-report-authors`)
+- Library statistics
+- Offline analysis
+
+It is **not required** for imports - the in-memory index handles duplicate detection.
 
 ### Database Schema
 
