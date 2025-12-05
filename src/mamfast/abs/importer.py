@@ -317,6 +317,7 @@ def rename_files_in_folder(
     - cover.jpg is kept as-is (standard ABS naming)
     - Files already matching clean name are skipped
     - Compound extensions like .metadata.json are preserved
+    - Multi-file books without ASIN preserve original filenames (data protection)
 
     Args:
         folder_path: Path to folder containing files
@@ -327,6 +328,25 @@ def rename_files_in_folder(
         List of (old_name, new_name) tuples for renamed files
     """
     renamed: list[tuple[str, str]] = []
+
+    # Audio extensions for multi-file detection
+    audio_extensions = {".m4b", ".m4a", ".mp3", ".ogg", ".flac", ".opus"}
+
+    # Count audio files to detect multi-file books
+    audio_files = [
+        f for f in folder_path.iterdir() if f.is_file() and f.suffix.lower() in audio_extensions
+    ]
+
+    # SAFETY: Multi-file books without ASIN keep original filenames
+    # Renaming multiple files to the same base name would cause data loss
+    if len(audio_files) > 1 and not parsed.asin:
+        logger.warning(
+            "Multi-file book without ASIN (%d audio files) - preserving original "
+            "filenames to prevent data loss: %s",
+            len(audio_files),
+            folder_path.name,
+        )
+        return []  # Don't rename anything
 
     # Extensions to rename (audio, cue, images, metadata)
     rename_extensions = {
@@ -342,6 +362,7 @@ def rename_files_in_folder(
         ".png",
         ".webp",  # Images
         ".json",  # Metadata
+        ".pdf",
     }
 
     # Compound extensions to check first (order matters)

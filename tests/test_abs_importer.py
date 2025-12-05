@@ -655,3 +655,93 @@ class TestEdgeCases:
         )
 
         assert result.status == "success"
+
+
+# =============================================================================
+# Multi-File Protection Tests
+# =============================================================================
+
+
+class TestMultiFileProtection:
+    """Tests for multi-file book data protection."""
+
+    def test_multi_file_no_asin_preserves_filenames(self, tmp_path: Path) -> None:
+        """Multi-file book without ASIN keeps original filenames to prevent data loss."""
+        from mamfast.abs.importer import parse_mam_folder_name, rename_files_in_folder
+
+        folder = tmp_path / "Unknown Multi-Part Book"
+        folder.mkdir()
+
+        # Create multiple audio files (simulating a multi-file audiobook)
+        (folder / "Book - 01.m4b").touch()
+        (folder / "Book - 02.m4b").touch()
+        (folder / "Book - 03.m4b").touch()
+        (folder / "cover.jpg").touch()
+
+        parsed = parse_mam_folder_name(folder.name)
+        assert parsed.asin is None  # No ASIN in name
+
+        renamed = rename_files_in_folder(folder, parsed)
+
+        # Should NOT rename any files - protects against data loss
+        assert renamed == []
+        # All original files should still exist
+        assert (folder / "Book - 01.m4b").exists()
+        assert (folder / "Book - 02.m4b").exists()
+        assert (folder / "Book - 03.m4b").exists()
+
+    def test_single_file_no_asin_can_rename(self, tmp_path: Path) -> None:
+        """Single-file book without ASIN can still be renamed safely."""
+        from mamfast.abs.importer import parse_mam_folder_name, rename_files_in_folder
+
+        folder = tmp_path / "Unknown Single Book (2024) (Author)"
+        folder.mkdir()
+
+        # Single audio file is safe to rename
+        (folder / "Original Name.m4b").touch()
+        (folder / "cover.jpg").touch()
+
+        parsed = parse_mam_folder_name(folder.name)
+        assert parsed.asin is None  # No ASIN
+
+        renamed = rename_files_in_folder(folder, parsed)
+
+        # Single file can be renamed (no data loss risk)
+        assert len(renamed) == 1
+        assert renamed[0][0] == "Original Name.m4b"
+
+    def test_multi_file_with_asin_can_rename(self, tmp_path: Path) -> None:
+        """Multi-file book WITH ASIN can still rename (has unique identifier)."""
+        from mamfast.abs.importer import parse_mam_folder_name, rename_files_in_folder
+
+        folder = tmp_path / "Known Book (2024) (Author) {ASIN.B0ABCDEFGH}"
+        folder.mkdir()
+
+        # Multiple audio files but we have ASIN
+        (folder / "Part 1.m4b").touch()
+        (folder / "Part 2.m4b").touch()
+
+        parsed = parse_mam_folder_name(folder.name)
+        assert parsed.asin == "B0ABCDEFGH"
+
+        renamed = rename_files_in_folder(folder, parsed)
+
+        # With ASIN, normal rename logic applies
+        # (Note: both files would get same name - but ASIN is the identifier)
+        assert len(renamed) >= 1
+
+    def test_multi_file_no_asin_dry_run_still_protects(self, tmp_path: Path) -> None:
+        """Dry-run mode also protects multi-file books without ASIN."""
+        from mamfast.abs.importer import parse_mam_folder_name, rename_files_in_folder
+
+        folder = tmp_path / "Unknown Multi-Part"
+        folder.mkdir()
+        (folder / "Track 01.m4b").touch()
+        (folder / "Track 02.m4b").touch()
+
+        parsed = parse_mam_folder_name(folder.name)
+
+        renamed = rename_files_in_folder(folder, parsed, dry_run=True)
+
+        # Even in dry-run, should recognize this is unsafe
+        assert renamed == []

@@ -1863,6 +1863,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         trigger_scan_safe,
         validate_import_prerequisites,
     )
+    from mamfast.abs.importer import build_clean_file_name, parse_mam_folder_name
     from mamfast.config import reload_settings
 
     print_header("Audiobookshelf Import", dry_run=args.dry_run)
@@ -2018,10 +2019,36 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                 source_folder = r.staging_path if args.dry_run else r.target_path
                 if source_folder.exists():
                     files = sorted(f.name for f in source_folder.iterdir() if f.is_file())
+
+                    # In dry-run, compute what files would be renamed to
+                    rename_map: dict[str, str] = {}
+                    if args.dry_run:
+                        try:
+                            parsed = parse_mam_folder_name(r.staging_path.name)
+                            for f in source_folder.iterdir():
+                                if not f.is_file():
+                                    continue
+                                ext = f.suffix.lower()
+                                # Handle compound extensions
+                                if f.name.lower().endswith(".metadata.json"):
+                                    ext = ".metadata.json"
+                                clean_name = build_clean_file_name(parsed, extension=ext)
+                                if f.name != clean_name:
+                                    rename_map[f.name] = clean_name
+                        except (ValueError, KeyError):
+                            pass  # Can't parse, just show original names
+
                     for i, filename in enumerate(files):
                         is_last = i == len(files) - 1
                         prefix = "  └─" if is_last else "  ├─"
-                        console.print(f"{prefix} [dim]{filename}[/dim]")
+                        if filename in rename_map:
+                            # Show rename: old → new
+                            console.print(
+                                f"{prefix} [dim]{filename}[/dim] → "
+                                f"[green]{rename_map[filename]}[/green]"
+                            )
+                        else:
+                            console.print(f"{prefix} [dim]{filename}[/dim]")
             elif r.status == "duplicate" and r.error:
                 # Extract path from "Already exists at {path}" message
                 if "Already exists at " in r.error:
