@@ -1,6 +1,6 @@
 # Unknown ASIN Handling Plan
 
-> **Document Version:** 1.3.0 | **Last Updated:** 2025-12-05 | **Status:** ✅ Phase 1 Complete
+> **Document Version:** 1.4.0 | **Last Updated:** 2025-12-05 | **Status:** ✅ Phase 1 Complete
 
 This document outlines the plan for handling audiobooks without ASINs during import.
 
@@ -614,6 +614,43 @@ def get_unique_destination(base_path: Path) -> Path:
 
 **Guarantee:** Running import twice never duplicates or corrupts data.
 
+> **Note for Phase 2+:** Partial import detection (crash mid-run) is out of scope for Phase 1. Re-runs are conservative and will not attempt auto-repair of incomplete imports.
+
+### Single Main File + Sample/Trailer (Known Limitation)
+
+**Scenario:** One main audiobook + small sample/trailer files.
+
+```
+My Book/
+├── My Book.m4b        # main file (500 MB)
+├── My Book (sample).mp3  # tiny (2 MB)
+└── trailer.mp3           # tiny (1 MB)
+```
+
+**Behavior:**
+- `file_count = 3` → treated as multi-file → **no renames**
+- This is conservative but safe
+
+**Known limitation:** Phase 1 does not distinguish "one big file + noise" from "true multi-file."
+
+**Future consideration:** Could add heuristic (if one file is >90% of total size, treat as single-file). But "simple == safe" for now.
+
+### Homebrew Misclassification (Future Consideration)
+
+**Scenario:** Folder looks like `Author - Title` but is actually Audible content.
+
+**Current behavior:** Classified as `HOMEBREW`, routed to `Author/Title (Author)/`.
+
+**Future note:** If Phase 3+ ASIN resolution finds an ASIN that contradicts the `HOMEBREW` guess, library tools are allowed to "upgrade" it to normal Audible content. The sidecar tracks original classification for debugging.
+
+### Foreign/Legacy Unknown Folders
+
+**Scenario:** `Unknown/` contains folders from other tools (not imported by mamfast).
+
+**Behavior:**
+- Folders **with** `_mamfast_unknown_asin.json` → mamfast's responsibility
+- Folders **without** sidecar → treated as foreign/legacy, won't be auto-touched by future resolution tools unless explicitly configured
+
 ---
 
 ## Decision: What NOT to Build
@@ -714,3 +751,4 @@ class TestMultiFileProtection:
 | 1.1.0 | 2025-12-05 | Added core philosophy, first-class unknowns, test matrix |
 | 1.2.0 | 2025-12-05 | Decoupled content type from file structure; added edge cases section; collision handling; assumptions/constraints; expanded test matrix |
 | 1.3.0 | 2025-12-05 | Added quick-start behavior summary; scope clarification; linked from importer.py |
+| 1.4.0 | 2025-12-05 | Added edge cases from review: sample/trailer files, partial imports, homebrew misclassification, foreign folders |
