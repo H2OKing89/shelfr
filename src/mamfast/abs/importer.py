@@ -33,10 +33,6 @@ class FilesystemMismatchError(ImportError):
     """Staging and library are on different filesystems."""
 
 
-class IndexNotFoundError(ImportError):
-    """ABS index database not found."""
-
-
 class DuplicateError(ImportError):
     """Book already exists in library."""
 
