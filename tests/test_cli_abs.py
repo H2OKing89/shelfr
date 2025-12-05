@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -247,31 +248,191 @@ class TestAbsIndexCommand:
             result = cmd_abs_index(args)
             assert result == 1
 
-    def test_abs_index_stub_returns_success(self, args: argparse.Namespace) -> None:
-        """Test abs-index stub returns 0 when enabled."""
+    def test_abs_index_stub_returns_success(self, args: argparse.Namespace, tmp_path: Path) -> None:
+        """Test abs-index returns 0 when sync succeeds."""
+        from mamfast.abs import AbsLibrary, AbsUser, SyncResult
+
+        # Create proper mock settings
+        mock_lib_config = MagicMock()
+        mock_lib_config.id = "lib_test"
+        mock_lib_config.mamfast_managed = True
+        mock_lib_config.path_map = []
+
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = True
+        mock_settings.audiobookshelf.host = "http://localhost:13378"
+        mock_settings.audiobookshelf.api_key = "test-key"
+        mock_settings.audiobookshelf.timeout = 30.0
+        mock_settings.audiobookshelf.libraries = [mock_lib_config]
+        mock_settings.audiobookshelf.index_db = str(tmp_path / "abs_index.db")
+        mock_settings.paths.config_dir = str(tmp_path)
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        mock_user = AbsUser(
+            id="user_123",
+            username="testuser",
+            user_type="admin",
+            is_active=True,
+            has_admin=True,
+        )
+        mock_library = AbsLibrary(
+            id="lib_test",
+            name="Audiobooks",
+            media_type="book",
+            folders=[],
+            display_order=0,
+        )
+        mock_sync_result = SyncResult(
+            books_indexed=10,
+            with_asin=8,
+            without_asin=2,
+            author_variants_found=0,
+            libraries_synced=1,
+            errors=[],
+        )
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.AbsClient") as mock_client_cls,
+            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+        ):
+            mock_client = MagicMock()
+            mock_client.authorize.return_value = mock_user
+            mock_client.get_libraries.return_value = [mock_library]
+            mock_client_cls.return_value = mock_client
+
+            mock_index = MagicMock()
+            mock_index.sync_from_abs.return_value = mock_sync_result
+            mock_index.__enter__ = MagicMock(return_value=mock_index)
+            mock_index.__exit__ = MagicMock(return_value=False)
+            mock_index_cls.return_value = mock_index
+
             result = cmd_abs_index(args)
             assert result == 0
 
-    def test_abs_index_full_mode(self, args: argparse.Namespace) -> None:
+    def test_abs_index_full_mode(self, args: argparse.Namespace, tmp_path: Path) -> None:
         """Test abs-index with --full flag."""
+        from mamfast.abs import AbsLibrary, AbsUser, SyncResult
+
         args.full = True
+
+        mock_lib_config = MagicMock()
+        mock_lib_config.id = "lib_test"
+        mock_lib_config.mamfast_managed = True
+        mock_lib_config.path_map = []
+
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = True
+        mock_settings.audiobookshelf.host = "http://localhost:13378"
+        mock_settings.audiobookshelf.api_key = "test-key"
+        mock_settings.audiobookshelf.timeout = 30.0
+        mock_settings.audiobookshelf.libraries = [mock_lib_config]
+        mock_settings.audiobookshelf.index_db = str(tmp_path / "abs_index.db")
+        mock_settings.paths.config_dir = str(tmp_path)
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        mock_user = AbsUser(
+            id="user_123",
+            username="testuser",
+            user_type="admin",
+            is_active=True,
+            has_admin=True,
+        )
+        mock_library = AbsLibrary(
+            id="lib_test",
+            name="Audiobooks",
+            media_type="book",
+            folders=[],
+            display_order=0,
+        )
+        mock_sync_result = SyncResult(
+            books_indexed=10,
+            with_asin=8,
+            without_asin=2,
+            author_variants_found=0,
+            libraries_synced=1,
+            errors=[],
+        )
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.AbsClient") as mock_client_cls,
+            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+        ):
+            mock_client = MagicMock()
+            mock_client.authorize.return_value = mock_user
+            mock_client.get_libraries.return_value = [mock_library]
+            mock_client_cls.return_value = mock_client
+
+            mock_index = MagicMock()
+            mock_index.sync_from_abs.return_value = mock_sync_result
+            mock_index.__enter__ = MagicMock(return_value=mock_index)
+            mock_index.__exit__ = MagicMock(return_value=False)
+            mock_index_cls.return_value = mock_index
+
             result = cmd_abs_index(args)
             assert result == 0
+            # Verify full_rebuild=True was passed
+            mock_index.sync_from_abs.assert_called_once()
+            call_kwargs = mock_index.sync_from_abs.call_args.kwargs
+            assert call_kwargs.get("full_rebuild") is True
 
-    def test_abs_index_specific_library(self, args: argparse.Namespace) -> None:
+    def test_abs_index_specific_library(self, args: argparse.Namespace, tmp_path: Path) -> None:
         """Test abs-index with --library flag."""
+        from mamfast.abs import AbsLibrary, AbsUser, SyncResult
+
         args.library = "lib_specific123"
+
+        mock_lib_config = MagicMock()
+        mock_lib_config.id = "lib_specific123"
+        mock_lib_config.mamfast_managed = True
+        mock_lib_config.path_map = []
+
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = True
+        mock_settings.audiobookshelf.host = "http://localhost:13378"
+        mock_settings.audiobookshelf.api_key = "test-key"
+        mock_settings.audiobookshelf.timeout = 30.0
+        mock_settings.audiobookshelf.libraries = [mock_lib_config]
+        mock_settings.audiobookshelf.index_db = str(tmp_path / "abs_index.db")
+        mock_settings.paths.config_dir = str(tmp_path)
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        mock_user = AbsUser(
+            id="user_123",
+            username="testuser",
+            user_type="admin",
+            is_active=True,
+            has_admin=True,
+        )
+        mock_library = AbsLibrary(
+            id="lib_specific123",
+            name="Audiobooks",
+            media_type="book",
+            folders=[],
+            display_order=0,
+        )
+        mock_sync_result = SyncResult(
+            books_indexed=5,
+            with_asin=5,
+            without_asin=0,
+            author_variants_found=0,
+            libraries_synced=1,
+            errors=[],
+        )
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.AbsClient") as mock_client_cls,
+            patch("mamfast.abs.AbsIndex") as mock_index_cls,
+        ):
+            mock_client = MagicMock()
+            mock_client.authorize.return_value = mock_user
+            mock_client.get_libraries.return_value = [mock_library]
+            mock_client_cls.return_value = mock_client
+
+            mock_index = MagicMock()
+            mock_index.sync_from_abs.return_value = mock_sync_result
+            mock_index.__enter__ = MagicMock(return_value=mock_index)
+            mock_index.__exit__ = MagicMock(return_value=False)
+            mock_index_cls.return_value = mock_index
+
             result = cmd_abs_index(args)
             assert result == 0
