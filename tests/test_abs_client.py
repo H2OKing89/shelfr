@@ -440,3 +440,164 @@ class TestAbsLibraryItem:
         assert item.title == ""
         assert item.asin is None
         assert item.duration == 0.0
+
+
+class TestAbsClientSearchBooks:
+    """Test search_books method for Phase 5."""
+
+    @pytest.fixture
+    def mock_search_response(self, abs_fixtures_path: Path) -> dict[str, Any]:
+        """Load search_books_audible.json fixture."""
+        with open(abs_fixtures_path / "search_books_audible.json") as f:
+            result: dict[str, Any] = json.load(f)
+            return result
+
+    def test_search_with_title_and_author(
+        self,
+        client: AbsClient,
+        mock_search_response: dict[str, Any],
+    ) -> None:
+        """Test searching with both title and author."""
+        # Use first sample - Wizard's First Rule
+        sample_results = mock_search_response["samples"][0]["results"]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = sample_results
+
+        with patch.object(client, "_request", return_value=mock_response) as mock_req:
+            results = client.search_books(
+                title="Wizard's First Rule",
+                author="Terry Goodkind",
+            )
+
+        # Verify the request was made with correct parameters
+        mock_req.assert_called_once()
+        call_args = mock_req.call_args
+        assert call_args[0][0] == "GET"
+        assert call_args[0][1] == "/api/search/books"
+        # Check params dict
+        params = call_args[1].get("params", {})
+        assert params.get("title") == "Wizard's First Rule"
+        assert params.get("author") == "Terry Goodkind"
+        assert params.get("provider") == "audible"
+
+        # Verify results
+        assert len(results) == 1
+        assert results[0]["asin"] == "B002V0QK4C"
+        assert results[0]["title"] == "Wizard's First Rule"
+        assert results[0]["author"] == "Terry Goodkind"
+
+    def test_search_with_title_only(
+        self,
+        client: AbsClient,
+        mock_search_response: dict[str, Any],
+    ) -> None:
+        """Test searching with title only (no author)."""
+        sample_results = mock_search_response["samples"][1]["results"]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = sample_results
+
+        with patch.object(client, "_request", return_value=mock_response) as mock_req:
+            results = client.search_books(title="Project Hail Mary")
+
+        # Verify request doesn't include author param
+        params = mock_req.call_args[1].get("params", {})
+        assert params.get("title") == "Project Hail Mary"
+        assert "author" not in params
+
+        # Should return multiple results
+        assert len(results) == 2
+        assert results[0]["asin"] == "B08G9PRS1K"
+
+    def test_search_with_custom_provider(
+        self,
+        client: AbsClient,
+    ) -> None:
+        """Test that provider parameter is passed to API."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+
+        with patch.object(client, "_request", return_value=mock_response) as mock_req:
+            client.search_books(title="Test", provider="google")
+
+        # Verify provider is passed
+        params = mock_req.call_args[1].get("params", {})
+        assert params.get("provider") == "google"
+
+    def test_search_returns_empty_list_on_no_results(
+        self,
+        client: AbsClient,
+    ) -> None:
+        """Test that empty results return empty list."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+
+        with patch.object(client, "_request", return_value=mock_response):
+            results = client.search_books(title="NonExistentBook12345")
+
+        assert results == []
+
+    def test_search_handles_series_data(
+        self,
+        client: AbsClient,
+        mock_search_response: dict[str, Any],
+    ) -> None:
+        """Test that series data is preserved in results."""
+        sample_results = mock_search_response["samples"][0]["results"]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = sample_results
+
+        with patch.object(client, "_request", return_value=mock_response):
+            results = client.search_books(
+                title="Wizard's First Rule",
+                author="Terry Goodkind",
+            )
+
+        # Verify series data is preserved
+        assert results[0]["series"] == [{"series": "Sword of Truth", "sequence": "1"}]
+
+    def test_search_connection_error(self, client: AbsClient) -> None:
+        """Test search raises AbsConnectionError on network failure."""
+        with (
+            patch.object(
+                client,
+                "_request",
+                side_effect=AbsConnectionError("Network error"),
+            ),
+            pytest.raises(AbsConnectionError),
+        ):
+            client.search_books(title="Test")
+
+    def test_search_api_error(self, client: AbsClient) -> None:
+        """Test search raises AbsApiError on server error."""
+        with (
+            patch.object(
+                client,
+                "_request",
+                side_effect=AbsApiError(500, "Internal Server Error"),
+            ),
+            pytest.raises(AbsApiError),
+        ):
+            client.search_books(title="Test")
+
+    def test_search_handles_non_list_response(
+        self,
+        client: AbsClient,
+    ) -> None:
+        """Test that non-list response returns empty list with warning."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"error": "unexpected format"}
+
+        with patch.object(client, "_request", return_value=mock_response):
+            results = client.search_books(title="Test")
+
+        # Should return empty list for unexpected response type
+        assert results == []

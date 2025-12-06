@@ -876,3 +876,279 @@ class TestResolveAsinFromFolderWithMediainfo:
             # Should only be called once for the .m4b file
             assert mock_run.call_count == 1
             assert result.asin == "B0AUDIOFIL"
+
+
+# =============================================================================
+# Phase 5: ABS Metadata Search Tests
+# =============================================================================
+
+
+class TestMatchSearchResults:
+    """Tests for match_search_results() fuzzy matching."""
+
+    def test_exact_title_match(self) -> None:
+        """Exact title match returns high confidence."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Wizard's First Rule",
+                "author": "Terry Goodkind",
+                "asin": "B002V0QK4C",
+                "language": "English",
+            }
+        ]
+
+        match = match_search_results(results, "Wizard's First Rule", "Terry Goodkind")
+        assert match is not None
+        assert match.asin == "B002V0QK4C"
+        assert match.confidence >= 0.9
+
+    def test_fuzzy_title_match(self) -> None:
+        """Fuzzy title match with minor differences."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Wizard's First Rule",
+                "author": "Terry Goodkind",
+                "asin": "B002V0QK4C",
+                "language": "English",
+            }
+        ]
+
+        # Slight variation in title
+        match = match_search_results(results, "Wizards First Rule", "Terry Goodkind")
+        assert match is not None
+        assert match.asin == "B002V0QK4C"
+        assert match.confidence >= 0.75
+
+    def test_no_match_below_threshold(self) -> None:
+        """No match returned when below confidence threshold."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Completely Different Book",
+                "author": "Other Author",
+                "asin": "B0DIFFERENT",
+                "language": "English",
+            }
+        ]
+
+        match = match_search_results(
+            results, "Wizard's First Rule", "Terry Goodkind", confidence_threshold=0.75
+        )
+        assert match is None
+
+    def test_prefers_english_results(self) -> None:
+        """English results preferred over translations."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Proyecto Hail Mary",
+                "author": "Andy Weir",
+                "asin": "8418037121",
+                "language": "Spanish",
+            },
+            {
+                "title": "Project Hail Mary",
+                "author": "Andy Weir",
+                "asin": "B08G9PRS1K",
+                "language": "English",
+            },
+        ]
+
+        match = match_search_results(results, "Project Hail Mary", "Andy Weir", prefer_english=True)
+        assert match is not None
+        assert match.asin == "B08G9PRS1K"  # English version
+
+    def test_empty_results_returns_none(self) -> None:
+        """Empty results list returns None."""
+        from mamfast.abs.asin import match_search_results
+
+        match = match_search_results([], "Any Title", "Any Author")
+        assert match is None
+
+    def test_skips_invalid_asin(self) -> None:
+        """Results with invalid ASIN are skipped."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Wizard's First Rule",
+                "author": "Terry Goodkind",
+                "asin": "INVALID",  # Not a valid ASIN
+                "language": "English",
+            }
+        ]
+
+        match = match_search_results(results, "Wizard's First Rule", "Terry Goodkind")
+        assert match is None
+
+    def test_extracts_series_info(self) -> None:
+        """Series info extracted from results."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Wizard's First Rule",
+                "author": "Terry Goodkind",
+                "asin": "B002V0QK4C",
+                "language": "English",
+                "series": [{"series": "Sword of Truth", "sequence": "1"}],
+            }
+        ]
+
+        match = match_search_results(results, "Wizard's First Rule", "Terry Goodkind")
+        assert match is not None
+        assert match.series == "Sword of Truth"
+        assert match.sequence == "1"
+
+    def test_handles_no_series(self) -> None:
+        """Books without series info handled gracefully."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Project Hail Mary",
+                "author": "Andy Weir",
+                "asin": "B08G9PRS1K",
+                "language": "English",
+                "series": None,
+            }
+        ]
+
+        match = match_search_results(results, "Project Hail Mary", "Andy Weir")
+        assert match is not None
+        assert match.series is None
+        assert match.sequence is None
+
+    def test_title_only_matching(self) -> None:
+        """Matching works with title only (no author)."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Project Hail Mary",
+                "author": "Andy Weir",
+                "asin": "B08G9PRS1K",
+                "language": "English",
+            }
+        ]
+
+        match = match_search_results(results, "Project Hail Mary", folder_author=None)
+        assert match is not None
+        assert match.asin == "B08G9PRS1K"
+
+
+class TestResolveAsinViaAbsSearch:
+    """Tests for resolve_asin_via_abs_search()."""
+
+    def test_successful_resolution(self) -> None:
+        """Successful ASIN resolution via search."""
+        from unittest.mock import MagicMock
+
+        from mamfast.abs.asin import resolve_asin_via_abs_search
+
+        mock_client = MagicMock()
+        mock_client.search_books.return_value = [
+            {
+                "title": "Wizard's First Rule",
+                "author": "Terry Goodkind",
+                "asin": "B002V0QK4C",
+                "language": "English",
+            }
+        ]
+
+        result = resolve_asin_via_abs_search(
+            mock_client, title="Wizard's First Rule", author="Terry Goodkind"
+        )
+
+        assert result.found is True
+        assert result.asin == "B002V0QK4C"
+        assert result.source == "abs_search"
+        assert "confidence=" in result.source_detail
+
+    def test_no_results_returns_unknown(self) -> None:
+        """No search results returns unknown."""
+        from unittest.mock import MagicMock
+
+        from mamfast.abs.asin import resolve_asin_via_abs_search
+
+        mock_client = MagicMock()
+        mock_client.search_books.return_value = []
+
+        result = resolve_asin_via_abs_search(
+            mock_client, title="Nonexistent Book", author="Unknown Author"
+        )
+
+        assert result.found is False
+        assert result.source == "unknown"
+
+    def test_search_error_returns_unknown(self) -> None:
+        """Search API error returns unknown."""
+        from unittest.mock import MagicMock
+
+        from mamfast.abs.asin import resolve_asin_via_abs_search
+
+        mock_client = MagicMock()
+        mock_client.search_books.side_effect = Exception("Connection failed")
+
+        result = resolve_asin_via_abs_search(mock_client, title="Any Title", author="Any Author")
+
+        assert result.found is False
+        assert result.source == "unknown"
+
+    def test_respects_confidence_threshold(self) -> None:
+        """Confidence threshold is respected."""
+        from unittest.mock import MagicMock
+
+        from mamfast.abs.asin import resolve_asin_via_abs_search
+
+        mock_client = MagicMock()
+        mock_client.search_books.return_value = [
+            {
+                "title": "Very Different Title",
+                "author": "Other Author",
+                "asin": "B0DIFFERENT",
+                "language": "English",
+            }
+        ]
+
+        # High threshold should reject poor match
+        result = resolve_asin_via_abs_search(
+            mock_client,
+            title="Wizard's First Rule",
+            author="Terry Goodkind",
+            confidence_threshold=0.9,
+        )
+
+        assert result.found is False
+
+
+class TestSearchMatch:
+    """Tests for SearchMatch dataclass."""
+
+    def test_search_match_fields(self) -> None:
+        """SearchMatch has expected fields."""
+        from mamfast.abs.asin import SearchMatch
+
+        match = SearchMatch(
+            asin="B002V0QK4C",
+            title="Wizard's First Rule",
+            author="Terry Goodkind",
+            confidence=0.95,
+            language="English",
+            series="Sword of Truth",
+            sequence="1",
+        )
+
+        assert match.asin == "B002V0QK4C"
+        assert match.title == "Wizard's First Rule"
+        assert match.author == "Terry Goodkind"
+        assert match.confidence == 0.95
+        assert match.language == "English"
+        assert match.series == "Sword of Truth"
+        assert match.sequence == "1"

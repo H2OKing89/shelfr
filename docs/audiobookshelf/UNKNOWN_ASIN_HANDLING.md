@@ -1,10 +1,10 @@
 # Unknown ASIN Handling Plan
 
-> **Document Version:** 4.0.0 | **Last Updated:** 2025-12-06 | **Status:** ✅ Phase 4 Complete
+> **Document Version:** 5.0.0 | **Last Updated:** 2025-12-06 | **Status:** ✅ Phase 5 Complete
 
 This document outlines the plan for handling audiobooks without ASINs during import.
 
-> **Scope:** Phases 1-4 are complete. Phase 5 is planned for future PRs.
+> **Scope:** Phases 1-5 are complete. All planned features implemented.
 
 ---
 
@@ -503,7 +503,7 @@ def extract_asin_from_mediainfo(audio_file: Path) -> str | None:
 
 ---
 
-### Phase 5: ABS Metadata Search (Future Enhancement)
+### Phase 5: ABS Metadata Search ✅ COMPLETE
 
 **Goal:** Last-resort ASIN resolution via Audiobookshelf's metadata search API.
 
@@ -513,10 +513,23 @@ def extract_asin_from_mediainfo(audio_file: Path) -> str | None:
 - Same API we already use for other operations
 - No need for separate Audible credentials or library dependencies
 
-**Keep completely separate from import path:**
+**CLI Command:**
 
 ```bash
-mamfast abs-resolve-asins --search-provider audible
+# Scan Unknown/ folder and search ABS for ASINs
+mamfast abs-resolve-asins
+
+# Specify custom path
+mamfast abs-resolve-asins --path /mnt/user/data/audiobooks/Unknown/
+
+# Set confidence threshold (default: 0.75)
+mamfast abs-resolve-asins --confidence 0.80
+
+# Write sidecar files with resolved ASINs
+mamfast abs-resolve-asins --write-sidecar
+
+# Preview mode (--dry-run is a global flag)
+mamfast --dry-run abs-resolve-asins
 ```
 
 **ABS Metadata Search Endpoint:**
@@ -543,57 +556,81 @@ Authorization: Bearer <ABS_TOKEN>
 ]
 ```
 
-**Implementation Sketch:**
+**Implementation (Actual):**
 
 ```python
-from mamfast.abs.client import AbsClient
+# abs/client.py - Search endpoint
+class AbsClient:
+    @retry_with_backoff(max_attempts=3, base_delay=2.0, exceptions=NETWORK_EXCEPTIONS)
+    def search_books(
+        self,
+        title: str,
+        author: str | None = None,
+        provider: str = "audible",
+    ) -> list[dict[str, Any]]:
+        """Search for books via ABS metadata provider."""
+        params = {"title": title, "provider": provider}
+        if author:
+            params["author"] = author
+        response = self._request("GET", "/api/search/books", params=params)
+        return response.json()
 
-@retry_with_backoff(max_attempts=3, base_delay=2.0, exceptions=NETWORK_EXCEPTIONS)
-def search_audible_via_abs(
+
+# abs/asin.py - Resolution with fuzzy matching
+@dataclass
+class SearchMatch:
+    """Result from ABS Audible search with confidence score."""
+    title: str
+    author: str | None
+    asin: str
+    confidence: float  # 0.0 to 1.0 (weighted: title 0.7, author 0.3)
+    raw_result: dict[str, Any]
+
+
+def resolve_asin_via_abs_search(
     client: AbsClient,
     title: str,
     author: str | None = None,
-) -> list[dict]:
-    """Search Audible metadata through ABS proxy."""
-    params = {"title": title, "provider": "audible"}
-    if author:
-        params["author"] = author
-
-    resp = client._client.get("/api/search/books", params=params)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def resolve_asin_from_abs_search(
-    client: AbsClient,
-    folder_name: str,
-    confidence_threshold: float = 0.85,
-) -> str | None:
-    """Try to resolve ASIN via ABS metadata search."""
-    # Parse folder name for search terms
-    title, author = parse_folder_for_search(folder_name)
-
-    results = search_audible_via_abs(client, title, author)
-    if not results:
-        return None
-
-    # Use fuzzy matching to find best match
-    best_match = find_best_match(results, title, author)
-    if best_match and best_match["confidence"] >= confidence_threshold:
-        return best_match["asin"]
-
-    return None
+    confidence_threshold: float = 0.75,
+) -> AsinResolution:
+    """Search Audible via ABS and return best match above threshold."""
+    results = client.search_books(title, author)
+    # Fuzzy match and return best result above confidence_threshold
+    # Uses similarity_ratio() from mamfast.utils.fuzzy
+    ...
 ```
 
 **Flow:**
-1. Scan `Unknown/` for MISSING_ASIN books (from sidecar or naming)
+1. Scan `Unknown/` for folders (or specify `--path`)
 2. Parse folder names for title/author search terms
 3. Call ABS `/api/search/books?provider=audible`
-4. Fuzzy-match results against original folder metadata
-5. When confidence high, write ASIN sidecar or rename folder to MAM-style
+4. Fuzzy-match results against original folder metadata (weighted confidence)
+5. When confidence ≥ threshold (default 0.75), optionally write sidecar
+
+**Sidecar Output (`_mamfast_resolved_asin.json`):**
+
+```json
+{
+  "asin": "B002V0QK4C",
+  "title": "Wizard's First Rule",
+  "author": "Terry Goodkind",
+  "confidence": 0.92,
+  "resolved_at": "2025-06-12T10:30:00Z",
+  "source": "abs_search"
+}
+```
+
+**Acceptance Criteria:**
+- [x] `AbsClient.search_books()` method with provider parameter
+- [x] `SearchMatch` dataclass with confidence scoring
+- [x] `resolve_asin_via_abs_search()` function with fuzzy matching
+- [x] `abs-resolve-asins` CLI command with path, confidence, write-sidecar flags
+- [x] Weighted confidence: title (0.7) + author (0.3)
+- [x] Tests for client search, SearchMatch, resolver, and CLI command
+- [x] Global `--dry-run` flag support
 
 **Advantages:**
-- **No new dependencies:** Uses existing `AbsClient`
+- **No new dependencies:** Uses existing `AbsClient` and `mamfast.utils.fuzzy`
 - **Unified auth:** Same API token we already configure
 - **Rate limiting:** ABS handles Audible API limits
 - **Caching:** ABS may cache responses (reduces external calls)

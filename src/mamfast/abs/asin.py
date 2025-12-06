@@ -597,3 +597,202 @@ def asin_exists(
     if entry:
         return True, entry.path
     return False, None
+
+
+# =============================================================================
+# Phase 5: ABS Metadata Search for ASIN Resolution
+# =============================================================================
+
+
+@dataclass
+class SearchMatch:
+    """Result of matching a search result against folder metadata."""
+
+    asin: str
+    title: str
+    author: str | None
+    confidence: float  # 0.0 to 1.0
+    language: str | None
+    series: str | None
+    sequence: str | None
+
+
+def _normalize_for_matching(s: str) -> str:
+    """Normalize a string for fuzzy matching.
+
+    Removes common noise like volume numbers, punctuation, etc.
+    """
+    import re
+
+    if not s:
+        return ""
+
+    result = s.lower()
+
+    # Remove volume/book indicators
+    result = re.sub(r"\b(vol\.?|volume|book|part)\s*\d+\b", "", result, flags=re.IGNORECASE)
+
+    # Remove series suffixes like ", Book 1" from subtitle
+    result = re.sub(r",\s*(book|vol\.?|volume)\s*\d+$", "", result, flags=re.IGNORECASE)
+
+    # Remove punctuation except hyphens (important for titles like "Re:Zero")
+    result = re.sub(r"[^\w\s-]", " ", result)
+
+    # Collapse whitespace
+    result = re.sub(r"\s+", " ", result).strip()
+
+    return result
+
+
+def match_search_results(
+    results: list[dict[str, Any]],
+    folder_title: str,
+    folder_author: str | None = None,
+    confidence_threshold: float = 0.75,
+    prefer_english: bool = True,
+) -> SearchMatch | None:
+    """Find the best matching search result for a folder.
+
+    Uses fuzzy matching to compare folder metadata against search results
+    and returns the best match above the confidence threshold.
+
+    Args:
+        results: Search results from AbsClient.search_books()
+        folder_title: Title extracted from folder name
+        folder_author: Author extracted from folder name (optional)
+        confidence_threshold: Minimum confidence (0-1) to accept a match
+        prefer_english: If True, prefer English results over translations
+
+    Returns:
+        SearchMatch if a good match found, None otherwise
+    """
+    from mamfast.utils.fuzzy import similarity_ratio
+
+    if not results:
+        return None
+
+    folder_title_norm = _normalize_for_matching(folder_title)
+    folder_author_norm = _normalize_for_matching(folder_author or "")
+
+    best_match: SearchMatch | None = None
+    best_score = 0.0
+
+    for result in results:
+        result_title = result.get("title", "")
+        result_author = result.get("author", "")
+        result_asin = result.get("asin", "")
+        result_language = result.get("language", "")
+
+        # Skip results without valid ASIN
+        if not result_asin or not is_valid_asin(result_asin):
+            continue
+
+        # Calculate title similarity
+        result_title_norm = _normalize_for_matching(result_title)
+        title_score = similarity_ratio(folder_title_norm, result_title_norm) / 100.0
+
+        # Calculate author similarity (if we have author to compare)
+        author_score = 1.0  # Default to perfect if no author to compare
+        if folder_author_norm:
+            result_author_norm = _normalize_for_matching(result_author)
+            author_score = similarity_ratio(folder_author_norm, result_author_norm) / 100.0
+
+        # Combined score (title weighted more heavily)
+        combined_score = (title_score * 0.7) + (author_score * 0.3)
+
+        # Bonus for English (if preferred)
+        if prefer_english and result_language and result_language.lower() == "english":
+            combined_score *= 1.05  # 5% bonus
+            combined_score = min(combined_score, 1.0)  # Cap at 1.0
+
+        # Penalty for non-English (to avoid Spanish translations, etc.)
+        if prefer_english and result_language and result_language.lower() not in ("english", ""):
+            combined_score *= 0.8  # 20% penalty
+
+        logger.debug(
+            f"Match candidate: {result_title!r} by {result_author!r} "
+            f"(ASIN={result_asin}, lang={result_language}, score={combined_score:.2f})"
+        )
+
+        if combined_score > best_score:
+            best_score = combined_score
+
+            # Extract series info
+            series_name = None
+            series_seq = None
+            series_list = result.get("series")
+            if series_list and isinstance(series_list, list) and len(series_list) > 0:
+                first_series = series_list[0]
+                if isinstance(first_series, dict):
+                    series_name = first_series.get("series")
+                    series_seq = first_series.get("sequence")
+
+            best_match = SearchMatch(
+                asin=result_asin,
+                title=result_title,
+                author=result_author,
+                confidence=combined_score,
+                language=result_language,
+                series=series_name,
+                sequence=series_seq,
+            )
+
+    # Only return if above threshold
+    if best_match and best_match.confidence >= confidence_threshold:
+        logger.info(
+            f"Best match: {best_match.title!r} (ASIN={best_match.asin}, "
+            f"confidence={best_match.confidence:.2f})"
+        )
+        return best_match
+
+    if best_match:
+        logger.debug(
+            f"Best match below threshold: {best_match.title!r} "
+            f"(confidence={best_match.confidence:.2f} < {confidence_threshold})"
+        )
+
+    return None
+
+
+def resolve_asin_via_abs_search(
+    client: AbsClient,
+    title: str,
+    author: str | None = None,
+    confidence_threshold: float = 0.75,
+) -> AsinResolution:
+    """Resolve ASIN by searching ABS metadata providers.
+
+    This is a last-resort ASIN resolution method that queries Audible
+    (via ABS) to find matching books. Should NOT be used in the hot
+    import path - use for batch resolution of Unknown/ books.
+
+    Args:
+        client: AbsClient instance
+        title: Book title to search for
+        author: Author name (improves match accuracy)
+        confidence_threshold: Minimum confidence (0-1) to accept a match
+
+    Returns:
+        AsinResolution with ASIN if found, source="abs_search"
+    """
+    try:
+        results = client.search_books(title=title, author=author, provider="audible")
+    except Exception as e:
+        logger.warning(f"ABS search failed for {title!r}: {e}")
+        return AsinResolution(asin=None, source="unknown")
+
+    match = match_search_results(
+        results,
+        folder_title=title,
+        folder_author=author,
+        confidence_threshold=confidence_threshold,
+    )
+
+    if match:
+        return AsinResolution(
+            asin=match.asin,
+            source="abs_search",
+            source_detail=f"{match.title} (confidence={match.confidence:.0%})",
+        )
+
+    return AsinResolution(asin=None, source="unknown")

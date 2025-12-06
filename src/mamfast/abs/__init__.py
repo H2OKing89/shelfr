@@ -6,6 +6,7 @@ from mamfast.abs.asin import (
     AUDIO_EXTENSIONS,
     AsinEntry,
     AsinSource,
+    SearchMatch,
     asin_exists,
     build_asin_index,
     extract_all_asins,
@@ -13,6 +14,8 @@ from mamfast.abs.asin import (
     extract_asin_from_abs_item,
     extract_asin_with_source,
     is_valid_asin,
+    match_search_results,
+    resolve_asin_via_abs_search,
 )
 from mamfast.abs.client import (
     AbsApiError,
@@ -49,6 +52,7 @@ __all__ = [
     "AUDIO_EXTENSIONS",
     "AsinEntry",
     "AsinSource",
+    "SearchMatch",
     "asin_exists",
     "build_asin_index",
     "extract_asin",
@@ -56,6 +60,8 @@ __all__ = [
     "extract_asin_with_source",
     "extract_all_asins",
     "is_valid_asin",
+    "match_search_results",
+    "resolve_asin_via_abs_search",
     # Client
     "AbsApiError",
     "AbsAuthError",
