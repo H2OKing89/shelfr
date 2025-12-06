@@ -200,6 +200,9 @@ class NamingConfig:
     # Title/subtitle normalization settings
     normalize_title_subtitle: bool = True  # Enable Audnex title/subtitle swap detection
     log_normalization_swaps: bool = True  # Log when swaps are detected
+    # Path truncation: order to drop components when path exceeds 225 chars
+    # Valid components: "arc", "author", "year" (dropped in order, first dropped first)
+    path_drop_priority: list[str] = field(default_factory=lambda: ["arc", "author", "year"])
 
 
 @dataclass
@@ -716,6 +719,10 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
         normalize_title_subtitle = normalization_data.get("enabled", True)
         log_normalization_swaps = normalization_data.get("log_swaps", True)
 
+        # Extract path truncation settings
+        path_truncation_data = data.get("path_truncation", {})
+        path_drop_priority = path_truncation_data.get("drop_priority", ["arc", "author", "year"])
+
         logger.debug(
             f"Loaded naming.json v{data.get('_version', '?')}: "
             f"{len(format_indicators)} format indicators, "
@@ -744,6 +751,7 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
             credit_roles=credit_roles,
             normalize_title_subtitle=normalize_title_subtitle,
             log_normalization_swaps=log_normalization_swaps,
+            path_drop_priority=path_drop_priority,
         )
 
     except (json.JSONDecodeError, OSError) as e:

@@ -144,6 +144,39 @@ class PreserveInJsonConfig(BaseModel):
         return v
 
 
+class PathTruncationConfig(BaseModel):
+    """
+    Configuration for what gets dropped when paths exceed MAM's 225-char limit.
+
+    The drop_priority list controls the order components are removed:
+    - Components are dropped from first to last until path fits
+    - "arc", "author", "year" are valid component names
+    - Series/title and ASIN are NEVER dropped (identity components)
+
+    Example:
+        drop_priority: ["arc", "author", "year"]  # Default: drop arc first, then author, then year
+        drop_priority: ["arc", "year", "author"]  # Keep author longer, drop year before author
+    """
+
+    drop_priority: list[str] = Field(
+        default=["arc", "author", "year"],
+        description="Order to drop components when path too long (first dropped first)",
+    )
+
+    @field_validator("drop_priority")
+    @classmethod
+    def validate_drop_priority(cls, v: list[str]) -> list[str]:
+        """Validate that only known components are listed."""
+        valid_components = {"arc", "author", "year"}
+        for comp in v:
+            if comp not in valid_components:
+                raise ValueError(
+                    f"Unknown drop_priority component '{comp}'. "
+                    f"Valid components: {sorted(valid_components)}"
+                )
+        return v
+
+
 class NamingSchema(BaseModel):
     """
     Pydantic schema for naming.json validation.
@@ -196,6 +229,9 @@ class NamingSchema(BaseModel):
 
     # Patterns preserved in JSON but removed from folder/file names
     preserve_in_json: PreserveInJsonConfig = Field(default_factory=PreserveInJsonConfig)
+
+    # Path truncation settings (what gets dropped when path exceeds 225 chars)
+    path_truncation: PathTruncationConfig = Field(default_factory=PathTruncationConfig)
 
     @field_validator("author_map")
     @classmethod

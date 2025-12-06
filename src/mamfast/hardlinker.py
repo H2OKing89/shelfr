@@ -14,13 +14,87 @@ import os
 from pathlib import Path
 
 from mamfast.config import get_settings
-from mamfast.models import AudiobookRelease
+from mamfast.models import AudiobookRelease, MamPath
 from mamfast.utils.naming import (
     build_mam_path,
     extract_volume_number,
+    resolve_series,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def compute_staging_path(release: AudiobookRelease) -> MamPath:
+    """
+    Compute the MAM-compliant staging path for a release (without side effects).
+
+    This is a pure function that computes what the staging path would be,
+    used by both stage_release() and dry-run mode.
+
+    Args:
+        release: AudiobookRelease to compute path for
+
+    Returns:
+        MamPath with folder and filename
+
+    Raises:
+        ValueError: If release has no source_dir or ASIN
+    """
+    settings = get_settings()
+
+    if release.source_dir is None:
+        raise ValueError("Release has no source_dir set")
+
+    if not release.asin:
+        raise ValueError(f"Release '{release.display_name}' has no ASIN - required for MAM staging")
+
+    # Extract volume number from series_position or filename
+    volume_number = extract_volume_number(release.title, series_position=release.series_position)
+
+    # Resolve series info from multiple sources if not already set
+    # This handles new releases where Audible/Libation didn't have series metadata
+    # Priority: release.series (from Libation) → resolve_series (Libation path → title heuristics)
+    series_name = release.series
+    if not series_name:
+        series_info = resolve_series(
+            audnex_data=None,  # Not available at staging time
+            libation_path=release.source_dir,
+            title=release.title,
+        )
+        if series_info:
+            series_name = series_info.name
+            # Also use resolved volume number if we didn't have one
+            if not volume_number and series_info.position:
+                volume_number = series_info.position
+            logger.debug(
+                "Resolved series from %s: %s #%s",
+                series_info.source.value,
+                series_name,
+                volume_number or "N/A",
+            )
+
+    # Count how many audio files we have (for multi-part budget calculation)
+    # Use glob (not rglob) since we only process files in this folder, not recursive
+    m4b_count = sum(1 for f in release.source_dir.glob("*.m4b"))
+    part_count = max(1, m4b_count)
+
+    # Build MAM-compliant path using the new Phase 8 function
+    # This ensures folder + filename combined fit within 225 chars
+    mam_path = build_mam_path(
+        series=series_name,
+        title=release.title,
+        volume_number=volume_number,
+        arc=None,  # Arc extraction not yet implemented
+        year=release.year,
+        author=release.author,
+        asin=release.asin,
+        ripper_tag=settings.naming.ripper_tag if settings.naming else None,
+        part_count=part_count,
+        naming_config=settings.naming,
+        max_path_length=settings.mam.max_filename_length,
+    )
+
+    return mam_path
 
 
 def stage_release(release: AudiobookRelease) -> Path:
@@ -51,33 +125,8 @@ def stage_release(release: AudiobookRelease) -> Path:
     seed_root = settings.paths.seed_root
     seed_root.mkdir(parents=True, exist_ok=True)
 
-    # Extract volume number from series_position or filename
-    volume_number = extract_volume_number(release.title, series_position=release.series_position)
-
-    # Count how many audio files we have (for multi-part budget calculation)
-    # Use glob (not rglob) since we only process files in this folder, not recursive
-    m4b_count = sum(1 for f in release.source_dir.glob("*.m4b"))
-    part_count = max(1, m4b_count)
-
-    # ASIN is required for MAM-compliant paths
-    if not release.asin:
-        raise ValueError(f"Release '{release.display_name}' has no ASIN - required for MAM staging")
-
-    # Build MAM-compliant path using the new Phase 8 function
-    # This ensures folder + filename combined fit within 225 chars
-    mam_path = build_mam_path(
-        series=release.series,
-        title=release.title,
-        volume_number=volume_number,
-        arc=None,  # Arc extraction not yet implemented
-        year=release.year,
-        author=release.author,
-        asin=release.asin,
-        ripper_tag=settings.naming.ripper_tag if settings.naming else None,
-        part_count=part_count,
-        naming_config=settings.naming,
-        max_path_length=settings.mam.max_filename_length,
-    )
+    # Compute MAM-compliant path (validates ASIN, resolves series, etc.)
+    mam_path = compute_staging_path(release)
 
     # Log truncation info if any
     if mam_path.truncated:

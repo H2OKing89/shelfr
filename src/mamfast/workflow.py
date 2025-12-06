@@ -34,7 +34,7 @@ from mamfast.console import (
     print_workflow_summary,
     render_libation_status,
 )
-from mamfast.hardlinker import stage_release
+from mamfast.hardlinker import compute_staging_path, stage_release
 from mamfast.libation import get_libation_status, run_liberate, run_scan
 from mamfast.metadata import fetch_metadata, generate_mam_json_for_release
 from mamfast.mkbrr import create_torrent
@@ -625,11 +625,18 @@ def full_run(
             # Show detailed dry-run info for each step
             print_dry_run("Steps that would be performed:")
 
-            # Step 1: Stage
+            # Step 1: Stage - compute actual staging path (same logic as real run)
             if release.source_dir:
-                staging_name = release.source_dir.name
                 seed_root = settings.paths.seed_root
-                print_dry_run(f"STAGE → {seed_root / staging_name}")
+                try:
+                    mam_path = compute_staging_path(release)
+                    staging_dir = seed_root / mam_path.folder
+                    print_dry_run(f"STAGE → {staging_dir}")
+                    if mam_path.truncated:
+                        print_dry_run(f"  (truncated: dropped {mam_path.dropped_components})")
+                except ValueError as e:
+                    # Missing ASIN or source_dir
+                    print_dry_run(f"STAGE → Error: {e}")
 
             # Step 2: Metadata
             if not skip_metadata:

@@ -1149,6 +1149,16 @@ def truncate_filename(
     """
     Truncate filename to max_length while preserving readability.
 
+    **WARNING**: This function is NOT MAM path-aware. It truncates individual
+    filenames without considering the full path budget (folder + filename must
+    be ≤225 chars together). For MAM-compliant paths, use `build_mam_path()`
+    instead, which handles the combined length budget correctly.
+
+    This function is suitable for:
+    - Generic filesystem operations outside MAM context
+    - Single component truncation where path budget isn't a concern
+    - Legacy compatibility
+
     Strategy:
     1. If name fits, return as-is
     2. Preserve file extension
@@ -1341,6 +1351,12 @@ def build_mam_folder_name(
     """
     Build a MAM-compliant folder name for staging.
 
+    This is a convenience wrapper around build_mam_path() that returns just the folder name.
+    For full path control (folder + filename), use build_mam_path() directly.
+
+    Note: When max_length is less than 225, this function uses folder-only mode
+    where max_length is the maximum folder length (not the full path budget).
+
     Schema for series books:
         {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
 
@@ -1354,65 +1370,30 @@ def build_mam_folder_name(
         arc: Arc/subtitle name (optional, e.g., "Aincrad")
         year: Release year (4 digits)
         author: Primary author name (cleaned)
-        asin: Amazon ASIN
+        asin: Amazon ASIN (optional - if None, ASIN component is omitted)
         ripper_tag: Optional ripper tag (e.g., "H2OKing")
         naming_config: NamingConfig for cleaning rules
-        max_length: Maximum filename length (default: 225 for MAM)
+        max_length: Maximum folder length (default: 225 for MAM)
 
     Returns:
         Sanitized folder name within length limit
     """
-    # Clean inputs - use filter_series() for series to apply series-specific patterns
-    # (e.g., remove " Series", " Trilogy", "[publication order]" suffixes)
-    clean_series = filter_series(series, naming_config=naming_config) if series else None
-    clean_title = (
-        filter_title(title, naming_config=naming_config, keep_volume=False) if title else ""
+    # Delegate to build_mam_path for centralized logic
+    # Use folder_max_length for folder-only truncation
+    mam_path = build_mam_path(
+        series=series,
+        title=title,
+        volume_number=volume_number,
+        arc=arc,
+        year=year,
+        author=author,
+        asin=asin,
+        ripper_tag=ripper_tag,
+        naming_config=naming_config,
+        max_path_length=MAM_MAX_PATH_LENGTH,  # Always use full budget
+        folder_max_length=max_length,  # But constrain folder separately
     )
-
-    # Inherit "The" prefix from title to series if series lacks it
-    # (e.g., title="The Great Cleric", series="Great Cleric" -> series="The Great Cleric")
-    clean_series = inherit_the_prefix(clean_series, clean_title)
-
-    clean_arc = filter_title(arc, naming_config=naming_config, keep_volume=False) if arc else None
-    clean_author = sanitize_filename(author) if author else None
-
-    # Format volume
-    vol_str = format_volume_number(volume_number)
-
-    # Format ASIN
-    asin_str = f"{{ASIN.{asin}}}" if asin else ""
-
-    # Format ripper tag
-    tag_str = f"[{ripper_tag}]" if ripper_tag else ""
-
-    # Build the name based on whether it's a series or standalone
-    if clean_series and vol_str:
-        # Series book: {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN} [{Tag}]
-        base_name = _build_series_folder_name(
-            series=clean_series,
-            vol_str=vol_str,
-            arc=clean_arc,
-            year=year,
-            author=clean_author,
-            asin_str=asin_str,
-            tag_str=tag_str,
-            max_length=max_length,
-        )
-    else:
-        # Standalone book: {Title} ({Year}) ({Author}) {ASIN} [{Tag}]
-        base_name = _build_standalone_folder_name(
-            title=clean_title,
-            year=year,
-            author=clean_author,
-            asin_str=asin_str,
-            tag_str=tag_str,
-            max_length=max_length,
-        )
-
-    # Final sanitization (MAM-specific + cross-platform safety)
-    from mamfast.utils.paths import safe_dirname
-
-    return safe_dirname(sanitize_filename(base_name), max_length=max_length)
+    return mam_path.folder
 
 
 def _build_series_folder_name(
@@ -1602,6 +1583,9 @@ def build_mam_file_name(
     """
     Build a MAM-compliant file name (without ripper tag).
 
+    This is a convenience wrapper around build_mam_path() that returns just the filename.
+    For full path control (folder + filename), use build_mam_path() directly.
+
     Same schema as folder name but:
     - No ripper tag (only on folder)
     - Includes file extension
@@ -1613,7 +1597,7 @@ def build_mam_file_name(
         arc: Arc/subtitle name
         year: Release year
         author: Primary author name
-        asin: Amazon ASIN
+        asin: Amazon ASIN (optional - if None, ASIN component is omitted)
         extension: File extension (default: ".m4b")
         naming_config: NamingConfig for cleaning rules
         max_length: Maximum filename length
@@ -1625,11 +1609,8 @@ def build_mam_file_name(
     if extension and not extension.startswith("."):
         extension = f".{extension}"
 
-    # Reserve space for extension
-    name_max_length = max_length - len(extension)
-
-    # Build folder name without ripper tag
-    base_name = build_mam_folder_name(
+    # Delegate to build_mam_path for centralized logic (no ripper tag for filename)
+    mam_path = build_mam_path(
         series=series,
         title=title,
         volume_number=volume_number,
@@ -1638,14 +1619,11 @@ def build_mam_file_name(
         author=author,
         asin=asin,
         ripper_tag=None,  # No tag on filename
+        extension=extension,
         naming_config=naming_config,
-        max_length=name_max_length,
+        max_path_length=max_length,
     )
-
-    # Final safety net (base_name already safe from build_mam_folder_name)
-    from mamfast.utils.paths import safe_filename
-
-    return safe_filename(f"{base_name}{extension}", max_length=max_length)
+    return mam_path.filename
 
 
 # =============================================================================
@@ -1752,17 +1730,15 @@ def _build_truncated_base_name(
     author: str | None,
     asin_str: str,
     max_length: int,
+    naming_config: NamingConfig | None = None,
 ) -> tuple[str, bool, list[str]]:
     """
     Build a base name that fits within max_length, dropping components as needed.
 
-    Drop priority (lowest priority dropped first):
-    1. {Arc} - drop first
-    2. ({Author}) - drop second
-    3. ({Year}) - drop third
-    4. Series truncation with "..." - last resort
+    Drop priority is configurable via naming_config.path_drop_priority.
+    Default order: ["arc", "author", "year"]
 
-    {Series}, vol_{NN}, and {ASIN} are NEVER dropped.
+    {Series}, vol_{NN}, and {ASIN} are NEVER dropped (identity components).
 
     Args:
         series: Series name (cleaned)
@@ -1771,13 +1747,21 @@ def _build_truncated_base_name(
         arc: Arc/subtitle name (optional)
         year: Release year (4 digits)
         author: Author name (cleaned)
-        asin_str: Formatted ASIN string (e.g., "{ASIN.B0123}")
+        asin_str: Formatted ASIN string (e.g., "{ASIN.B0123}") or empty string
         max_length: Maximum allowed base name length
+        naming_config: NamingConfig with path_drop_priority
 
     Returns:
         Tuple of (base_name, truncated, dropped_components)
     """
     dropped: list[str] = []
+
+    # Get drop priority from config or use default
+    drop_order = (
+        naming_config.path_drop_priority
+        if naming_config and naming_config.path_drop_priority
+        else ["arc", "author", "year"]
+    )
 
     # Determine if this is a series or standalone book
     is_series = bool(series and vol_str)
@@ -1807,7 +1791,8 @@ def _build_truncated_base_name(
         if include_author and author:
             parts.append(f"({author})")
 
-        parts.append(asin_str)
+        if asin_str:
+            parts.append(asin_str)
         return " ".join(parts)
 
     # Try with all components
@@ -1815,34 +1800,36 @@ def _build_truncated_base_name(
     if len(base) <= max_length:
         return base, False, dropped
 
-    # Drop arc first
-    if use_arc:
-        dropped.append("arc")
-        base = build_base(include_arc=False, include_author=use_author, include_year=use_year)
-        if len(base) <= max_length:
-            return base, True, dropped
+    # Drop components in configured priority order
+    for drop_label in drop_order:
+        if drop_label == "arc" and use_arc:
+            use_arc = False
+            dropped.append("arc")
+        elif drop_label == "author" and use_author:
+            use_author = False
+            dropped.append("author")
+        elif drop_label == "year" and use_year:
+            use_year = False
+            dropped.append("year")
+        else:
+            continue
 
-    # Drop author second
-    if use_author:
-        dropped.append("author")
-        base = build_base(include_arc=False, include_author=False, include_year=use_year)
-        if len(base) <= max_length:
-            return base, True, dropped
-
-    # Drop year third
-    if use_year:
-        dropped.append("year")
-        base = build_base(include_arc=False, include_author=False, include_year=False)
+        base = build_base(include_arc=use_arc, include_author=use_author, include_year=use_year)
         if len(base) <= max_length:
             return base, True, dropped
 
     # Last resort: truncate series/title with "..."
     # Base without optionals: "{series} {vol_str} {asin_str}" or "{title} {asin_str}"
     if is_series:
-        suffix = f" {vol_str} {asin_str}"
+        suffix_parts: list[str] = []
+        if vol_str:
+            suffix_parts.append(vol_str)
+        if asin_str:
+            suffix_parts.append(asin_str)
+        suffix = " " + " ".join(suffix_parts) if suffix_parts else ""
         identity_to_truncate = series  # We know series is not None when is_series is True
     else:
-        suffix = f" {asin_str}"
+        suffix = f" {asin_str}" if asin_str else ""
         identity_to_truncate = title
 
     # At this point identity_to_truncate is guaranteed to be a string
@@ -1854,13 +1841,18 @@ def _build_truncated_base_name(
         dropped.append("series_truncated")
         truncated_identity = identity_to_truncate[:available_for_identity] + "..."
         if is_series:
-            base = f"{truncated_identity} {vol_str} {asin_str}"
+            # vol_str is guaranteed to be not None when is_series is True
+            assert vol_str is not None
+            parts: list[str] = [truncated_identity, vol_str]
+            if asin_str:
+                parts.append(asin_str)
+            base = " ".join(parts)
         else:
-            base = f"{truncated_identity} {asin_str}"
+            base = f"{truncated_identity} {asin_str}" if asin_str else truncated_identity
 
         logger.warning(
             "Series/title truncation triggered for %s: '%s' -> '%s...' (%d chars available)",
-            asin_str,
+            asin_str or "no-asin",
             identity_to_truncate,
             identity_to_truncate[:available_for_identity],
             available_for_identity,
@@ -1871,14 +1863,21 @@ def _build_truncated_base_name(
     logger.error(
         "Cannot fit base name in %d chars for %s - returning truncated identity",
         max_length,
-        asin_str,
+        asin_str or "no-asin",
     )
     dropped.append("emergency_truncation")
-    return (
-        f"{identity_to_truncate[: max_length - len(asin_str) - 4]}... {asin_str}"[:max_length],
-        True,
-        dropped,
-    )
+    if asin_str:
+        return (
+            f"{identity_to_truncate[: max_length - len(asin_str) - 4]}... {asin_str}"[:max_length],
+            True,
+            dropped,
+        )
+    else:
+        return (
+            f"{identity_to_truncate[: max_length - 3]}..."[:max_length],
+            True,
+            dropped,
+        )
 
 
 def build_mam_path(
@@ -1889,12 +1888,13 @@ def build_mam_path(
     arc: str | None = None,
     year: str | None = None,
     author: str | None = None,
-    asin: str,
+    asin: str | None = None,
     ripper_tag: str | None = None,
     extension: str = ".m4b",
     part_count: int = 1,
     naming_config: NamingConfig | None = None,
     max_path_length: int = MAM_MAX_PATH_LENGTH,
+    folder_max_length: int | None = None,
 ) -> MamPath:
     """
     Build folder and filename ensuring combined path ≤ max_path_length.
@@ -1914,12 +1914,13 @@ def build_mam_path(
         arc: Arc/subtitle name (optional, e.g., "Aincrad")
         year: Release year (4 digits)
         author: Primary author name (cleaned)
-        asin: Amazon ASIN (REQUIRED for MAM)
+        asin: Amazon ASIN (optional - if None, ASIN component is omitted from path)
         ripper_tag: Optional ripper tag (e.g., "H2OKing")
         extension: File extension (default: ".m4b")
         part_count: Number of parts (>1 adjusts budget for " - Part XX")
         naming_config: NamingConfig for cleaning rules
         max_path_length: Maximum path length (default: 225 for MAM)
+        folder_max_length: Optional constraint on folder length only (for legacy callers)
 
     Returns:
         MamPath with folder, filename, and truncation metadata
@@ -1947,18 +1948,27 @@ def build_mam_path(
     # Format volume
     vol_str = format_volume_number(volume_number)
 
-    # Format ASIN (required for MAM)
+    # Format ASIN (optional - if None, omit ASIN component)
     # Pre-sanitize ASIN to ensure it doesn't introduce characters needing expansion later
-    clean_asin = sanitize_filename(asin) if asin else asin
-    asin_str = f"{{ASIN.{clean_asin}}}"
+    clean_asin = sanitize_filename(asin) if asin else None
+    asin_str = f"{{ASIN.{clean_asin}}}" if clean_asin else ""
 
-    # Calculate max base length using the budget formula
-    max_base_len = _calculate_max_base_length(
-        ripper_tag=ripper_tag,
-        extension=extension,
-        part_count=part_count,
-        max_path_length=max_path_length,
-    )
+    # Calculate max base length
+    # If folder_max_length is set, derive base length from folder constraint
+    # Otherwise use the path budget formula
+    if folder_max_length is not None:
+        # Folder = "{base} [{tag}]" or just "{base}"
+        # Derive max_base from folder constraint
+        tag_overhead = len(f" [{ripper_tag}]") if ripper_tag else 0
+        max_base_len = folder_max_length - tag_overhead
+    else:
+        # Use path budget formula
+        max_base_len = _calculate_max_base_length(
+            ripper_tag=ripper_tag,
+            extension=extension,
+            part_count=part_count,
+            max_path_length=max_path_length,
+        )
 
     # Build the base name (with truncation if needed)
     base_name, truncated, dropped = _build_truncated_base_name(
@@ -1970,6 +1980,7 @@ def build_mam_path(
         author=clean_author,
         asin_str=asin_str,
         max_length=max_base_len,
+        naming_config=naming_config,
     )
 
     # Sanitize the base name (can increase length: e.g., ':' -> ' -')
@@ -2032,35 +2043,48 @@ def build_mam_path(
 
 # Pre-compiled patterns for extracting series from title
 # Order matters: more specific patterns first
+#
+# Patterns allow optional trailing content after the volume number:
+# - Parenthetical content: "(Light Novel)", "(Unabridged)"
+# - Subtitles after colon/dash: ": A Subtitle", "– The Continuation"
+#
+# Examples that will match:
+# - "I'm the Evil Lord of an Intergalactic Empire!, Vol. 5 (Light Novel)"
+# - "Black Summoner, Volume 4: The Legend Continues"
+# - "Some Series, Vol. 3 – A Subtitle"
+# - "Series Name Volume 5 (Unabridged)"
 _SERIES_FROM_TITLE_PATTERNS: list[re.Pattern[str]] = [
-    # "Series Name, Vol. 5" or "Series Name, Volume 5"
+    # "Series Name, Vol. 5" or "Series Name, Volume 5" (with optional trailing content)
     re.compile(
-        r"^(?P<series>.+?),\s*(?:Vol\.?|Volume)\s*(?P<num>\d+(?:\.\d+)?)$",
+        r"^(?P<series>.+?),\s*(?:Vol\.?|Volume)\s*(?P<num>\d+(?:\.\d+)?)"
+        r"(?:\s*\([^)]*\))?(?:\s*[:\-–—].+)?$",
         re.IGNORECASE,
     ),
-    # "Series Name: Volume 5" or "Series Name: Vol. 5"
+    # "Series Name: Volume 5" or "Series Name: Vol. 5" (with optional trailing content)
     re.compile(
-        r"^(?P<series>.+?):\s*(?:Vol\.?|Volume)\s*(?P<num>\d+(?:\.\d+)?)$",
+        r"^(?P<series>.+?):\s*(?:Vol\.?|Volume)\s*(?P<num>\d+(?:\.\d+)?)"
+        r"(?:\s*\([^)]*\))?(?:\s*[:\-–—].+)?$",
         re.IGNORECASE,
     ),
-    # "Series Name, Book 5"
+    # "Series Name, Book 5" (with optional trailing content)
     re.compile(
-        r"^(?P<series>.+?),\s*Book\s*(?P<num>\d+(?:\.\d+)?)$",
+        r"^(?P<series>.+?),\s*Book\s*(?P<num>\d+(?:\.\d+)?)" r"(?:\s*\([^)]*\))?(?:\s*[:\-–—].+)?$",
         re.IGNORECASE,
     ),
-    # "Series Name: Book 5"
+    # "Series Name: Book 5" (with optional trailing content)
     re.compile(
-        r"^(?P<series>.+?):\s*Book\s*(?P<num>\d+(?:\.\d+)?)$",
+        r"^(?P<series>.+?):\s*Book\s*(?P<num>\d+(?:\.\d+)?)" r"(?:\s*\([^)]*\))?(?:\s*[:\-–—].+)?$",
         re.IGNORECASE,
     ),
-    # "Series Name Vol. 5" (no comma/colon)
+    # "Series Name Vol. 5" (no comma/colon, with optional trailing content)
     re.compile(
-        r"^(?P<series>.+?)\s+(?:Vol\.?|Volume)\s*(?P<num>\d+(?:\.\d+)?)$",
+        r"^(?P<series>.+?)\s+(?:Vol\.?|Volume)\s*(?P<num>\d+(?:\.\d+)?)"
+        r"(?:\s*\([^)]*\))?(?:\s*[:\-–—].+)?$",
         re.IGNORECASE,
     ),
-    # "Series Name Book 5" (no comma/colon)
+    # "Series Name Book 5" (no comma/colon, with optional trailing content)
     re.compile(
-        r"^(?P<series>.+?)\s+Book\s*(?P<num>\d+(?:\.\d+)?)$",
+        r"^(?P<series>.+?)\s+Book\s*(?P<num>\d+(?:\.\d+)?)" r"(?:\s*\([^)]*\))?(?:\s*[:\-–—].+)?$",
         re.IGNORECASE,
     ),
     # "Series Name 5" (just trailing number) - low confidence
@@ -2127,8 +2151,9 @@ def parse_series_from_libation_path(
     If there's no series folder, the structure is:
         Author/BookTitle (Year) (Author) {ASIN.XXX} [Source]/
 
-    The key differentiator: books IN a series have "vol_XX" in the folder name.
-    If there's no vol_XX, the parent folder is likely the author, not series.
+    This function scans upward from the book folder, checking each parent
+    to see if it looks like a series folder. This handles potential future
+    structures like "Author/Universe/Series/Book".
 
     Args:
         libation_path: Full path to the book folder
@@ -2141,46 +2166,140 @@ def parse_series_from_libation_path(
         return None
 
     # Get path parts
-    parts = libation_path.parts
+    parts = list(libation_path.parts)
 
-    # We need at least Author/Series/Book (3 levels from library root)
-    # But we don't know where library root is, so look for patterns
-    if len(parts) < 3:
+    # We need at least Author/Book (2 levels) to have any series detection
+    if len(parts) < 2:
         return None
 
     # The innermost folder is the book folder
     book_folder = book_folder_name or parts[-1]
 
-    # Key insight from Libation template:
-    # - With series: "Book vol_XX (Year) (Author) {ASIN}" - has vol_XX
-    # - Without series: "Book (Year) (Author) {ASIN}" - no vol_XX
-    #
-    # If the book folder doesn't have vol_XX, Libation didn't know about a series,
-    # so the parent folder is the author, not a series folder.
-    vol_match = _VOL_FROM_NAME_PATTERN.search(book_folder)
-    if not vol_match:
-        # No vol_XX means no series folder - parent is author
+    def is_series_folder(candidate: str) -> bool:
+        """Check if a folder name looks like a series folder (not book or author)."""
+        # Series folders typically:
+        # - Don't have ASIN tags
+        # - Don't have year in parens
+        # - Don't have vol_XX
+        # - Don't appear as the author in the book folder name
+        series_indicators = [
+            "{ASIN." not in candidate,
+            "[ASIN." not in candidate,
+            not re.search(r"\(\d{4}\)", candidate),  # No (Year)
+            "vol_" not in candidate.lower(),
+        ]
+
+        # Check if candidate is the author folder
+        # Libation format includes "(Author)" in book folder name
+        author_pattern = re.compile(
+            rf"\({re.escape(candidate)}\)",
+            re.IGNORECASE,
+        )
+        is_author = bool(author_pattern.search(book_folder))
+
+        return all(series_indicators) and not is_author
+
+    # Scan upward from parent toward root, find first series-like folder
+    # Start at -2 (parent) and go up, but stop before hitting potential mount points
+    # (we don't want to match things like "audiobooks" or "library")
+    for idx in range(len(parts) - 2, max(len(parts) - 5, -1), -1):
+        candidate = parts[idx]
+
+        # Skip very short names (likely mount points or root dirs)
+        if len(candidate) < 2:
+            continue
+
+        # Skip common library root folder names and patterns
+        # Use lowercase for comparison
+        lower_candidate = candidate.lower()
+
+        # Exact matches for common root/library folders
+        common_roots = {
+            "audiobooks",
+            "audiobook",
+            "library",
+            "books",
+            "media",
+            "audio",
+            "data",
+            "libation",
+            "import",
+            "incoming",
+            "downloads",
+            "completed",
+            "staging",
+            "upload",
+        }
+        if lower_candidate in common_roots:
+            continue
+
+        # Pattern matches for compound folder names
+        # Skip folders containing these as part of their name
+        skip_patterns = (
+            "audiobook",  # matches "audiobook-import", "audiobooks_new", etc.
+            "library",
+            "import",
+            "download",
+            "staging",
+            "incoming",
+        )
+        if any(pattern in lower_candidate for pattern in skip_patterns):
+            continue
+
+        if is_series_folder(candidate):
+            series_name = candidate.strip()
+
+            # Try to extract volume from book folder name
+            position = None
+            vol_match = _VOL_FROM_NAME_PATTERN.search(book_folder)
+            if vol_match:
+                position = vol_match.group(1)
+
+            return (series_name, position)
+
+    return None
+
+
+# Keep original simple logic as fallback (used internally for testing)
+def _parse_series_from_libation_path_simple(
+    libation_path: Path | None,
+    book_folder_name: str | None = None,
+) -> tuple[str, str | None] | None:
+    """
+    Simple/original series extraction from Libation path.
+
+    Only checks immediate parent folder (parts[-2]).
+    Kept for backwards compatibility and testing.
+    """
+    if not libation_path:
         return None
 
-    # The parent could be series or author
+    parts = libation_path.parts
+    if len(parts) < 3:
+        return None
+
+    book_folder = book_folder_name or parts[-1]
     potential_series = parts[-2]
 
-    # Check if potential_series looks like a series folder (not a book folder)
-    # Series folders typically:
-    # - Don't have ASIN tags
-    # - Don't have year in parens
-    # - Don't have vol_XX
     series_indicators = [
         "{ASIN." not in potential_series,
         "[ASIN." not in potential_series,
-        not re.search(r"\(\d{4}\)", potential_series),  # No (Year)
+        not re.search(r"\(\d{4}\)", potential_series),
         "vol_" not in potential_series.lower(),
     ]
 
-    # If all indicators suggest it's a series folder
-    if all(series_indicators):
+    author_pattern = re.compile(
+        rf"\({re.escape(potential_series)}\)",
+        re.IGNORECASE,
+    )
+    is_author_folder = bool(author_pattern.search(book_folder))
+
+    if all(series_indicators) and not is_author_folder:
         series_name = potential_series.strip()
-        position = vol_match.group(1)
+        position = None
+        vol_match = _VOL_FROM_NAME_PATTERN.search(book_folder)
+        if vol_match:
+            position = vol_match.group(1)
 
         return (series_name, position)
 
