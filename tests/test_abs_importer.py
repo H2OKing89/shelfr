@@ -726,6 +726,15 @@ class TestBatchImportResult:
 
         assert batch.failed_count == 1
 
+    def test_add_skipped(self) -> None:
+        """Add skipped result updates count."""
+        batch = BatchImportResult()
+        batch.add(ImportResult(Path("/a"), None, None, "skipped", "user skipped"))
+
+        assert batch.skipped_count == 1
+        assert batch.success_count == 0
+        assert batch.failed_count == 0
+
     def test_tracks_all_results(self) -> None:
         """All results are stored in list."""
         batch = BatchImportResult()
@@ -733,6 +742,28 @@ class TestBatchImportResult:
             batch.add(ImportResult(Path(f"/{i}"), Path(f"/t{i}"), f"B0{i}", "success"))
 
         assert len(batch.results) == 5
+
+
+class TestErrorClasses:
+    """Tests for custom error classes."""
+
+    def test_duplicate_error(self) -> None:
+        """Test DuplicateError has expected attributes."""
+        from mamfast.abs.importer import DuplicateError
+
+        err = DuplicateError("B0123456789", "/path/to/existing")
+        assert err.asin == "B0123456789"
+        assert err.existing_path == "/path/to/existing"
+        assert "B0123456789" in str(err)
+        assert "/path/to/existing" in str(err)
+
+    def test_filesystem_mismatch_error(self) -> None:
+        """Test FilesystemMismatchError can be raised."""
+        from mamfast.abs.importer import FilesystemMismatchError
+
+        err = FilesystemMismatchError("Staging and library are on different filesystems")
+        assert isinstance(err, Exception)
+        assert "filesystem" in str(err).lower() or "Staging" in str(err)
 
 
 # =============================================================================
