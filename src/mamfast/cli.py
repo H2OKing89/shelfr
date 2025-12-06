@@ -1995,11 +1995,11 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
 
         # Legend for status tags
         console.print("[dim]Legend:[/dim]")
-        console.print("  [bold green][ASIN][/bold green]     Matched by ASIN in ABS index")
-        console.print("  [bold yellow][NO-ASIN][/bold yellow] No ASIN; imported under Unknown/")
+        console.print("  [bold green][ASIN][/bold green]      Matched by ASIN in ABS index")
+        console.print("  [bold yellow][NO-ASIN][/bold yellow]  No ASIN; routed to Unknown/")
         console.print(
-            "  [bold magenta][HEUR][/bold magenta]     "
-            "Heuristic path (no ASIN/series; needs review)"
+            "  [bold magenta][HEUR][/bold magenta]      "
+            "Heuristic path (no ASIN; guessed author/structure)"
         )
         console.print()
 
