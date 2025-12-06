@@ -1,21 +1,33 @@
 # Unknown ASIN Handling Plan
 
-> **Document Version:** 2.0.0 | **Last Updated:** 2025-12-05 | **Status:** ✅ Phase 2 Complete
+> **Document Version:** 3.0.0 | **Last Updated:** 2025-07-01 | **Status:** ✅ Phase 3 Complete
 
 This document outlines the plan for handling audiobooks without ASINs during import.
 
-> **Scope:** Phases 1-2 are complete. Phases 3-5 are planned for future PRs.
+> **Scope:** Phases 1-3 are complete. Phases 4-5 are planned for future PRs.
 
 ---
 
-## Current Behavior (Phase 2)
+## Current Behavior (Phase 3)
 
 | Scenario | Behavior |
 |----------|----------|
 | Folder has ASIN | Normal MAM-style import with renames |
+| ASIN found in files | Enhanced resolution finds it (Phase 3) |
+| ASIN found in metadata.json | Enhanced resolution finds it (Phase 3) |
 | No ASIN + policy=import | Route by classification (see below) |
 | No ASIN + policy=quarantine | Move to quarantine folder, no renames |
-| No ASIN + policy=skip | Leave in staging, log warning |
+| No ASIN + policy=skip | Leave in staging, log warning only |
+
+### Phase 3 ASIN Resolution Cascade
+
+Before classifying as unknown, we try multiple sources:
+
+1. **Folder name** - Primary source, already parsed
+2. **Audio file names** - `Book {ASIN.B0xxx}.m4b`
+3. **Sidecar JSON** - `*.metadata.json` or `metadata.json` with `asin` field
+
+This catches cases where ASIN exists but wasn't in folder name.
 
 ### Classification & Routing (policy=import)
 
@@ -316,73 +328,109 @@ def handle_unknown_asin(ctx: UnknownAsinContext, cfg: Config, *, dry_run: bool =
 
 ---
 
-### Phase 3: Enhanced ASIN Resolution (Future PR)
+### Phase 3: Enhanced ASIN Resolution ✅ COMPLETE
 
 **Goal:** Find ASINs from more sources before giving up.
 
 **Key:** Run resolution **before** classification - if we find an ASIN, we don't need the unknown handler.
 
-#### Resolution Cascade
+#### Implementation: `asin.py`
 
 ```python
 @dataclass
 class AsinResolution:
+    """Result of ASIN resolution from multiple sources."""
     asin: str | None
     source: str  # "folder" | "filename" | "metadata" | "unknown"
+    source_detail: str | None = None  # e.g., which file contained the ASIN
 
-def resolve_asin(folder: Path, parsed: ParsedFolderName) -> AsinResolution:
-    # 1. Already parsed from folder name
-    if parsed.asin:
-        return AsinResolution(parsed.asin, "folder")
+    @property
+    def found(self) -> bool:
+        return self.asin is not None
 
-    # 2. Try folder name again (in case parse missed it)
-    if asin := extract_asin(folder.name):
-        return AsinResolution(asin, "folder")
 
-    # 3. File names within folder
-    for f in folder.iterdir():
-        if f.is_file() and (asin := extract_asin(f.name)):
-            return AsinResolution(asin, "filename")
+def resolve_asin_from_folder(
+    folder: Path,
+    parsed_asin: str | None = None,
+) -> AsinResolution:
+    """Try to resolve ASIN from multiple sources within a folder.
 
-    # 4. Sidecar metadata.json
-    for meta_file in folder.glob("*.metadata.json"):
-        try:
-            data = json.loads(meta_file.read_text())
-            if asin := data.get("asin") or data.get("audible_asin"):
-                return AsinResolution(asin, "metadata")
-        except (json.JSONDecodeError, OSError):
-            continue
+    Resolution cascade (stops at first match):
+        1. Folder name - use parsed ASIN if provided, else re-extract
+        2. File names - check audio file names for embedded ASIN
+        3. metadata.json - check sidecar files for ASIN field
+    """
+    # 1. Check parsed ASIN from folder name (fastest path)
+    if parsed_asin and is_valid_asin(parsed_asin):
+        return AsinResolution(asin=parsed_asin, source="folder", source_detail=folder.name)
 
-    return AsinResolution(None, "unknown")
+    # 2. Try extracting from folder name again
+    folder_asin = extract_asin(folder.name)
+    if folder_asin:
+        return AsinResolution(asin=folder_asin, source="folder", source_detail=folder.name)
+
+    # 3. Check file names within folder
+    if folder.is_dir():
+        for f in folder.iterdir():
+            if f.is_file() and f.suffix.lower() in AUDIO_EXTENSIONS:
+                file_asin = extract_asin(f.name)
+                if file_asin:
+                    return AsinResolution(asin=file_asin, source="filename", source_detail=f.name)
+
+        # 4. Check metadata.json sidecars
+        for meta_file in folder.glob("*.metadata.json"):
+            asin = _extract_asin_from_metadata_file(meta_file)
+            if asin:
+                return AsinResolution(asin=asin, source="metadata", source_detail=meta_file.name)
+
+        # Also check plain metadata.json
+        plain_metadata = folder / "metadata.json"
+        if plain_metadata.exists():
+            asin = _extract_asin_from_metadata_file(plain_metadata)
+            if asin:
+                return AsinResolution(asin=asin, source="metadata", source_detail="metadata.json")
+
+    return AsinResolution(asin=None, source="unknown")
 ```
 
-#### Updated Import Flow
+#### Integration in `importer.py`
 
 ```python
-def import_single(folder: Path, cfg: Config, *, dry_run: bool = False) -> ImportResult:
-    parsed = parse_mam_folder_name(folder.name)
+def import_single(staging_folder: Path, ...) -> ImportResult:
+    parsed = parse_mam_folder_name(folder_name)
+    asin = parsed.asin
 
-    # Try to resolve ASIN from multiple sources
-    resolution = resolve_asin(folder, parsed)
+    # Phase 3: Enhanced ASIN resolution - try multiple sources before giving up
+    if not asin:
+        resolution = resolve_asin_from_folder(staging_folder, parsed_asin=None)
+        if resolution.found:
+            asin = resolution.asin
+            logger.info("Resolved ASIN %s from %s (%s)",
+                        asin, resolution.source, resolution.source_detail or "N/A")
 
-    if resolution.asin:
-        parsed.asin = resolution.asin
-        return import_with_asin(folder, parsed, cfg, asin_source=resolution.source, dry_run=dry_run)
+    # Still no ASIN → delegate to unknown ASIN handler
+    if not asin:
+        ctx = classify_unknown_asin(staging_folder, parsed)
+        return handle_unknown_asin(ctx, ...)
 
-    # No ASIN → unknown handling path
-    ctx = classify_unknown_asin(folder, parsed)
-    return handle_unknown_asin(ctx, cfg, dry_run=dry_run)
+    # Continue with normal ASIN-based import...
 ```
 
-#### Sources (Priority Order)
+#### Resolution Sources (Priority Order)
 
-| Source | Cost | Reliability | Notes |
-|--------|------|-------------|-------|
-| Folder name | Free | High | Current implementation |
-| File names | Free | High | Same patterns as folder |
-| metadata.json | Free | High | From MAM workflow |
-| mediainfo tags | Low | Medium | Opt-in only (Phase 4) |
-| Audible API | High | Medium | Batch job only (Phase 5) |
+| Source | Cost | Reliability | Implementation |
+|--------|------|-------------|----------------|
+| Folder name | Free | High | `extract_asin(folder.name)` |
+| File names | Free | High | Loop over audio files |
+| `*.metadata.json` | Free | High | Check common ASIN fields |
+| `metadata.json` | Free | High | Check common ASIN fields |
+
+**Acceptance criteria:**
+- [x] `AsinResolution` dataclass with `found` property
+- [x] `resolve_asin_from_folder()` cascade function
+- [x] `_extract_asin_from_metadata_file()` helper
+- [x] Integration in `import_single()` before unknown handler
+- [x] Tests added: `TestAsinResolution`, `TestResolveAsinFromFolder` (20 tests)
 
 ---
 
@@ -426,23 +474,102 @@ def asin_from_mediainfo(audio_file: Path) -> str | None:
 
 ---
 
-### Phase 5: Audible API Lookup (Future Enhancement)
+### Phase 5: ABS Metadata Search (Future Enhancement)
 
-**Goal:** Last-resort ASIN resolution via Audible search.
+**Goal:** Last-resort ASIN resolution via Audiobookshelf's metadata search API.
+
+**Why ABS Instead of Direct Audible API?**
+- ABS already handles Audible provider authentication
+- Built-in rate limiting and caching
+- Same API we already use for other operations
+- No need for separate Audible credentials or library dependencies
 
 **Keep completely separate from import path:**
 
 ```bash
-mamfast abs-resolve-asins --use-audible-api
+mamfast abs-resolve-asins --search-provider audible
+```
+
+**ABS Metadata Search Endpoint:**
+
+```http
+GET /api/search/books?title=<title>&author=<author>&provider=audible
+Authorization: Bearer <ABS_TOKEN>
+```
+
+**Response (Audible provider):**
+
+```json
+[
+  {
+    "title": "Wizard's First Rule",
+    "asin": "B002V0QK4C",
+    "author": "Terry Goodkind",
+    "narrator": "Sam Tsoutsouvas",
+    "series": [{"series": "Sword of Truth", "sequence": "1"}],
+    "cover": "https://...",
+    "description": "...",
+    "publishedYear": "2008"
+  }
+]
+```
+
+**Implementation Sketch:**
+
+```python
+from mamfast.abs.client import AbsClient
+
+@retry_with_backoff(max_attempts=3, base_delay=2.0, exceptions=NETWORK_EXCEPTIONS)
+def search_audible_via_abs(
+    client: AbsClient,
+    title: str,
+    author: str | None = None,
+) -> list[dict]:
+    """Search Audible metadata through ABS proxy."""
+    params = {"title": title, "provider": "audible"}
+    if author:
+        params["author"] = author
+    
+    resp = client._client.get("/api/search/books", params=params)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def resolve_asin_from_abs_search(
+    client: AbsClient,
+    folder_name: str,
+    confidence_threshold: float = 0.85,
+) -> str | None:
+    """Try to resolve ASIN via ABS metadata search."""
+    # Parse folder name for search terms
+    title, author = parse_folder_for_search(folder_name)
+    
+    results = search_audible_via_abs(client, title, author)
+    if not results:
+        return None
+    
+    # Use fuzzy matching to find best match
+    best_match = find_best_match(results, title, author)
+    if best_match and best_match["confidence"] >= confidence_threshold:
+        return best_match["asin"]
+    
+    return None
 ```
 
 **Flow:**
-1. Scan `Unknown/` for MISSING_ASIN books
-2. Build queries from folder name + embedded metadata
-3. Call Audible search API
-4. When confidence high, write ASIN sidecar or rename folder to MAM-style
+1. Scan `Unknown/` for MISSING_ASIN books (from sidecar or naming)
+2. Parse folder names for title/author search terms
+3. Call ABS `/api/search/books?provider=audible`
+4. Fuzzy-match results against original folder metadata
+5. When confidence high, write ASIN sidecar or rename folder to MAM-style
 
-This keeps import runs **fast and deterministic** while letting you nerd out later.
+**Advantages:**
+- **No new dependencies:** Uses existing `AbsClient`
+- **Unified auth:** Same API token we already configure
+- **Rate limiting:** ABS handles Audible API limits
+- **Caching:** ABS may cache responses (reduces external calls)
+
+This keeps import runs **fast and deterministic** while letting you batch-resolve ASINs later.
 
 ---
 

@@ -19,11 +19,14 @@ from mamfast.schemas.abs import (
     AbsLibraryItemsResponse,
     AbsLibrarySchema,
     AbsLibrarySettings,
+    AbsSearchBookResult,
+    AbsSearchSeriesEntry,
     AbsUserPermissions,
     AbsUserSchema,
     validate_authorize_response,
     validate_libraries_response,
     validate_library_items_response,
+    validate_search_books_response,
 )
 
 
@@ -479,3 +482,158 @@ class TestSchemaValidationErrors:
         }
         with pytest.raises(ValidationError):
             AbsLibrarySchema.model_validate(data)
+
+
+# =============================================================================
+# Metadata Search Schema Tests
+# =============================================================================
+
+
+@pytest.fixture
+def search_books_fixture(fixtures_dir: Path) -> dict[str, Any]:
+    """Load search_books_audible.json fixture."""
+    with open(fixtures_dir / "search_books_audible.json") as f:
+        return cast(dict[str, Any], json.load(f))
+
+
+class TestAbsSearchSeriesEntry:
+    """Tests for AbsSearchSeriesEntry schema."""
+
+    def test_valid_series(self) -> None:
+        """Test parsing valid series entry."""
+        data = {"series": "Sword of Truth", "sequence": "1"}
+        series = AbsSearchSeriesEntry.model_validate(data)
+        assert series.series == "Sword of Truth"
+        assert series.sequence == "1"
+
+    def test_extra_fields_ignored(self) -> None:
+        """Test that extra fields are ignored."""
+        data = {"series": "Test Series", "sequence": "5", "extra": "ignored"}
+        series = AbsSearchSeriesEntry.model_validate(data)
+        assert series.series == "Test Series"
+        assert not hasattr(series, "extra")
+
+
+class TestAbsSearchBookResult:
+    """Tests for AbsSearchBookResult schema."""
+
+    def test_minimal_valid_result(self) -> None:
+        """Test parsing with minimal required fields."""
+        data = {"title": "Test Book", "author": "Test Author"}
+        result = AbsSearchBookResult.model_validate(data)
+        assert result.title == "Test Book"
+        assert result.author == "Test Author"
+        assert result.asin is None
+        assert result.series is None
+
+    def test_full_result_with_series(self) -> None:
+        """Test parsing full result with series data."""
+        data = {
+            "title": "Wizard's First Rule",
+            "subtitle": "Sword of Truth, Book 1",
+            "author": "Terry Goodkind",
+            "narrator": "Sam Tsoutsouvas",
+            "publisher": "Brilliance Audio",
+            "publishedYear": "2008",
+            "cover": "https://example.com/cover.jpg",
+            "asin": "B002V0QK4C",
+            "isbn": "9781423377962",
+            "genres": ["Literature & Fiction", "Science Fiction & Fantasy"],
+            "tags": "Fantasy, Epic, Adventure",
+            "series": [{"series": "Sword of Truth", "sequence": "1"}],
+            "language": "English",
+            "duration": 2046,
+            "region": "us",
+            "rating": "4.5",
+            "abridged": False,
+        }
+        result = AbsSearchBookResult.model_validate(data)
+        assert result.title == "Wizard's First Rule"
+        assert result.asin == "B002V0QK4C"
+        assert result.series is not None
+        assert len(result.series) == 1
+        assert result.series[0].series == "Sword of Truth"
+        assert result.series[0].sequence == "1"
+        assert result.series_name == "Sword of Truth"
+        assert result.series_sequence == "1"
+        assert result.duration == 2046  # Minutes
+        assert result.abridged is False
+
+    def test_result_without_series(self) -> None:
+        """Test parsing result with null series."""
+        data = {
+            "title": "Project Hail Mary",
+            "author": "Andy Weir",
+            "asin": "B08G9PRS1K",
+            "series": None,
+        }
+        result = AbsSearchBookResult.model_validate(data)
+        assert result.series is None
+        assert result.series_name is None
+        assert result.series_sequence is None
+
+    def test_tags_is_string_not_array(self) -> None:
+        """Test that tags field is comma-separated string, not array."""
+        data = {
+            "title": "Test",
+            "author": "Author",
+            "tags": "Science Fiction, Adventure, Space Opera",
+        }
+        result = AbsSearchBookResult.model_validate(data)
+        assert result.tags == "Science Fiction, Adventure, Space Opera"
+        assert isinstance(result.tags, str)
+
+    def test_non_english_asin_format(self) -> None:
+        """Test that non-English ASINs (different format) are accepted."""
+        # Spanish version has different ASIN format
+        data = {
+            "title": "Proyecto Hail Mary",
+            "author": "Andy Weir",
+            "asin": "8418037121",  # Not B0XXXXXXXX format
+            "language": "Spanish",
+        }
+        result = AbsSearchBookResult.model_validate(data)
+        assert result.asin == "8418037121"
+        assert result.language == "Spanish"
+
+
+class TestValidateSearchBooksResponse:
+    """Tests for validate_search_books_response function."""
+
+    def test_validate_golden_sample_series(self, search_books_fixture: dict[str, Any]) -> None:
+        """Test validation with golden sample containing series."""
+        # Get the Wizard's First Rule sample (has series)
+        sample = search_books_fixture["samples"][0]
+        results = validate_search_books_response(sample["results"])
+        assert len(results) == 1
+        assert results[0].title == "Wizard's First Rule"
+        assert results[0].asin == "B002V0QK4C"
+        assert results[0].series_name == "Sword of Truth"
+        assert results[0].series_sequence == "1"
+
+    def test_validate_golden_sample_multi_language(
+        self, search_books_fixture: dict[str, Any]
+    ) -> None:
+        """Test validation with golden sample containing multiple languages."""
+        # Get the Project Hail Mary sample (multiple languages, no series)
+        sample = search_books_fixture["samples"][1]
+        results = validate_search_books_response(sample["results"])
+        assert len(results) == 2
+        # First result is English
+        assert results[0].title == "Project Hail Mary"
+        assert results[0].asin == "B08G9PRS1K"
+        assert results[0].language == "English"
+        assert results[0].series is None
+        # Second result is Spanish
+        assert results[1].language == "Spanish"
+        assert results[1].asin == "8418037121"
+
+    def test_validate_empty_response(self) -> None:
+        """Test validation with empty response."""
+        results = validate_search_books_response([])
+        assert results == []
+
+    def test_validate_invalid_response(self) -> None:
+        """Test that invalid response raises ValidationError."""
+        with pytest.raises(ValidationError):
+            validate_search_books_response([{"invalid": "data"}])

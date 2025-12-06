@@ -1,0 +1,105 @@
+{
+  "_comment": "ABS /api/search/books?provider=audible - Golden samples for Phase 5",
+  "_fetched_at": "2024-12-06",
+  "_source": "audiobookshelf.kingpaging.com",
+  "samples": [
+    {
+      "_query": "title=Wizards%20First%20Rule&author=Terry%20Goodkind",
+      "_notes": "Single result with series data",
+      "results": [
+        {
+          "title": "Wizard's First Rule",
+          "subtitle": "Sword of Truth, Book 1",
+          "author": "Terry Goodkind",
+          "narrator": "Sam Tsoutsouvas",
+          "publisher": "Brilliance Audio",
+          "publishedYear": "2008",
+          "description": "<p><b>The masterpiece that started Terry Goodkind's</b><b><i> New York Times</i></b><b> bestselling epic Sword of Truth</b></p> <p>In the aftermath of the brutal murder of his father, a mysterious woman, Kahlan Amnell, appears in Richard Cypher's forest sanctuary seeking help...and more.</p>",
+          "cover": "https://m.media-amazon.com/images/I/91VIQAWhp+L.jpg",
+          "asin": "B002V0QK4C",
+          "isbn": "9781423377962",
+          "genres": [
+            "Literature & Fiction",
+            "Science Fiction & Fantasy"
+          ],
+          "tags": "Genre Fiction, Movie, TV & Video Game Tie-Ins, Sagas, Fantasy, Action & Adventure, Epic",
+          "series": [
+            {
+              "series": "Sword of Truth",
+              "sequence": "1"
+            }
+          ],
+          "language": "English",
+          "duration": 2046,
+          "region": "us",
+          "rating": "4.5",
+          "abridged": false,
+          "descriptionPlain": "The masterpiece that started Terry Goodkind's New York Times bestselling epic Sword of Truth..."
+        }
+      ]
+    },
+    {
+      "_query": "title=Project%20Hail%20Mary&author=Andy%20Weir",
+      "_notes": "Multiple results, multiple languages, no series, first result is English original",
+      "results": [
+        {
+          "title": "Project Hail Mary",
+          "subtitle": null,
+          "author": "Andy Weir",
+          "narrator": "Ray Porter",
+          "publisher": "Audible Studios",
+          "publishedYear": "2021",
+          "description": "<p><b>THE #1 </b><b><i>NEW YORK TIMES</i></b><b> BESTSELLER FROM THE AUTHOR OF </b><b><i>THE MARTIAN</i></b></p>",
+          "cover": "https://m.media-amazon.com/images/I/81wvR09gLRL.jpg",
+          "asin": "B08G9PRS1K",
+          "isbn": "9781603935470",
+          "genres": [
+            "Science Fiction & Fantasy"
+          ],
+          "tags": "Science Fiction, Adventure, Hard Science Fiction, Space Opera",
+          "series": null,
+          "language": "English",
+          "duration": 970,
+          "region": "us",
+          "rating": "4.9",
+          "abridged": false,
+          "descriptionPlain": "THE #1 NEW YORK TIMES BESTSELLER FROM THE AUTHOR OF THE MARTIAN..."
+        },
+        {
+          "title": "Proyecto Hail Mary [Project Hail Mary]",
+          "subtitle": null,
+          "author": "Andy Weir, Javier Guerrero Gimeno",
+          "narrator": "Raúl Llorens",
+          "publisher": "Penguin Random House Audio",
+          "publishedYear": "2021",
+          "description": "<p><b>La nueva novela del autor de </b><b><i>El marciano</i></b></p>",
+          "cover": "https://m.media-amazon.com/images/I/91QMGecHvLS.jpg",
+          "asin": "8418037121",
+          "isbn": "9788418037122",
+          "genres": [
+            "Science Fiction & Fantasy"
+          ],
+          "tags": "Science Fiction, Adventure, Space Opera",
+          "series": null,
+          "language": "Spanish",
+          "duration": 1103,
+          "region": "us",
+          "rating": "4.9",
+          "abridged": false,
+          "descriptionPlain": "La nueva novela del autor de El marciano..."
+        }
+      ]
+    }
+  ],
+  "schema_notes": {
+    "asin": "String - Audible ASIN (B0XXXXXXXX format for English, different for other regions)",
+    "isbn": "String | null - ISBN if available",
+    "series": "Array<{series: string, sequence: string}> | null - Series info when applicable",
+    "subtitle": "String | null - Often contains 'Series, Book N' for series books",
+    "duration": "Number - Duration in MINUTES (not seconds)",
+    "tags": "String - Comma-separated tags (not an array)",
+    "genres": "Array<string> - Genre categories",
+    "abridged": "Boolean - Whether the audiobook is abridged",
+    "region": "String - Audible region code (us, uk, etc.)"
+  }
+}

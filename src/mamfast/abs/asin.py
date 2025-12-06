@@ -8,13 +8,18 @@ Handles multiple naming conventions from different eras of the library:
 
 Also extracts ASINs from ABS metadata when available and provides
 in-memory ASIN indexing for fast duplicate detection without SQLite.
+
+Phase 3 (UNKNOWN_ASIN_HANDLING.md) adds resolve_asin_from_folder() which
+tries multiple sources before giving up on finding an ASIN.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -185,6 +190,159 @@ def extract_all_asins(text: str) -> list[str]:
                 results.append(asin)
 
     return results
+
+
+# =============================================================================
+# Phase 3: Enhanced ASIN Resolution
+# =============================================================================
+# See docs/audiobookshelf/UNKNOWN_ASIN_HANDLING.md Phase 3 for design details.
+#
+# Resolution cascade (priority order):
+#   1. Folder name - already parsed by caller, but try again with patterns
+#   2. File names - check audio file names within the folder
+#   3. metadata.json - check sidecar files for ASIN field
+
+
+@dataclass
+class AsinResolution:
+    """Result of ASIN resolution from multiple sources.
+
+    Attributes:
+        asin: Resolved ASIN or None if not found
+        source: Where the ASIN was found ("folder", "filename", "metadata", "unknown")
+        source_detail: Additional detail (e.g., which file contained the ASIN)
+    """
+
+    asin: str | None
+    source: str
+    source_detail: str | None = None
+
+    @property
+    def found(self) -> bool:
+        """Whether an ASIN was successfully resolved."""
+        return self.asin is not None
+
+
+def resolve_asin_from_folder(
+    folder: Path,
+    parsed_asin: str | None = None,
+) -> AsinResolution:
+    """Try to resolve ASIN from multiple sources within a folder.
+
+    This is Phase 3 of the unknown ASIN handling - we try harder to find
+    an ASIN before giving up and classifying as unknown.
+
+    Resolution cascade (stops at first match):
+        1. Folder name - use parsed ASIN if provided, else re-extract
+        2. File names - check audio file names for embedded ASIN
+        3. metadata.json - check sidecar files for ASIN field
+
+    Args:
+        folder: Path to the folder to search
+        parsed_asin: ASIN already parsed from folder name (optimization)
+
+    Returns:
+        AsinResolution with ASIN and source info, or source="unknown" if not found
+
+    Examples:
+        >>> resolve_asin_from_folder(Path("/staging/Book {ASIN.B0123456789}"))
+        AsinResolution(asin='B0123456789', source='folder', ...)
+
+        >>> resolve_asin_from_folder(Path("/staging/Book"))  # has B0123456789.m4b inside
+        AsinResolution(asin='B0123456789', source='filename', source_detail='B0123456789.m4b')
+    """
+    # 1. Check parsed ASIN from folder name (fastest path)
+    if parsed_asin and is_valid_asin(parsed_asin):
+        return AsinResolution(asin=parsed_asin, source="folder", source_detail=folder.name)
+
+    # 2. Try extracting from folder name again (in case parse missed it)
+    folder_asin = extract_asin(folder.name)
+    if folder_asin:
+        return AsinResolution(asin=folder_asin, source="folder", source_detail=folder.name)
+
+    # 3. Check file names within folder
+    if folder.is_dir():
+        for f in folder.iterdir():
+            if not f.is_file():
+                continue
+
+            # Only check audio files for ASIN in filename
+            if f.suffix.lower() in AUDIO_EXTENSIONS:
+                file_asin = extract_asin(f.name)
+                if file_asin:
+                    logger.debug(
+                        "Resolved ASIN %s from filename: %s",
+                        file_asin,
+                        f.name,
+                    )
+                    return AsinResolution(
+                        asin=file_asin,
+                        source="filename",
+                        source_detail=f.name,
+                    )
+
+        # 4. Check metadata.json sidecars
+        for meta_file in folder.glob("*.metadata.json"):
+            asin = _extract_asin_from_metadata_file(meta_file)
+            if asin:
+                logger.debug(
+                    "Resolved ASIN %s from metadata file: %s",
+                    asin,
+                    meta_file.name,
+                )
+                return AsinResolution(
+                    asin=asin,
+                    source="metadata",
+                    source_detail=meta_file.name,
+                )
+
+        # Also check for plain "metadata.json" (common pattern)
+        plain_metadata = folder / "metadata.json"
+        if plain_metadata.exists():
+            asin = _extract_asin_from_metadata_file(plain_metadata)
+            if asin:
+                logger.debug("Resolved ASIN %s from metadata.json", asin)
+                return AsinResolution(
+                    asin=asin,
+                    source="metadata",
+                    source_detail="metadata.json",
+                )
+
+    # No ASIN found anywhere
+    return AsinResolution(asin=None, source="unknown")
+
+
+def _extract_asin_from_metadata_file(meta_file: Path) -> str | None:
+    """Extract ASIN from a metadata JSON file.
+
+    Checks common field names: asin, audible_asin, ASIN, audibleAsin
+
+    Args:
+        meta_file: Path to JSON metadata file
+
+    Returns:
+        ASIN if found and valid, None otherwise
+    """
+    try:
+        data = json.loads(meta_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
+        logger.debug("Failed to read metadata file %s: %s", meta_file, e)
+        return None
+
+    # Check common ASIN field names
+    for field in ("asin", "audible_asin", "ASIN", "audibleAsin", "audible"):
+        value = data.get(field)
+        if value and isinstance(value, str) and is_valid_asin(value):
+            return str(value)  # Explicit str() for mypy
+
+    # Also check nested structures (e.g., {"audible": {"asin": "..."}})
+    audible_data = data.get("audible")
+    if isinstance(audible_data, dict):
+        asin = audible_data.get("asin")
+        if asin and isinstance(asin, str) and is_valid_asin(asin):
+            return str(asin)  # Explicit str() for mypy
+
+    return None
 
 
 # =============================================================================

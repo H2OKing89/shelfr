@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+import pytest
+
 from mamfast.abs.asin import (
+    AsinResolution,
     extract_all_asins,
     extract_asin,
     extract_asin_from_abs_item,
     extract_asin_with_source,
     is_valid_asin,
+    resolve_asin_from_folder,
 )
 
 
@@ -259,3 +266,186 @@ class TestExtractAllAsins:
         assert result[0] == "B0FIRST123"
         assert result[1] == "B0SECOND12"
         assert result[2] == "B0THIRD123"
+
+
+# =============================================================================
+# Phase 3: Enhanced ASIN Resolution Tests
+# =============================================================================
+
+
+class TestAsinResolution:
+    """Tests for AsinResolution dataclass."""
+
+    def test_found_property_with_asin(self) -> None:
+        """found property returns True when ASIN is set."""
+        result = AsinResolution(asin="B0ABC12345", source="folder")
+        assert result.found is True
+
+    def test_found_property_without_asin(self) -> None:
+        """found property returns False when ASIN is None."""
+        result = AsinResolution(asin=None, source="unknown")
+        assert result.found is False
+
+    def test_source_detail(self) -> None:
+        """source_detail tracks where ASIN was found."""
+        result = AsinResolution(asin="B0ABC12345", source="filename", source_detail="book.m4b")
+        assert result.source == "filename"
+        assert result.source_detail == "book.m4b"
+
+
+class TestResolveAsinFromFolder:
+    """Tests for resolve_asin_from_folder() Phase 3 cascade."""
+
+    def test_uses_parsed_asin_if_provided(self, tmp_path: Path) -> None:
+        """If caller provides parsed_asin, use it immediately."""
+        folder = tmp_path / "SomeBook"
+        folder.mkdir()
+
+        result = resolve_asin_from_folder(folder, parsed_asin="B0ABC12345")
+        assert result.found is True
+        assert result.asin == "B0ABC12345"
+        assert result.source == "folder"
+
+    def test_extracts_from_folder_name(self, tmp_path: Path) -> None:
+        """Extract ASIN from folder name when no parsed_asin."""
+        folder = tmp_path / "Book Title {ASIN.B0FROMNAME}"
+        folder.mkdir()
+
+        result = resolve_asin_from_folder(folder)
+        assert result.found is True
+        assert result.asin == "B0FROMNAME"
+        assert result.source == "folder"
+
+    def test_extracts_from_audio_filename(self, tmp_path: Path) -> None:
+        """Fall back to audio file names when folder has no ASIN."""
+        folder = tmp_path / "Book Without ASIN Tag"
+        folder.mkdir()
+        # Create audio file with ASIN in name
+        audio_file = folder / "Book Title {ASIN.B0FILENAME}.m4b"
+        audio_file.touch()
+
+        result = resolve_asin_from_folder(folder)
+        assert result.found is True
+        assert result.asin == "B0FILENAME"
+        assert result.source == "filename"
+        assert result.source_detail == audio_file.name
+
+    def test_extracts_from_metadata_json(self, tmp_path: Path) -> None:
+        """Fall back to metadata.json sidecar when no ASIN in names."""
+        folder = tmp_path / "Book Without ASIN"
+        folder.mkdir()
+        # Create plain audio file
+        (folder / "book.m4b").touch()
+        # Create metadata sidecar with ASIN
+        meta_file = folder / "book.metadata.json"
+        meta_file.write_text(json.dumps({"asin": "B0METADATA"}))
+
+        result = resolve_asin_from_folder(folder)
+        assert result.found is True
+        assert result.asin == "B0METADATA"
+        assert result.source == "metadata"
+        assert result.source_detail == "book.metadata.json"
+
+    def test_extracts_from_plain_metadata_json(self, tmp_path: Path) -> None:
+        """Also check plain metadata.json file."""
+        folder = tmp_path / "Book Without ASIN"
+        folder.mkdir()
+        (folder / "book.m4b").touch()
+        meta_file = folder / "metadata.json"
+        meta_file.write_text(json.dumps({"asin": "B0PLAINMET"}))
+
+        result = resolve_asin_from_folder(folder)
+        assert result.found is True
+        assert result.asin == "B0PLAINMET"
+        assert result.source == "metadata"
+        assert result.source_detail == "metadata.json"
+
+    def test_extracts_nested_audible_asin(self, tmp_path: Path) -> None:
+        """Handle nested audible.asin structure in metadata."""
+        folder = tmp_path / "Book"
+        folder.mkdir()
+        (folder / "book.m4b").touch()
+        meta_file = folder / "metadata.json"
+        meta_file.write_text(json.dumps({"audible": {"asin": "B0NESTED01"}}))
+
+        result = resolve_asin_from_folder(folder)
+        assert result.found is True
+        assert result.asin == "B0NESTED01"
+
+    def test_returns_unknown_when_not_found(self, tmp_path: Path) -> None:
+        """Return source='unknown' when no ASIN found anywhere."""
+        folder = tmp_path / "Book Without ASIN"
+        folder.mkdir()
+        (folder / "plain_book.m4b").touch()
+        # metadata.json without ASIN field
+        (folder / "metadata.json").write_text(json.dumps({"title": "Book"}))
+
+        result = resolve_asin_from_folder(folder)
+        assert result.found is False
+        assert result.asin is None
+        assert result.source == "unknown"
+
+    def test_skips_non_audio_files(self, tmp_path: Path) -> None:
+        """Don't extract ASIN from non-audio files."""
+        folder = tmp_path / "Book"
+        folder.mkdir()
+        # ASIN only in text file, not audio
+        (folder / "notes {ASIN.B0TXTFILE1}.txt").touch()
+        (folder / "book.m4b").touch()  # No ASIN
+
+        result = resolve_asin_from_folder(folder)
+        assert result.found is False  # Should NOT find txt file ASIN
+
+    def test_handles_malformed_metadata_json(self, tmp_path: Path) -> None:
+        """Gracefully handle malformed JSON in metadata file."""
+        folder = tmp_path / "Book"
+        folder.mkdir()
+        (folder / "book.m4b").touch()
+        (folder / "metadata.json").write_text("not valid json {{{")
+
+        result = resolve_asin_from_folder(folder)
+        assert result.found is False
+        assert result.source == "unknown"
+
+    def test_priority_folder_over_filename(self, tmp_path: Path) -> None:
+        """Folder ASIN takes priority over filename ASIN."""
+        folder = tmp_path / "Book {ASIN.B0FOLDERID}"
+        folder.mkdir()
+        (folder / "Book {ASIN.B0FILEID01}.m4b").touch()
+
+        result = resolve_asin_from_folder(folder)
+        assert result.asin == "B0FOLDERID"
+        assert result.source == "folder"
+
+    def test_priority_filename_over_metadata(self, tmp_path: Path) -> None:
+        """Filename ASIN takes priority over metadata ASIN."""
+        folder = tmp_path / "Book"
+        folder.mkdir()
+        (folder / "Book {ASIN.B0FILEID01}.m4b").touch()
+        (folder / "metadata.json").write_text(json.dumps({"asin": "B0METADATA"}))
+
+        result = resolve_asin_from_folder(folder)
+        assert result.asin == "B0FILEID01"
+        assert result.source == "filename"
+
+    def test_handles_nonexistent_folder(self, tmp_path: Path) -> None:
+        """Handle folder that doesn't exist."""
+        folder = tmp_path / "nonexistent"
+
+        result = resolve_asin_from_folder(folder)
+        # Should still try folder name extraction
+        assert result.found is False
+        assert result.source == "unknown"
+
+    @pytest.mark.parametrize("ext", [".m4b", ".mp3", ".m4a", ".opus", ".flac"])
+    def test_various_audio_extensions(self, tmp_path: Path, ext: str) -> None:
+        """Test ASIN extraction from various audio file types."""
+        folder = tmp_path / f"Book_{ext.replace('.', '')}"
+        folder.mkdir()
+        # Use a valid 10-char ASIN format
+        asin = f"B0{ext[1:].upper().ljust(8, 'X')}"[:10]  # Ensure 10 chars
+        (folder / f"audio [ASIN.{asin}]{ext}").touch()
+
+        result = resolve_asin_from_folder(folder)
+        assert result.found is True, f"Failed for {ext}, expected ASIN {asin}"
+        assert result.source == "filename"

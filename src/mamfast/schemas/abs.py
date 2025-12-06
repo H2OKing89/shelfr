@@ -282,3 +282,76 @@ def validate_authorize_response(data: dict[str, Any]) -> AbsAuthorizeResponse:
         pydantic.ValidationError: If response doesn't match schema
     """
     return AbsAuthorizeResponse.model_validate(data)
+
+
+# =============================================================================
+# Metadata Search Schemas (for /api/search/books endpoint)
+# =============================================================================
+
+
+class AbsSearchSeriesEntry(BaseModel):
+    """Series entry in search results."""
+
+    series: str
+    sequence: str
+
+    model_config = {"extra": "ignore"}
+
+
+class AbsSearchBookResult(BaseModel):
+    """Single book result from /api/search/books endpoint.
+
+    This is the response from external metadata providers like Audible.
+    Different from AbsLibraryItemSchema which represents items in the library.
+    """
+
+    title: str
+    subtitle: str | None = None
+    author: str
+    narrator: str | None = None
+    publisher: str | None = None
+    published_year: str | None = Field(default=None, alias="publishedYear")
+    description: str | None = None
+    description_plain: str | None = Field(default=None, alias="descriptionPlain")
+    cover: str | None = None
+    asin: str | None = None
+    isbn: str | None = None
+    genres: list[str] = Field(default_factory=list)
+    tags: str | None = None  # Note: comma-separated string, not array
+    series: list[AbsSearchSeriesEntry] | None = None
+    language: str | None = None
+    duration: int | None = None  # Duration in MINUTES (not seconds)
+    region: str | None = None
+    rating: str | None = None
+    abridged: bool = False
+
+    model_config = {"extra": "ignore", "populate_by_name": True}
+
+    @property
+    def series_name(self) -> str | None:
+        """Get primary series name if available."""
+        if self.series and len(self.series) > 0:
+            return self.series[0].series
+        return None
+
+    @property
+    def series_sequence(self) -> str | None:
+        """Get primary series sequence if available."""
+        if self.series and len(self.series) > 0:
+            return self.series[0].sequence
+        return None
+
+
+def validate_search_books_response(data: list[Any]) -> list[AbsSearchBookResult]:
+    """Validate and parse search books API response.
+
+    Args:
+        data: Raw API response (list of book results)
+
+    Returns:
+        List of validated AbsSearchBookResult
+
+    Raises:
+        pydantic.ValidationError: If response doesn't match schema
+    """
+    return [AbsSearchBookResult.model_validate(item) for item in data]
