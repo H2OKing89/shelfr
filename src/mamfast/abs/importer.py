@@ -21,7 +21,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mamfast.abs.asin import AsinEntry, asin_exists, extract_asin
+from mamfast.abs.asin import AsinEntry, asin_exists, extract_asin, resolve_asin_from_folder
 from mamfast.utils.naming import build_mam_file_name, build_mam_folder_name, clean_series_name
 
 if TYPE_CHECKING:
@@ -1025,7 +1025,19 @@ def import_single(
 
     asin = parsed.asin
 
-    # No ASIN → delegate to unknown ASIN handler
+    # Phase 3: Enhanced ASIN resolution - try multiple sources before giving up
+    if not asin:
+        resolution = resolve_asin_from_folder(staging_folder, parsed_asin=None)
+        if resolution.found:
+            asin = resolution.asin
+            logger.info(
+                "Resolved ASIN %s from %s (%s)",
+                asin,
+                resolution.source,
+                resolution.source_detail or "N/A",
+            )
+
+    # Still no ASIN → delegate to unknown ASIN handler
     if not asin:
         ctx = classify_unknown_asin(staging_folder, parsed)
         return handle_unknown_asin(
