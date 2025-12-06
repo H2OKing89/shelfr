@@ -27,7 +27,7 @@ import httpx
 from jinja2 import Environment, PackageLoader
 
 from mamfast.config import get_settings
-from mamfast.models import NormalizedBook
+from mamfast.models import NormalizedBook, SeriesInfo
 from mamfast.utils.naming import (
     extract_translators_from_mediainfo,
     filter_authors,
@@ -35,6 +35,7 @@ from mamfast.utils.naming import (
     filter_subtitle,
     filter_title,
     normalize_audnex_book,
+    resolve_series,
     transliterate_text,
 )
 
@@ -1060,11 +1061,12 @@ def build_mam_json(
         if bbcode_description:
             mam_json["description"] = bbcode_description
 
-    # Series - apply filter_series to remove format indicators and series suffixes
-    # Series names should not have volume indicators
+    # Series - resolve from multiple sources with fallback
+    # Priority: Audnex seriesPrimary → Libation path → Title heuristics
     cleaned_series: str | None = None  # Initialize for use in filter_subtitle
+    series_info: SeriesInfo | None = None
 
-    # Use normalized series if available
+    # Use normalized series if available (from swap detection)
     if normalized and normalized.series_name:
         cleaned_series = filter_series(
             normalized.series_name,
@@ -1077,14 +1079,42 @@ def build_mam_json(
                 "number": series_number,
             }
         ]
+        logger.debug(
+            "Series from normalized book: %s #%s",
+            cleaned_series,
+            series_number,
+        )
     else:
-        # Fallback to building from audnex seriesPrimary
-        series_list = _build_series_list(audnex, naming_config=naming_config)
-        if series_list:
-            mam_json["series"] = series_list
-            # Extract cleaned_series from the first series entry for subtitle filtering
-            cleaned_series = series_list[0].get("name") if series_list else None
+        # Use resolve_series() for multi-source fallback
+        # This tries: Audnex → Libation path → Title heuristics
+        title_for_heuristic = cleaned_title or audnex.get("title") or release.title
+        series_info = resolve_series(
+            audnex_data=audnex,
+            libation_path=release.source_dir,
+            title=title_for_heuristic,
+            naming_config=naming_config,
+        )
+
+        if series_info:
+            cleaned_series = filter_series(
+                series_info.name,
+                naming_config=naming_config,
+            )
+            mam_json["series"] = [
+                {
+                    "name": cleaned_series,
+                    "number": series_info.position or "",
+                }
+            ]
+            logger.debug(
+                "Series from %s (confidence=%.1f): %s #%s",
+                series_info.source.value,
+                series_info.confidence,
+                cleaned_series,
+                series_info.position or "N/A",
+            )
         elif release.series:
+            # Last resort: use series from release (parsed from folder name)
             cleaned_series = filter_series(
                 release.series,
                 naming_config=naming_config,
@@ -1095,6 +1125,11 @@ def build_mam_json(
                     "number": release.series_position or "",
                 }
             ]
+            logger.debug(
+                "Series from release fallback: %s #%s",
+                cleaned_series,
+                release.series_position or "N/A",
+            )
 
     # Subtitle - use normalized arc_name (from swap detection) or filter raw subtitle
     # Arc name is the meaningful subtitle (e.g., "Alicization Exploding", "Mother's Rosary")
