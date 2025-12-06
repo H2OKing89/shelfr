@@ -2024,3 +2024,240 @@ def build_mam_path(
         truncated=truncated,
         dropped_components=dropped,
     )
+
+
+# =============================================================================
+# Series Resolution (Multi-Source Fallback)
+# =============================================================================
+
+# Pre-compiled patterns for extracting series from title
+# Order matters: more specific patterns first
+_SERIES_FROM_TITLE_PATTERNS: list[re.Pattern[str]] = [
+    # "Series Name, Vol. 5" or "Series Name, Volume 5"
+    re.compile(
+        r"^(?P<series>.+?),\s*(?:Vol\.?|Volume)\s*(?P<num>\d+(?:\.\d+)?)$",
+        re.IGNORECASE,
+    ),
+    # "Series Name: Volume 5" or "Series Name: Vol. 5"
+    re.compile(
+        r"^(?P<series>.+?):\s*(?:Vol\.?|Volume)\s*(?P<num>\d+(?:\.\d+)?)$",
+        re.IGNORECASE,
+    ),
+    # "Series Name, Book 5"
+    re.compile(
+        r"^(?P<series>.+?),\s*Book\s*(?P<num>\d+(?:\.\d+)?)$",
+        re.IGNORECASE,
+    ),
+    # "Series Name: Book 5"
+    re.compile(
+        r"^(?P<series>.+?):\s*Book\s*(?P<num>\d+(?:\.\d+)?)$",
+        re.IGNORECASE,
+    ),
+    # "Series Name Vol. 5" (no comma/colon)
+    re.compile(
+        r"^(?P<series>.+?)\s+(?:Vol\.?|Volume)\s*(?P<num>\d+(?:\.\d+)?)$",
+        re.IGNORECASE,
+    ),
+    # "Series Name Book 5" (no comma/colon)
+    re.compile(
+        r"^(?P<series>.+?)\s+Book\s*(?P<num>\d+(?:\.\d+)?)$",
+        re.IGNORECASE,
+    ),
+    # "Series Name 5" (just trailing number) - low confidence
+    re.compile(
+        r"^(?P<series>.+?)\s+(?P<num>\d+)$",
+    ),
+]
+
+# Pattern to extract series from Libation folder structure
+# Expects: Author/Series/BookFolder or Author/BookFolder
+_LIBATION_SERIES_FOLDER_PATTERN = re.compile(
+    r"^(?P<author>[^/]+)/(?P<series>[^/]+)/(?P<book>[^/]+)$"
+)
+
+# Pattern to extract vol_XX from folder/file name
+_VOL_FROM_NAME_PATTERN = re.compile(r"vol_(\d+(?:\.\d+)?)", re.IGNORECASE)
+
+
+def parse_series_from_title(title: str) -> tuple[str, str] | None:
+    """
+    Extract series name and position from a title using heuristics.
+
+    Tries patterns like:
+    - "I'm the Evil Lord of an Intergalactic Empire!, Vol. 5"
+    - "Black Summoner, Vol. 4"
+    - "Some Light Novel: Volume 3.5"
+    - "Series Name Book 7"
+
+    Args:
+        title: The book title to parse
+
+    Returns:
+        Tuple of (series_name, position) if found, None otherwise
+    """
+    if not title:
+        return None
+
+    title = title.strip()
+
+    for pattern in _SERIES_FROM_TITLE_PATTERNS:
+        match = pattern.match(title)
+        if match:
+            series = match.group("series").strip()
+            num = match.group("num")
+
+            # Basic validation: series should be meaningful
+            if len(series) < 2:
+                continue
+
+            # Don't match if "series" is just a common word
+            if series.lower() in ("the", "a", "an", "book", "volume", "vol"):
+                continue
+
+            return (series, num)
+
+    return None
+
+
+def parse_series_from_libation_path(
+    libation_path: Path,
+    book_folder_name: str | None = None,
+) -> tuple[str, str | None] | None:
+    """
+    Extract series info from Libation's folder structure.
+
+    Libation organizes books as:
+        Author/Series/BookTitle vol_XX (Year) (Author) {ASIN.XXX} [Source]/
+
+    If there's no series folder, the structure is:
+        Author/BookTitle (Year) (Author) {ASIN.XXX} [Source]/
+
+    Args:
+        libation_path: Full path to the book folder
+        book_folder_name: The innermost folder name (optional, extracted from path if not provided)
+
+    Returns:
+        Tuple of (series_name, position) if series folder exists, None otherwise
+    """
+    if not libation_path:
+        return None
+
+    # Get path parts
+    parts = libation_path.parts
+
+    # We need at least Author/Series/Book (3 levels from library root)
+    # But we don't know where library root is, so look for patterns
+
+    # Strategy: If we have at least 3 parts and the grandparent isn't typical
+    # author-like (doesn't contain ASIN, year, vol_), it might be a series folder
+    if len(parts) < 3:
+        return None
+
+    # The innermost folder is the book folder
+    book_folder = book_folder_name or parts[-1]
+
+    # The parent could be series or author
+    potential_series = parts[-2]
+
+    # Check if potential_series looks like a series folder (not a book folder)
+    # Series folders typically:
+    # - Don't have ASIN tags
+    # - Don't have year in parens
+    # - Don't have vol_XX
+    series_indicators = [
+        "{ASIN." not in potential_series,
+        "[ASIN." not in potential_series,
+        not re.search(r"\(\d{4}\)", potential_series),  # No (Year)
+        "vol_" not in potential_series.lower(),
+    ]
+
+    # If all indicators suggest it's a series folder
+    if all(series_indicators):
+        series_name = potential_series.strip()
+
+        # Try to extract volume from book folder name
+        position = None
+        vol_match = _VOL_FROM_NAME_PATTERN.search(book_folder)
+        if vol_match:
+            position = vol_match.group(1)
+
+        return (series_name, position)
+
+    return None
+
+
+def resolve_series(
+    audnex_data: dict[str, Any] | None = None,
+    libation_path: Path | None = None,
+    title: str | None = None,
+    naming_config: Any | None = None,
+) -> Any | None:
+    """
+    Resolve series information from multiple sources with fallback.
+
+    Resolution order (highest to lowest trust):
+    1. Audnex seriesPrimary (authoritative, confidence=1.0)
+    2. Libation folder structure (reliable, confidence=0.9)
+    3. Title heuristics (fallback, confidence=0.5)
+
+    Args:
+        audnex_data: Audnex API response dict (may contain seriesPrimary)
+        libation_path: Path to the book folder in Libation library
+        title: Book title for heuristic extraction
+        naming_config: NamingConfig for series name cleaning
+
+    Returns:
+        SeriesInfo object if series resolved, None if no source provides series
+    """
+    # Import here to avoid circular imports
+    from mamfast.models import SeriesInfo, SeriesSource
+
+    # 1. Try Audnex seriesPrimary (authoritative)
+    if audnex_data:
+        series_primary = audnex_data.get("seriesPrimary")
+        if series_primary and isinstance(series_primary, dict):
+            series_name = series_primary.get("name")
+            if series_name:
+                # Clean the series name
+                cleaned_name = clean_series_name(series_name, title)
+                if cleaned_name:
+                    position = series_primary.get("position")
+                    return SeriesInfo(
+                        name=cleaned_name,
+                        position=str(position) if position else None,
+                        source=SeriesSource.AUDNEX,
+                        confidence=1.0,
+                    )
+
+    # 2. Try Libation folder structure
+    if libation_path:
+        libation_result = parse_series_from_libation_path(libation_path)
+        if libation_result:
+            series_name, position = libation_result
+            # Clean the series name
+            cleaned_name = clean_series_name(series_name, title)
+            if cleaned_name:
+                return SeriesInfo(
+                    name=cleaned_name,
+                    position=position,
+                    source=SeriesSource.LIBATION,
+                    confidence=0.9,
+                )
+
+    # 3. Try title heuristics (last resort)
+    if title:
+        title_result = parse_series_from_title(title)
+        if title_result:
+            series_name, position = title_result
+            # Clean the series name
+            cleaned_name = clean_series_name(series_name, title)
+            if cleaned_name:
+                return SeriesInfo(
+                    name=cleaned_name,
+                    position=position,
+                    source=SeriesSource.TITLE_HEURISTIC,
+                    confidence=0.5,
+                )
+
+    # No series found from any source
+    return None

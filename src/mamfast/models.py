@@ -21,6 +21,53 @@ class ReleaseStatus(Enum):
     FAILED = auto()  # Processing failed
 
 
+class SeriesSource(Enum):
+    """Source of series information for resolution tracking."""
+
+    AUDNEX = "audnex"  # From Audnex API seriesPrimary (authoritative)
+    LIBATION = "libation"  # Parsed from Libation folder structure
+    TITLE_HEURISTIC = "title_heuristic"  # Extracted from title via regex
+
+
+@dataclass
+class SeriesInfo:
+    """
+    Resolved series information from multiple sources.
+
+    Series data can come from:
+    1. Audnex seriesPrimary (authoritative, confidence=1.0)
+    2. Libation folder structure (reliable, confidence=0.9)
+    3. Title heuristics via regex (fallback, confidence=0.5)
+
+    Used by naming and metadata modules to ensure consistent series handling
+    even when Audnex metadata is incomplete (e.g., new releases).
+
+    See docs/naming/NAMING_FOLDER_FILE_SCHEMAS.md for resolution strategy.
+    """
+
+    name: str  # Series name, e.g., "I'm the Evil Lord of an Intergalactic Empire!"
+    position: str | None = None  # Volume/book number, e.g., "5", "01.5", "0" for prequel
+    source: SeriesSource = SeriesSource.AUDNEX
+    confidence: float = 1.0  # 1.0 = authoritative, 0.9 = libation, 0.5 = heuristic
+
+    @property
+    def formatted_position(self) -> str | None:
+        """Format position for vol_XX style (zero-padded if numeric)."""
+        if not self.position:
+            return None
+        # Try to format as zero-padded number
+        try:
+            num = float(self.position)
+            if num == int(num):
+                return f"{int(num):02d}"
+            else:
+                # Decimal like 1.5
+                return f"{num:05.2f}".lstrip("0") or "0"
+        except ValueError:
+            # Non-numeric position (rare)
+            return self.position
+
+
 @dataclass
 class NormalizedBook:
     """
