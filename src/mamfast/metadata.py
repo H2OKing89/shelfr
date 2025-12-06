@@ -1062,7 +1062,8 @@ def build_mam_json(
             mam_json["description"] = bbcode_description
 
     # Series - resolve from multiple sources with fallback
-    # Priority: Audnex seriesPrimary → Libation path → Title heuristics
+    # Priority: 1) normalized book, 2) Audnex via _build_series_list (preserves secondary),
+    #           3) resolve_series fallback (Libation path → Title heuristics)
     cleaned_series: str | None = None  # Initialize for use in filter_subtitle
     series_info: SeriesInfo | None = None
 
@@ -1085,51 +1086,61 @@ def build_mam_json(
             series_number,
         )
     else:
-        # Use resolve_series() for multi-source fallback
-        # This tries: Audnex → Libation path → Title heuristics
-        title_for_heuristic = cleaned_title or audnex.get("title") or release.title
-        series_info = resolve_series(
-            audnex_data=audnex,
-            libation_path=release.source_dir,
-            title=title_for_heuristic,
-            naming_config=naming_config,
-        )
+        # First try _build_series_list() to preserve primary + secondary series from Audnex
+        series_list = _build_series_list(audnex, naming_config=naming_config)
+        if series_list:
+            mam_json["series"] = series_list
+            # Extract cleaned_series from first entry for subtitle filtering
+            cleaned_series = series_list[0].get("name") if series_list else None
+            logger.debug(
+                "Series from Audnex (primary + secondary): %s",
+                [s.get("name") for s in series_list],
+            )
+        else:
+            # Fall back to resolve_series() for multi-source resolution
+            # This tries: Audnex seriesPrimary → Libation path → Title heuristics
+            title_for_heuristic = cleaned_title or audnex.get("title") or release.title
+            series_info = resolve_series(
+                audnex_data=audnex,
+                libation_path=release.source_dir,
+                title=title_for_heuristic,
+            )
 
-        if series_info:
-            cleaned_series = filter_series(
-                series_info.name,
-                naming_config=naming_config,
-            )
-            mam_json["series"] = [
-                {
-                    "name": cleaned_series,
-                    "number": series_info.position or "",
-                }
-            ]
-            logger.debug(
-                "Series from %s (confidence=%.1f): %s #%s",
-                series_info.source.value,
-                series_info.confidence,
-                cleaned_series,
-                series_info.position or "N/A",
-            )
-        elif release.series:
-            # Last resort: use series from release (parsed from folder name)
-            cleaned_series = filter_series(
-                release.series,
-                naming_config=naming_config,
-            )
-            mam_json["series"] = [
-                {
-                    "name": cleaned_series,
-                    "number": release.series_position or "",
-                }
-            ]
-            logger.debug(
-                "Series from release fallback: %s #%s",
-                cleaned_series,
-                release.series_position or "N/A",
-            )
+            if series_info:
+                cleaned_series = filter_series(
+                    series_info.name,
+                    naming_config=naming_config,
+                )
+                mam_json["series"] = [
+                    {
+                        "name": cleaned_series,
+                        "number": series_info.position or "",
+                    }
+                ]
+                logger.debug(
+                    "Series from %s (confidence=%.1f): %s #%s",
+                    series_info.source.value,
+                    series_info.confidence,
+                    cleaned_series,
+                    series_info.position or "N/A",
+                )
+            elif release.series:
+                # Last resort: use series from release (parsed from folder name)
+                cleaned_series = filter_series(
+                    release.series,
+                    naming_config=naming_config,
+                )
+                mam_json["series"] = [
+                    {
+                        "name": cleaned_series,
+                        "number": release.series_position or "",
+                    }
+                ]
+                logger.debug(
+                    "Series from release fallback: %s #%s",
+                    cleaned_series,
+                    release.series_position or "N/A",
+                )
 
     # Subtitle - use normalized arc_name (from swap detection) or filter raw subtitle
     # Arc name is the meaningful subtitle (e.g., "Alicization Exploding", "Mother's Rosary")

@@ -2064,16 +2064,11 @@ _SERIES_FROM_TITLE_PATTERNS: list[re.Pattern[str]] = [
         re.IGNORECASE,
     ),
     # "Series Name 5" (just trailing number) - low confidence
+    # Requires series to have at least 2 words to avoid matching "Fahrenheit 451", "1984", etc.
     re.compile(
-        r"^(?P<series>.+?)\s+(?P<num>\d+)$",
+        r"^(?P<series>(?:\S+\s+)+\S+)\s+(?P<num>\d+)$",
     ),
 ]
-
-# Pattern to extract series from Libation folder structure
-# Expects: Author/Series/BookFolder or Author/BookFolder
-_LIBATION_SERIES_FOLDER_PATTERN = re.compile(
-    r"^(?P<author>[^/]+)/(?P<series>[^/]+)/(?P<book>[^/]+)$"
-)
 
 # Pattern to extract vol_XX from folder/file name
 _VOL_FROM_NAME_PATTERN = re.compile(r"vol_(\d+(?:\.\d+)?)", re.IGNORECASE)
@@ -2120,7 +2115,7 @@ def parse_series_from_title(title: str) -> tuple[str, str] | None:
 
 
 def parse_series_from_libation_path(
-    libation_path: Path,
+    libation_path: Path | None,
     book_folder_name: str | None = None,
 ) -> tuple[str, str | None] | None:
     """
@@ -2190,8 +2185,7 @@ def resolve_series(
     audnex_data: dict[str, Any] | None = None,
     libation_path: Path | None = None,
     title: str | None = None,
-    naming_config: Any | None = None,
-) -> Any | None:
+) -> Any:
     """
     Resolve series information from multiple sources with fallback.
 
@@ -2204,7 +2198,6 @@ def resolve_series(
         audnex_data: Audnex API response dict (may contain seriesPrimary)
         libation_path: Path to the book folder in Libation library
         title: Book title for heuristic extraction
-        naming_config: NamingConfig for series name cleaning
 
     Returns:
         SeriesInfo object if series resolved, None if no source provides series

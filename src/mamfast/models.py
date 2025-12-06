@@ -61,8 +61,10 @@ class SeriesInfo:
             if num == int(num):
                 return f"{int(num):02d}"
             else:
-                # Decimal like 1.5
-                return f"{num:05.2f}".lstrip("0") or "0"
+                # Decimal like 1.5, 0.5, 10.5
+                # Split into whole and fractional parts for proper formatting
+                whole, frac = str(num).split(".")
+                return f"{int(whole):02d}.{frac.ljust(2, '0')[:2]}"
         except ValueError:
             # Non-numeric position (rare)
             return self.position

@@ -45,7 +45,17 @@ class TestSeriesInfo:
     def test_formatted_position_decimal(self) -> None:
         """Test formatted_position with decimal position."""
         info = SeriesInfo(name="Test", position="1.5")
-        assert info.formatted_position == "1.50"
+        assert info.formatted_position == "01.50"
+
+    def test_formatted_position_decimal_less_than_one(self) -> None:
+        """Test formatted_position with decimal less than 1 (e.g., 0.5)."""
+        info = SeriesInfo(name="Test", position="0.5")
+        assert info.formatted_position == "00.50"
+
+    def test_formatted_position_decimal_double_digit(self) -> None:
+        """Test formatted_position with double-digit decimal."""
+        info = SeriesInfo(name="Test", position="10.5")
+        assert info.formatted_position == "10.50"
 
     def test_formatted_position_two_digit(self) -> None:
         """Test formatted_position with two-digit position."""
@@ -86,8 +96,9 @@ class TestParseSeriesFromTitle:
             ("Magic Academy Vol. 2", ("Magic Academy", "2")),
             ("Dragon Quest Volume 8", ("Dragon Quest", "8")),
             ("Hero's Journey Book 5", ("Hero's Journey", "5")),
-            # Trailing number (lowest confidence pattern)
-            ("Overlord 14", ("Overlord", "14")),
+            # Trailing number (requires at least 2 words in series)
+            ("Overlord Light Novel 14", ("Overlord Light Novel", "14")),
+            ("My Hero 5", ("My Hero", "5")),
         ],
     )
     def test_successful_extraction(self, title: str, expected: tuple[str, str]) -> None:
@@ -103,6 +114,13 @@ class TestParseSeriesFromTitle:
             "Project Hail Mary",
             "The Martian",
             "A Standalone Novel",
+            # Famous books with trailing numbers - should NOT match as series
+            "Fahrenheit 451",
+            "Catch-22",
+            "1984",
+            "Area 51",
+            # Single word + number - should NOT match (requires 2+ words)
+            "Overlord 14",
         ],
     )
     def test_no_series_found(self, title: str) -> None:
@@ -120,8 +138,8 @@ class TestParseSeriesFromTitle:
         assert result is not None
 
     def test_the_book_pattern(self) -> None:
-        """Test 'The Book N' pattern - matches as series."""
-        # "The Book 5" -> ("The Book", "5")
+        """Test 'The Book N' pattern - now matches with 2+ word series."""
+        # "The Book 5" -> ("The Book", "5") - 2 words, so it matches
         result = parse_series_from_title("The Book 5")
         assert result is not None
         assert result == ("The Book", "5")
@@ -188,7 +206,7 @@ class TestParseSeriesFromLibationPath:
 
     def test_none_path(self) -> None:
         """Test None path returns None."""
-        result = parse_series_from_libation_path(None)  # type: ignore[arg-type]
+        result = parse_series_from_libation_path(None)
         assert result is None
 
 
