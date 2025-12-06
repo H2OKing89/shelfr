@@ -15,6 +15,7 @@ This document covers the ABS API endpoints used by MAMFast for the import featur
    - [GET /api/libraries/{id}/items](#get-apilibrariesiditems)
    - [GET /api/items/{id}](#get-apiitemsid)
    - [POST /api/libraries/{id}/scan](#post-apilibrariesidscan)
+   - [GET /api/search/books](#get-apisearchbooks)
 3. [Response Schemas](#response-schemas)
 4. [Error Handling](#error-handling)
 5. [Rate Limiting](#rate-limiting)
@@ -290,6 +291,77 @@ curl -X POST "https://abs.example.com/api/libraries/lib_xxx/scan?force=1" \
 - No response body - just 200 OK
 - Use `force=0` for normal post-import scans (faster)
 - Requires admin user permissions
+
+---
+
+### GET /api/search/books
+
+Search for book metadata from external providers (Audible, Google, iTunes, etc.).
+
+**Use Case:** `mamfast abs-resolve-asins` - Resolve unknown ASINs via Audible search.
+
+```bash
+# Search Audible for a book by title and author
+curl "https://abs.example.com/api/search/books?title=Wizards%20First%20Rule&author=Terry%20Goodkind&provider=audible" \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `title` | String | Yes | Book title to search for |
+| `author` | String | No | Author name (improves results) |
+| `provider` | String | No | Metadata provider: `audible`, `google`, `itunes`, `openlibrary`, `fantlab` |
+
+**Response (Audible Provider):**
+
+```json
+[
+  {
+    "title": "Wizard's First Rule",
+    "subtitle": null,
+    "author": "Terry Goodkind",
+    "narrator": "Sam Tsoutsouvas",
+    "publisher": "Brilliance Audio",
+    "publishedYear": "2008",
+    "description": "The masterpiece that started...",
+    "cover": "https://m.media-amazon.com/images/I/...",
+    "asin": "B002V0QK4C",
+    "series": [
+      {
+        "series": "Sword of Truth",
+        "sequence": "1"
+      }
+    ],
+    "language": "English",
+    "duration": 34200,
+    "region": "us",
+    "rating": "4.5"
+  }
+]
+```
+
+**Key Fields for MAMFast:**
+
+| Field | Use |
+|-------|-----|
+| `asin` | **Primary** - The ASIN we need for unknown resolution |
+| `title` | For fuzzy matching against folder name |
+| `author` | For fuzzy matching confidence |
+| `series` | Array with series name and sequence number |
+| `narrator` | Secondary metadata |
+
+**Provider Notes:**
+- `audible` - Returns ASIN, best for audiobook resolution
+- `google` - Returns ISBN, no ASIN
+- Other providers vary in metadata completeness
+
+**Important Notes:**
+- ABS proxies the request to the external provider
+- No separate Audible credentials needed - uses ABS's built-in support
+- Results may be cached by ABS
+- Rate limits handled by ABS
 
 ---
 

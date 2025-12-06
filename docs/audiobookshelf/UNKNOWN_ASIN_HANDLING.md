@@ -474,23 +474,102 @@ def asin_from_mediainfo(audio_file: Path) -> str | None:
 
 ---
 
-### Phase 5: Audible API Lookup (Future Enhancement)
+### Phase 5: ABS Metadata Search (Future Enhancement)
 
-**Goal:** Last-resort ASIN resolution via Audible search.
+**Goal:** Last-resort ASIN resolution via Audiobookshelf's metadata search API.
+
+**Why ABS Instead of Direct Audible API?**
+- ABS already handles Audible provider authentication
+- Built-in rate limiting and caching
+- Same API we already use for other operations
+- No need for separate Audible credentials or library dependencies
 
 **Keep completely separate from import path:**
 
 ```bash
-mamfast abs-resolve-asins --use-audible-api
+mamfast abs-resolve-asins --search-provider audible
+```
+
+**ABS Metadata Search Endpoint:**
+
+```http
+GET /api/search/books?title=<title>&author=<author>&provider=audible
+Authorization: Bearer <ABS_TOKEN>
+```
+
+**Response (Audible provider):**
+
+```json
+[
+  {
+    "title": "Wizard's First Rule",
+    "asin": "B002V0QK4C",
+    "author": "Terry Goodkind",
+    "narrator": "Sam Tsoutsouvas",
+    "series": [{"series": "Sword of Truth", "sequence": "1"}],
+    "cover": "https://...",
+    "description": "...",
+    "publishedYear": "2008"
+  }
+]
+```
+
+**Implementation Sketch:**
+
+```python
+from mamfast.abs.client import AbsClient
+
+@retry_with_backoff(max_attempts=3, base_delay=2.0, exceptions=NETWORK_EXCEPTIONS)
+def search_audible_via_abs(
+    client: AbsClient,
+    title: str,
+    author: str | None = None,
+) -> list[dict]:
+    """Search Audible metadata through ABS proxy."""
+    params = {"title": title, "provider": "audible"}
+    if author:
+        params["author"] = author
+    
+    resp = client._client.get("/api/search/books", params=params)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def resolve_asin_from_abs_search(
+    client: AbsClient,
+    folder_name: str,
+    confidence_threshold: float = 0.85,
+) -> str | None:
+    """Try to resolve ASIN via ABS metadata search."""
+    # Parse folder name for search terms
+    title, author = parse_folder_for_search(folder_name)
+    
+    results = search_audible_via_abs(client, title, author)
+    if not results:
+        return None
+    
+    # Use fuzzy matching to find best match
+    best_match = find_best_match(results, title, author)
+    if best_match and best_match["confidence"] >= confidence_threshold:
+        return best_match["asin"]
+    
+    return None
 ```
 
 **Flow:**
-1. Scan `Unknown/` for MISSING_ASIN books
-2. Build queries from folder name + embedded metadata
-3. Call Audible search API
-4. When confidence high, write ASIN sidecar or rename folder to MAM-style
+1. Scan `Unknown/` for MISSING_ASIN books (from sidecar or naming)
+2. Parse folder names for title/author search terms
+3. Call ABS `/api/search/books?provider=audible`
+4. Fuzzy-match results against original folder metadata
+5. When confidence high, write ASIN sidecar or rename folder to MAM-style
 
-This keeps import runs **fast and deterministic** while letting you nerd out later.
+**Advantages:**
+- **No new dependencies:** Uses existing `AbsClient`
+- **Unified auth:** Same API token we already configure
+- **Rate limiting:** ABS handles Audible API limits
+- **Caching:** ABS may cache responses (reduces external calls)
+
+This keeps import runs **fast and deterministic** while letting you batch-resolve ASINs later.
 
 ---
 
