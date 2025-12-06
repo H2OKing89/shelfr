@@ -2157,7 +2157,7 @@ def parse_series_from_title(title: str) -> tuple[str, str] | None:
     for pattern in _SERIES_FROM_TITLE_PATTERNS:
         match = pattern.match(title)
         if match:
-            series = match.group("series").strip()
+            series = match.group("series").strip().rstrip(",.:;")
             num = match.group("num")
 
             # Basic validation: series should be meaningful

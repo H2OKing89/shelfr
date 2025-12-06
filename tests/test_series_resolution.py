@@ -129,14 +129,17 @@ class TestParseSeriesFromTitle:
         result = parse_series_from_title(title)
         assert result is None
 
-    def test_short_series_name_still_matches(self) -> None:
-        """Test short series names still match (edge case)."""
-        # "A, Vol. 1" -> ("A,", "1") - the pattern matches but series name is dubious
-        # This is acceptable behavior - downstream can filter if needed
-        result = parse_series_from_title("A, Vol. 1")
-        # Pattern matches technically, but series name validation should catch this
-        # For now, the pattern does match
-        assert result is not None
+    def test_short_series_name_filtered_out(self) -> None:
+        """Single-letter 'series' names are discarded as noise.
+
+        The implementation has a len(series) < 2 guard to filter out
+        garbage matches like 'A' from 'A, Vol. 1'. We use a title with
+        trailing content to prevent fallback to the greedy trailing-number pattern.
+        """
+        # Trailing content prevents the "Series Name N" fallback pattern
+        result = parse_series_from_title("A, Vol. 1: The Beginning")
+        # Single character series names are filtered out
+        assert result is None
 
     def test_the_book_pattern(self) -> None:
         """Test 'The Book N' pattern - now matches with 2+ word series."""
