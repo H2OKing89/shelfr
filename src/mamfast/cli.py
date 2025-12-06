@@ -405,6 +405,18 @@ Examples:
         action="store_true",
         help="Don't trigger ABS library scan after import",
     )
+    abs_import_parser.add_argument(
+        "--no-abs-search",
+        action="store_true",
+        help="Skip ABS metadata search for missing ASINs",
+    )
+    abs_import_parser.add_argument(
+        "--confidence",
+        type=float,
+        default=0.75,
+        metavar="THRESHOLD",
+        help="Minimum confidence (0.0-1.0) for ABS search matches (default: 0.75)",
+    )
     abs_import_parser.set_defaults(func=cmd_abs_import)
 
     # -------------------------------------------------------------------------
@@ -2012,14 +2024,22 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         fatal_error(f"Failed to build ASIN index: {e}")
         return 1
 
-    # Done with API calls for indexing - close to free socket
-    client.close()
+    # Determine if we should use ABS search for missing ASINs
+    # Keep client open if we need it for ABS search, otherwise close to free socket
+    use_abs_search = not getattr(args, "no_abs_search", False)
+    abs_client_for_import = client if use_abs_search else None
+    if not use_abs_search:
+        client.close()
 
     # Perform import
     print_step(4, 5, "Importing to library")
     print_info(f"Source: {import_source}")
     print_info(f"Target: {abs_library_root}")
     print_info(f"Duplicate policy: {dup_policy}")
+    if use_abs_search:
+        print_info(f"ABS search enabled (confidence: {args.confidence:.0%})")
+    else:
+        print_info("ABS search disabled (--no-abs-search)")
 
     if args.dry_run:
         print_dry_run(f"Would import {len(staging_folders)} book(s)")
@@ -2029,13 +2049,21 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
             staging_folders=staging_folders,
             library_root=abs_library_root,
             asin_index=asin_index,
+            abs_client=abs_client_for_import,
+            abs_search_confidence=args.confidence,
             staging_root=import_source,
             duplicate_policy=dup_policy,
             dry_run=args.dry_run,
         )
     except Exception as e:
+        if use_abs_search:
+            client.close()  # Clean up on error
         fatal_error(f"Import failed: {e}")
         return 1
+
+    # Close client if we kept it open for ABS search
+    if use_abs_search:
+        client.close()
 
     # Display results
     # Track categories for summary (initialized before results loop)

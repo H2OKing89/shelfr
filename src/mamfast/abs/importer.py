@@ -26,6 +26,7 @@ from mamfast.abs.asin import (
     asin_exists,
     extract_asin,
     resolve_asin_from_folder_with_mediainfo,
+    resolve_asin_via_abs_search,
 )
 from mamfast.metadata import fetch_audnex_book
 from mamfast.utils.naming import build_mam_file_name, build_mam_folder_name, clean_series_name
@@ -1104,6 +1105,8 @@ def import_single(
     library_root: Path,
     asin_index: dict[str, AsinEntry],
     *,
+    abs_client: AbsClient | None = None,
+    abs_search_confidence: float = 0.75,
     staging_root: Path | None = None,
     duplicate_policy: str = "skip",
     unknown_asin_policy: UnknownAsinPolicy = UnknownAsinPolicy.IMPORT,
@@ -1116,6 +1119,8 @@ def import_single(
         staging_folder: Path to staged audiobook folder
         library_root: ABS library root
         asin_index: In-memory ASIN index from build_asin_index()
+        abs_client: Optional AbsClient for ABS search fallback (Phase 5)
+        abs_search_confidence: Minimum confidence for ABS search matches (0.0-1.0)
         staging_root: Root of staging directory (to preserve nested structure)
         duplicate_policy: "skip", "warn", or "overwrite"
         unknown_asin_policy: How to handle books without ASIN
@@ -1149,6 +1154,30 @@ def import_single(
             asin = resolution.asin
             # Update parsed object so downstream functions (build_target_path, rename_files)
             # have access to the resolved ASIN for naming
+            parsed.asin = asin
+            logger.info(
+                "Resolved ASIN %s from %s (%s)",
+                asin,
+                resolution.source,
+                resolution.source_detail or "N/A",
+            )
+
+    # Phase 5: ABS Metadata Search - search Audiobookshelf's Audible provider
+    # as final resolution step before marking as unknown
+    if not asin and abs_client is not None:
+        search_title = parsed.title or folder_name
+        search_author = parsed.author
+        logger.debug(
+            "Attempting ABS search for title=%r author=%r confidence=%.0f%%",
+            search_title,
+            search_author,
+            abs_search_confidence * 100,
+        )
+        resolution = resolve_asin_via_abs_search(
+            abs_client, search_title, search_author, abs_search_confidence
+        )
+        if resolution.found:
+            asin = resolution.asin
             parsed.asin = asin
             logger.info(
                 "Resolved ASIN %s from %s (%s)",
@@ -1285,6 +1314,8 @@ def import_batch(
     library_root: Path,
     asin_index: dict[str, AsinEntry],
     *,
+    abs_client: AbsClient | None = None,
+    abs_search_confidence: float = 0.75,
     staging_root: Path | None = None,
     duplicate_policy: str = "skip",
     unknown_asin_policy: UnknownAsinPolicy = UnknownAsinPolicy.IMPORT,
@@ -1297,6 +1328,8 @@ def import_batch(
         staging_folders: List of staging folders to import
         library_root: ABS library root
         asin_index: In-memory ASIN index from build_asin_index()
+        abs_client: Optional ABS client for metadata search resolution
+        abs_search_confidence: Minimum confidence for ABS search matches (0.0-1.0)
         staging_root: Root staging directory (for resolving author from path)
         duplicate_policy: "skip", "warn", or "overwrite"
         unknown_asin_policy: How to handle books without ASIN
@@ -1313,6 +1346,8 @@ def import_batch(
             staging_folder=folder,
             library_root=library_root,
             asin_index=asin_index,
+            abs_client=abs_client,
+            abs_search_confidence=abs_search_confidence,
             staging_root=staging_root,
             duplicate_policy=duplicate_policy,
             unknown_asin_policy=unknown_asin_policy,

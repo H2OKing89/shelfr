@@ -255,6 +255,8 @@ class TestAbsImportCommand:
             verbose=False,
             duplicate_policy=None,
             no_scan=False,
+            no_abs_search=False,
+            confidence=0.75,
             paths=[],
         )
 
