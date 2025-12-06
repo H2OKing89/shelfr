@@ -531,3 +531,71 @@ class AbsClient:
             self._library_cache.pop(library_id, None)
         else:
             self._library_cache.clear()
+
+    # =========================================================================
+    # Metadata Search (Phase 5)
+    # =========================================================================
+
+    @retry_with_backoff(max_attempts=3, base_delay=2.0, exceptions=NETWORK_EXCEPTIONS)
+    def search_books(
+        self,
+        title: str,
+        author: str | None = None,
+        provider: str = "audible",
+    ) -> list[dict[str, Any]]:
+        """Search for books via ABS metadata provider.
+
+        Uses ABS as a proxy to search Audible (or other providers) for book metadata.
+        This is useful for resolving ASINs for books that don't have them in folder/file names.
+
+        Args:
+            title: Book title to search for
+            author: Optional author name to narrow results
+            provider: Metadata provider (default: "audible")
+
+        Returns:
+            List of search results with book metadata including ASIN
+
+        Raises:
+            AbsConnectionError: If unable to connect
+            AbsApiError: If API returns an error
+
+        Example response structure::
+
+            [
+                {
+                    "title": "Wizard's First Rule",
+                    "subtitle": "Sword of Truth, Book 1",
+                    "author": "Terry Goodkind",
+                    "narrator": "Sam Tsoutsouvas",
+                    "asin": "B002V0QK4C",
+                    "series": [{"series": "Sword of Truth", "sequence": "1"}],
+                    ...
+                }
+            ]
+        """
+        logger.debug(f"Searching ABS for books: title={title!r}, author={author!r}")
+
+        params: dict[str, str] = {
+            "title": title,
+            "provider": provider,
+        }
+        if author:
+            params["author"] = author
+
+        try:
+            response = self._request("GET", "/api/search/books", params=params)
+        except httpx.ConnectError as e:
+            raise AbsConnectionError(f"Failed to connect to {self.host}: {e}") from e
+        except httpx.TimeoutException as e:
+            raise AbsConnectionError(f"Request to {self.host} timed out: {e}") from e
+
+        results = response.json()
+
+        # API returns a list directly
+        if not isinstance(results, list):
+            logger.warning(f"Unexpected search response type: {type(results)}")
+            return []
+
+        logger.debug(f"Search returned {len(results)} results")
+        return results

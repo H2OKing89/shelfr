@@ -107,6 +107,12 @@ qbittorrent:
 audnex:
   base_url: "https://api.audnex.us"
   timeout_seconds: 30
+  # Regions to try in order when fetching metadata (first success wins)
+  # Some ASINs are region-specific (e.g., US-only or UK-only books)
+  # Valid regions: us, uk, au, ca, de, es, fr, in, it, jp
+  regions:
+    - us
+    # - uk  # Uncomment to add UK as fallback
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MediaInfo (for extracting audio file metadata)

@@ -3,18 +3,23 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from mamfast.abs.asin import (
     AsinResolution,
+    _get_mediainfo_binary,
     extract_all_asins,
     extract_asin,
     extract_asin_from_abs_item,
+    extract_asin_from_mediainfo,
     extract_asin_with_source,
     is_valid_asin,
     resolve_asin_from_folder,
+    resolve_asin_from_folder_with_mediainfo,
 )
 
 
@@ -449,3 +454,737 @@ class TestResolveAsinFromFolder:
         result = resolve_asin_from_folder(folder)
         assert result.found is True, f"Failed for {ext}, expected ASIN {asin}"
         assert result.source == "filename"
+
+
+# =============================================================================
+# Phase 4 Tests: mediainfo Probe
+# =============================================================================
+
+
+class TestMediainfoAvailable:
+    """Tests for mediainfo binary availability check."""
+
+    def test_mediainfo_available_when_in_path(self) -> None:
+        """Returns binary path when mediainfo is in PATH."""
+        mock_settings = type(
+            "Settings", (), {"mediainfo": type("MediaInfo", (), {"binary": "mediainfo"})()}
+        )()
+        with (
+            patch("mamfast.abs.asin.get_settings", return_value=mock_settings),
+            patch.object(shutil, "which", return_value="/usr/bin/mediainfo"),
+        ):
+            assert _get_mediainfo_binary() == "/usr/bin/mediainfo"
+
+    def test_mediainfo_not_available(self) -> None:
+        """Returns None when mediainfo not in PATH."""
+        mock_settings = type(
+            "Settings", (), {"mediainfo": type("MediaInfo", (), {"binary": "mediainfo"})()}
+        )()
+        with (
+            patch("mamfast.abs.asin.get_settings", return_value=mock_settings),
+            patch.object(shutil, "which", return_value=None),
+        ):
+            assert _get_mediainfo_binary() is None
+
+    def test_mediainfo_absolute_path_exists(self, tmp_path: Path) -> None:
+        """Returns binary path when configured as absolute path that exists."""
+        binary = tmp_path / "mediainfo"
+        binary.touch()
+        mock_settings = type(
+            "Settings", (), {"mediainfo": type("MediaInfo", (), {"binary": str(binary)})()}
+        )()
+        with patch("mamfast.abs.asin.get_settings", return_value=mock_settings):
+            assert _get_mediainfo_binary() == str(binary)
+
+    def test_mediainfo_absolute_path_not_exists(self, tmp_path: Path) -> None:
+        """Returns None when configured absolute path doesn't exist."""
+        mock_settings = type(
+            "Settings",
+            (),
+            {"mediainfo": type("MediaInfo", (), {"binary": "/nonexistent/mediainfo"})()},
+        )()
+        with patch("mamfast.abs.asin.get_settings", return_value=mock_settings):
+            assert _get_mediainfo_binary() is None
+
+
+class TestExtractAsinFromMediainfo:
+    """Tests for extract_asin_from_mediainfo().
+
+    Note: These tests pass binary=\"mediainfo\" explicitly to avoid
+    needing to mock config. The subprocess.run is still mocked.
+    """
+
+    def test_nonexistent_file(self, tmp_path: Path) -> None:
+        """Return None for nonexistent file."""
+        result = extract_asin_from_mediainfo(tmp_path / "nonexistent.m4b", binary="mediainfo")
+        assert result is None
+
+    def test_not_a_file(self, tmp_path: Path) -> None:
+        """Return None for directory."""
+        folder = tmp_path / "folder"
+        folder.mkdir()
+        result = extract_asin_from_mediainfo(folder, binary="mediainfo")
+        assert result is None
+
+    def test_mediainfo_returns_asin_field(self, tmp_path: Path) -> None:
+        """Extract ASIN from direct 'asin' field in mediainfo output."""
+        mock_output = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "asin": "B0FDCW8SS7",
+                        "Title": "Beware of Chicken 5",
+                    }
+                ]
+            }
+        }
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result == "B0FDCW8SS7"
+
+    def test_mediainfo_returns_cdek_field(self, tmp_path: Path) -> None:
+        """Extract ASIN from 'CDEK' field (Audible internal tag)."""
+        mock_output = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "CDEK": "B0ABC12345",
+                        "Title": "Some Book",
+                    }
+                ]
+            }
+        }
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result == "B0ABC12345"
+
+    def test_mediainfo_asin_priority_over_cdek(self, tmp_path: Path) -> None:
+        """The 'asin' field has priority over 'CDEK'."""
+        mock_output = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "asin": "B0ASIN0001",
+                        "CDEK": "B0CDEK0002",
+                    }
+                ]
+            }
+        }
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result == "B0ASIN0001"
+
+    def test_mediainfo_nested_extra_asin(self, tmp_path: Path) -> None:
+        """Extract ASIN from nested 'extra' dict (common in m4b files)."""
+        # Real-world structure from Audible m4b files
+        mock_output = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Title": "Some Book",
+                        "extra": {
+                            "prID": "BK_PODM_010813",
+                            "CDEK": "B0FDCW8SS7",
+                            "asin": "B0FDCW8SS7",
+                        },
+                    }
+                ]
+            }
+        }
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result == "B0FDCW8SS7"
+
+    def test_mediainfo_nested_extra_cdek_only(self, tmp_path: Path) -> None:
+        """Extract ASIN from nested extra.CDEK when asin not present."""
+        mock_output = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "extra": {
+                            "CDEK": "B0CDEK1234",
+                        },
+                    }
+                ]
+            }
+        }
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result == "B0CDEK1234"
+
+    def test_mediainfo_no_asin_fields(self, tmp_path: Path) -> None:
+        """Return None when no ASIN fields present."""
+        mock_output = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "Title": "Some Book",
+                        "Album": "Some Album",
+                    }
+                ]
+            }
+        }
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result is None
+
+    def test_mediainfo_invalid_asin_ignored(self, tmp_path: Path) -> None:
+        """Invalid ASIN values are ignored."""
+        mock_output = {
+            "media": {
+                "track": [
+                    {
+                        "@type": "General",
+                        "asin": "invalid",  # Too short
+                    }
+                ]
+            }
+        }
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result is None
+
+    def test_mediainfo_subprocess_error(self, tmp_path: Path) -> None:
+        """Handle subprocess error gracefully."""
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            import subprocess as sp
+
+            mock_run.side_effect = sp.SubprocessError("mediainfo failed")
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result is None
+
+    def test_mediainfo_invalid_json(self, tmp_path: Path) -> None:
+        """Handle invalid JSON output gracefully."""
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = "not valid json {{{}"
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result is None
+
+    def test_mediainfo_timeout(self, tmp_path: Path) -> None:
+        """Handle timeout gracefully."""
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            import subprocess as sp
+
+            mock_run.side_effect = sp.TimeoutExpired(cmd="mediainfo", timeout=30)
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result is None
+
+    def test_mediainfo_track_is_single_dict(self, tmp_path: Path) -> None:
+        """Handle mediainfo returning track as single dict instead of list."""
+        # Some versions of mediainfo return a single dict when only one track
+        mock_output = {
+            "media": {
+                "track": {
+                    "@type": "General",
+                    "asin": "B0SINGLEDI",  # 10 chars
+                }
+            }
+        }
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result == "B0SINGLEDI"
+
+    def test_mediainfo_track_is_none(self, tmp_path: Path) -> None:
+        """Handle mediainfo returning track as None."""
+        mock_output = {"media": {"track": None}}
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result is None
+
+    def test_mediainfo_track_contains_non_dict(self, tmp_path: Path) -> None:
+        """Handle track list containing non-dict entries."""
+        mock_output = {
+            "media": {
+                "track": [
+                    "not a dict",
+                    None,
+                    {"@type": "General", "asin": "B0VALIDASN"},  # 10 chars
+                    123,
+                ]
+            }
+        }
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result == "B0VALIDASN"
+
+    def test_mediainfo_unexpected_track_type(self, tmp_path: Path) -> None:
+        """Handle unexpected track type (not dict, list, or None)."""
+        mock_output = {"media": {"track": "unexpected string"}}
+
+        audio_file = tmp_path / "book.m4b"
+        audio_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = extract_asin_from_mediainfo(audio_file, binary="mediainfo")
+            assert result is None
+
+
+class TestResolveAsinFromFolderWithMediainfo:
+    """Tests for resolve_asin_from_folder_with_mediainfo()."""
+
+    def test_falls_back_to_phase3_first(self, tmp_path: Path) -> None:
+        """Phase 3 sources are checked before mediainfo."""
+        folder = tmp_path / "Book {ASIN.B0FOLDERID}"
+        folder.mkdir()
+        (folder / "book.m4b").touch()
+
+        # Don't need to mock mediainfo - folder name should resolve first
+        result = resolve_asin_from_folder_with_mediainfo(folder)
+        assert result.asin == "B0FOLDERID"
+        assert result.source == "folder"
+
+    def test_mediainfo_used_when_phase3_fails(self, tmp_path: Path) -> None:
+        """mediainfo is used when Phase 3 sources don't find ASIN."""
+        folder = tmp_path / "Book Without ASIN"
+        folder.mkdir()
+        audio_file = folder / "book.m4b"
+        audio_file.touch()
+
+        mock_output = {"media": {"track": [{"@type": "General", "asin": "B0MEDIAINF"}]}}
+
+        with (
+            patch("mamfast.abs.asin._get_mediainfo_binary", return_value="/usr/bin/mediainfo"),
+            patch("mamfast.abs.asin.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = resolve_asin_from_folder_with_mediainfo(folder)
+            assert result.asin == "B0MEDIAINF"
+            assert result.source == "mediainfo"
+            assert result.source_detail == "book.m4b"
+
+    def test_mediainfo_not_available_returns_unknown(self, tmp_path: Path) -> None:
+        """When mediainfo not available, returns unknown."""
+        folder = tmp_path / "Book Without ASIN"
+        folder.mkdir()
+        (folder / "book.m4b").touch()
+
+        with patch("mamfast.abs.asin._get_mediainfo_binary", return_value=None):
+            result = resolve_asin_from_folder_with_mediainfo(folder)
+            assert result.found is False
+            assert result.source == "unknown"
+
+    def test_mediainfo_probes_multiple_files(self, tmp_path: Path) -> None:
+        """mediainfo probes files until ASIN found."""
+        folder = tmp_path / "Book"
+        folder.mkdir()
+        (folder / "part1.m4b").touch()
+        (folder / "part2.m4b").touch()
+
+        # First file has no ASIN, second does
+        call_count = 0
+
+        def mock_mediainfo(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            mock_result = type("Result", (), {"returncode": 0, "stdout": ""})()
+
+            if call_count == 1:
+                mock_result.stdout = json.dumps({"media": {"track": [{"@type": "General"}]}})
+            else:
+                mock_result.stdout = json.dumps(
+                    {"media": {"track": [{"@type": "General", "asin": "B0SECOND01"}]}}
+                )
+            return mock_result
+
+        with (
+            patch("mamfast.abs.asin._get_mediainfo_binary", return_value="/usr/bin/mediainfo"),
+            patch("mamfast.abs.asin.subprocess.run", side_effect=mock_mediainfo),
+        ):
+            result = resolve_asin_from_folder_with_mediainfo(folder)
+            assert result.asin == "B0SECOND01"
+            assert result.source == "mediainfo"
+
+    def test_only_probes_audio_files(self, tmp_path: Path) -> None:
+        """Non-audio files are not probed with mediainfo."""
+        folder = tmp_path / "Book"
+        folder.mkdir()
+        (folder / "cover.jpg").touch()
+        (folder / "metadata.json").write_text("{}")
+        (folder / "book.pdf").touch()
+        audio = folder / "book.m4b"
+        audio.touch()
+
+        mock_output = {"media": {"track": [{"@type": "General", "asin": "B0AUDIOFIL"}]}}
+
+        with (
+            patch("mamfast.abs.asin._get_mediainfo_binary", return_value="/usr/bin/mediainfo"),
+            patch("mamfast.abs.asin.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value.stdout = json.dumps(mock_output)
+            mock_run.return_value.returncode = 0
+
+            result = resolve_asin_from_folder_with_mediainfo(folder)
+
+            # Should only be called once for the .m4b file
+            assert mock_run.call_count == 1
+            assert result.asin == "B0AUDIOFIL"
+
+
+# =============================================================================
+# Phase 5: ABS Metadata Search Tests
+# =============================================================================
+
+
+class TestMatchSearchResults:
+    """Tests for match_search_results() fuzzy matching."""
+
+    def test_exact_title_match(self) -> None:
+        """Exact title match returns high confidence."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Wizard's First Rule",
+                "author": "Terry Goodkind",
+                "asin": "B002V0QK4C",
+                "language": "English",
+            }
+        ]
+
+        match = match_search_results(results, "Wizard's First Rule", "Terry Goodkind")
+        assert match is not None
+        assert match.asin == "B002V0QK4C"
+        assert match.confidence >= 0.9
+
+    def test_fuzzy_title_match(self) -> None:
+        """Fuzzy title match with minor differences."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Wizard's First Rule",
+                "author": "Terry Goodkind",
+                "asin": "B002V0QK4C",
+                "language": "English",
+            }
+        ]
+
+        # Slight variation in title
+        match = match_search_results(results, "Wizards First Rule", "Terry Goodkind")
+        assert match is not None
+        assert match.asin == "B002V0QK4C"
+        assert match.confidence >= 0.75
+
+    def test_no_match_below_threshold(self) -> None:
+        """No match returned when below confidence threshold."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Completely Different Book",
+                "author": "Other Author",
+                "asin": "B0DIFFERENT",
+                "language": "English",
+            }
+        ]
+
+        match = match_search_results(
+            results, "Wizard's First Rule", "Terry Goodkind", confidence_threshold=0.75
+        )
+        assert match is None
+
+    def test_prefers_english_results(self) -> None:
+        """English results preferred over translations."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Proyecto Hail Mary",
+                "author": "Andy Weir",
+                "asin": "8418037121",
+                "language": "Spanish",
+            },
+            {
+                "title": "Project Hail Mary",
+                "author": "Andy Weir",
+                "asin": "B08G9PRS1K",
+                "language": "English",
+            },
+        ]
+
+        match = match_search_results(results, "Project Hail Mary", "Andy Weir", prefer_english=True)
+        assert match is not None
+        assert match.asin == "B08G9PRS1K"  # English version
+
+    def test_empty_results_returns_none(self) -> None:
+        """Empty results list returns None."""
+        from mamfast.abs.asin import match_search_results
+
+        match = match_search_results([], "Any Title", "Any Author")
+        assert match is None
+
+    def test_skips_invalid_asin(self) -> None:
+        """Results with invalid ASIN are skipped."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Wizard's First Rule",
+                "author": "Terry Goodkind",
+                "asin": "INVALID",  # Not a valid ASIN
+                "language": "English",
+            }
+        ]
+
+        match = match_search_results(results, "Wizard's First Rule", "Terry Goodkind")
+        assert match is None
+
+    def test_extracts_series_info(self) -> None:
+        """Series info extracted from results."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Wizard's First Rule",
+                "author": "Terry Goodkind",
+                "asin": "B002V0QK4C",
+                "language": "English",
+                "series": [{"series": "Sword of Truth", "sequence": "1"}],
+            }
+        ]
+
+        match = match_search_results(results, "Wizard's First Rule", "Terry Goodkind")
+        assert match is not None
+        assert match.series == "Sword of Truth"
+        assert match.sequence == "1"
+
+    def test_handles_no_series(self) -> None:
+        """Books without series info handled gracefully."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Project Hail Mary",
+                "author": "Andy Weir",
+                "asin": "B08G9PRS1K",
+                "language": "English",
+                "series": None,
+            }
+        ]
+
+        match = match_search_results(results, "Project Hail Mary", "Andy Weir")
+        assert match is not None
+        assert match.series is None
+        assert match.sequence is None
+
+    def test_title_only_matching(self) -> None:
+        """Matching works with title only (no author)."""
+        from mamfast.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Project Hail Mary",
+                "author": "Andy Weir",
+                "asin": "B08G9PRS1K",
+                "language": "English",
+            }
+        ]
+
+        match = match_search_results(results, "Project Hail Mary", folder_author=None)
+        assert match is not None
+        assert match.asin == "B08G9PRS1K"
+
+
+class TestResolveAsinViaAbsSearch:
+    """Tests for resolve_asin_via_abs_search()."""
+
+    def test_successful_resolution(self) -> None:
+        """Successful ASIN resolution via search."""
+        from unittest.mock import MagicMock
+
+        from mamfast.abs.asin import resolve_asin_via_abs_search
+
+        mock_client = MagicMock()
+        mock_client.search_books.return_value = [
+            {
+                "title": "Wizard's First Rule",
+                "author": "Terry Goodkind",
+                "asin": "B002V0QK4C",
+                "language": "English",
+            }
+        ]
+
+        result = resolve_asin_via_abs_search(
+            mock_client, title="Wizard's First Rule", author="Terry Goodkind"
+        )
+
+        assert result.found is True
+        assert result.asin == "B002V0QK4C"
+        assert result.source == "abs_search"
+        assert "confidence=" in result.source_detail
+
+    def test_no_results_returns_unknown(self) -> None:
+        """No search results returns unknown."""
+        from unittest.mock import MagicMock
+
+        from mamfast.abs.asin import resolve_asin_via_abs_search
+
+        mock_client = MagicMock()
+        mock_client.search_books.return_value = []
+
+        result = resolve_asin_via_abs_search(
+            mock_client, title="Nonexistent Book", author="Unknown Author"
+        )
+
+        assert result.found is False
+        assert result.source == "unknown"
+
+    def test_search_error_returns_unknown(self) -> None:
+        """Search API error returns unknown."""
+        from unittest.mock import MagicMock
+
+        from mamfast.abs.asin import resolve_asin_via_abs_search
+
+        mock_client = MagicMock()
+        mock_client.search_books.side_effect = Exception("Connection failed")
+
+        result = resolve_asin_via_abs_search(mock_client, title="Any Title", author="Any Author")
+
+        assert result.found is False
+        assert result.source == "unknown"
+
+    def test_respects_confidence_threshold(self) -> None:
+        """Confidence threshold is respected."""
+        from unittest.mock import MagicMock
+
+        from mamfast.abs.asin import resolve_asin_via_abs_search
+
+        mock_client = MagicMock()
+        mock_client.search_books.return_value = [
+            {
+                "title": "Very Different Title",
+                "author": "Other Author",
+                "asin": "B0DIFFERENT",
+                "language": "English",
+            }
+        ]
+
+        # High threshold should reject poor match
+        result = resolve_asin_via_abs_search(
+            mock_client,
+            title="Wizard's First Rule",
+            author="Terry Goodkind",
+            confidence_threshold=0.9,
+        )
+
+        assert result.found is False
+
+
+class TestSearchMatch:
+    """Tests for SearchMatch dataclass."""
+
+    def test_search_match_fields(self) -> None:
+        """SearchMatch has expected fields."""
+        from mamfast.abs.asin import SearchMatch
+
+        match = SearchMatch(
+            asin="B002V0QK4C",
+            title="Wizard's First Rule",
+            author="Terry Goodkind",
+            confidence=0.95,
+            language="English",
+            series="Sword of Truth",
+            sequence="1",
+        )
+
+        assert match.asin == "B002V0QK4C"
+        assert match.title == "Wizard's First Rule"
+        assert match.author == "Terry Goodkind"
+        assert match.confidence == 0.95
+        assert match.language == "English"
+        assert match.series == "Sword of Truth"
+        assert match.sequence == "1"

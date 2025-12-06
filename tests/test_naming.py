@@ -1034,9 +1034,12 @@ class TestFilterSubtitle:
         config = NamingConfig(
             subtitle_remove_patterns=[r"^[Uu]nabridged$"],
         )
-        with caplog.at_level(logging.DEBUG):
-            filter_subtitle("Unabridged", naming_config=config, verbose=True)
+        # Need to set the logger for mamfast.utils.naming specifically
+        with caplog.at_level(logging.DEBUG, logger="mamfast.utils.naming"):
+            result = filter_subtitle("Unabridged", naming_config=config, verbose=True)
 
+        # Should return None when matching remove pattern
+        assert result is None
         assert "remove_pattern" in caplog.text
 
 

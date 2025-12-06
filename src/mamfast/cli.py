@@ -405,6 +405,18 @@ Examples:
         action="store_true",
         help="Don't trigger ABS library scan after import",
     )
+    abs_import_parser.add_argument(
+        "--abs-search",
+        action="store_true",
+        help="Enable ABS metadata search for missing ASINs (makes API calls)",
+    )
+    abs_import_parser.add_argument(
+        "--confidence",
+        type=float,
+        default=0.75,
+        metavar="THRESHOLD",
+        help="Minimum confidence (0.0-1.0) for ABS search matches (default: 0.75)",
+    )
     abs_import_parser.set_defaults(func=cmd_abs_import)
 
     # -------------------------------------------------------------------------
@@ -421,6 +433,32 @@ Examples:
         help="ASIN to check (e.g., B0DK27WWT8)",
     )
     abs_check_parser.set_defaults(func=cmd_abs_check_duplicate)
+
+    # -------------------------------------------------------------------------
+    # abs-resolve-asins: Batch resolve ASINs for Unknown/ books via ABS search
+    # -------------------------------------------------------------------------
+    abs_resolve_parser = subparsers.add_parser(
+        "abs-resolve-asins",
+        help="Resolve ASINs for Unknown/ books via ABS metadata search",
+        epilog="Phase 5: Search Audible via ABS to find ASINs for books in Unknown/.",
+    )
+    abs_resolve_parser.add_argument(
+        "--path",
+        type=Path,
+        help="Specific folder to resolve (default: scan Unknown/)",
+    )
+    abs_resolve_parser.add_argument(
+        "--confidence",
+        type=float,
+        default=0.75,
+        help="Minimum confidence threshold (0-1, default: 0.75)",
+    )
+    abs_resolve_parser.add_argument(
+        "--write-sidecar",
+        action="store_true",
+        help="Write resolved ASINs to sidecar JSON files",
+    )
+    abs_resolve_parser.set_defaults(func=cmd_abs_resolve_asins)
 
     return parser
 
@@ -701,6 +739,11 @@ def cmd_metadata(args: argparse.Namespace) -> int:
             asin = extract_asin_from_name(m4b_path.name)
         if not asin:
             asin = extract_asin_from_name(staging_dir.name)
+
+        # Fail fast: skip if no ASIN and no m4b file - can't produce useful metadata
+        if not asin and not m4b_path:
+            print_warning(f"Skipping {staging_dir.name}: no ASIN found and no .m4b file")
+            continue
 
         if args.dry_run:
             print_dry_run(f"Would fetch Audnex for ASIN: {asin}")
@@ -1206,11 +1249,29 @@ def cmd_validate_config(args: argparse.Namespace) -> int:
 
     print_header("Validate Configuration Files")
 
-    config_dir = args.config.parent.parent if args.config else Path(".")
+    # Determine where to look for supporting config files (naming.json, categories.json)
+    # Priority: 1) Same directory as config file, 2) config/ subdirectory relative to parent
+    if args.config:
+        config_parent = args.config.parent
+        # Check if files exist beside the config file first (standalone layout)
+        if (config_parent / "naming.json").exists():
+            config_dir = config_parent
+            use_subdir = False
+        else:
+            # Fall back to config/ subdirectory (structured layout: project/config/config.yaml)
+            config_dir = config_parent.parent
+            use_subdir = True
+    else:
+        config_dir = Path(".")
+        use_subdir = True
+
     errors_found = False
 
     # Validate naming.json
-    naming_path = config_dir / "config" / "naming.json"
+    if use_subdir:
+        naming_path = config_dir / "config" / "naming.json"
+    else:
+        naming_path = config_dir / "naming.json"
     console.print(f"\n[bold]Checking:[/] {naming_path}")
 
     if not naming_path.exists():
@@ -1276,7 +1337,10 @@ def cmd_validate_config(args: argparse.Namespace) -> int:
             errors_found = True
 
     # Validate categories.json
-    categories_path = config_dir / "config" / "categories.json"
+    if use_subdir:
+        categories_path = config_dir / "config" / "categories.json"
+    else:
+        categories_path = config_dir / "categories.json"
     console.print(f"\n[bold]Checking:[/] {categories_path}")
 
     if not categories_path.exists():
@@ -1867,7 +1931,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         trigger_scan_safe,
         validate_import_prerequisites,
     )
-    from mamfast.abs.importer import build_clean_file_name, parse_mam_folder_name
+    from mamfast.abs.importer import build_clean_file_name
     from mamfast.config import reload_settings
 
     print_header("Audiobookshelf Import", dry_run=args.dry_run)
@@ -1956,14 +2020,36 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         asin_index = build_asin_index(client, target_library.id)
         print_success(f"Indexed {len(asin_index)} books with ASINs")
     except Exception as e:
+        client.close()  # Clean up on error
         fatal_error(f"Failed to build ASIN index: {e}")
         return 1
+
+    # Validate confidence threshold (common mistake: passing 75 instead of 0.75)
+    confidence = getattr(args, "confidence", 0.75)
+    if not 0.0 <= confidence <= 1.0:
+        client.close()
+        fatal_error(
+            f"Invalid confidence value: {confidence}",
+            "Confidence must be between 0.0 and 1.0 (e.g., 0.75 for 75%)",
+        )
+        return 1
+
+    # Determine if we should use ABS search for missing ASINs
+    # Default OFF: ABS search makes API calls per book, use --abs-search to enable
+    use_abs_search = getattr(args, "abs_search", False)
+    abs_client_for_import = client if use_abs_search else None
+    if not use_abs_search:
+        client.close()
 
     # Perform import
     print_step(4, 5, "Importing to library")
     print_info(f"Source: {import_source}")
     print_info(f"Target: {abs_library_root}")
     print_info(f"Duplicate policy: {dup_policy}")
+    if use_abs_search:
+        print_info(f"ABS search enabled (confidence: {confidence:.0%})")
+    else:
+        print_info("ABS search disabled (use --abs-search to enable)")
 
     if args.dry_run:
         print_dry_run(f"Would import {len(staging_folders)} book(s)")
@@ -1973,13 +2059,27 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
             staging_folders=staging_folders,
             library_root=abs_library_root,
             asin_index=asin_index,
+            abs_client=abs_client_for_import,
+            abs_search_confidence=confidence,
             staging_root=import_source,
             duplicate_policy=dup_policy,
             dry_run=args.dry_run,
         )
     except Exception as e:
+        if use_abs_search:
+            client.close()  # Clean up on error
         fatal_error(f"Import failed: {e}")
         return 1
+
+    # Close client if we kept it open for ABS search
+    if use_abs_search:
+        client.close()
+
+    # Display results
+    # Track categories for summary (initialized before results loop)
+    asin_count = 0
+    no_asin_count = 0
+    heur_count = 0
 
     # Display results
     if result.results:
@@ -1987,116 +2087,284 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         console.print("[bold]Import Results[/bold]")
         console.print()
 
+        # Legend for status tags
+        console.print("[dim]Legend:[/dim]")
+        console.print("  [bold green][ASIN][/bold green]     Matched by ASIN in ABS index")
+        console.print("  [bold yellow][NO-ASIN][/bold yellow]  No ASIN; imported under Unknown/")
+        console.print(
+            "  [bold magenta][HEUR][/bold magenta]     "
+            "Heuristic path (no ASIN; guessed author/structure)"
+        )
+        console.print()
+
+        # Build tree data for final layout preview
+        tree_data: dict[str, dict[str, dict[str, list[str]]]] = {}
+
         for r in result.results:
+            # Determine classification
+            has_asin = bool(r.asin)
+            is_unknown_author = False
+            is_heuristic = False
+
+            if r.parsed:
+                is_unknown_author = r.parsed.author in ("Unknown", "", None)
+                # Heuristic: no series info and no year typically means less metadata
+                is_heuristic = not r.parsed.series and not r.parsed.year and not has_asin
+
+            if has_asin and not is_unknown_author:
+                asin_count += 1
+                class_tag = "[bold green][ASIN][/bold green]"
+                class_desc = "matched in ABS index"
+                if r.asin:
+                    class_desc = f"{r.asin} matched in ABS index"
+            elif has_asin and is_unknown_author:
+                asin_count += 1  # Still has ASIN, just unknown author
+                class_tag = "[bold yellow][ASIN][/bold yellow]"
+                class_desc = f"{r.asin} matched (author unknown)"
+            elif is_heuristic:
+                heur_count += 1
+                class_tag = "[bold magenta][HEUR][/bold magenta]"
+                class_desc = "heuristic path (no ASIN; guessed author/structure)"
+            else:
+                no_asin_count += 1
+                class_tag = "[bold yellow][NO-ASIN][/bold yellow]"
+                class_desc = "no ASIN in folder or mediainfo"
+
             # Status icon and color
             if r.status == "success":
-                if args.dry_run:
-                    status_icon = "[green]✓[/green]"
-                    status_text = "[green]Ready[/green]"
-                else:
-                    status_icon = "[green]✓[/green]"
-                    status_text = "[green]Imported[/green]"
-            elif r.status == "duplicate":
+                status_icon = "[green]✓[/green]"
+            elif r.status in ("duplicate", "skipped"):
                 status_icon = "[yellow]⏭[/yellow]"
-                status_text = "[yellow]Exists[/yellow]"
-            elif r.status == "skipped":
-                status_icon = "[yellow]⏭[/yellow]"
-                status_text = "[yellow]Skipped[/yellow]"
             else:
                 status_icon = "[red]✗[/red]"
-                status_text = "[red]Failed[/red]"
 
-            # Main line: status icon, folder name, ASIN
-            asin_display = f"[dim]({r.asin})[/dim]" if r.asin else ""
-            console.print(f"{status_icon} [cyan]{r.staging_path.name}[/cyan] {asin_display}")
+            # Main line: status icon, folder name
+            console.print(f"{status_icon} [cyan]{r.staging_path.name}[/cyan]")
 
-            # Second line: status and target/error path in tree format
+            # Classification line with description
+            console.print(f"  {class_tag} {class_desc}")
+
+            # Source path
+            console.print(f"  [dim][SRC][/dim] {r.staging_path}")
+
+            # Destination path and file handling
             if r.status == "success" and r.target_path:
-                if r.target_path.is_relative_to(abs_library_root):
-                    rel_path = r.target_path.relative_to(abs_library_root)
-                else:
-                    # Fallback: show absolute path
-                    rel_path = r.target_path
-                console.print(f"  ├─ {status_text} → [dim]{rel_path}[/dim]")
+                console.print(f"  [dim][DST][/dim] {r.target_path}")
 
-                # List files in the folder (for dry-run, use staging; for actual, use target)
+                # Build tree data for this book
+                # Build tree data using actual destination path structure
+                # Path structure: library_root/Author/[Series/]FolderName
+                if r.target_path:
+                    try:
+                        rel_path = r.target_path.relative_to(abs_library_root)
+                        parts = rel_path.parts
+
+                        if len(parts) >= 1:
+                            author = parts[0]
+                            if len(parts) == 2:
+                                # No series: Author/FolderName
+                                series = ""
+                                folder_name = parts[1]
+                            elif len(parts) >= 3:
+                                # With series: Author/Series/FolderName
+                                series = parts[1]
+                                folder_name = parts[2]
+                            else:
+                                # Just author folder somehow
+                                series = ""
+                                folder_name = author
+
+                            if author not in tree_data:
+                                tree_data[author] = {}
+                            if series not in tree_data[author]:
+                                tree_data[author][series] = {}
+                            if folder_name not in tree_data[author][series]:
+                                tree_data[author][series][folder_name] = []
+                    except ValueError:
+                        pass  # Can't make relative path
+
+                # List files with rename preview
                 source_folder = r.staging_path if args.dry_run else r.target_path
                 if source_folder.exists():
                     files = sorted(f.name for f in source_folder.iterdir() if f.is_file())
 
                     # In dry-run, compute what files would be renamed to
                     rename_map: dict[str, str] = {}
-                    if args.dry_run:
+                    if args.dry_run and r.parsed:
                         try:
-                            parsed = parse_mam_folder_name(r.staging_path.name)
+                            parsed = r.parsed
                             for f in source_folder.iterdir():
                                 if not f.is_file():
                                     continue
                                 ext = f.suffix.lower()
-                                # Handle compound extensions
                                 if f.name.lower().endswith(".metadata.json"):
                                     ext = ".metadata.json"
                                 clean_name = build_clean_file_name(parsed, extension=ext)
                                 if f.name != clean_name:
                                     rename_map[f.name] = clean_name
                         except (ValueError, KeyError):
-                            pass  # Can't parse, just show original names
+                            pass  # Can't build clean file name; skip rename preview
 
-                    for i, filename in enumerate(files):
-                        is_last = i == len(files) - 1
-                        prefix = "  └─" if is_last else "  ├─"
-                        if filename in rename_map:
-                            # Show rename: old → new
-                            console.print(
-                                f"{prefix} [dim]{filename}[/dim] → "
-                                f"[green]{rename_map[filename]}[/green]"
-                            )
-                        else:
-                            console.print(f"{prefix} [dim]{filename}[/dim]")
+                    # Show files
+                    if files:
+                        console.print("  [dim]Files:[/dim]")
+                        for filename in files:
+                            new_name = rename_map.get(filename)
+                            if new_name and new_name != filename:
+                                console.print(
+                                    f"    [dim]{filename}[/dim]\n"
+                                    f"      → [green]{new_name}[/green]"
+                                )
+                            else:
+                                console.print(f"    [dim]{filename}[/dim]")
+
+                            # Add to tree data using path structure
+                            if r.target_path:
+                                try:
+                                    rel_path = r.target_path.relative_to(abs_library_root)
+                                    parts = rel_path.parts
+                                    if len(parts) >= 2:
+                                        author = parts[0]
+                                        series = parts[1] if len(parts) >= 3 else ""
+                                        folder_name = parts[-1]
+                                        final_name = new_name or filename
+                                        if folder_name in tree_data.get(author, {}).get(series, {}):
+                                            tree_data[author][series][folder_name].append(
+                                                final_name
+                                            )
+                                except ValueError:
+                                    pass  # Can't make relative path; skip adding file to tree
+
             elif r.status == "duplicate" and r.error:
-                # Extract path from "Already exists at {path}" message
                 if "Already exists at " in r.error:
                     existing_path = r.error.replace("Already exists at ", "")
-                    console.print(f"  └─ {status_text} → [dim]{existing_path}[/dim]")
+                    console.print(f"  [dim][DST][/dim] [yellow]EXISTS:[/yellow] {existing_path}")
                 else:
-                    console.print(f"  └─ {status_text}")
+                    console.print("  [dim][DST][/dim] [yellow]Duplicate[/yellow]")
             elif r.error:
-                console.print(f"  └─ {status_text}: [red]{r.error}[/red]")
-            else:
-                console.print(f"  └─ {status_text}")
+                console.print(f"  [red]Error:[/red] {r.error}")
 
+            console.print()
+
+        # Render library tree preview (dry-run only, and only if we have data)
+        if args.dry_run and tree_data and result.success_count > 0:
+            from rich.tree import Tree
+
+            console.print()
+            console.print("[bold]Planned Library Layout[/bold]")
+            console.print()
+
+            tree = Tree(f"[bold cyan]{abs_library_root}[/bold cyan]")
+
+            for author in sorted(tree_data.keys()):
+                # Highlight "Unknown" author branch as needing attention
+                if author == "Unknown":
+                    author_branch = tree.add(
+                        f"[bold yellow]{author}[/bold yellow] [dim](needs ASIN)[/dim]"
+                    )
+                else:
+                    author_branch = tree.add(f"[blue]{author}[/blue]")
+                series_dict = tree_data[author]
+
+                for series in sorted(series_dict.keys()):
+                    if series:
+                        series_branch = author_branch.add(f"[magenta]{series}[/magenta]")
+                        parent = series_branch
+                    else:
+                        parent = author_branch
+
+                    for folder_name in sorted(series_dict[series].keys()):
+                        folder_branch = parent.add(f"[cyan]{folder_name}[/cyan]")
+                        for file_name in sorted(series_dict[series][folder_name]):
+                            folder_branch.add(f"[dim]{file_name}[/dim]")
+
+            console.print(tree)
             console.print()
 
     # Summary
     print_step(5, 5, "Import complete")
 
+    # Build summary panel
+    from rich.panel import Panel
+    from rich.table import Table
+
+    summary_table = Table(show_header=False, box=None, padding=(0, 2))
+    summary_table.add_column("Label", style="dim")
+    summary_table.add_column("Value", justify="right")
+
+    total_books = len(result.results)
+    needs_review_count = no_asin_count + heur_count
+
+    summary_table.add_row("Books processed:", str(total_books))
+    summary_table.add_row(
+        "  [bold green][ASIN][/bold green]",
+        f"[green]{asin_count}[/green]",
+    )
+    summary_table.add_row(
+        "  [bold yellow][NO-ASIN][/bold yellow]",
+        f"[yellow]{no_asin_count}[/yellow]",
+    )
+    summary_table.add_row(
+        "  [bold magenta][HEUR][/bold magenta]",
+        f"[magenta]{heur_count}[/magenta]",
+    )
+    summary_table.add_row("", "")
+    summary_table.add_row("Duplicate policy:", dup_policy)
+    summary_table.add_row("Destination root:", str(abs_library_root))
+    summary_table.add_row("", "")
+
     if args.dry_run:
-        print_dry_run(f"Would import {result.success_count} book(s)")
-        if result.duplicate_count > 0:
-            print_info(f"  • {result.duplicate_count} duplicate(s) would be skipped")
+        summary_table.add_row("Ready to import:", f"[green]{result.success_count}[/green]")
     else:
-        print_success(f"Imported {result.success_count} book(s)")
-        if result.duplicate_count > 0:
-            print_info(f"  • Duplicates skipped: {result.duplicate_count}")
-        if result.failed_count > 0:
-            print_warning(f"  • Failed: {result.failed_count}")
+        summary_table.add_row("Imported:", f"[green]{result.success_count}[/green]")
+
+    if result.duplicate_count > 0:
+        summary_table.add_row("Skipped (duplicate):", f"[yellow]{result.duplicate_count}[/yellow]")
+    if result.failed_count > 0:
+        summary_table.add_row("Failed:", f"[red]{result.failed_count}[/red]")
+    if needs_review_count > 0:
+        # Build breakdown of what needs review
+        review_parts = []
+        if no_asin_count > 0:
+            review_parts.append(f"[NO-ASIN]={no_asin_count}")
+        if heur_count > 0:
+            review_parts.append(f"[HEUR]={heur_count}")
+        review_breakdown = f" ({', '.join(review_parts)})" if review_parts else ""
+        summary_table.add_row(
+            "Needs review:",
+            f"[yellow]{needs_review_count}[/yellow]{review_breakdown}",
+        )
+
+    if args.dry_run:
+        panel_title = "[bold yellow]DRY RUN Summary[/bold yellow]"
+        panel_border = "yellow"
+        footer = "\n[yellow]⚠️  DRY RUN: No files were moved or renamed[/yellow]"
+    else:
+        panel_title = "[bold green]Import Summary[/bold green]"
+        panel_border = "green"
+        footer = f"\n[green]✅ Import completed: {result.success_count} book(s) imported[/green]"
+
+    console.print()
+    console.print(Panel(summary_table, title=panel_title, border_style=panel_border))
+    console.print(footer)
+    console.print()
 
     # Trigger ABS scan (if not dry run and not --no-scan)
     if not args.dry_run and not args.no_scan and result.success_count > 0:
         trigger_mode = abs_config.import_settings.trigger_scan
         if trigger_mode != "none":
             try:
-                client = AbsClient(
+                with AbsClient(
                     host=abs_config.host,
                     api_key=abs_config.api_key,
                     timeout=abs_config.timeout_seconds,
-                )
-                if trigger_scan_safe(client, target_library.id):
-                    print_success("Triggered ABS library scan")
-                else:
-                    print_warning(
-                        "Failed to trigger ABS scan (files will appear on next scheduled scan)"
-                    )
+                ) as scan_client:
+                    if trigger_scan_safe(scan_client, target_library.id):
+                        print_success("Triggered ABS library scan")
+                    else:
+                        print_warning(
+                            "Failed to trigger ABS scan (files will appear on next scheduled scan)"
+                        )
             except Exception as e:
                 print_warning(f"Could not trigger ABS scan: {e}")
 
@@ -2168,6 +2436,176 @@ def cmd_abs_check_duplicate(args: argparse.Namespace) -> int:
         return 0
 
 
+def cmd_abs_resolve_asins(args: argparse.Namespace) -> int:
+    """Resolve ASINs for Unknown/ books via ABS metadata search.
+
+    Phase 5: Batch search Audible (via ABS) to find ASINs for books
+    that were imported without ASIN and placed in Unknown/.
+    """
+    import json as json_module
+    from datetime import UTC, datetime
+
+    from mamfast.abs import AbsClient, resolve_asin_via_abs_search
+    from mamfast.config import reload_settings
+
+    print_header("ABS ASIN Resolver", dry_run=args.dry_run)
+
+    try:
+        settings = reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+
+    abs_config = settings.audiobookshelf
+    if not abs_config.enabled:
+        fatal_error("Audiobookshelf integration is not enabled in config")
+        return 1
+
+    if not abs_config.host or not abs_config.api_key:
+        fatal_error(
+            "Missing ABS credentials",
+            "Set AUDIOBOOKSHELF_HOST and AUDIOBOOKSHELF_API_KEY in .env",
+        )
+        return 1
+
+    # Get ABS library root from path_map (same as abs-import)
+    if not abs_config.path_map:
+        fatal_error("No path_map configured for Audiobookshelf")
+        return 1
+    abs_library_root = Path(abs_config.path_map[0].host)
+
+    # Determine what to scan
+    if args.path:
+        if not args.path.exists():
+            fatal_error(f"Path not found: {args.path}")
+            return 1
+        if not args.path.is_dir():
+            fatal_error(f"Path is not a directory: {args.path}")
+            return 1
+        # Scan subfolders of the provided path
+        folders_to_scan = [
+            f for f in args.path.iterdir() if f.is_dir() and not f.name.startswith(".")
+        ]
+    else:
+        # Default: scan Unknown/ folder
+        unknown_folder = abs_library_root / "Unknown"
+        if not unknown_folder.exists():
+            print_info("No Unknown/ folder found - nothing to resolve")
+            return 0
+        folders_to_scan = [
+            f for f in unknown_folder.iterdir() if f.is_dir() and not f.name.startswith(".")
+        ]
+
+    if not folders_to_scan:
+        print_info("No folders to process")
+        return 0
+
+    # Validate confidence threshold (common mistake: passing 75 instead of 0.75)
+    confidence = args.confidence
+    if not 0.0 <= confidence <= 1.0:
+        fatal_error(
+            f"Invalid confidence value: {confidence}",
+            "Confidence must be between 0.0 and 1.0 (e.g., 0.75 for 75%)",
+        )
+        return 1
+
+    print_info(f"Found {len(folders_to_scan)} folder(s) to resolve")
+    print_info(f"Confidence threshold: {confidence:.0%}")
+
+    # Connect to ABS
+    print_step(1, 3, "Connecting to ABS")
+    try:
+        client = AbsClient(
+            host=abs_config.host,
+            api_key=abs_config.api_key,
+            timeout=abs_config.timeout_seconds,
+        )
+    except Exception as e:
+        fatal_error(f"Failed to connect to ABS: {e}")
+        return 1
+
+    # Process folders (using with statement for proper cleanup)
+    print_step(2, 3, "Searching for ASINs")
+    resolved_count = 0
+    failed_count = 0
+
+    with client:
+        try:
+            user = client.authorize()
+            print_success(f"Connected as {user.username}")
+        except Exception as e:
+            fatal_error(f"Failed to authorize with ABS: {e}")
+            return 1
+
+        for folder in folders_to_scan:
+            folder_name = folder.name
+            console.print(f"\n[dim]→[/] {folder_name}")
+
+            # Parse folder name for title/author
+            # For abs-resolve-asins, we're dealing with non-MAM folders that need ASIN resolution.
+            # Use conservative extraction - only split on " - " pattern which reliably indicates
+            # "Author - Title" format. Don't use MAM parser which may incorrectly extract
+            # parenthetical content like "(Light Novel)" as author.
+            title: str = folder_name  # Default to full folder name
+            author: str | None = None
+
+            if " - " in folder_name:
+                # Simple "Author - Title" split (e.g., "Quentin Kilgore - Primal Imperative 2")
+                parts = folder_name.split(" - ", 1)
+                author = parts[0].strip()
+                title = parts[1].strip() if len(parts) > 1 else folder_name
+
+            if args.dry_run:
+                print_dry_run(f"Would search: title={title!r}, author={author!r}")
+                continue
+
+            # Search via ABS
+            resolution = resolve_asin_via_abs_search(
+                client,
+                title=title,
+                author=author,
+                confidence_threshold=confidence,
+            )
+
+            if resolution.found:
+                resolved_count += 1
+                print_success(f"Found ASIN: {resolution.asin}")
+                print_info(f"  Source: {resolution.source_detail}")
+
+                # Write sidecar if requested
+                if args.write_sidecar:
+                    sidecar_path = folder / "_mamfast_resolved_asin.json"
+                    sidecar_data = {
+                        "asin": resolution.asin,
+                        "source": resolution.source,
+                        "source_detail": resolution.source_detail,
+                        "resolved_at": datetime.now(UTC).isoformat(),
+                        "original_folder": folder_name,
+                    }
+                    sidecar_path.write_text(
+                        json_module.dumps(sidecar_data, indent=2, sort_keys=True)
+                    )
+                    print_info(f"  Wrote: {sidecar_path.name}")
+            else:
+                failed_count += 1
+                print_warning("No confident match found")
+
+    # Summary
+    print_step(3, 3, "Summary")
+    console.print()
+
+    if args.dry_run:
+        print_dry_run(f"Would resolve {len(folders_to_scan)} folder(s)")
+    else:
+        print_info(f"Resolved: {resolved_count}")
+        print_info(f"Not found: {failed_count}")
+
+        if resolved_count > 0 and args.write_sidecar:
+            print_success("Sidecar files written - run abs-import to move books")
+
+    return 0
+
+
 def main() -> int:
     """Main entry point."""
     parser = build_parser()
@@ -2185,7 +2623,7 @@ def main() -> int:
         settings = reload_settings(config_file=args.config)
         log_file = settings.paths.log_file
     except Exception:
-        pass
+        pass  # Config may not exist yet; logging works without log file
 
     # Use Rich console logging for readable output, but keep it quiet unless verbose
     setup_logging(

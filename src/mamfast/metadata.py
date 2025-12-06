@@ -371,27 +371,42 @@ def render_bbcode_description(
 # =============================================================================
 
 
-def fetch_audnex_book(asin: str) -> dict[str, Any] | None:
+def _fetch_audnex_book_region(
+    asin: str,
+    region: str,
+    base_url: str,
+    timeout: int,
+) -> dict[str, Any] | None:
     """
-    Fetch book metadata from Audnex API.
+    Fetch book metadata from Audnex API for a specific region.
+
+    Internal helper - use fetch_audnex_book() which handles region fallback.
 
     Args:
         asin: Audible ASIN (e.g., "B000SEI1RG")
+        region: Region code (us, uk, au, ca, de, es, fr, in, it, jp)
+        base_url: Audnex API base URL
+        timeout: Request timeout in seconds
 
     Returns:
-        Parsed JSON response or None if not found.
+        Parsed JSON response or None if not found/error.
     """
-    settings = get_settings()
-    url = f"{settings.audnex.base_url}/books/{asin}"
+    url = f"{base_url}/books/{asin}"
+    params = {"region": region}
 
-    logger.debug(f"Fetching Audnex metadata: {url}")
+    logger.debug(f"Fetching Audnex metadata: {url} (region={region})")
 
     try:
-        with httpx.Client(timeout=settings.audnex.timeout_seconds) as client:
-            response = client.get(url)
+        with httpx.Client(timeout=timeout) as client:
+            response = client.get(url, params=params)
 
             if response.status_code == 404:
-                logger.warning(f"ASIN not found in Audnex: {asin}")
+                logger.debug(f"ASIN {asin} not found in region {region}")
+                return None
+
+            # 500 errors are common for region mismatches - treat as "not found"
+            if response.status_code == 500:
+                logger.debug(f"ASIN {asin} returned 500 for region {region} (likely not available)")
                 return None
 
             response.raise_for_status()
@@ -407,78 +422,186 @@ def fetch_audnex_book(asin: str) -> dict[str, Any] | None:
                     f"Audnex book response validation warning for {asin}: {validation_error}"
                 )
 
-            logger.info(f"Fetched Audnex metadata for ASIN: {asin}")
             return data
 
     except httpx.TimeoutException:
-        logger.error(f"Timeout fetching Audnex metadata for: {asin}")
+        # Network issue - warn since this may indicate a problem
+        logger.warning(f"Timeout fetching Audnex metadata for {asin} (region={region})")
         return None
 
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error from Audnex: {e}")
+        # Distinguish between "not found" type errors and actual issues
+        if e.response.status_code in (401, 403, 429):
+            logger.warning(
+                "Auth/rate limit error fetching book %s (region=%s): %s",
+                asin,
+                region,
+                e.response.status_code,
+            )
+        else:
+            logger.debug(f"HTTP error from Audnex for {asin} (region={region}): {e}")
         return None
 
     except Exception as e:
-        logger.exception(f"Error fetching Audnex metadata: {e}")
+        # Catch-all for JSON decode errors, connection issues, etc.
+        logger.warning(
+            f"Unexpected error fetching Audnex metadata for {asin} (region={region}): {e}"
+        )
         return None
 
 
-def fetch_audnex_author(asin: str) -> dict[str, Any] | None:
+def fetch_audnex_book(asin: str, region: str | None = None) -> dict[str, Any] | None:
     """
-    Fetch author metadata from Audnex API.
+    Fetch book metadata from Audnex API with region fallback.
+
+    Tries configured regions in order until one succeeds. Some ASINs are
+    region-specific (e.g., B0BN2HMHZ8 only exists in US region).
+
+    Args:
+        asin: Audible ASIN (e.g., "B000SEI1RG")
+        region: Optional specific region to try (skips fallback if provided)
+
+    Returns:
+        Parsed JSON response or None if not found in any region.
+    """
+    settings = get_settings()
+
+    # If specific region requested, only try that one
+    if region:
+        data = _fetch_audnex_book_region(
+            asin, region, settings.audnex.base_url, settings.audnex.timeout_seconds
+        )
+        if data:
+            logger.info(f"Fetched Audnex metadata for ASIN: {asin} (region={region})")
+        else:
+            logger.warning(f"ASIN {asin} not found in region {region}")
+        return data
+
+    # Try each configured region in order
+    regions = settings.audnex.regions
+    for r in regions:
+        data = _fetch_audnex_book_region(
+            asin, r, settings.audnex.base_url, settings.audnex.timeout_seconds
+        )
+        if data:
+            logger.info(f"Fetched Audnex metadata for ASIN: {asin} (region={r})")
+            return data
+
+    logger.warning(f"ASIN {asin} not found in any configured region: {regions}")
+    return None
+
+
+def fetch_audnex_author(asin: str, region: str | None = None) -> dict[str, Any] | None:
+    """
+    Fetch author metadata from Audnex API with region fallback.
 
     Args:
         asin: Author ASIN
+        region: Optional specific region to try (skips fallback if provided)
 
     Returns:
         Parsed JSON response or None if not found.
     """
     settings = get_settings()
-    url = f"{settings.audnex.base_url}/authors/{asin}"
 
-    logger.debug(f"Fetching Audnex author: {url}")
+    def _try_region(r: str) -> dict[str, Any] | None:
+        url = f"{settings.audnex.base_url}/authors/{asin}"
+        params = {"region": r}
 
-    try:
-        with httpx.Client(timeout=settings.audnex.timeout_seconds) as client:
-            response = client.get(url)
+        logger.debug(f"Fetching Audnex author: {url} (region={r})")
 
-            if response.status_code == 404:
-                logger.warning(f"Author ASIN not found: {asin}")
-                return None
+        try:
+            with httpx.Client(timeout=settings.audnex.timeout_seconds) as client:
+                response = client.get(url, params=params)
 
-            response.raise_for_status()
-            data: dict[str, Any] = response.json()
+                if response.status_code in (404, 500):
+                    # Expected "not found" - keep at debug level
+                    logger.debug(f"Author ASIN {asin} not found in region {r}")
+                    return None
+
+                response.raise_for_status()
+                data: dict[str, Any] = response.json()
+                return data
+
+        except httpx.TimeoutException:
+            # Network issue - warn since this may indicate a problem
+            logger.warning(f"Timeout fetching author metadata for {asin} (region={r})")
+            return None
+
+        except httpx.HTTPStatusError as e:
+            # Distinguish between "not found" type errors and actual issues
+            if e.response.status_code in (401, 403, 429):
+                logger.warning(
+                    "Auth/rate limit error fetching author %s (region=%s): %s",
+                    asin,
+                    r,
+                    e.response.status_code,
+                )
+            else:
+                logger.debug(f"HTTP error fetching author {asin} (region={r}): {e}")
+            return None
+
+        except Exception as e:
+            # Catch-all for JSON decode errors, connection issues, etc.
+            logger.warning(
+                f"Unexpected error fetching author metadata for {asin} (region={r}): {e}"
+            )
+            return None
+
+    # If specific region requested, only try that one
+    if region:
+        data = _try_region(region)
+        if data:
+            logger.info(f"Fetched Audnex author: {asin} (region={region})")
+        return data
+
+    # Try each configured region in order
+    for r in settings.audnex.regions:
+        data = _try_region(r)
+        if data:
+            logger.info(f"Fetched Audnex author: {asin} (region={r})")
             return data
 
-    except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
-        logger.warning(f"Error fetching author metadata: {e}")
-        return None
+    logger.warning(f"Author ASIN {asin} not found in any configured region")
+    return None
 
 
-def fetch_audnex_chapters(asin: str) -> dict[str, Any] | None:
+def _fetch_audnex_chapters_region(
+    asin: str,
+    region: str,
+    base_url: str,
+    timeout: int,
+) -> dict[str, Any] | None:
     """
-    Fetch chapter data from Audnex API.
+    Fetch chapter data from Audnex API for a specific region.
+
+    Internal helper - use fetch_audnex_chapters() which handles region fallback.
 
     Args:
-        asin: Audible ASIN (e.g., "B000SEI1RG")
+        asin: Audible ASIN
+        region: Region code
+        base_url: Audnex API base URL
+        timeout: Request timeout in seconds
 
     Returns:
-        Parsed JSON response with chapters or None if not found.
-        Response includes: asin, brandIntroDurationMs, brandOutroDurationMs,
-        chapters (list with lengthMs, startOffsetMs, startOffsetSec, title),
-        runtimeLengthMs, runtimeLengthSec
+        Parsed JSON response or None if not found/error.
     """
-    settings = get_settings()
-    url = f"{settings.audnex.base_url}/books/{asin}/chapters"
+    url = f"{base_url}/books/{asin}/chapters"
+    params = {"region": region}
 
-    logger.debug(f"Fetching Audnex chapters: {url}")
+    logger.debug(f"Fetching Audnex chapters: {url} (region={region})")
 
     try:
-        with httpx.Client(timeout=settings.audnex.timeout_seconds) as client:
-            response = client.get(url)
+        with httpx.Client(timeout=timeout) as client:
+            response = client.get(url, params=params)
 
             if response.status_code == 404:
-                logger.warning(f"Chapters not found in Audnex for ASIN: {asin}")
+                logger.debug(f"Chapters for {asin} not found in region {region}")
+                return None
+
+            # 500 errors are common for region mismatches
+            if response.status_code == 500:
+                logger.debug(f"Chapters for {asin} returned 500 for region {region}")
                 return None
 
             response.raise_for_status()
@@ -494,21 +617,77 @@ def fetch_audnex_chapters(asin: str) -> dict[str, Any] | None:
                     f"Audnex chapters response validation warning for {asin}: {validation_error}"
                 )
 
-            chapter_count = len(data.get("chapters", []))
-            logger.info(f"Fetched {chapter_count} chapters from Audnex for ASIN: {asin}")
             return data
 
     except httpx.TimeoutException:
-        logger.error(f"Timeout fetching Audnex chapters for: {asin}")
+        # Network issue - warn since this may indicate a problem
+        logger.warning(f"Timeout fetching Audnex chapters for {asin} (region={region})")
         return None
 
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error from Audnex chapters: {e}")
+        # Distinguish between "not found" type errors and actual issues
+        if e.response.status_code in (401, 403, 429):
+            logger.warning(
+                "Auth/rate limit error fetching chapters %s (region=%s): %s",
+                asin,
+                region,
+                e.response.status_code,
+            )
+        else:
+            logger.debug(f"HTTP error from Audnex chapters for {asin} (region={region}): {e}")
         return None
 
     except Exception as e:
-        logger.exception(f"Error fetching Audnex chapters: {e}")
+        # Catch-all for JSON decode errors, connection issues, etc.
+        logger.warning(
+            f"Unexpected error fetching Audnex chapters for {asin} (region={region}): {e}"
+        )
         return None
+
+
+def fetch_audnex_chapters(asin: str, region: str | None = None) -> dict[str, Any] | None:
+    """
+    Fetch chapter data from Audnex API with region fallback.
+
+    Args:
+        asin: Audible ASIN (e.g., "B000SEI1RG")
+        region: Optional specific region to try (skips fallback if provided)
+
+    Returns:
+        Parsed JSON response with chapters or None if not found.
+        Response includes: asin, brandIntroDurationMs, brandOutroDurationMs,
+        chapters (list with lengthMs, startOffsetMs, startOffsetSec, title),
+        runtimeLengthMs, runtimeLengthSec
+    """
+    settings = get_settings()
+
+    # If specific region requested, only try that one
+    if region:
+        data = _fetch_audnex_chapters_region(
+            asin, region, settings.audnex.base_url, settings.audnex.timeout_seconds
+        )
+        if data:
+            chapter_count = len(data.get("chapters", []))
+            logger.info(
+                f"Fetched {chapter_count} chapters from Audnex for ASIN: {asin} (region={region})"
+            )
+        return data
+
+    # Try each configured region in order
+    regions = settings.audnex.regions
+    for r in regions:
+        data = _fetch_audnex_chapters_region(
+            asin, r, settings.audnex.base_url, settings.audnex.timeout_seconds
+        )
+        if data:
+            chapter_count = len(data.get("chapters", []))
+            logger.info(
+                f"Fetched {chapter_count} chapters from Audnex for ASIN: {asin} (region={r})"
+            )
+            return data
+
+    logger.warning(f"Chapters for ASIN {asin} not found in any configured region")
+    return None
 
 
 def _parse_chapters_from_audnex(chapters_data: dict[str, Any]) -> list[Chapter]:

@@ -21,7 +21,14 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mamfast.abs.asin import AsinEntry, asin_exists, extract_asin, resolve_asin_from_folder
+from mamfast.abs.asin import (
+    AsinEntry,
+    asin_exists,
+    extract_asin,
+    resolve_asin_from_folder_with_mediainfo,
+    resolve_asin_via_abs_search,
+)
+from mamfast.metadata import fetch_audnex_book
 from mamfast.utils.naming import build_mam_file_name, build_mam_folder_name, clean_series_name
 
 if TYPE_CHECKING:
@@ -74,6 +81,7 @@ class ImportResult:
     asin: str | None
     status: str  # "success", "skipped", "failed", "duplicate"
     error: str | None = None
+    parsed: ParsedFolderName | None = None  # Enriched parsed data for display
 
 
 @dataclass
@@ -289,6 +297,109 @@ def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
         ripper_tag=ripper_tag,
         is_standalone=is_standalone,
     )
+
+
+def enrich_from_audnex(parsed: ParsedFolderName, asin: str) -> ParsedFolderName:
+    """Enrich parsed folder data with Audnex metadata.
+
+    When we resolve an ASIN (from mediainfo or folder), fetch Audnex metadata
+    to fill in missing author/series/position. This provides accurate metadata
+    even for poorly-named folders.
+
+    Args:
+        parsed: ParsedFolderName from parse_mam_folder_name()
+        asin: Resolved ASIN to look up
+
+    Returns:
+        ParsedFolderName with enriched data (modified in place and returned)
+    """
+    try:
+        audnex_data = fetch_audnex_book(asin)
+    except Exception as e:
+        logger.debug(f"Failed to fetch Audnex data for {asin}: {e}")
+        return parsed
+
+    if not audnex_data:
+        logger.debug(f"No Audnex data found for ASIN {asin}")
+        return parsed
+
+    # Extract author from Audnex (prefer first author)
+    authors = audnex_data.get("authors", [])
+    if authors and (parsed.author == "Unknown" or not parsed.author):
+        first_author = authors[0].get("name", "")
+        if first_author:
+            parsed.author = first_author
+            logger.info(f"Enriched author from Audnex: {first_author}")
+
+    # Extract series info from Audnex - check seriesPrimary first
+    series_primary = audnex_data.get("seriesPrimary")
+    if series_primary:
+        series_name = series_primary.get("name")
+        # Coerce to string - Audnex sometimes returns int for position
+        series_position_raw = series_primary.get("position")
+        series_position = str(series_position_raw) if series_position_raw is not None else None
+
+        if series_name and not parsed.series:
+            parsed.series = series_name
+            parsed.is_standalone = False
+            logger.info(f"Enriched series from Audnex seriesPrimary: {series_name}")
+
+        if series_position and not parsed.series_position:
+            parsed.series_position = series_position
+            logger.info(f"Enriched series position from Audnex: {series_position}")
+
+    # Fallback: parse series from subtitle if seriesPrimary not available
+    # Subtitle patterns: "Series Name, Book 5" or "Series Name, Volume 3"
+    if not parsed.series:
+        subtitle = audnex_data.get("subtitle", "")
+        if subtitle:
+            # Pattern: "Series Name, Book N" or "Series Name, Volume N"
+            subtitle_match = re.match(
+                r"^(.+?),\s*(?:Book|Volume|Vol\.?|Part)\s*(\d+)$",
+                subtitle,
+                re.IGNORECASE,
+            )
+            if subtitle_match:
+                series_name = subtitle_match.group(1).strip()
+                # Coerce to string for consistency
+                series_position = str(subtitle_match.group(2))
+                parsed.series = series_name
+                parsed.is_standalone = False
+                logger.info(f"Enriched series from Audnex subtitle: {series_name}")
+                if not parsed.series_position:
+                    parsed.series_position = series_position
+                    logger.info(f"Enriched series position from subtitle: {series_position}")
+
+    # Extract/update title from Audnex
+    audnex_title = audnex_data.get("title")
+    if audnex_title:
+        # Always prefer Audnex title if we have it - it's authoritative
+        # But clean it up: remove series suffix if we extracted series from it
+        clean_title = audnex_title
+        if parsed.series and parsed.series in clean_title:
+            # Remove "Series Name N:" prefix pattern
+            clean_title = re.sub(
+                rf"^{re.escape(parsed.series)}\s*\d*\s*:\s*",
+                "",
+                clean_title,
+                flags=re.IGNORECASE,
+            ).strip()
+        if clean_title and (
+            parsed.title in ("Unknown", "") or len(audnex_title) < len(parsed.title)
+        ):
+            parsed.title = clean_title
+            logger.info(f"Enriched title from Audnex: {clean_title}")
+
+    # Extract year from release date if missing
+    release_date = audnex_data.get("releaseDate")
+    if release_date and not parsed.year:
+        # Format: "2025-11-25T00:00:00.000Z" → "2025"
+        year = release_date[:4] if len(release_date) >= 4 else None
+        if year and year.isdigit():
+            parsed.year = year
+            logger.info(f"Enriched year from Audnex: {year}")
+
+    return parsed
 
 
 def build_clean_folder_name(parsed: ParsedFolderName) -> str:
@@ -679,6 +790,7 @@ def handle_unknown_asin(
             asin=None,
             status="skipped",
             error="Unknown ASIN (policy=skip)",
+            parsed=ctx.parsed,
         )
 
     if unknown_asin_policy == UnknownAsinPolicy.QUARANTINE:
@@ -689,6 +801,7 @@ def handle_unknown_asin(
                 asin=None,
                 status="failed",
                 error="Quarantine policy requires quarantine_path",
+                parsed=ctx.parsed,
             )
         target_path = get_unique_destination(quarantine_path / ctx.original_folder_name)
     else:
@@ -707,6 +820,7 @@ def handle_unknown_asin(
             target_path=target_path,
             asin=None,
             status="success",
+            parsed=ctx.parsed,
         )
 
     # Create parent directories
@@ -719,6 +833,7 @@ def handle_unknown_asin(
             asin=None,
             status="failed",
             error=f"Failed to create directories: {e}",
+            parsed=ctx.parsed,
         )
 
     # Atomic move
@@ -737,6 +852,7 @@ def handle_unknown_asin(
             asin=None,
             status="failed",
             error=f"Move failed: {e}",
+            parsed=ctx.parsed,
         )
 
     # Rename files (respects multi-file protection from Phase 1)
@@ -751,6 +867,7 @@ def handle_unknown_asin(
         target_path=target_path,
         asin=None,
         status="success",
+        parsed=ctx.parsed,
     )
 
 
@@ -988,6 +1105,8 @@ def import_single(
     library_root: Path,
     asin_index: dict[str, AsinEntry],
     *,
+    abs_client: AbsClient | None = None,
+    abs_search_confidence: float = 0.75,
     staging_root: Path | None = None,
     duplicate_policy: str = "skip",
     unknown_asin_policy: UnknownAsinPolicy = UnknownAsinPolicy.IMPORT,
@@ -1000,6 +1119,8 @@ def import_single(
         staging_folder: Path to staged audiobook folder
         library_root: ABS library root
         asin_index: In-memory ASIN index from build_asin_index()
+        abs_client: Optional AbsClient for ABS search fallback (Phase 5)
+        abs_search_confidence: Minimum confidence for ABS search matches (0.0-1.0)
         staging_root: Root of staging directory (to preserve nested structure)
         duplicate_policy: "skip", "warn", or "overwrite"
         unknown_asin_policy: How to handle books without ASIN
@@ -1025,11 +1146,39 @@ def import_single(
 
     asin = parsed.asin
 
-    # Phase 3: Enhanced ASIN resolution - try multiple sources before giving up
+    # Phase 3+4: Enhanced ASIN resolution - try multiple sources before giving up
+    # Includes mediainfo probe for embedded ASIN (Phase 4)
     if not asin:
-        resolution = resolve_asin_from_folder(staging_folder, parsed_asin=None)
+        resolution = resolve_asin_from_folder_with_mediainfo(staging_folder, parsed_asin=None)
         if resolution.found:
             asin = resolution.asin
+            # Update parsed object so downstream functions (build_target_path, rename_files)
+            # have access to the resolved ASIN for naming
+            parsed.asin = asin
+            logger.info(
+                "Resolved ASIN %s from %s (%s)",
+                asin,
+                resolution.source,
+                resolution.source_detail or "N/A",
+            )
+
+    # Phase 5: ABS Metadata Search - search Audiobookshelf's Audible provider
+    # as final resolution step before marking as unknown
+    if not asin and abs_client is not None:
+        search_title = parsed.title or folder_name
+        search_author = parsed.author
+        logger.debug(
+            "Attempting ABS search for title=%r author=%r confidence=%.0f%%",
+            search_title,
+            search_author,
+            abs_search_confidence * 100,
+        )
+        resolution = resolve_asin_via_abs_search(
+            abs_client, search_title, search_author, abs_search_confidence
+        )
+        if resolution.found:
+            asin = resolution.asin
+            parsed.asin = asin
             logger.info(
                 "Resolved ASIN %s from %s (%s)",
                 asin,
@@ -1048,7 +1197,8 @@ def import_single(
             dry_run=dry_run,
         )
 
-    # Check for duplicates (we have ASIN)
+    # Check for duplicates (we have ASIN) - do this BEFORE Audnex enrichment
+    # to avoid unnecessary network calls for books we'll skip anyway
     is_dup, existing_path = asin_exists(asin_index, asin)
     if is_dup:
         if duplicate_policy == "skip":
@@ -1058,6 +1208,7 @@ def import_single(
                 asin=asin,
                 status="duplicate",
                 error=f"Already exists at {existing_path}",
+                parsed=parsed,
             )
         elif duplicate_policy == "warn":
             logger.warning("Duplicate ASIN %s exists at %s, skipping", asin, existing_path)
@@ -1067,10 +1218,16 @@ def import_single(
                 asin=asin,
                 status="duplicate",
                 error=f"Already exists at {existing_path}",
+                parsed=parsed,
             )
         elif duplicate_policy == "overwrite":
             # For overwrite, we proceed but note the existing path
             logger.info("Duplicate ASIN %s, will overwrite at %s", asin, existing_path)
+
+    # Phase 5: Enrich parsed data from Audnex when we have ASIN
+    # This fills in author/series/position for poorly-named folders
+    # Done after duplicate check to avoid network calls for skipped books
+    parsed = enrich_from_audnex(parsed, asin)
 
     # Build target path (preserves nested structure if present)
     target_path = build_target_path(library_root, parsed, staging_folder, staging_root)
@@ -1100,6 +1257,7 @@ def import_single(
                 asin=asin,
                 status="duplicate",
                 error=f"Target path already exists: {target_path}",
+                parsed=parsed,
             )
 
     if dry_run:
@@ -1111,6 +1269,7 @@ def import_single(
             target_path=target_path,
             asin=asin,
             status="success",
+            parsed=parsed,
         )
 
     # Create parent directories
@@ -1146,6 +1305,7 @@ def import_single(
         target_path=target_path,
         asin=asin,
         status="success",
+        parsed=parsed,
     )
 
 
@@ -1154,6 +1314,8 @@ def import_batch(
     library_root: Path,
     asin_index: dict[str, AsinEntry],
     *,
+    abs_client: AbsClient | None = None,
+    abs_search_confidence: float = 0.75,
     staging_root: Path | None = None,
     duplicate_policy: str = "skip",
     unknown_asin_policy: UnknownAsinPolicy = UnknownAsinPolicy.IMPORT,
@@ -1166,6 +1328,8 @@ def import_batch(
         staging_folders: List of staging folders to import
         library_root: ABS library root
         asin_index: In-memory ASIN index from build_asin_index()
+        abs_client: Optional ABS client for metadata search resolution
+        abs_search_confidence: Minimum confidence for ABS search matches (0.0-1.0)
         staging_root: Root staging directory (for resolving author from path)
         duplicate_policy: "skip", "warn", or "overwrite"
         unknown_asin_policy: How to handle books without ASIN
@@ -1182,6 +1346,8 @@ def import_batch(
             staging_folder=folder,
             library_root=library_root,
             asin_index=asin_index,
+            abs_client=abs_client,
+            abs_search_confidence=abs_search_confidence,
             staging_root=staging_root,
             duplicate_policy=duplicate_policy,
             unknown_asin_policy=unknown_asin_policy,

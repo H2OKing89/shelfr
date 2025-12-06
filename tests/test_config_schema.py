@@ -118,6 +118,7 @@ class TestAudnexSchema:
         schema = AudnexSchema()
         assert schema.base_url == "https://api.audnex.us"
         assert schema.timeout_seconds == 30
+        assert schema.regions == ["us"]
 
     def test_url_validation(self) -> None:
         """Test URL must have valid protocol."""
@@ -137,6 +138,34 @@ class TestAudnexSchema:
 
         with pytest.raises(ValidationError):
             AudnexSchema(timeout_seconds=300)  # Too large
+
+    def test_valid_regions(self) -> None:
+        """Test valid region codes are accepted."""
+        schema = AudnexSchema(regions=["us", "uk", "au"])
+        assert schema.regions == ["us", "uk", "au"]
+
+    def test_regions_normalized_to_lowercase(self) -> None:
+        """Test region codes are normalized to lowercase."""
+        schema = AudnexSchema(regions=["US", "UK"])
+        assert schema.regions == ["us", "uk"]
+
+    def test_invalid_region_rejected(self) -> None:
+        """Test invalid region codes are rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            AudnexSchema(regions=["us", "invalid"])
+        assert "Invalid regions" in str(exc_info.value)
+
+    def test_empty_regions_rejected(self) -> None:
+        """Test empty regions list is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            AudnexSchema(regions=[])
+        assert "At least one region" in str(exc_info.value)
+
+    def test_all_valid_regions(self) -> None:
+        """Test all valid region codes."""
+        all_regions = ["us", "uk", "au", "ca", "de", "es", "fr", "in", "it", "jp"]
+        schema = AudnexSchema(regions=all_regions)
+        assert schema.regions == all_regions
 
 
 class TestFiltersSchema:

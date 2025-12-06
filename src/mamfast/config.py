@@ -119,6 +119,9 @@ class AudnexConfig:
 
     base_url: str = "https://api.audnex.us"
     timeout_seconds: int = 30
+    # Regions to try in order (first success wins)
+    # Valid: us, uk, au, ca, de, es, fr, in, it, jp
+    regions: list[str] = field(default_factory=lambda: ["us"])
 
 
 @dataclass
@@ -873,6 +876,7 @@ def load_settings(
     audnex = AudnexConfig(
         base_url=audnex_data.get("base_url", "https://api.audnex.us"),
         timeout_seconds=audnex_data.get("timeout_seconds", 30),
+        regions=audnex_data.get("regions", ["us"]),
     )
 
     # Parse MediaInfo config

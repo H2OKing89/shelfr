@@ -45,6 +45,7 @@ class TestFetchAudnexBook:
         mock_settings = MagicMock()
         mock_settings.audnex.base_url = "https://api.audnex.us"
         mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
 
         with (
             patch("httpx.Client", return_value=mock_client),
@@ -69,12 +70,225 @@ class TestFetchAudnexBook:
         mock_settings = MagicMock()
         mock_settings.audnex.base_url = "https://api.audnex.us"
         mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
 
         with (
             patch("httpx.Client", return_value=mock_client),
             patch("mamfast.metadata.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_book("INVALID_ASIN")
+
+        assert result is None
+
+    def test_region_fallback(self):
+        """Test fallback to second region when first returns 500."""
+        mock_settings = MagicMock()
+        mock_settings.audnex.base_url = "https://api.audnex.us"
+        mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["uk", "us"]  # UK first, US second
+
+        call_count = 0
+
+        def mock_get(url, params=None):
+            nonlocal call_count
+            call_count += 1
+            response = MagicMock()
+
+            if params and params.get("region") == "uk":
+                # First region fails with 500
+                response.status_code = 500
+                return response
+            else:
+                # Second region succeeds
+                response.status_code = 200
+                response.json.return_value = {
+                    "asin": "B09TEST123",
+                    "title": "Test Book",
+                }
+                return response
+
+        mock_client = MagicMock()
+        mock_client.get = mock_get
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+
+        with (
+            patch("httpx.Client", return_value=mock_client),
+            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+        ):
+            result = fetch_audnex_book("B09TEST123")
+
+        assert result is not None
+        assert result["asin"] == "B09TEST123"
+        assert call_count == 2  # Both regions tried
+
+    def test_specific_region_no_fallback(self):
+        """Test that specifying region skips fallback."""
+        mock_settings = MagicMock()
+        mock_settings.audnex.base_url = "https://api.audnex.us"
+        mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us", "uk"]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+
+        with (
+            patch("httpx.Client", return_value=mock_client),
+            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+        ):
+            result = fetch_audnex_book("B09TEST123", region="uk")
+
+        assert result is None
+        # Only called once (no fallback to other regions)
+        assert mock_client.get.call_count == 1
+
+
+class TestFetchAudnexAuthor:
+    """Tests for Audnex author API integration."""
+
+    def test_fetch_author_success(self):
+        """Test successful author fetch."""
+        from mamfast.metadata import fetch_audnex_author
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "asin": "B001H6KJPW",
+            "name": "Brandon Sanderson",
+        }
+
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+
+        mock_settings = MagicMock()
+        mock_settings.audnex.base_url = "https://api.audnex.us"
+        mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
+
+        with (
+            patch("httpx.Client", return_value=mock_client),
+            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+        ):
+            result = fetch_audnex_author("B001H6KJPW")
+
+        assert result is not None
+        assert result["name"] == "Brandon Sanderson"
+
+    def test_fetch_author_not_found(self):
+        """Test handling 404 response for author."""
+        from mamfast.metadata import fetch_audnex_author
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+
+        mock_settings = MagicMock()
+        mock_settings.audnex.base_url = "https://api.audnex.us"
+        mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
+
+        with (
+            patch("httpx.Client", return_value=mock_client),
+            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+        ):
+            result = fetch_audnex_author("INVALID_ASIN")
+
+        assert result is None
+
+    def test_fetch_author_timeout(self):
+        """Test that timeout returns None and logs warning."""
+        import httpx
+
+        from mamfast.metadata import fetch_audnex_author
+
+        mock_client = MagicMock()
+        mock_client.get.side_effect = httpx.TimeoutException("Connection timed out")
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+
+        mock_settings = MagicMock()
+        mock_settings.audnex.base_url = "https://api.audnex.us"
+        mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
+
+        with (
+            patch("httpx.Client", return_value=mock_client),
+            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+        ):
+            result = fetch_audnex_author("B001H6KJPW")
+
+        assert result is None
+
+    def test_fetch_author_json_decode_error(self):
+        """Test that JSON decode error returns None (catch-all exception)."""
+        from mamfast.metadata import fetch_audnex_author
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = ValueError("Invalid JSON")
+
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+
+        mock_settings = MagicMock()
+        mock_settings.audnex.base_url = "https://api.audnex.us"
+        mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
+
+        with (
+            patch("httpx.Client", return_value=mock_client),
+            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+        ):
+            result = fetch_audnex_author("B001H6KJPW")
+
+        # Should return None, not raise exception
+        assert result is None
+
+    def test_fetch_author_rate_limit(self):
+        """Test that 429 rate limit returns None."""
+        import httpx
+
+        from mamfast.metadata import fetch_audnex_author
+
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+
+        # Make raise_for_status raise HTTPStatusError for 429
+        error_response = MagicMock()
+        error_response.status_code = 429
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Rate limited", request=MagicMock(), response=error_response
+        )
+
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+
+        mock_settings = MagicMock()
+        mock_settings.audnex.base_url = "https://api.audnex.us"
+        mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
+
+        with (
+            patch("httpx.Client", return_value=mock_client),
+            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+        ):
+            result = fetch_audnex_author("B001H6KJPW")
 
         assert result is None
 
@@ -116,6 +330,7 @@ class TestFetchAudnexChapters:
         mock_settings = MagicMock()
         mock_settings.audnex.base_url = "https://api.audnex.us"
         mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
 
         with (
             patch("httpx.Client", return_value=mock_client),
@@ -144,6 +359,7 @@ class TestFetchAudnexChapters:
         mock_settings = MagicMock()
         mock_settings.audnex.base_url = "https://api.audnex.us"
         mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
 
         with (
             patch("httpx.Client", return_value=mock_client),
@@ -153,8 +369,6 @@ class TestFetchAudnexChapters:
 
         assert result is None
 
-
-class TestParseChaptersFromAudnex:
     """Tests for parsing Audnex chapters response."""
 
     def test_parse_chapters(self):
@@ -953,6 +1167,7 @@ class TestFetchAudnexEdgeCases:
         mock_settings = MagicMock()
         mock_settings.audnex.base_url = "https://api.audnex.us"
         mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
 
         with (
             patch("httpx.Client") as mock_client_class,
@@ -975,6 +1190,7 @@ class TestFetchAudnexEdgeCases:
         mock_settings = MagicMock()
         mock_settings.audnex.base_url = "https://api.audnex.us"
         mock_settings.audnex.timeout_seconds = 30
+        mock_settings.audnex.regions = ["us"]
 
         with (
             patch("httpx.Client") as mock_client_class,

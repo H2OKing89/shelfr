@@ -1,31 +1,33 @@
 # Unknown ASIN Handling Plan
 
-> **Document Version:** 3.0.0 | **Last Updated:** 2025-07-01 | **Status:** ✅ Phase 3 Complete
+> **Document Version:** 5.0.0 | **Last Updated:** 2025-12-06 | **Status:** ✅ Phase 5 Complete
 
 This document outlines the plan for handling audiobooks without ASINs during import.
 
-> **Scope:** Phases 1-3 are complete. Phases 4-5 are planned for future PRs.
+> **Scope:** Phases 1-5 are complete. All planned features implemented.
 
 ---
 
-## Current Behavior (Phase 3)
+## Current Behavior (Phase 4)
 
 | Scenario | Behavior |
 |----------|----------|
 | Folder has ASIN | Normal MAM-style import with renames |
 | ASIN found in files | Enhanced resolution finds it (Phase 3) |
 | ASIN found in metadata.json | Enhanced resolution finds it (Phase 3) |
+| ASIN found in embedded metadata | mediainfo probe finds it (Phase 4) |
 | No ASIN + policy=import | Route by classification (see below) |
 | No ASIN + policy=quarantine | Move to quarantine folder, no renames |
 | No ASIN + policy=skip | Leave in staging, log warning only |
 
-### Phase 3 ASIN Resolution Cascade
+### Phase 3+4 ASIN Resolution Cascade
 
 Before classifying as unknown, we try multiple sources:
 
 1. **Folder name** - Primary source, already parsed
 2. **Audio file names** - `Book {ASIN.B0xxx}.m4b`
 3. **Sidecar JSON** - `*.metadata.json` or `metadata.json` with `asin` field
+4. **Embedded metadata** - mediainfo probe for `asin` or `CDEK` tags (Phase 4)
 
 This catches cases where ASIN exists but wasn't in folder name.
 
@@ -334,6 +336,13 @@ def handle_unknown_asin(ctx: UnknownAsinContext, cfg: Config, *, dry_run: bool =
 
 **Key:** Run resolution **before** classification - if we find an ASIN, we don't need the unknown handler.
 
+**Acceptance criteria:**
+- [x] `AsinResolution` dataclass with `found` property
+- [x] `resolve_asin_from_folder()` cascade function
+- [x] `_extract_asin_from_metadata_file()` helper
+- [x] Integration in `import_single()` before unknown handler
+- [x] Tests added: `TestAsinResolution`, `TestResolveAsinFromFolder` (20+ tests)
+
 #### Implementation: `asin.py`
 
 ```python
@@ -425,56 +434,76 @@ def import_single(staging_folder: Path, ...) -> ImportResult:
 | `*.metadata.json` | Free | High | Check common ASIN fields |
 | `metadata.json` | Free | High | Check common ASIN fields |
 
-**Acceptance criteria:**
-- [x] `AsinResolution` dataclass with `found` property
-- [x] `resolve_asin_from_folder()` cascade function
-- [x] `_extract_asin_from_metadata_file()` helper
-- [x] Integration in `import_single()` before unknown handler
-- [x] Tests added: `TestAsinResolution`, `TestResolveAsinFromFolder` (20 tests)
-
 ---
 
-### Phase 4: mediainfo Probe (Future Enhancement)
+### Phase 4: mediainfo Probe ✅ COMPLETE
 
 **Goal:** Extract ASIN from embedded file metadata.
 
-**Keep out of hot path** - make it opt-in or batch-only:
+**Implementation:** Always enabled as last resort in the resolution cascade. If mediainfo is not available on the system, this step is silently skipped.
 
-```yaml
-audiobookshelf:
-  import_settings:
-    use_mediainfo_for_unknown_asin: false  # Opt-in for slower but thorough resolution
-```
+**Acceptance criteria:**
+- [x] `_check_mediainfo_available()` helper function
+- [x] `extract_asin_from_mediainfo()` extracts from `asin` and `CDEK` fields
+- [x] `resolve_asin_from_folder_with_mediainfo()` cascade function
+- [x] Integration in `import_single()` via the with-mediainfo function
+- [x] 30-second timeout for large files
+- [x] Tests added: `TestExtractAsinFromMediainfo`, `TestResolveAsinFromFolderWithMediainfo` (23 tests)
 
-Or as a separate command:
-```bash
-mamfast abs-resolve-asins --use-mediainfo  # Walks Unknown/, probes files, writes sidecars
-```
-
-**Implementation sketch:**
+#### Implementation: `asin.py`
 
 ```python
-def asin_from_mediainfo(audio_file: Path) -> str | None:
-    """Extract ASIN from audio file metadata tags."""
+def _check_mediainfo_available() -> bool:
+    """Check if mediainfo command is available."""
+    return shutil.which("mediainfo") is not None
+
+
+def extract_asin_from_mediainfo(audio_file: Path) -> str | None:
+    """Extract ASIN from audio file metadata using mediainfo.
+
+    Audible audiobooks embed ASIN in various metadata fields:
+    - "asin" tag (direct)
+    - "CDEK" tag (often equals ASIN)
+    - Nested in track.extra dict
+    """
     try:
         result = subprocess.run(
             ["mediainfo", "--Output=JSON", str(audio_file)],
-            capture_output=True, text=True, check=True
+            capture_output=True, text=True, check=True, timeout=30,
         )
         data = json.loads(result.stdout)
-    except (subprocess.SubprocessError, json.JSONDecodeError):
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, json.JSONDecodeError):
         return None
 
-    # Search all string fields for ASIN pattern
-    blob = json.dumps(data)
-    if match := re.search(r"\bB0[A-Z0-9]{8}\b", blob):
-        return match.group(0)
+    # Check tracks for asin/CDEK fields
+    for track in data.get("media", {}).get("track", []):
+        if asin := track.get("asin"):
+            if is_valid_asin(asin):
+                return asin
+        if cdek := track.get("CDEK"):
+            if is_valid_asin(cdek):
+                return cdek
+        # Also check nested "extra" dict
+        if extra := track.get("extra", {}):
+            if asin := extra.get("asin"):
+                if is_valid_asin(asin):
+                    return asin
     return None
 ```
 
+#### Resolution Sources (Priority Order)
+
+| Source | Cost | Reliability | Implementation |
+|--------|------|-------------|----------------|
+| Folder name | Free | High | `extract_asin(folder.name)` |
+| File names | Free | High | Loop over audio files |
+| `*.metadata.json` | Free | High | Check common ASIN fields |
+| `metadata.json` | Free | High | Check common ASIN fields |
+| **mediainfo** | Subprocess | High | Probe embedded metadata |
+
 ---
 
-### Phase 5: ABS Metadata Search (Future Enhancement)
+### Phase 5: ABS Metadata Search ✅ COMPLETE
 
 **Goal:** Last-resort ASIN resolution via Audiobookshelf's metadata search API.
 
@@ -484,10 +513,23 @@ def asin_from_mediainfo(audio_file: Path) -> str | None:
 - Same API we already use for other operations
 - No need for separate Audible credentials or library dependencies
 
-**Keep completely separate from import path:**
+**CLI Command:**
 
 ```bash
-mamfast abs-resolve-asins --search-provider audible
+# Scan Unknown/ folder and search ABS for ASINs
+mamfast abs-resolve-asins
+
+# Specify custom path
+mamfast abs-resolve-asins --path /mnt/user/data/audiobooks/Unknown/
+
+# Set confidence threshold (default: 0.75)
+mamfast abs-resolve-asins --confidence 0.80
+
+# Write sidecar files with resolved ASINs
+mamfast abs-resolve-asins --write-sidecar
+
+# Preview mode (--dry-run is a global flag)
+mamfast --dry-run abs-resolve-asins
 ```
 
 **ABS Metadata Search Endpoint:**
@@ -514,57 +556,81 @@ Authorization: Bearer <ABS_TOKEN>
 ]
 ```
 
-**Implementation Sketch:**
+**Implementation (Actual):**
 
 ```python
-from mamfast.abs.client import AbsClient
+# abs/client.py - Search endpoint
+class AbsClient:
+    @retry_with_backoff(max_attempts=3, base_delay=2.0, exceptions=NETWORK_EXCEPTIONS)
+    def search_books(
+        self,
+        title: str,
+        author: str | None = None,
+        provider: str = "audible",
+    ) -> list[dict[str, Any]]:
+        """Search for books via ABS metadata provider."""
+        params = {"title": title, "provider": provider}
+        if author:
+            params["author"] = author
+        response = self._request("GET", "/api/search/books", params=params)
+        return response.json()
 
-@retry_with_backoff(max_attempts=3, base_delay=2.0, exceptions=NETWORK_EXCEPTIONS)
-def search_audible_via_abs(
+
+# abs/asin.py - Resolution with fuzzy matching
+@dataclass
+class SearchMatch:
+    """Result from ABS Audible search with confidence score."""
+    title: str
+    author: str | None
+    asin: str
+    confidence: float  # 0.0 to 1.0 (weighted: title 0.7, author 0.3)
+    raw_result: dict[str, Any]
+
+
+def resolve_asin_via_abs_search(
     client: AbsClient,
     title: str,
     author: str | None = None,
-) -> list[dict]:
-    """Search Audible metadata through ABS proxy."""
-    params = {"title": title, "provider": "audible"}
-    if author:
-        params["author"] = author
-    
-    resp = client._client.get("/api/search/books", params=params)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def resolve_asin_from_abs_search(
-    client: AbsClient,
-    folder_name: str,
-    confidence_threshold: float = 0.85,
-) -> str | None:
-    """Try to resolve ASIN via ABS metadata search."""
-    # Parse folder name for search terms
-    title, author = parse_folder_for_search(folder_name)
-    
-    results = search_audible_via_abs(client, title, author)
-    if not results:
-        return None
-    
-    # Use fuzzy matching to find best match
-    best_match = find_best_match(results, title, author)
-    if best_match and best_match["confidence"] >= confidence_threshold:
-        return best_match["asin"]
-    
-    return None
+    confidence_threshold: float = 0.75,
+) -> AsinResolution:
+    """Search Audible via ABS and return best match above threshold."""
+    results = client.search_books(title, author)
+    # Fuzzy match and return best result above confidence_threshold
+    # Uses similarity_ratio() from mamfast.utils.fuzzy
+    ...
 ```
 
 **Flow:**
-1. Scan `Unknown/` for MISSING_ASIN books (from sidecar or naming)
+1. Scan `Unknown/` for folders (or specify `--path`)
 2. Parse folder names for title/author search terms
 3. Call ABS `/api/search/books?provider=audible`
-4. Fuzzy-match results against original folder metadata
-5. When confidence high, write ASIN sidecar or rename folder to MAM-style
+4. Fuzzy-match results against original folder metadata (weighted confidence)
+5. When confidence ≥ threshold (default 0.75), optionally write sidecar
+
+**Sidecar Output (`_mamfast_resolved_asin.json`):**
+
+```json
+{
+  "asin": "B002V0QK4C",
+  "title": "Wizard's First Rule",
+  "author": "Terry Goodkind",
+  "confidence": 0.92,
+  "resolved_at": "2025-06-12T10:30:00Z",
+  "source": "abs_search"
+}
+```
+
+**Acceptance Criteria:**
+- [x] `AbsClient.search_books()` method with provider parameter
+- [x] `SearchMatch` dataclass with confidence scoring
+- [x] `resolve_asin_via_abs_search()` function with fuzzy matching
+- [x] `abs-resolve-asins` CLI command with path, confidence, write-sidecar flags
+- [x] Weighted confidence: title (0.7) + author (0.3)
+- [x] Tests for client search, SearchMatch, resolver, and CLI command
+- [x] Global `--dry-run` flag support
 
 **Advantages:**
-- **No new dependencies:** Uses existing `AbsClient`
+- **No new dependencies:** Uses existing `AbsClient` and `mamfast.utils.fuzzy`
 - **Unified auth:** Same API token we already configure
 - **Rate limiting:** ABS handles Audible API limits
 - **Caching:** ABS may cache responses (reduces external calls)
@@ -874,16 +940,54 @@ class TestMultiFileProtection:
 | `test_import_single_no_asin_skip_policy` | import_single respects SKIP | ✅ |
 | `test_import_single_with_asin_ignores_unknown_policy` | ASIN present ignores policy | ✅ |
 
-### Phase 3 Tests (Future)
+### Phase 3 Tests ✅ IMPLEMENTED
 
-| Test | Description | Assertions |
-|------|-------------|------------|
-| `test_resolve_asin_from_folder` | ASIN in folder name | Returns (asin, "folder") |
-| `test_resolve_asin_from_filename` | ASIN in audio filename | Returns (asin, "filename") |
-| `test_resolve_asin_from_metadata` | ASIN in .metadata.json | Returns (asin, "metadata") |
-| `test_resolve_asin_cascade` | All sources checked in order | First match wins |
-| `test_resolve_asin_not_found` | No ASIN anywhere | Returns (None, "unknown") |
-| `test_metadata_json_has_asin` | Folder missing ASIN, metadata.json has it | Resolved from metadata, normal import |
+| Test | Description | Status |
+|------|-------------|--------|
+| `test_asin_resolution_found_property` | `found` returns True when ASIN present | ✅ |
+| `test_asin_resolution_not_found_property` | `found` returns False when None | ✅ |
+| `test_resolve_from_parsed_asin` | Uses provided parsed ASIN | ✅ |
+| `test_resolve_from_folder_name` | Extracts from folder name | ✅ |
+| `test_resolve_from_audio_filename` | Extracts from .m4b name | ✅ |
+| `test_resolve_from_metadata_json` | Extracts from metadata.json | ✅ |
+| `test_resolve_from_metadata_dot_json` | Extracts from *.metadata.json | ✅ |
+| `test_resolve_cascade_priority` | Folder → filename → metadata order | ✅ |
+| `test_resolve_not_found_returns_unknown` | Returns source="unknown" | ✅ |
+| `test_resolve_invalid_asin_skipped` | Invalid patterns ignored | ✅ |
+
+### Phase 4 Tests ✅ IMPLEMENTED
+
+#### `TestExtractAsinFromMediainfo` (16 tests)
+
+| Test | Description | Status |
+|------|-------------|--------|
+| `test_nonexistent_file_returns_none` | Missing file returns None | ✅ |
+| `test_directory_returns_none` | Directory path returns None | ✅ |
+| `test_asin_in_general_track` | Direct `asin` field extraction | ✅ |
+| `test_cdek_as_asin` | `CDEK` field used as ASIN | ✅ |
+| `test_asin_in_extra_dict` | Nested `extra.asin` extraction | ✅ |
+| `test_cdek_in_extra_dict` | Nested `extra.CDEK` extraction | ✅ |
+| `test_invalid_asin_rejected` | Invalid patterns rejected | ✅ |
+| `test_empty_mediainfo_output` | Empty output returns None | ✅ |
+| `test_no_tracks` | No tracks returns None | ✅ |
+| `test_malformed_json` | JSON parse error handled | ✅ |
+| `test_subprocess_error` | Subprocess errors handled | ✅ |
+| `test_timeout_handled` | 30s timeout returns None | ✅ |
+| `test_single_track_dict` | Single track as dict handled | ✅ |
+| `test_asin_found_in_fallback_search` | ASIN found in other fields | ✅ |
+| `test_tracks_none` | tracks=null handled | ✅ |
+| `test_tracks_invalid_type` | Invalid tracks type handled | ✅ |
+
+#### `TestResolveAsinFromFolderWithMediainfo` (7 tests)
+
+| Test | Description | Status |
+|------|-------------|--------|
+| `test_falls_back_to_phase3_first` | Phase 3 checked before mediainfo | ✅ |
+| `test_mediainfo_used_when_phase3_fails` | mediainfo fallback works | ✅ |
+| `test_mediainfo_not_available_returns_unknown` | Missing mediainfo handled | ✅ |
+| `test_mediainfo_probes_multiple_files` | Probes files until ASIN found | ✅ |
+| `test_only_probes_audio_files` | Non-audio files skipped | ✅ |
+
 
 ---
 
@@ -893,13 +997,11 @@ class TestMultiFileProtection:
 |-------|----------|--------|--------|
 | 1. Multi-file protection | **Critical** | 1-2 hrs | ✅ **Complete** |
 | 2. Unknown ASIN policy | High | 4-5 hrs | ✅ **Complete** |
-| 3. Enhanced resolution | Medium | 2-3 hrs | 📋 Planned |
-| 4. mediainfo probe | Low | 2-3 hrs | ⏸️ Deferred |
-| 5. Audible API | Low | 4-5 hrs | ⏸️ Deferred |
+| 3. Enhanced resolution | Medium | 2-3 hrs | ✅ **Complete** |
+| 4. mediainfo probe | Low | 2-3 hrs | ✅ **Complete** |
+| 5. ABS Metadata Search | Low | 4-5 hrs | ✅ **Complete** |
 
-**Phase 2 complete:** Unknown ASIN policy with homebrew routing and sidecar metadata.
-
-**Next:** Phase 3 (enhanced resolution from filenames and metadata.json).
+**All phases complete.** Unknown ASIN handling is fully implemented with multi-source resolution cascade.
 
 ---
 
@@ -913,3 +1015,6 @@ class TestMultiFileProtection:
 | 1.3.0 | 2025-12-05 | Added quick-start behavior summary; scope clarification; linked from importer.py |
 | 1.4.0 | 2025-12-05 | Added edge cases from review: sample/trailer files, partial imports, homebrew misclassification, foreign folders |
 | 2.0.0 | 2025-12-05 | **Phase 2 complete:** Added UnknownAsinPolicy enum, homebrew classification, sidecar writer, config schema, tests |
+| 3.0.0 | 2025-12-06 | **Phase 3 complete:** Added `AsinResolution` dataclass, `resolve_asin_from_folder()` cascade, metadata.json extraction, 20+ tests |
+| 4.0.0 | 2025-12-06 | **Phase 4 complete:** Added `extract_asin_from_mediainfo()`, `resolve_asin_from_folder_with_mediainfo()`, embedded metadata extraction, 23 tests |
+| 5.0.0 | 2025-12-06 | **Phase 5 complete:** Added ABS metadata search, `resolve_asin_via_abs_search()`, `abs-resolve-asins` CLI command, integrated into `abs-import --abs-search`, fuzzy matching with RapidFuzz, confidence validation |

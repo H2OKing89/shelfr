@@ -178,6 +178,142 @@ class TestParseMamFolderName:
 
 
 # =============================================================================
+# Tests: enrich_from_audnex
+# =============================================================================
+
+
+class TestEnrichFromAudnex:
+    """Tests for Audnex metadata enrichment."""
+
+    def test_series_position_int_coerced_to_string(self) -> None:
+        """Audnex sometimes returns series_position as int - must be coerced to string."""
+        from unittest.mock import patch
+
+        from mamfast.abs.importer import enrich_from_audnex
+
+        parsed = ParsedFolderName(
+            author="Unknown",
+            title="Test Book",
+            series=None,
+            series_position=None,
+            asin="B0TEST1234",
+            year=None,
+            narrator=None,
+            ripper_tag=None,
+            is_standalone=True,
+        )
+
+        # Mock Audnex returning position as int (common case)
+        mock_audnex_data = {
+            "title": "Test Book",
+            "authors": [{"name": "Test Author"}],
+            "seriesPrimary": {
+                "name": "Test Series",
+                "position": 5,  # int, not string!
+            },
+        }
+
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
+            result = enrich_from_audnex(parsed, "B0TEST1234")
+
+        assert result.series == "Test Series"
+        assert result.series_position == "5"  # Must be string
+        assert isinstance(result.series_position, str)
+
+    def test_series_position_float_coerced_to_string(self) -> None:
+        """Handle float position like 1.5 (sub-books)."""
+        from unittest.mock import patch
+
+        from mamfast.abs.importer import enrich_from_audnex
+
+        parsed = ParsedFolderName(
+            author="Unknown",
+            title="Test Book",
+            series=None,
+            series_position=None,
+            asin="B0TEST1234",
+            year=None,
+            narrator=None,
+            ripper_tag=None,
+            is_standalone=True,
+        )
+
+        mock_audnex_data = {
+            "seriesPrimary": {
+                "name": "Test Series",
+                "position": 1.5,  # float
+            },
+        }
+
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
+            result = enrich_from_audnex(parsed, "B0TEST1234")
+
+        assert result.series_position == "1.5"
+        assert isinstance(result.series_position, str)
+
+    def test_series_position_none_handled(self) -> None:
+        """Handle None position gracefully."""
+        from unittest.mock import patch
+
+        from mamfast.abs.importer import enrich_from_audnex
+
+        parsed = ParsedFolderName(
+            author="Unknown",
+            title="Test Book",
+            series=None,
+            series_position=None,
+            asin="B0TEST1234",
+            year=None,
+            narrator=None,
+            ripper_tag=None,
+            is_standalone=True,
+        )
+
+        mock_audnex_data = {
+            "seriesPrimary": {
+                "name": "Test Series",
+                "position": None,  # explicitly None
+            },
+        }
+
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
+            result = enrich_from_audnex(parsed, "B0TEST1234")
+
+        assert result.series == "Test Series"
+        assert result.series_position is None  # Should remain None
+
+    def test_subtitle_series_position_coerced(self) -> None:
+        """Subtitle fallback also coerces position to string."""
+        from unittest.mock import patch
+
+        from mamfast.abs.importer import enrich_from_audnex
+
+        parsed = ParsedFolderName(
+            author="Test Author",
+            title="Test Book",
+            series=None,
+            series_position=None,
+            asin="B0TEST1234",
+            year=None,
+            narrator=None,
+            ripper_tag=None,
+            is_standalone=True,
+        )
+
+        # No seriesPrimary, but subtitle has series info
+        mock_audnex_data = {
+            "subtitle": "My Series, Book 3",
+        }
+
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
+            result = enrich_from_audnex(parsed, "B0TEST1234")
+
+        assert result.series == "My Series"
+        assert result.series_position == "3"
+        assert isinstance(result.series_position, str)
+
+
+# =============================================================================
 # Tests: build_target_path
 # =============================================================================
 
@@ -590,6 +726,15 @@ class TestBatchImportResult:
 
         assert batch.failed_count == 1
 
+    def test_add_skipped(self) -> None:
+        """Add skipped result updates count."""
+        batch = BatchImportResult()
+        batch.add(ImportResult(Path("/a"), None, None, "skipped", "user skipped"))
+
+        assert batch.skipped_count == 1
+        assert batch.success_count == 0
+        assert batch.failed_count == 0
+
     def test_tracks_all_results(self) -> None:
         """All results are stored in list."""
         batch = BatchImportResult()
@@ -597,6 +742,28 @@ class TestBatchImportResult:
             batch.add(ImportResult(Path(f"/{i}"), Path(f"/t{i}"), f"B0{i}", "success"))
 
         assert len(batch.results) == 5
+
+
+class TestErrorClasses:
+    """Tests for custom error classes."""
+
+    def test_duplicate_error(self) -> None:
+        """Test DuplicateError has expected attributes."""
+        from mamfast.abs.importer import DuplicateError
+
+        err = DuplicateError("B0123456789", "/path/to/existing")
+        assert err.asin == "B0123456789"
+        assert err.existing_path == "/path/to/existing"
+        assert "B0123456789" in str(err)
+        assert "/path/to/existing" in str(err)
+
+    def test_filesystem_mismatch_error(self) -> None:
+        """Test FilesystemMismatchError can be raised."""
+        from mamfast.abs.importer import FilesystemMismatchError
+
+        err = FilesystemMismatchError("Staging and library are on different filesystems")
+        assert isinstance(err, Exception)
+        assert "filesystem" in str(err).lower() or "Staging" in str(err)
 
 
 # =============================================================================

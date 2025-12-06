@@ -98,11 +98,17 @@ class QBittorrentSchema(BaseModel):
     save_path: str = ""
 
 
+# Valid Audnex regions
+VALID_AUDNEX_REGIONS = frozenset(["us", "uk", "au", "ca", "de", "es", "fr", "in", "it", "jp"])
+
+
 class AudnexSchema(BaseModel):
     """Audnex API settings."""
 
     base_url: str = "https://api.audnex.us"
     timeout_seconds: int = Field(default=30, ge=5, le=120)
+    # Regions to try in order (first success wins)
+    regions: list[str] = Field(default_factory=lambda: ["us"])
 
     @field_validator("base_url")
     @classmethod
@@ -111,6 +117,17 @@ class AudnexSchema(BaseModel):
         if not v.startswith(("http://", "https://")):
             raise ValueError(f"base_url must start with http:// or https://, got: {v}")
         return v.rstrip("/")  # Normalize: remove trailing slash
+
+    @field_validator("regions")
+    @classmethod
+    def validate_regions(cls, v: list[str]) -> list[str]:
+        """Validate region codes are valid."""
+        if not v:
+            raise ValueError("At least one region is required")
+        invalid = [r for r in v if r.lower() not in VALID_AUDNEX_REGIONS]
+        if invalid:
+            raise ValueError(f"Invalid regions: {invalid}. Valid: {sorted(VALID_AUDNEX_REGIONS)}")
+        return [r.lower() for r in v]  # Normalize to lowercase
 
 
 class MediaInfoSchema(BaseModel):
