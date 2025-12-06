@@ -312,6 +312,18 @@ def resolve_asin_from_folder(
                     source_detail="metadata.json",
                 )
 
+        # 5. Check for _mamfast_resolved_asin.json (from abs-resolve-asins Phase 5)
+        resolved_sidecar = folder / "_mamfast_resolved_asin.json"
+        if resolved_sidecar.exists():
+            asin = _extract_asin_from_metadata_file(resolved_sidecar)
+            if asin:
+                logger.debug("Resolved ASIN %s from _mamfast_resolved_asin.json", asin)
+                return AsinResolution(
+                    asin=asin,
+                    source="resolved_sidecar",
+                    source_detail="_mamfast_resolved_asin.json",
+                )
+
     # No ASIN found anywhere
     return AsinResolution(asin=None, source="unknown")
 
