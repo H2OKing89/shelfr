@@ -2408,7 +2408,6 @@ def cmd_abs_resolve_asins(args: argparse.Namespace) -> int:
     from datetime import UTC, datetime
 
     from mamfast.abs import AbsClient, resolve_asin_via_abs_search
-    from mamfast.abs.importer import parse_mam_folder_name
     from mamfast.config import reload_settings
 
     print_header("ABS ASIN Resolver", dry_run=args.dry_run)
@@ -2491,19 +2490,18 @@ def cmd_abs_resolve_asins(args: argparse.Namespace) -> int:
             console.print(f"\n[dim]→[/] {folder_name}")
 
             # Parse folder name for title/author
-            title: str = folder_name  # Default
+            # For abs-resolve-asins, we're dealing with non-MAM folders that need ASIN resolution.
+            # Use conservative extraction - only split on " - " pattern which reliably indicates
+            # "Author - Title" format. Don't use MAM parser which may incorrectly extract
+            # parenthetical content like "(Light Novel)" as author.
+            title: str = folder_name  # Default to full folder name
             author: str | None = None
 
-            try:
-                parsed = parse_mam_folder_name(folder_name)
-                title = parsed.title or folder_name
-                author = parsed.author
-            except ValueError:
-                # Try simple "Author - Title" split
-                if " - " in folder_name:
-                    parts = folder_name.split(" - ", 1)
-                    author = parts[0]
-                    title = parts[1] if len(parts) > 1 else folder_name
+            if " - " in folder_name:
+                # Simple "Author - Title" split (e.g., "Quentin Kilgore - Primal Imperative 2")
+                parts = folder_name.split(" - ", 1)
+                author = parts[0].strip()
+                title = parts[1].strip() if len(parts) > 1 else folder_name
 
             if args.dry_run:
                 print_dry_run(f"Would search: title={title!r}, author={author!r}")
