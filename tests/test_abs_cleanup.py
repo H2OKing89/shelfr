@@ -99,9 +99,14 @@ class TestEligibleStatuses:
     """Tests for CLEANUP_ELIGIBLE_STATUSES constant."""
 
     def test_eligible_statuses(self) -> None:
-        """Test eligible statuses are correct."""
+        """Test eligible statuses are correct.
+
+        Only "success" is cleanup-eligible because:
+        - "success" = hardlinked import, source files remain → safe to cleanup
+        - "trump_replaced" = files MOVED to library, source gone → nothing to cleanup
+        """
         assert "success" in CLEANUP_ELIGIBLE_STATUSES
-        assert "trump_replaced" in CLEANUP_ELIGIBLE_STATUSES
+        assert "trump_replaced" not in CLEANUP_ELIGIBLE_STATUSES  # Files already moved!
         assert "failed" not in CLEANUP_ELIGIBLE_STATUSES
         assert "skipped" not in CLEANUP_ELIGIBLE_STATUSES
         assert "duplicate" not in CLEANUP_ELIGIBLE_STATUSES
@@ -673,3 +678,82 @@ class TestCleanupSchemaValidation:
         # Test using schema instance
         schema2 = AudiobookshelfImportSchema(cleanup=CleanupSchema(strategy="hide"))
         assert schema2.cleanup.strategy == "hide"
+
+
+class TestPruneEmptyDirs:
+    """Tests for prune_empty_dirs function."""
+
+    def test_import(self) -> None:
+        """Test function can be imported."""
+        from mamfast.abs.cleanup import prune_empty_dirs
+
+        assert callable(prune_empty_dirs)
+
+    def test_empty_tree(self, tmp_path: Path) -> None:
+        """Test pruning empty nested directories."""
+        from mamfast.abs.cleanup import prune_empty_dirs
+
+        # Create empty nested structure like after trumping
+        (tmp_path / "Author" / "Series" / "Book").mkdir(parents=True)
+        (tmp_path / "Author2").mkdir()
+
+        removed = prune_empty_dirs(tmp_path, dry_run=False)
+
+        # Should remove Book, Series, Author, Author2 = 4 dirs
+        assert removed == 4
+        # Only root should remain
+        assert tmp_path.exists()
+        assert list(tmp_path.iterdir()) == []
+
+    def test_preserves_non_empty_dirs(self, tmp_path: Path) -> None:
+        """Test that directories with files are preserved."""
+        from mamfast.abs.cleanup import prune_empty_dirs
+
+        # Create mix of empty and non-empty dirs
+        (tmp_path / "Author" / "Book1").mkdir(parents=True)
+        (tmp_path / "Author" / "Book1" / "file.m4b").touch()
+        (tmp_path / "Author" / "Book2").mkdir()  # Empty, will be removed
+
+        removed = prune_empty_dirs(tmp_path, dry_run=False)
+
+        # Only Book2 should be removed
+        assert removed == 1
+        assert (tmp_path / "Author" / "Book1" / "file.m4b").exists()
+        assert not (tmp_path / "Author" / "Book2").exists()
+
+    def test_dry_run_mode(self, tmp_path: Path) -> None:
+        """Test dry run doesn't actually remove directories."""
+        from mamfast.abs.cleanup import prune_empty_dirs
+
+        (tmp_path / "Author" / "Book").mkdir(parents=True)
+
+        removed = prune_empty_dirs(tmp_path, dry_run=True)
+
+        # Should report 2 dirs (Book, Author) would be removed
+        assert removed == 2
+        # But dirs should still exist
+        assert (tmp_path / "Author" / "Book").exists()
+
+    def test_never_removes_root(self, tmp_path: Path) -> None:
+        """Test that root directory is never removed."""
+        from mamfast.abs.cleanup import prune_empty_dirs
+
+        # Root is already empty
+        removed = prune_empty_dirs(tmp_path, dry_run=False)
+
+        assert removed == 0
+        assert tmp_path.exists()
+
+    def test_handles_nested_empty_dirs(self, tmp_path: Path) -> None:
+        """Test deep nesting is handled correctly."""
+        from mamfast.abs.cleanup import prune_empty_dirs
+
+        # Create deep nesting
+        deep = tmp_path / "a" / "b" / "c" / "d" / "e"
+        deep.mkdir(parents=True)
+
+        removed = prune_empty_dirs(tmp_path, dry_run=False)
+
+        assert removed == 5  # a, b, c, d, e
+        assert tmp_path.exists()
+        assert list(tmp_path.iterdir()) == []
