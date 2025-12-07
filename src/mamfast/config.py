@@ -284,6 +284,8 @@ class AudiobookshelfImportConfig:
     unknown_asin_policy: str = "import"
     # Path for quarantined books (required if unknown_asin_policy=quarantine)
     quarantine_path: str | None = None
+    # File patterns to ignore during import (e.g., [".json", "*.metadata.json"])
+    ignore_file_extensions: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -1039,6 +1041,7 @@ def load_settings(
             abs_search_confidence=abs_import_data.get("abs_search_confidence", 0.75),
             unknown_asin_policy=abs_import_data.get("unknown_asin_policy", "import"),
             quarantine_path=abs_import_data.get("quarantine_path"),
+            ignore_file_extensions=abs_import_data.get("ignore_file_extensions", []),
         ),
         index_db=abs_data.get("index_db", "./data/abs_index.db"),
     )

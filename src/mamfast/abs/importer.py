@@ -11,6 +11,7 @@ See docs/UNKNOWN_ASIN_HANDLING.md for unknown ASIN handling design (Phase 1+).
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import logging
 import os
@@ -654,6 +655,63 @@ def rename_files_in_folder(
     return renamed
 
 
+def remove_ignored_files(
+    folder_path: Path,
+    ignore_patterns: list[str],
+    *,
+    dry_run: bool = False,
+) -> list[str]:
+    """Remove files matching ignore patterns from a folder.
+
+    Supports two pattern types:
+    - Simple extension: ".json" matches any file ending in .json
+    - Glob pattern: "*.metadata.json" matches files ending in .metadata.json
+
+    Args:
+        folder_path: Path to folder to clean
+        ignore_patterns: List of patterns (e.g., [".json", "*.metadata.json"])
+        dry_run: If True, only log what would happen
+
+    Returns:
+        List of removed filenames
+    """
+    if not ignore_patterns:
+        return []
+
+    removed: list[str] = []
+
+    for file_path in folder_path.iterdir():
+        if not file_path.is_file():
+            continue
+
+        filename = file_path.name
+        filename_lower = filename.lower()
+        should_remove = False
+
+        for pattern in ignore_patterns:
+            pattern_lower = pattern.lower()
+            # Glob pattern (contains *) or simple extension match
+            if ("*" in pattern and fnmatch.fnmatch(filename_lower, pattern_lower)) or (
+                pattern.startswith(".") and filename_lower.endswith(pattern_lower)
+            ):
+                should_remove = True
+                break
+
+        if should_remove:
+            if dry_run:
+                logger.info("[DRY RUN] Would remove ignored file: %s", file_path)
+            else:
+                try:
+                    file_path.unlink()
+                    logger.info("Removed ignored file: %s", filename)
+                except OSError as e:
+                    logger.warning("Failed to remove %s: %s", filename, e)
+                    continue
+            removed.append(filename)
+
+    return removed
+
+
 # =============================================================================
 # Phase 2: Unknown ASIN Policy Handling
 # =============================================================================
@@ -1195,6 +1253,7 @@ def import_single(
     duplicate_policy: str = "skip",
     unknown_asin_policy: UnknownAsinPolicy = UnknownAsinPolicy.IMPORT,
     quarantine_path: Path | None = None,
+    ignore_patterns: list[str] | None = None,
     trump_prefs: TrumpPrefs | None = None,
     path_mapper: PathMapper | None = None,
     dry_run: bool = False,
@@ -1211,6 +1270,7 @@ def import_single(
         duplicate_policy: "skip", "warn", or "overwrite"
         unknown_asin_policy: How to handle books without ASIN
         quarantine_path: Path for quarantine (required if policy=QUARANTINE)
+        ignore_patterns: File patterns to remove before import (e.g., [".json", "*.metadata.json"])
         trump_prefs: Trumping preferences (None = disabled)
         path_mapper: Optional path mapper for container↔host conversion
         dry_run: If True, don't actually move files
@@ -1436,6 +1496,10 @@ def import_single(
                 parsed=parsed,
             )
 
+    # Remove ignored files before moving (e.g., .metadata.json)
+    if ignore_patterns:
+        remove_ignored_files(staging_folder, ignore_patterns, dry_run=dry_run)
+
     if dry_run:
         logger.info("[DRY RUN] Would move %s → %s", staging_folder, target_path)
         # Preview file renames
@@ -1502,6 +1566,7 @@ def import_batch(
     duplicate_policy: str = "skip",
     unknown_asin_policy: UnknownAsinPolicy = UnknownAsinPolicy.IMPORT,
     quarantine_path: Path | None = None,
+    ignore_patterns: list[str] | None = None,
     trump_prefs: TrumpPrefs | None = None,
     path_mapper: PathMapper | None = None,
     dry_run: bool = False,
@@ -1518,6 +1583,7 @@ def import_batch(
         duplicate_policy: "skip", "warn", or "overwrite"
         unknown_asin_policy: How to handle books without ASIN
         quarantine_path: Path for quarantine (required if policy=QUARANTINE)
+        ignore_patterns: File patterns to remove before import (e.g., [".json", "*.metadata.json"])
         trump_prefs: Trumping preferences (None = disabled)
         path_mapper: Optional path mapper for container↔host conversion
         dry_run: If True, don't actually move files
@@ -1538,6 +1604,7 @@ def import_batch(
             duplicate_policy=duplicate_policy,
             unknown_asin_policy=unknown_asin_policy,
             quarantine_path=quarantine_path,
+            ignore_patterns=ignore_patterns,
             trump_prefs=trump_prefs,
             path_mapper=path_mapper,
             dry_run=dry_run,

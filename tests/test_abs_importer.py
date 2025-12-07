@@ -25,6 +25,7 @@ from mamfast.abs.importer import (
     import_single,
     matches_homebrew_pattern,
     parse_mam_folder_name,
+    remove_ignored_files,
     validate_import_prerequisites,
     write_unknown_asin_sidecar,
 )
@@ -1631,3 +1632,135 @@ class TestBatchImportResultTrumpCounts:
         assert batch.trump_replaced_count == 1
         assert batch.trump_kept_existing_count == 1
         assert batch.trump_rejected_count == 1
+
+
+# =============================================================================
+# Tests for remove_ignored_files
+# =============================================================================
+
+
+class TestRemoveIgnoredFiles:
+    """Tests for remove_ignored_files function."""
+
+    def test_empty_patterns_does_nothing(self, tmp_path: Path) -> None:
+        """Empty pattern list doesn't remove anything."""
+        folder = tmp_path / "book"
+        folder.mkdir()
+        (folder / "audio.m4b").touch()
+        (folder / "metadata.json").touch()
+
+        removed = remove_ignored_files(folder, [])
+        assert removed == []
+        assert (folder / "audio.m4b").exists()
+        assert (folder / "metadata.json").exists()
+
+    def test_simple_extension_match(self, tmp_path: Path) -> None:
+        """Simple extension '.json' matches all .json files."""
+        folder = tmp_path / "book"
+        folder.mkdir()
+        (folder / "audio.m4b").touch()
+        (folder / "metadata.json").touch()
+        (folder / "cover.jpg").touch()
+
+        removed = remove_ignored_files(folder, [".json"])
+        assert "metadata.json" in removed
+        assert len(removed) == 1
+        assert (folder / "audio.m4b").exists()
+        assert not (folder / "metadata.json").exists()
+        assert (folder / "cover.jpg").exists()
+
+    def test_glob_pattern_match(self, tmp_path: Path) -> None:
+        """Glob pattern '*.metadata.json' only matches that suffix."""
+        folder = tmp_path / "book"
+        folder.mkdir()
+        (folder / "audio.m4b").touch()
+        (folder / "Title.metadata.json").touch()
+        (folder / "config.json").touch()
+
+        removed = remove_ignored_files(folder, ["*.metadata.json"])
+        assert "Title.metadata.json" in removed
+        assert len(removed) == 1
+        assert (folder / "audio.m4b").exists()
+        assert not (folder / "Title.metadata.json").exists()
+        assert (folder / "config.json").exists()  # Regular .json not matched
+
+    def test_multiple_patterns(self, tmp_path: Path) -> None:
+        """Multiple patterns can be combined."""
+        folder = tmp_path / "book"
+        folder.mkdir()
+        (folder / "audio.m4b").touch()
+        (folder / "Title.metadata.json").touch()
+        (folder / "config.json").touch()
+        (folder / "notes.txt").touch()
+
+        removed = remove_ignored_files(folder, ["*.metadata.json", ".txt"])
+        assert "Title.metadata.json" in removed
+        assert "notes.txt" in removed
+        assert len(removed) == 2
+
+    def test_case_insensitive_matching(self, tmp_path: Path) -> None:
+        """Pattern matching is case-insensitive."""
+        folder = tmp_path / "book"
+        folder.mkdir()
+        (folder / "Title.METADATA.JSON").touch()
+        (folder / "Config.Json").touch()
+
+        removed = remove_ignored_files(folder, ["*.metadata.json", ".json"])
+        assert len(removed) == 2
+
+    def test_dry_run_doesnt_remove(self, tmp_path: Path) -> None:
+        """Dry run returns files but doesn't actually remove them."""
+        folder = tmp_path / "book"
+        folder.mkdir()
+        (folder / "metadata.json").touch()
+
+        removed = remove_ignored_files(folder, [".json"], dry_run=True)
+        assert "metadata.json" in removed
+        assert (folder / "metadata.json").exists()  # Still there
+
+    def test_skips_directories(self, tmp_path: Path) -> None:
+        """Directories are not matched/removed even if name matches."""
+        folder = tmp_path / "book"
+        folder.mkdir()
+        subdir = folder / "subdir.json"
+        subdir.mkdir()
+        (folder / "file.json").touch()
+
+        removed = remove_ignored_files(folder, [".json"])
+        assert "file.json" in removed
+        assert len(removed) == 1
+        assert subdir.exists()  # Directory not removed
+
+    def test_real_world_metadata_json(self, tmp_path: Path) -> None:
+        """Real-world scenario: remove .metadata.json but keep other .json."""
+        folder = (
+            tmp_path / "By the Grace of the Gods vol_02 (2023) (Roy) {ASIN.B0C9RS445X} [H2OKing]"
+        )
+        folder.mkdir()
+
+        # Create files matching real folder structure
+        (folder / "By the Grace of the Gods vol_02 (2023) (Roy) {ASIN.B0C9RS445X}.cue").touch()
+        (folder / "By the Grace of the Gods vol_02 (2023) (Roy) {ASIN.B0C9RS445X}.jpg").touch()
+        (folder / "By the Grace of the Gods vol_02 (2023) (Roy) {ASIN.B0C9RS445X}.m4b").touch()
+        (
+            folder / "By the Grace of the Gods vol_02 (2023) (Roy) {ASIN.B0C9RS445X}.metadata.json"
+        ).touch()
+
+        # This is the config from the user's config.yaml
+        removed = remove_ignored_files(folder, ["*.metadata.json"])
+
+        assert len(removed) == 1
+        assert (
+            "By the Grace of the Gods vol_02 (2023) (Roy) {ASIN.B0C9RS445X}.metadata.json"
+            in removed
+        )
+        # Other files preserved
+        assert (
+            folder / "By the Grace of the Gods vol_02 (2023) (Roy) {ASIN.B0C9RS445X}.m4b"
+        ).exists()
+        assert (
+            folder / "By the Grace of the Gods vol_02 (2023) (Roy) {ASIN.B0C9RS445X}.jpg"
+        ).exists()
+        assert (
+            folder / "By the Grace of the Gods vol_02 (2023) (Roy) {ASIN.B0C9RS445X}.cue"
+        ).exists()

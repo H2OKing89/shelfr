@@ -271,6 +271,10 @@ class AudiobookshelfImportSchema(BaseModel):
         default=None,
         description="Path for quarantined books (required if unknown_asin_policy=quarantine)",
     )
+    ignore_file_extensions: list[str] = Field(
+        default_factory=list,
+        description="File patterns to ignore during import (e.g., '.json', '*.metadata.json')",
+    )
     trumping: TrumpingSchema = Field(
         default_factory=TrumpingSchema,
         description="Quality-based replacement settings",
