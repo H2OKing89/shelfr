@@ -70,6 +70,7 @@ class CleanupPrefs:
         min_age_days: Only cleanup sources older than N days (0 = disabled)
         ignore_dirs: Directory names to always skip during standalone cleanup
         ignore_glob: Glob patterns to skip during standalone cleanup
+        prune_empty_dirs: Remove empty directories from staging after import
     """
 
     strategy: CleanupStrategy = CleanupStrategy.NONE
@@ -80,6 +81,7 @@ class CleanupPrefs:
     min_age_days: int = 0
     ignore_dirs: tuple[str, ...] = ("__import_test", ".git", ".venv")
     ignore_glob: tuple[str, ...] = ("*/__*", "*/.#*")
+    prune_empty_dirs: bool = True
 
 
 @dataclass
