@@ -220,6 +220,44 @@ class TestTrumpPrefs:
         assert prefs.archive_root == Path("/archive")
         assert prefs.archive_by_year is False
 
+    def test_from_config_basic(self) -> None:
+        """from_config creates TrumpPrefs from TrumpingConfig dataclass."""
+        from mamfast.config import TrumpingConfig
+
+        config = TrumpingConfig(enabled=True, archive_root="/archive")
+        prefs = TrumpPrefs.from_config(config)
+
+        assert prefs.enabled is True
+        assert prefs.aggressiveness == TrumpAggressiveness.BALANCED
+        assert prefs.archive_root == Path("/archive")
+
+    def test_from_config_all_fields(self) -> None:
+        """from_config maps all TrumpingConfig fields correctly."""
+        from mamfast.config import TrumpingConfig
+
+        config = TrumpingConfig(
+            enabled=True,
+            aggressiveness="aggressive",
+            min_bitrate_increase_kbps=128,
+            prefer_chapters=False,
+            prefer_stereo=False,
+            min_duration_ratio=0.85,
+            max_duration_ratio=1.5,
+            archive_root="/archive/trump",
+            archive_by_year=False,
+        )
+        prefs = TrumpPrefs.from_config(config)
+
+        assert prefs.enabled is True
+        assert prefs.aggressiveness == TrumpAggressiveness.AGGRESSIVE
+        assert prefs.min_bitrate_increase_kbps == 128
+        assert prefs.prefer_chapters is False
+        assert prefs.prefer_stereo is False
+        assert prefs.min_duration_ratio == 0.85
+        assert prefs.max_duration_ratio == 1.5
+        assert prefs.archive_root == Path("/archive/trump")
+        assert prefs.archive_by_year is False
+
 
 class TestIsMultiFileLayout:
     """Test is_multi_file_layout() detection."""

@@ -167,6 +167,28 @@ class TrumpPrefs:
             archive_by_year=schema.archive_by_year,
         )
 
+    @classmethod
+    def from_config(cls, config: Any) -> TrumpPrefs:
+        """Create TrumpPrefs from runtime TrumpingConfig dataclass.
+
+        Args:
+            config: TrumpingConfig from mamfast.config
+
+        Returns:
+            Runtime TrumpPrefs instance
+        """
+        return cls(
+            enabled=config.enabled,
+            aggressiveness=TrumpAggressiveness(config.aggressiveness),
+            min_bitrate_increase_kbps=config.min_bitrate_increase_kbps,
+            prefer_chapters=config.prefer_chapters,
+            prefer_stereo=config.prefer_stereo,
+            min_duration_ratio=config.min_duration_ratio,
+            max_duration_ratio=config.max_duration_ratio,
+            archive_root=Path(config.archive_root) if config.archive_root else None,
+            archive_by_year=config.archive_by_year,
+        )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Multi-File Detection

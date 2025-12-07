@@ -1932,6 +1932,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         validate_import_prerequisites,
     )
     from mamfast.abs.importer import build_clean_file_name
+    from mamfast.abs.trumping import TrumpPrefs
     from mamfast.config import reload_settings
 
     print_header("Audiobookshelf Import", dry_run=args.dry_run)
@@ -2054,6 +2055,13 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     if args.dry_run:
         print_dry_run(f"Would import {len(staging_folders)} book(s)")
 
+    # Build trumping preferences from config
+    trump_prefs: TrumpPrefs | None = None
+    trumping_config = abs_config.import_settings.trumping
+    if trumping_config.enabled:
+        trump_prefs = TrumpPrefs.from_config(trumping_config)
+        print_info(f"Trumping enabled (aggressiveness: {trump_prefs.aggressiveness.value})")
+
     try:
         result = import_batch(
             staging_folders=staging_folders,
@@ -2063,6 +2071,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
             abs_search_confidence=confidence,
             staging_root=import_source,
             duplicate_policy=dup_policy,
+            trump_prefs=trump_prefs,
             dry_run=args.dry_run,
         )
     except Exception as e:
@@ -2131,9 +2140,9 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                 class_desc = "no ASIN in folder or mediainfo"
 
             # Status icon and color
-            if r.status == "success":
+            if r.status in ("success", "trump_replaced"):
                 status_icon = "[green]✓[/green]"
-            elif r.status in ("duplicate", "skipped"):
+            elif r.status in ("duplicate", "skipped", "trump_kept_existing", "trump_rejected"):
                 status_icon = "[yellow]⏭[/yellow]"
             else:
                 status_icon = "[red]✗[/red]"
@@ -2235,6 +2244,18 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                                 except ValueError:
                                     pass  # Can't make relative path; skip adding file to tree
 
+            elif r.status == "trump_replaced":
+                # Trumping: replaced existing with new (better quality)
+                console.print(f"  [green]🔄 TRUMPED:[/green] {r.error or 'Better quality'}")
+                if r.target_path:
+                    console.print(f"  [dim][DST][/dim] {r.target_path}")
+            elif r.status == "trump_kept_existing":
+                # Trumping: kept existing (no improvement)
+                reason = r.error or "No quality improvement"
+                console.print(f"  [dim]⏭️  KEPT EXISTING:[/dim] {reason}")
+            elif r.status == "trump_rejected":
+                # Trumping: rejected incoming (worse quality)
+                console.print(f"  [yellow]❌ REJECTED:[/yellow] {r.error or 'Lower quality'}")
             elif r.status == "duplicate" and r.error:
                 if "Already exists at " in r.error:
                     existing_path = r.error.replace("Already exists at ", "")
@@ -2322,6 +2343,21 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         summary_table.add_row("Skipped (duplicate):", f"[yellow]{result.duplicate_count}[/yellow]")
     if result.failed_count > 0:
         summary_table.add_row("Failed:", f"[red]{result.failed_count}[/red]")
+
+    # Trumping statistics (if any trumping occurred)
+    if result.trump_replaced_count > 0:
+        summary_table.add_row(
+            "Trumped (replaced):", f"[green]{result.trump_replaced_count}[/green]"
+        )
+    if result.trump_kept_existing_count > 0:
+        summary_table.add_row(
+            "Trumped (kept existing):", f"[dim]{result.trump_kept_existing_count}[/dim]"
+        )
+    if result.trump_rejected_count > 0:
+        summary_table.add_row(
+            "Trumped (rejected):", f"[yellow]{result.trump_rejected_count}[/yellow]"
+        )
+
     if needs_review_count > 0:
         # Build breakdown of what needs review
         review_parts = []

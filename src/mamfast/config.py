@@ -256,11 +256,27 @@ class AudiobookshelfLibrary:
 
 
 @dataclass
+class TrumpingConfig:
+    """Trumping (quality-based replacement) settings."""
+
+    enabled: bool = False
+    aggressiveness: str = "balanced"  # conservative | balanced | aggressive
+    min_bitrate_increase_kbps: int = 64
+    prefer_chapters: bool = True
+    prefer_stereo: bool = True
+    min_duration_ratio: float = 0.9
+    max_duration_ratio: float = 1.25
+    archive_root: str | None = None
+    archive_by_year: bool = True
+
+
+@dataclass
 class AudiobookshelfImportConfig:
     """Audiobookshelf import settings."""
 
     duplicate_policy: str = "skip"  # skip | warn | overwrite
     trigger_scan: str = "batch"  # none | each | batch
+    trumping: TrumpingConfig = field(default_factory=TrumpingConfig)
 
 
 @dataclass
@@ -559,6 +575,31 @@ def _get_env_int(key: str, default: int) -> int:
     if value is None:
         return default
     return int(value)
+
+
+def _parse_trumping_config(data: dict[str, Any]) -> TrumpingConfig:
+    """Parse trumping config from YAML data.
+
+    Args:
+        data: Dict from YAML audiobookshelf.import.trumping section
+
+    Returns:
+        TrumpingConfig with values from YAML or defaults
+    """
+    if not data:
+        return TrumpingConfig()
+
+    return TrumpingConfig(
+        enabled=data.get("enabled", False),
+        aggressiveness=data.get("aggressiveness", "balanced"),
+        min_bitrate_increase_kbps=data.get("min_bitrate_increase_kbps", 64),
+        prefer_chapters=data.get("prefer_chapters", True),
+        prefer_stereo=data.get("prefer_stereo", True),
+        min_duration_ratio=data.get("min_duration_ratio", 0.9),
+        max_duration_ratio=data.get("max_duration_ratio", 1.25),
+        archive_root=data.get("archive_root"),
+        archive_by_year=data.get("archive_by_year", True),
+    )
 
 
 def _load_categories(config_dir: Path) -> CategoriesConfig:
@@ -986,6 +1027,7 @@ def load_settings(
         import_settings=AudiobookshelfImportConfig(
             duplicate_policy=abs_import_data.get("duplicate_policy", "skip"),
             trigger_scan=abs_import_data.get("trigger_scan", "batch"),
+            trumping=_parse_trumping_config(abs_import_data.get("trumping", {})),
         ),
         index_db=abs_data.get("index_db", "./data/abs_index.db"),
     )

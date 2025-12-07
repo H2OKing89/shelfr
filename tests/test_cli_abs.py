@@ -297,6 +297,17 @@ class TestAbsImportCommand:
         config.import_settings = MagicMock()
         config.import_settings.duplicate_policy = "skip"
         config.import_settings.trigger_scan = "batch"
+        # Trumping config - disabled by default for tests
+        config.import_settings.trumping = MagicMock()
+        config.import_settings.trumping.enabled = False
+        config.import_settings.trumping.aggressiveness = "balanced"
+        config.import_settings.trumping.min_bitrate_increase_kbps = 64
+        config.import_settings.trumping.prefer_chapters = True
+        config.import_settings.trumping.prefer_stereo = True
+        config.import_settings.trumping.min_duration_ratio = 0.9
+        config.import_settings.trumping.max_duration_ratio = 1.25
+        config.import_settings.trumping.archive_root = None
+        config.import_settings.trumping.archive_by_year = True
         return config
 
     def test_abs_import_config_not_found(self, args: argparse.Namespace) -> None:

@@ -1272,7 +1272,8 @@ def import_single(
                     # (the existing folder is now archived)
                     if not dry_run:
                         del asin_index[asin]
-                        is_dup = False
+                    # Mark as no longer duplicate so we proceed with import
+                    is_dup = False
                     # Continue with normal import flow below
 
                 case TrumpDecision.KEEP_EXISTING:
