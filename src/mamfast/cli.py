@@ -3627,6 +3627,7 @@ def cmd_abs_rename(args: argparse.Namespace) -> int:
     from pathlib import Path
 
     from mamfast.abs.rename import (
+        generate_html_report,
         generate_report,
         run_rename_pipeline,
     )
@@ -3704,15 +3705,21 @@ def cmd_abs_rename(args: argparse.Namespace) -> int:
 
     # Generate report if requested
     if args.report:
-        generate_report(
+        report_path = Path(args.report)
+        report_data = generate_report(
             results,
             candidates,
             summary,
-            args.report,
+            report_path,
             source_dir=source_dir,
             dry_run=args.dry_run,
         )
-        print_success(f"Report written to {args.report}")
+        print_success(f"JSON report written to {report_path}")
+
+        # Also generate HTML report
+        html_path = report_path.with_suffix(".html")
+        generate_html_report(report_data, html_path)
+        print_success(f"HTML report written to {html_path}")
 
     # Return error code if there were failures
     if summary.errors > 0:

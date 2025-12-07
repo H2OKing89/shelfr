@@ -17,7 +17,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -892,7 +892,7 @@ def generate_report(
     *,
     source_dir: Path | None = None,
     dry_run: bool = False,
-) -> None:
+) -> dict[str, Any]:
     """Generate JSON report of rename operations.
 
     Args:
@@ -999,3 +999,90 @@ def generate_report(
         json.dump(report, f, indent=2)
 
     logger.info(f"Report written to {output_path}")
+
+    return report
+
+
+def generate_html_report(
+    report_data: dict[str, Any],
+    output_path: Path,
+) -> None:
+    """Generate an HTML report from the JSON report data.
+
+    Uses Jinja2 templating to create a visually appealing HTML report
+    with collapsible sections, search/filter, and status indicators.
+
+    Args:
+        report_data: The report dictionary (from generate_report)
+        output_path: Path to write HTML report
+    """
+    from importlib.resources import files
+
+    try:
+        from jinja2 import Environment, FileSystemLoader
+    except ImportError:
+        logger.warning("jinja2 not installed, skipping HTML report generation")
+        return
+
+    # Load template
+    template_dir = files("mamfast.templates")
+    # Get the actual path for FileSystemLoader
+    template_path = Path(str(template_dir))
+
+    if not template_path.exists():
+        # Fallback: try relative to this file
+        template_path = Path(__file__).parent.parent / "templates"
+
+    if not template_path.exists():
+        logger.warning(f"Template directory not found: {template_path}")
+        return
+
+    env = Environment(
+        loader=FileSystemLoader(str(template_path)),
+        autoescape=True,
+    )
+
+    # Add custom filter to classify duplicate types
+    def classify_duplicate(folders: list[str]) -> dict[str, str]:
+        """Classify the type of duplicate ASIN."""
+        if any("xHE" in f or "[126]" in f for f in folders):
+            return {"class": "codec", "label": "Codec Variant"}
+        if any("Dolby Atmos" in f for f in folders):
+            return {"class": "edition", "label": "Edition Variant"}
+        if any("[H2OKing]" in f for f in folders) and any("[H2OKing]" not in f for f in folders):
+            return {"class": "ripper-tag", "label": "Ripper Tag"}
+        # Check for different volume numbers (wrong ASIN)
+        import re
+
+        vol_numbers = set()
+        for f in folders:
+            match = re.search(r"vol[_\s]*(\d+)", f, re.IGNORECASE)
+            if match:
+                vol_numbers.add(match.group(1))
+        if len(vol_numbers) > 1:
+            return {"class": "wrong-asin", "label": "WRONG ASIN"}
+        return {"class": "", "label": "Duplicate"}
+
+    env.globals["classify_duplicate"] = classify_duplicate  # pyright: ignore[reportArgumentType]
+
+    try:
+        template = env.get_template("rename_report.html")
+    except Exception as e:
+        logger.warning(f"Failed to load HTML template: {e}")
+        return
+
+    # Render template
+    html_content = template.render(
+        timestamp=report_data.get("timestamp", ""),
+        source_dir=report_data.get("source_dir", ""),
+        dry_run=report_data.get("dry_run", False),
+        summary=report_data.get("summary", {}),
+        warnings=report_data.get("warnings", {}),
+        by_status=report_data.get("by_status", {}),
+        results=report_data.get("results", []),
+    )
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    logger.info(f"HTML report written to {output_path}")
