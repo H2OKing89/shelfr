@@ -2110,6 +2110,14 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         trump_prefs = TrumpPrefs.from_config(trumping_config)
         print_info(f"Trumping enabled (aggressiveness: {trump_prefs.aggressiveness.value})")
 
+    # Build path mapper for container↔host conversion (needed for trumping)
+    path_mapper: PathMapper | None = None
+    if abs_config.path_map:
+        from mamfast.abs.paths import PathMapper
+
+        path_mappings = [{"container": pm.container, "host": pm.host} for pm in abs_config.path_map]
+        path_mapper = PathMapper(mappings=path_mappings) if path_mappings else None
+
     try:
         result = import_batch(
             staging_folders=staging_folders,
@@ -2120,6 +2128,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
             staging_root=import_source,
             duplicate_policy=dup_policy,
             trump_prefs=trump_prefs,
+            path_mapper=path_mapper,
             dry_run=args.dry_run,
         )
     except Exception as e:
