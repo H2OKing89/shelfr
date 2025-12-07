@@ -916,3 +916,391 @@ class TestAbsResolveAsinsConfidenceValidation:
         with patch("mamfast.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_resolve_asins(args)
             assert result == 0
+
+
+class TestAbsTrumpCheckCommand:
+    """Tests for abs-trump-check command implementation."""
+
+    @pytest.fixture
+    def args(self) -> argparse.Namespace:
+        """Create basic args namespace."""
+        return argparse.Namespace(
+            config="config/config.yaml",
+            paths=[],
+            verbose=False,
+        )
+
+    @pytest.fixture
+    def mock_abs_config(self) -> MagicMock:
+        """Create mock audiobookshelf config with trumping."""
+        config = MagicMock()
+        config.enabled = True
+        config.host = "http://localhost:13378"
+        config.api_key = "test-key"
+        config.timeout_seconds = 30
+        config.path_map = [MockAbsPathMap()]
+        config.libraries = [MockAbsLibrary()]
+
+        # Trumping config
+        trumping = MagicMock()
+        trumping.enabled = True
+        trumping.aggressiveness = "balanced"
+        trumping.min_bitrate_increase_kbps = 64
+        trumping.prefer_chapters = True
+        trumping.prefer_stereo = True
+        trumping.min_duration_ratio = 0.9
+        trumping.max_duration_ratio = 1.25
+        trumping.archive_root = "/tmp/archive"
+        trumping.archive_by_year = True
+        config.import_settings.trumping = trumping
+
+        return config
+
+    def test_abs_trump_check_parser_exists(self) -> None:
+        """Test abs-trump-check subcommand is registered."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-trump-check"])
+        assert args.command == "abs-trump-check"
+        assert hasattr(args, "func")
+
+    def test_abs_trump_check_verbose_flag(self) -> None:
+        """Test abs-trump-check accepts verbose flag."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-trump-check", "--verbose"])
+        assert args.verbose is True
+
+    def test_abs_trump_check_paths_argument(self) -> None:
+        """Test abs-trump-check accepts paths argument."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-trump-check", "/path/to/folder"])
+        assert len(args.paths) == 1
+
+    def test_abs_trump_check_config_not_found(self, args: argparse.Namespace) -> None:
+        """Test abs-trump-check handles missing config file."""
+        from mamfast.cli import cmd_abs_trump_check
+
+        with patch("mamfast.config.reload_settings") as mock_reload:
+            mock_reload.side_effect = FileNotFoundError("config not found")
+            result = cmd_abs_trump_check(args)
+            assert result == 1
+
+    def test_abs_trump_check_abs_disabled(self, args: argparse.Namespace) -> None:
+        """Test abs-trump-check warns when ABS is disabled."""
+        from mamfast.cli import cmd_abs_trump_check
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf.enabled = False
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_trump_check(args)
+            assert result == 1
+
+    def test_abs_trump_check_no_managed_libraries(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock
+    ) -> None:
+        """Test abs-trump-check fails when no managed libraries configured."""
+        from mamfast.cli import cmd_abs_trump_check
+
+        mock_abs_config.libraries = []
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_trump_check(args)
+            assert result == 1
+
+    def test_abs_trump_check_no_staged_books(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-trump-check returns 0 when no staged books found."""
+        from mamfast.cli import cmd_abs_trump_check
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = tmp_path  # Empty directory
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.AbsClient"),
+            patch("mamfast.abs.build_asin_index", return_value={}),
+            patch("mamfast.abs.discover_staged_books", return_value=[]),
+        ):
+            result = cmd_abs_trump_check(args)
+            assert result == 0
+
+    def test_abs_trump_check_connection_error(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-trump-check handles ABS connection errors."""
+        from mamfast.cli import cmd_abs_trump_check
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = tmp_path
+
+        # Create a staged folder
+        staged_folder = tmp_path / "Test Book"
+        staged_folder.mkdir()
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.discover_staged_books", return_value=[staged_folder]),
+            patch("mamfast.abs.AbsClient", side_effect=Exception("Connection refused")),
+        ):
+            result = cmd_abs_trump_check(args)
+            assert result == 1
+
+    def test_abs_trump_check_book_without_asin(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-trump-check handles books without ASIN."""
+        from mamfast.cli import cmd_abs_trump_check
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = tmp_path
+
+        # Create a staged folder without ASIN
+        staged_folder = tmp_path / "Author - Some Book (2024)"
+        staged_folder.mkdir()
+
+        mock_client = MagicMock()
+        mock_client.close = MagicMock()
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.discover_staged_books", return_value=[staged_folder]),
+            patch("mamfast.abs.AbsClient", return_value=mock_client),
+            patch("mamfast.abs.build_asin_index", return_value={}),
+        ):
+            result = cmd_abs_trump_check(args)
+            assert result == 0  # Success, just no ASIN
+
+    def test_abs_trump_check_new_book(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-trump-check handles new books (ASIN not in library)."""
+        from mamfast.cli import cmd_abs_trump_check
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = tmp_path
+
+        # Create a staged folder with ASIN
+        staged_folder = tmp_path / "Author - Title (2024) {ASIN.B0NEWBOOK01}"
+        staged_folder.mkdir()
+
+        mock_client = MagicMock()
+        mock_client.close = MagicMock()
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.discover_staged_books", return_value=[staged_folder]),
+            patch("mamfast.abs.AbsClient", return_value=mock_client),
+            patch("mamfast.abs.build_asin_index", return_value={}),  # Empty index
+        ):
+            result = cmd_abs_trump_check(args)
+            assert result == 0
+
+    def test_abs_trump_check_trumping_disabled_shows_preview(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-trump-check still works when trumping is disabled."""
+        from mamfast.cli import cmd_abs_trump_check
+
+        # Disable trumping
+        mock_abs_config.import_settings.trumping.enabled = False
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = tmp_path
+
+        mock_client = MagicMock()
+        mock_client.close = MagicMock()
+
+        with (
+            patch("mamfast.config.reload_settings", return_value=mock_settings),
+            patch("mamfast.abs.discover_staged_books", return_value=[]),
+            patch("mamfast.abs.AbsClient", return_value=mock_client),
+            patch("mamfast.abs.build_asin_index", return_value={}),
+        ):
+            result = cmd_abs_trump_check(args)
+            assert result == 0  # Should still work, just show preview message
+
+
+class TestAbsRestoreCommand:
+    """Tests for abs-restore command implementation."""
+
+    @pytest.fixture
+    def args(self) -> argparse.Namespace:
+        """Create basic args namespace."""
+        return argparse.Namespace(
+            config="config/config.yaml",
+            dry_run=False,
+            archive_path=None,
+            asin=None,
+            list=False,
+        )
+
+    @pytest.fixture
+    def mock_abs_config(self) -> MagicMock:
+        """Create mock audiobookshelf config with trumping."""
+        config = MagicMock()
+        config.enabled = True
+        config.host = "http://localhost:13378"
+        config.api_key = "test-key"
+        config.timeout_seconds = 30
+        config.path_map = [MockAbsPathMap()]
+        config.libraries = [MockAbsLibrary()]
+
+        # Trumping config with archive_root
+        trumping = MagicMock()
+        trumping.enabled = True
+        trumping.archive_root = "/tmp/archive"
+        config.import_settings.trumping = trumping
+
+        return config
+
+    def test_abs_restore_parser_exists(self) -> None:
+        """Test abs-restore subcommand is registered."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-restore"])
+        assert args.command == "abs-restore"
+        assert hasattr(args, "func")
+
+    def test_abs_restore_list_flag(self) -> None:
+        """Test abs-restore accepts list flag."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-restore", "--list"])
+        assert args.list is True
+
+    def test_abs_restore_asin_filter(self) -> None:
+        """Test abs-restore accepts asin filter."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-restore", "--asin", "B0TEST12345"])
+        assert args.asin == "B0TEST12345"
+
+    def test_abs_restore_config_not_found(self, args: argparse.Namespace) -> None:
+        """Test abs-restore handles missing config file."""
+        from mamfast.cli import cmd_abs_restore
+
+        with patch("mamfast.config.reload_settings") as mock_reload:
+            mock_reload.side_effect = FileNotFoundError("config not found")
+            result = cmd_abs_restore(args)
+            assert result == 1
+
+    def test_abs_restore_abs_disabled(self, args: argparse.Namespace) -> None:
+        """Test abs-restore warns when ABS is disabled."""
+        from mamfast.cli import cmd_abs_restore
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf.enabled = False
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_restore(args)
+            assert result == 1
+
+    def test_abs_restore_no_archive_root(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock
+    ) -> None:
+        """Test abs-restore fails when no archive_root configured."""
+        from mamfast.cli import cmd_abs_restore
+
+        mock_abs_config.import_settings.trumping.archive_root = None
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_restore(args)
+            assert result == 1
+
+    def test_abs_restore_list_empty(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-restore list mode with empty archives."""
+        from mamfast.cli import cmd_abs_restore
+
+        mock_abs_config.import_settings.trumping.archive_root = str(tmp_path)
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+
+        args.list = True
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_restore(args)
+            assert result == 0
+
+    def test_abs_restore_list_archives(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-restore list mode shows archives."""
+        import json
+
+        from mamfast.cli import cmd_abs_restore
+
+        mock_abs_config.import_settings.trumping.archive_root = str(tmp_path)
+
+        # Create an archive
+        archive = tmp_path / "B0TEST12345" / "2024-01-01T12-00-00"
+        archive.mkdir(parents=True)
+        sidecar = archive / ".mamfast_trump.json"
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "archived_at": "2024-01-01T12:00:00+00:00",
+                    "reason": "Format upgrade",
+                    "decision": "REPLACE_WITH_NEW",
+                    "existing_meta": {"asin": "B0TEST12345", "format": "mp3"},
+                }
+            )
+        )
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+
+        args.list = True
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_restore(args)
+            assert result == 0
+
+    def test_abs_restore_invalid_archive_path(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-restore fails for nonexistent archive path."""
+        from mamfast.cli import cmd_abs_restore
+
+        mock_abs_config.import_settings.trumping.archive_root = str(tmp_path)
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+
+        args.archive_path = tmp_path / "nonexistent"
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_restore(args)
+            assert result == 1
+
+    def test_abs_restore_missing_sidecar(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-restore fails when archive has no sidecar."""
+        from mamfast.cli import cmd_abs_restore
+
+        mock_abs_config.import_settings.trumping.archive_root = str(tmp_path)
+
+        # Create archive without sidecar
+        archive = tmp_path / "fake_archive"
+        archive.mkdir()
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+
+        args.archive_path = archive
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_restore(args)
+            assert result == 1

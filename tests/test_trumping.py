@@ -728,3 +728,213 @@ class TestTrumpingSchema:
 
         with pytest.raises(ValidationError):
             TrumpingSchema(max_duration_ratio=3.0)  # Above 2.0
+
+
+class TestDiscoverArchives:
+    """Tests for discover_archives function."""
+
+    def test_empty_archive_root(self, tmp_path: Path) -> None:
+        """Returns empty list for empty archive root."""
+        from mamfast.abs.trumping import discover_archives
+
+        archives = discover_archives(tmp_path)
+        assert archives == []
+
+    def test_nonexistent_archive_root(self, tmp_path: Path) -> None:
+        """Returns empty list for nonexistent archive root."""
+        from mamfast.abs.trumping import discover_archives
+
+        archives = discover_archives(tmp_path / "nonexistent")
+        assert archives == []
+
+    def test_finds_single_archive(self, tmp_path: Path) -> None:
+        """Finds a single archived book."""
+        import json
+
+        from mamfast.abs.trumping import discover_archives
+
+        # Create archive structure
+        archive_folder = tmp_path / "B0TEST12345" / "2024-01-01T12-00-00"
+        archive_folder.mkdir(parents=True)
+
+        sidecar = archive_folder / ".mamfast_trump.json"
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "archived_at": "2024-01-01T12:00:00+00:00",
+                    "reason": "Format upgrade: mp3 → m4b",
+                    "decision": "REPLACE_WITH_NEW",
+                    "existing_meta": {
+                        "asin": "B0TEST12345",
+                        "format": "mp3",
+                        "bitrate_kbps": 128,
+                    },
+                }
+            )
+        )
+
+        archives = discover_archives(tmp_path)
+        assert len(archives) == 1
+        assert archives[0].asin == "B0TEST12345"
+        assert archives[0].original_format == "mp3"
+        assert archives[0].original_bitrate == 128
+
+    def test_filter_by_asin(self, tmp_path: Path) -> None:
+        """Filters archives by ASIN."""
+        import json
+
+        from mamfast.abs.trumping import discover_archives
+
+        # Create two archives
+        for asin in ["B0AAAA11111", "B0BBBB22222"]:
+            folder = tmp_path / asin / "2024-01-01T12-00-00"
+            folder.mkdir(parents=True)
+            sidecar = folder / ".mamfast_trump.json"
+            sidecar.write_text(
+                json.dumps(
+                    {
+                        "archived_at": "2024-01-01T12:00:00+00:00",
+                        "reason": "Test",
+                        "decision": "REPLACE_WITH_NEW",
+                        "existing_meta": {"asin": asin},
+                    }
+                )
+            )
+
+        # Filter by specific ASIN
+        archives = discover_archives(tmp_path, asin="B0AAAA11111")
+        assert len(archives) == 1
+        assert archives[0].asin == "B0AAAA11111"
+
+    def test_sorted_newest_first(self, tmp_path: Path) -> None:
+        """Archives are sorted newest first."""
+        import json
+
+        from mamfast.abs.trumping import discover_archives
+
+        asin = "B0TEST12345"
+        for timestamp, archived_at in [
+            ("2024-01-01T12-00-00", "2024-01-01T12:00:00+00:00"),
+            ("2024-06-15T12-00-00", "2024-06-15T12:00:00+00:00"),
+            ("2024-03-10T12-00-00", "2024-03-10T12:00:00+00:00"),
+        ]:
+            folder = tmp_path / asin / timestamp
+            folder.mkdir(parents=True)
+            sidecar = folder / ".mamfast_trump.json"
+            sidecar.write_text(
+                json.dumps(
+                    {
+                        "archived_at": archived_at,
+                        "reason": "Test",
+                        "decision": "REPLACE_WITH_NEW",
+                        "existing_meta": {"asin": asin},
+                    }
+                )
+            )
+
+        archives = discover_archives(tmp_path)
+        assert len(archives) == 3
+        assert archives[0].archived_at == "2024-06-15T12:00:00+00:00"
+        assert archives[1].archived_at == "2024-03-10T12:00:00+00:00"
+        assert archives[2].archived_at == "2024-01-01T12:00:00+00:00"
+
+
+class TestRestoreFromArchive:
+    """Tests for restore_from_archive function."""
+
+    def test_restore_missing_sidecar_raises(self, tmp_path: Path) -> None:
+        """Raises error if sidecar is missing."""
+        from mamfast.abs.trumping import TrumpingError, restore_from_archive
+
+        archive = tmp_path / "fake_archive"
+        archive.mkdir()
+        library = tmp_path / "library"
+        library.mkdir()
+
+        with pytest.raises(TrumpingError, match="missing sidecar"):
+            restore_from_archive(archive, library)
+
+    def test_restore_dry_run(self, tmp_path: Path) -> None:
+        """Dry run doesn't move files."""
+        import json
+
+        from mamfast.abs.trumping import restore_from_archive
+
+        # Create archive with sidecar
+        archive = tmp_path / "archive" / "B0TEST" / "2024-01-01T12-00-00"
+        archive.mkdir(parents=True)
+        sidecar = archive / ".mamfast_trump.json"
+        sidecar.write_text(json.dumps({"existing_meta": {"asin": "B0TEST"}}))
+
+        # Create audio file
+        audio = archive / "book.m4b"
+        audio.write_text("fake audio")
+
+        library = tmp_path / "library"
+        library.mkdir()
+
+        result = restore_from_archive(archive, library, dry_run=True)
+        assert result is None
+        assert archive.exists()  # Not moved
+        assert audio.exists()  # Not moved
+
+    def test_restore_moves_folder(self, tmp_path: Path) -> None:
+        """Restoring moves the folder to library."""
+        import json
+
+        from mamfast.abs.trumping import restore_from_archive
+
+        archive = tmp_path / "archive" / "MyBook"
+        archive.mkdir(parents=True)
+        sidecar = archive / ".mamfast_trump.json"
+        sidecar.write_text(json.dumps({"existing_meta": {"asin": "B0TEST"}}))
+
+        # Create audio file
+        audio = archive / "book.m4b"
+        audio.write_text("fake audio")
+
+        library = tmp_path / "library"
+        library.mkdir()
+
+        result = restore_from_archive(archive, library)
+        assert result == library / "MyBook"
+        assert (library / "MyBook" / "book.m4b").exists()
+        assert not archive.exists()  # Original moved
+
+    def test_restore_removes_sidecar(self, tmp_path: Path) -> None:
+        """Restoring removes the trump sidecar from restored folder."""
+        import json
+
+        from mamfast.abs.trumping import restore_from_archive
+
+        archive = tmp_path / "archive" / "MyBook"
+        archive.mkdir(parents=True)
+        sidecar = archive / ".mamfast_trump.json"
+        sidecar.write_text(json.dumps({"existing_meta": {"asin": "B0TEST"}}))
+
+        library = tmp_path / "library"
+        library.mkdir()
+
+        result = restore_from_archive(archive, library)
+        assert result is not None
+        # Sidecar should be removed from restored location
+        assert not (result / ".mamfast_trump.json").exists()
+
+    def test_restore_destination_exists_raises(self, tmp_path: Path) -> None:
+        """Raises error if destination already exists."""
+        import json
+
+        from mamfast.abs.trumping import TrumpingError, restore_from_archive
+
+        archive = tmp_path / "archive" / "MyBook"
+        archive.mkdir(parents=True)
+        sidecar = archive / ".mamfast_trump.json"
+        sidecar.write_text(json.dumps({"existing_meta": {"asin": "B0TEST"}}))
+
+        library = tmp_path / "library"
+        library.mkdir()
+        # Pre-create destination
+        (library / "MyBook").mkdir()
+
+        with pytest.raises(TrumpingError, match="destination exists"):
+            restore_from_archive(archive, library)

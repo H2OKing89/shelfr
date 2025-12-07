@@ -1,6 +1,6 @@
 # Trumping (Quality-Based Replacement) Plan
 
-> **Document Version:** 1.5.0 | **Last Updated:** 2025-12-06 | **Status:** ✅ Ready for implementation
+> **Document Version:** 1.5.0 | **Last Updated:** 2025-12-06 | **Status:** ✅ Implementation Complete
 
 This document outlines the plan for implementing auto-replacement logic when importing higher-quality versions of audiobooks.
 
@@ -1163,20 +1163,22 @@ def print_trump_decision(
 
 ---
 
-### Phase 5: CLI & Polish ⏳
+### Phase 5: CLI & Polish ✅
 
 **Goal:** User-facing commands and documentation.
 
 **Deliverables:**
-- [ ] `mamfast abs-trump-check <folder>` command in `cli.py` - preview trumping for a folder
-- [ ] `mamfast abs-restore <archive-path>` command (stretch goal) - restore archived content
-- [ ] Update `config.yaml.example` with trumping section
-- [ ] Update README with trumping documentation
+- [x] `mamfast abs-trump-check <folder>` command in `cli.py` - preview trumping for a folder
+- [x] `mamfast abs-restore <archive-path>` command (stretch goal) - restore archived content
+- [x] Update `config.yaml.example` with trumping section
+- [x] Update README with trumping documentation
 
 **Acceptance Criteria:**
-- [ ] Users can preview trumping before import
-- [ ] Archived content can be restored (if implemented)
-- [ ] Documentation is clear and complete
+- [x] Users can preview trumping before import
+- [x] Archived content can be restored (if implemented)
+- [x] Documentation is clear and complete
+
+**Tests:** 21 tests for CLI commands in `test_cli_abs.py`, 10 tests for archive functions in `test_trumping.py`
 
 ---
 

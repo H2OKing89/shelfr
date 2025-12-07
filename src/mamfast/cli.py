@@ -435,6 +435,54 @@ Examples:
     abs_check_parser.set_defaults(func=cmd_abs_check_duplicate)
 
     # -------------------------------------------------------------------------
+    # abs-trump-check: Preview trumping decisions for folders
+    # -------------------------------------------------------------------------
+    abs_trump_parser = subparsers.add_parser(
+        "abs-trump-check",
+        help="Preview trumping decisions for staged folders",
+        epilog="Shows what would be replaced, kept, or rejected based on quality comparison.",
+    )
+    abs_trump_parser.add_argument(
+        "paths",
+        nargs="*",
+        type=Path,
+        help="Specific folder(s) to check (default: all in staging)",
+    )
+    abs_trump_parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Show detailed quality comparison tables",
+    )
+    abs_trump_parser.set_defaults(func=cmd_abs_trump_check)
+
+    # -------------------------------------------------------------------------
+    # abs-restore: Restore archived books to library
+    # -------------------------------------------------------------------------
+    abs_restore_parser = subparsers.add_parser(
+        "abs-restore",
+        help="Restore archived books to library",
+        epilog="Restore books that were archived by trumping back to the library.",
+    )
+    abs_restore_parser.add_argument(
+        "archive_path",
+        nargs="?",
+        type=Path,
+        help="Specific archive folder to restore (default: list archives)",
+    )
+    abs_restore_parser.add_argument(
+        "--asin",
+        type=str,
+        help="Filter archives by ASIN",
+    )
+    abs_restore_parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List available archives without restoring",
+    )
+    abs_restore_parser.set_defaults(func=cmd_abs_restore)
+
+    # -------------------------------------------------------------------------
     # abs-resolve-asins: Batch resolve ASINs for Unknown/ books via ABS search
     # -------------------------------------------------------------------------
     abs_resolve_parser = subparsers.add_parser(
@@ -2470,6 +2518,358 @@ def cmd_abs_check_duplicate(args: argparse.Namespace) -> int:
     else:
         print_success(f"ASIN {asin} not found in library - safe to import")
         return 0
+
+
+def cmd_abs_trump_check(args: argparse.Namespace) -> int:
+    """Preview trumping decisions for staged folders.
+
+    Shows what would be replaced, kept, or rejected based on quality comparison
+    against existing library content. Does not modify any files.
+    """
+    from pathlib import Path
+
+    from mamfast.abs import AbsClient, asin_exists, build_asin_index, discover_staged_books
+    from mamfast.abs.asin import extract_asin
+    from mamfast.abs.importer import parse_mam_folder_name
+    from mamfast.abs.trumping import (
+        TrumpDecision,
+        TrumpPrefs,
+        adjust_for_aggressiveness,
+        decide_trump,
+        extract_trumpable_meta,
+        is_multi_file_layout,
+    )
+    from mamfast.config import reload_settings
+    from mamfast.console import (
+        print_trump_comparison_table,
+        print_trump_decision,
+        print_trump_summary,
+    )
+
+    print_header("Trumping Preview")
+
+    try:
+        settings = reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+
+    # Check if ABS is enabled
+    if not hasattr(settings, "audiobookshelf") or not settings.audiobookshelf.enabled:
+        print_warning("Audiobookshelf integration is not enabled in config")
+        return 1
+
+    abs_config = settings.audiobookshelf
+
+    # Get managed library
+    managed_libs = [lib for lib in abs_config.libraries if lib.mamfast_managed]
+    if not managed_libs:
+        fatal_error("No mamfast_managed libraries configured")
+        return 1
+    target_library = managed_libs[0]
+
+    # Get import source directory (staging root)
+    import_source = settings.paths.library_root
+
+    # Get trumping preferences from config
+    trumping_config = abs_config.import_settings.trumping
+    if not trumping_config.enabled:
+        print_warning("Trumping is not enabled in config")
+        print_info("Set audiobookshelf.import.trumping.enabled: true")
+        print_info("Showing what WOULD happen if trumping were enabled...")
+
+    trump_prefs = TrumpPrefs.from_config(trumping_config)
+    # Force enabled for preview purposes
+    trump_prefs_preview = TrumpPrefs(
+        enabled=True,
+        aggressiveness=trump_prefs.aggressiveness,
+        min_bitrate_increase_kbps=trump_prefs.min_bitrate_increase_kbps,
+        prefer_chapters=trump_prefs.prefer_chapters,
+        prefer_stereo=trump_prefs.prefer_stereo,
+        min_duration_ratio=trump_prefs.min_duration_ratio,
+        max_duration_ratio=trump_prefs.max_duration_ratio,
+        archive_root=trump_prefs.archive_root,
+        archive_by_year=trump_prefs.archive_by_year,
+    )
+
+    # Discover books to check
+    print_step(1, 3, "Discovering staged books")
+    if args.paths:
+        # Specific paths provided
+        staging_folders = [p for p in args.paths if p.is_dir()]
+        if not staging_folders:
+            print_warning("No valid directories in provided paths")
+            return 1
+    else:
+        staging_folders = discover_staged_books(import_source)
+
+    if not staging_folders:
+        print_info("No staged books to check")
+        return 0
+
+    print_info(f"Found {len(staging_folders)} audiobook(s) to check")
+
+    # Connect to ABS and build index
+    print_step(2, 3, "Building ASIN index from ABS")
+    try:
+        client = AbsClient(
+            host=abs_config.host,
+            api_key=abs_config.api_key,
+            timeout=abs_config.timeout_seconds,
+        )
+        asin_index = build_asin_index(client, target_library.id)
+        client.close()
+        print_success(f"Indexed {len(asin_index)} books with ASINs")
+    except Exception as e:
+        fatal_error(f"Failed to query ABS: {e}")
+        return 1
+
+    # Check trumping for each folder
+    print_step(3, 3, "Analyzing trumping decisions")
+    console.print()
+
+    replaced_count = 0
+    kept_existing_count = 0
+    rejected_count = 0
+    keep_both_count = 0
+    no_asin_count = 0
+    no_duplicate_count = 0
+    multi_file_count = 0
+
+    for folder in staging_folders:
+        console.print(f"[bold]{folder.name}[/]")
+
+        # Parse folder name to extract ASIN
+        parsed = parse_mam_folder_name(folder.name)
+        asin = parsed.asin if parsed else None
+
+        # Also try extracting from folder contents (mediainfo)
+        if not asin:
+            asin = extract_asin(str(folder))
+
+        if not asin:
+            no_asin_count += 1
+            console.print("  [dim]⏭ No ASIN - cannot check for duplicates[/]")
+            console.print()
+            continue
+
+        # Check if ASIN exists in library
+        is_dup, _ = asin_exists(asin_index, asin)
+        if not is_dup:
+            no_duplicate_count += 1
+            console.print(f"  [green]✓ ASIN {asin} not in library - new book[/]")
+            console.print()
+            continue
+
+        # Check for multi-file layout (trumping doesn't apply)
+        if is_multi_file_layout(folder):
+            multi_file_count += 1
+            console.print("  [dim]⏭ Multi-file layout - trumping skipped[/]")
+            console.print()
+            continue
+
+        # Get existing entry and check its layout
+        existing_entry = asin_index[asin]
+        existing_folder = Path(existing_entry.path)
+        if is_multi_file_layout(existing_folder):
+            multi_file_count += 1
+            console.print("  [dim]⏭ Existing is multi-file - trumping skipped[/]")
+            console.print()
+            continue
+
+        # Extract metadata and compare
+        existing_meta = extract_trumpable_meta(existing_folder, asin)
+        incoming_meta = extract_trumpable_meta(folder, asin)
+
+        decision, reason = decide_trump(existing_meta, incoming_meta, trump_prefs_preview)
+        decision, reason = adjust_for_aggressiveness(decision, reason, trump_prefs_preview)
+
+        # Show verbose comparison if requested
+        if getattr(args, "verbose", False):
+            print_trump_comparison_table(
+                existing_format=existing_meta.format,
+                incoming_format=incoming_meta.format,
+                existing_bitrate=existing_meta.bitrate_kbps,
+                incoming_bitrate=incoming_meta.bitrate_kbps,
+                existing_sample_rate=existing_meta.sample_rate_hz,
+                incoming_sample_rate=incoming_meta.sample_rate_hz,
+                existing_duration=existing_meta.duration_sec,
+                incoming_duration=incoming_meta.duration_sec,
+                existing_chapters=existing_meta.has_chapters,
+                incoming_chapters=incoming_meta.has_chapters,
+                existing_stereo=existing_meta.is_stereo,
+                incoming_stereo=incoming_meta.is_stereo,
+            )
+
+        # Display decision
+        print_trump_decision(
+            decision_name=decision.name,
+            reason=reason,
+            existing_format=existing_meta.format,
+            incoming_format=incoming_meta.format,
+            existing_bitrate=existing_meta.bitrate_kbps,
+            incoming_bitrate=incoming_meta.bitrate_kbps,
+        )
+
+        # Show existing location
+        console.print(f"  [dim]Existing: {existing_entry.path}[/]")
+
+        # Update counts
+        match decision:
+            case TrumpDecision.REPLACE_WITH_NEW:
+                replaced_count += 1
+            case TrumpDecision.KEEP_EXISTING:
+                kept_existing_count += 1
+            case TrumpDecision.REJECT_NEW:
+                rejected_count += 1
+            case TrumpDecision.KEEP_BOTH:
+                keep_both_count += 1
+
+        console.print()
+
+    # Summary
+    console.print("[bold]Summary[/]")
+    console.print(f"  Total checked: {len(staging_folders)}")
+    if no_asin_count:
+        console.print(f"  [dim]No ASIN: {no_asin_count}[/]")
+    if no_duplicate_count:
+        console.print(f"  [green]New books: {no_duplicate_count}[/]")
+    if multi_file_count:
+        console.print(f"  [dim]Multi-file (skipped): {multi_file_count}[/]")
+
+    # Trumping summary if any duplicates were found
+    trumping_total = replaced_count + kept_existing_count + rejected_count + keep_both_count
+    if trumping_total > 0:
+        print_trump_summary(
+            replaced=replaced_count,
+            kept_existing=kept_existing_count,
+            rejected=rejected_count,
+        )
+        if keep_both_count > 0:
+            console.print(f"  📁 Keep both: [dim]{keep_both_count}[/]")
+
+    return 0
+
+
+def cmd_abs_restore(args: argparse.Namespace) -> int:
+    """Restore archived books to the library.
+
+    Lists available archives or restores a specific archived book
+    back to the library root.
+    """
+    from pathlib import Path
+
+    from mamfast.abs.trumping import (
+        TrumpingError,
+        discover_archives,
+        restore_from_archive,
+    )
+    from mamfast.config import reload_settings
+
+    print_header("Archive Restore", dry_run=args.dry_run)
+
+    try:
+        settings = reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+
+    # Check if ABS is enabled
+    if not hasattr(settings, "audiobookshelf") or not settings.audiobookshelf.enabled:
+        print_warning("Audiobookshelf integration is not enabled in config")
+        return 1
+
+    abs_config = settings.audiobookshelf
+
+    # Get trumping config for archive_root
+    trumping_config = abs_config.import_settings.trumping
+    if not trumping_config.archive_root:
+        fatal_error("No archive_root configured for trumping")
+        print_info("Set audiobookshelf.import.trumping.archive_root in config.yaml")
+        return 1
+
+    archive_root = Path(trumping_config.archive_root)
+
+    # Get library root for restoration destination
+    if not abs_config.path_map:
+        fatal_error("No path_map configured for Audiobookshelf")
+        return 1
+    library_root = Path(abs_config.path_map[0].host)
+
+    # List mode or no path specified - show available archives
+    list_only = getattr(args, "list", False)
+    archive_path = getattr(args, "archive_path", None)
+    filter_asin = getattr(args, "asin", None)
+
+    if list_only or archive_path is None:
+        # List available archives
+        print_step(1, 1, "Discovering archives")
+
+        archives = discover_archives(archive_root, asin=filter_asin)
+
+        if not archives:
+            if filter_asin:
+                print_info(f"No archives found for ASIN {filter_asin}")
+            else:
+                print_info("No archives found")
+            return 0
+
+        console.print()
+        console.print(f"[bold]Found {len(archives)} archive(s)[/]")
+        console.print()
+
+        for archive in archives:
+            asin_display = f"[cyan]{archive.asin}[/]" if archive.asin else "[dim]No ASIN[/]"
+            console.print(f"  {asin_display}")
+            console.print(f"    Path: [dim]{archive.archive_path}[/]")
+            console.print(f"    Archived: {archive.archived_at}")
+            console.print(f"    Reason: {archive.reason}")
+            if archive.original_format:
+                quality = archive.original_format
+                if archive.original_bitrate:
+                    quality += f" @ {archive.original_bitrate}kbps"
+                console.print(f"    Quality: {quality}")
+            console.print()
+
+        console.print("[dim]To restore, run:[/]")
+        console.print("  mamfast abs-restore <archive-path>")
+        return 0
+
+    # Restore mode - restore specific archive
+    if not archive_path.exists():
+        fatal_error(f"Archive path does not exist: {archive_path}")
+        return 1
+
+    sidecar = archive_path / ".mamfast_trump.json"
+    if not sidecar.exists():
+        fatal_error(
+            f"Invalid archive - missing .mamfast_trump.json: {archive_path}",
+            "Make sure the path points to an archived book folder",
+        )
+        return 1
+
+    print_step(1, 1, "Restoring archive")
+    print_info(f"Source: {archive_path}")
+    print_info(f"Target: {library_root}")
+
+    if args.dry_run:
+        folder_name = archive_path.name
+        print_dry_run(f"Would restore {folder_name} to {library_root / folder_name}")
+        return 0
+
+    try:
+        restored_path = restore_from_archive(
+            archive_path=archive_path,
+            library_root=library_root,
+            dry_run=args.dry_run,
+        )
+        if restored_path:
+            print_success(f"Restored to: {restored_path}")
+            print_info("Run ABS library scan to pick up the restored book")
+        return 0
+    except TrumpingError as e:
+        fatal_error(str(e))
+        return 1
 
 
 def cmd_abs_resolve_asins(args: argparse.Namespace) -> int:

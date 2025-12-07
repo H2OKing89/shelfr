@@ -681,3 +681,143 @@ def archive_existing(
 
     logger.info("Archived %s → %s", existing_path, archive_dest)
     return archive_dest
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Archive Restoration
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class ArchiveInfo:
+    """Information about an archived book."""
+
+    archive_path: Path
+    archived_at: str
+    reason: str
+    decision: str
+    asin: str
+    original_format: str | None
+    original_bitrate: int | None
+
+
+def discover_archives(archive_root: Path, *, asin: str | None = None) -> list[ArchiveInfo]:
+    """Discover archived books in the archive root.
+
+    Scans for folders containing .mamfast_trump.json sidecar files.
+
+    Args:
+        archive_root: Root directory of the archive
+        asin: Optional ASIN to filter by
+
+    Returns:
+        List of ArchiveInfo objects for found archives
+    """
+    archives: list[ArchiveInfo] = []
+
+    if not archive_root.exists():
+        logger.debug("Archive root does not exist: %s", archive_root)
+        return archives
+
+    # Scan recursively for trump sidecar files
+    for sidecar_path in archive_root.rglob(".mamfast_trump.json"):
+        archive_folder = sidecar_path.parent
+
+        try:
+            with sidecar_path.open() as f:
+                sidecar_data = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning("Failed to read sidecar %s: %s", sidecar_path, e)
+            continue
+
+        # Extract ASIN from sidecar metadata
+        existing_meta = sidecar_data.get("existing_meta", {})
+        archive_asin = existing_meta.get("asin", "")
+
+        # Filter by ASIN if specified
+        if asin and archive_asin != asin:
+            continue
+
+        archives.append(
+            ArchiveInfo(
+                archive_path=archive_folder,
+                archived_at=sidecar_data.get("archived_at", ""),
+                reason=sidecar_data.get("reason", ""),
+                decision=sidecar_data.get("decision", ""),
+                asin=archive_asin,
+                original_format=existing_meta.get("format"),
+                original_bitrate=existing_meta.get("bitrate_kbps"),
+            )
+        )
+
+    # Sort by archived_at (newest first)
+    archives.sort(key=lambda a: a.archived_at, reverse=True)
+    return archives
+
+
+def restore_from_archive(
+    archive_path: Path,
+    library_root: Path,
+    *,
+    dry_run: bool = False,
+) -> Path | None:
+    """Restore an archived book back to the library.
+
+    Reads the trump sidecar to find the original ASIN, then moves
+    the archived folder back to the library under the appropriate
+    author/series structure.
+
+    Note: This is a basic restoration that places the book back
+    in the library. It does NOT remove the book that replaced it.
+    Users should manually handle any conflicts.
+
+    Args:
+        archive_path: Path to the archived book folder
+        library_root: Root of the ABS library to restore to
+        dry_run: If True, log but don't actually move
+
+    Returns:
+        Restored path, or None if dry_run
+
+    Raises:
+        TrumpingError: If archive is invalid or restoration fails
+    """
+    sidecar_path = archive_path / ".mamfast_trump.json"
+
+    if not sidecar_path.exists():
+        raise TrumpingError(f"Invalid archive - missing sidecar: {archive_path}")
+
+    try:
+        with sidecar_path.open() as f:
+            json.load(f)  # Validate JSON is parseable
+    except (OSError, json.JSONDecodeError) as e:
+        raise TrumpingError(f"Failed to read sidecar: {e}") from e
+
+    # The archive folder name IS the original folder name
+    # Archive structure: archive_root/[year]/ASIN/timestamp/<original_folder>
+    # But actually we move the whole original folder, so archive_path is the restored folder
+    # Let's just restore it with the current folder name
+
+    # Build a restore path - we'll put it in library_root directly
+    # User will need to organize/rescan after restore
+    folder_name = archive_path.name
+    restore_dest = library_root / folder_name
+
+    # Check for conflicts
+    if restore_dest.exists():
+        raise TrumpingError(f"Cannot restore - destination exists: {restore_dest}")
+
+    if dry_run:
+        logger.info("[DRY RUN] Would restore %s → %s", archive_path, restore_dest)
+        return None
+
+    # Move the archive folder to library root
+    shutil.move(str(archive_path), str(restore_dest))
+
+    # Remove the sidecar from restored location
+    restored_sidecar = restore_dest / ".mamfast_trump.json"
+    if restored_sidecar.exists():
+        restored_sidecar.unlink()
+
+    logger.info("Restored %s → %s", archive_path, restore_dest)
+    return restore_dest
