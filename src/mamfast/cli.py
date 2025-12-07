@@ -2531,6 +2531,7 @@ def cmd_abs_trump_check(args: argparse.Namespace) -> int:
     from mamfast.abs import AbsClient, asin_exists, build_asin_index, discover_staged_books
     from mamfast.abs.asin import extract_asin
     from mamfast.abs.importer import parse_mam_folder_name
+    from mamfast.abs.paths import PathMapper
     from mamfast.abs.trumping import (
         TrumpDecision,
         TrumpPrefs,
@@ -2609,6 +2610,10 @@ def cmd_abs_trump_check(args: argparse.Namespace) -> int:
 
     print_info(f"Found {len(staging_folders)} audiobook(s) to check")
 
+    # Build path mapper for container→host conversion
+    path_mappings = [{"container": pm.container, "host": pm.host} for pm in abs_config.path_map]
+    path_mapper = PathMapper(mappings=path_mappings) if path_mappings else None
+
     # Connect to ABS and build index
     print_step(2, 3, "Building ASIN index from ABS")
     try:
@@ -2669,8 +2674,16 @@ def cmd_abs_trump_check(args: argparse.Namespace) -> int:
             continue
 
         # Get existing entry and check its layout
+        # Convert container path to host path for local file operations
         existing_entry = asin_index[asin]
-        existing_folder = Path(existing_entry.path)
+        if path_mapper:
+            existing_folder = path_mapper.to_host(existing_entry.path)
+        else:
+            existing_folder = Path(existing_entry.path)
+        if not existing_folder.exists():
+            console.print(f"  [yellow]⚠ Existing folder not found: {existing_entry.path}[/]")
+            console.print()
+            continue
         if is_multi_file_layout(existing_folder):
             multi_file_count += 1
             console.print("  [dim]⏭ Existing is multi-file - trumping skipped[/]")

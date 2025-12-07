@@ -28,6 +28,7 @@ from mamfast.abs.asin import (
     resolve_asin_from_folder_with_mediainfo,
     resolve_asin_via_abs_search,
 )
+from mamfast.abs.paths import PathMapper
 from mamfast.abs.trumping import (
     TrumpDecision,
     TrumpPrefs,
@@ -1134,6 +1135,7 @@ def import_single(
     unknown_asin_policy: UnknownAsinPolicy = UnknownAsinPolicy.IMPORT,
     quarantine_path: Path | None = None,
     trump_prefs: TrumpPrefs | None = None,
+    path_mapper: PathMapper | None = None,
     dry_run: bool = False,
 ) -> ImportResult:
     """Import a single audiobook from staging to library.
@@ -1149,6 +1151,7 @@ def import_single(
         unknown_asin_policy: How to handle books without ASIN
         quarantine_path: Path for quarantine (required if policy=QUARANTINE)
         trump_prefs: Trumping preferences (None = disabled)
+        path_mapper: Optional path mapper for container↔host conversion
         dry_run: If True, don't actually move files
 
     Returns:
@@ -1233,7 +1236,10 @@ def import_single(
 
     if is_dup and trump_prefs and trump_prefs.enabled:
         existing_entry = asin_index[asin]
-        existing_folder = Path(existing_entry.path)
+        # Convert container path to host path if path_mapper provided
+        existing_folder = (
+            path_mapper.to_host(existing_entry.path) if path_mapper else Path(existing_entry.path)
+        )
 
         # v1: Skip trumping entirely for multi-file layouts
         # Fall through to duplicate_policy handling instead
@@ -1431,6 +1437,7 @@ def import_batch(
     unknown_asin_policy: UnknownAsinPolicy = UnknownAsinPolicy.IMPORT,
     quarantine_path: Path | None = None,
     trump_prefs: TrumpPrefs | None = None,
+    path_mapper: PathMapper | None = None,
     dry_run: bool = False,
 ) -> BatchImportResult:
     """Import multiple audiobooks from staging to library.
@@ -1446,6 +1453,7 @@ def import_batch(
         unknown_asin_policy: How to handle books without ASIN
         quarantine_path: Path for quarantine (required if policy=QUARANTINE)
         trump_prefs: Trumping preferences (None = disabled)
+        path_mapper: Optional path mapper for container↔host conversion
         dry_run: If True, don't actually move files
 
     Returns:
@@ -1465,6 +1473,7 @@ def import_batch(
             unknown_asin_policy=unknown_asin_policy,
             quarantine_path=quarantine_path,
             trump_prefs=trump_prefs,
+            path_mapper=path_mapper,
             dry_run=dry_run,
         )
         batch_result.add(result)
