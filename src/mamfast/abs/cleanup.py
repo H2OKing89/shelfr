@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Literal
 from mamfast.abs.asin import extract_asin, is_valid_asin
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 # Type alias for cleanup result status
 CleanupStatus = Literal["success", "skipped", "failed", "dry_run"]
@@ -646,3 +646,229 @@ def prune_empty_dirs(root: Path, *, dry_run: bool = False) -> int:
                 logger.debug("Failed to remove empty directory %s: %s", path, e)
 
     return removed
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Orphaned Folder Detection and Cleanup
+# ─────────────────────────────────────────────────────────────────────────────
+
+AUDIO_EXTENSIONS = frozenset({".m4b", ".mp3", ".m4a", ".flac", ".ogg", ".opus", ".wav", ".aac"})
+
+
+@dataclass
+class OrphanedFolder:
+    """An orphaned folder with metadata but no audio files.
+
+    Attributes:
+        path: Full path to the orphaned folder
+        files: List of files in the folder (metadata.json, cover.jpg, etc.)
+        matching_folder: Path to a matching folder with audio (if found)
+        match_score: Similarity score to matching folder (0-1)
+    """
+
+    path: Path
+    files: list[str]
+    matching_folder: Path | None = None
+    match_score: float = 0.0
+
+
+@dataclass
+class OrphanScanResult:
+    """Results from scanning for orphaned folders.
+
+    Attributes:
+        orphaned_with_match: Orphans that have a matching audio folder
+        orphaned_no_match: Orphans with no matching folder found
+        total_metadata_folders: Total folders with metadata.json
+        total_audio_folders: Folders with both metadata and audio
+    """
+
+    orphaned_with_match: list[OrphanedFolder]
+    orphaned_no_match: list[OrphanedFolder]
+    total_metadata_folders: int
+    total_audio_folders: int
+
+
+def _has_audio_files(path: Path) -> bool:
+    """Check if directory contains audio files."""
+    try:
+        return any(f.is_file() and f.suffix.lower() in AUDIO_EXTENSIONS for f in path.iterdir())
+    except (PermissionError, OSError):
+        return False
+
+
+def _similarity(a: str, b: str) -> float:
+    """Calculate string similarity ratio (0-1)."""
+    from difflib import SequenceMatcher
+
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+def scan_orphaned_folders(
+    library_root: Path,
+    min_match_score: float = 0.5,
+    progress_callback: Callable[[str, int | None], None] | None = None,
+) -> OrphanScanResult:
+    """Scan ABS library for orphaned folders.
+
+    An orphaned folder has metadata.json but no audio files, typically
+    created by ABS when it creates duplicate library entries.
+
+    Args:
+        library_root: Root of ABS library to scan
+        min_match_score: Minimum similarity score to consider a match
+        progress_callback: Optional callback(description, advance) for progress updates
+        min_match_score: Minimum similarity score to consider a match
+
+    Returns:
+        OrphanScanResult with categorized orphaned folders
+    """
+    orphaned: list[Path] = []
+    has_audio: list[Path] = []
+
+    def _progress(desc: str, advance: int | None = None) -> None:
+        if progress_callback:
+            progress_callback(desc, advance)
+
+    # First pass: find all folders with metadata.json (spinner - count unknown)
+    _progress("Scanning directories...")
+    folder_count = 0
+    for root, _dirs, files in os.walk(library_root):
+        root_path = Path(root)
+        folder_count += 1
+
+        # Update progress every 100 folders
+        if folder_count % 100 == 0:
+            _progress(f"Scanned {folder_count} directories...")
+
+        if "metadata.json" not in files:
+            continue
+
+        if _has_audio_files(root_path):
+            has_audio.append(root_path)
+        else:
+            orphaned.append(root_path)
+
+    _progress(f"Found {len(orphaned) + len(has_audio)} folders with metadata")
+
+    logger.info(
+        "Found %d folders with metadata.json (%d with audio, %d orphaned)",
+        len(orphaned) + len(has_audio),
+        len(has_audio),
+        len(orphaned),
+    )
+
+    # Build index of audio folders by parent directory
+    audio_by_parent: dict[Path, list[Path]] = {}
+    for p in has_audio:
+        parent = p.parent
+        if parent not in audio_by_parent:
+            audio_by_parent[parent] = []
+        audio_by_parent[parent].append(p)
+
+    # Check each orphaned folder for a matching sibling with audio
+    orphaned_with_match: list[OrphanedFolder] = []
+    orphaned_no_match: list[OrphanedFolder] = []
+
+    _progress("Matching orphaned folders...")
+    for i, orphan_path in enumerate(orphaned):
+        if i % 10 == 0:
+            _progress(f"Matching {i}/{len(orphaned)}...")
+
+        parent = orphan_path.parent
+        siblings = audio_by_parent.get(parent, [])
+
+        # Find best matching sibling
+        best_match: Path | None = None
+        best_score = 0.0
+
+        for sibling in siblings:
+            score = _similarity(orphan_path.name, sibling.name)
+            if score > best_score:
+                best_score = score
+                best_match = sibling
+
+        # Get files in orphaned folder
+        try:
+            files = [f.name for f in orphan_path.iterdir() if f.is_file()]
+        except (PermissionError, OSError):
+            files = []
+
+        orphan = OrphanedFolder(
+            path=orphan_path,
+            files=files,
+            matching_folder=best_match if best_score >= min_match_score else None,
+            match_score=best_score if best_score >= min_match_score else 0.0,
+        )
+
+        if orphan.matching_folder:
+            orphaned_with_match.append(orphan)
+        else:
+            orphaned_no_match.append(orphan)
+
+    _progress(f"Complete: {len(orphaned)} orphans analyzed")
+
+    return OrphanScanResult(
+        orphaned_with_match=orphaned_with_match,
+        orphaned_no_match=orphaned_no_match,
+        total_metadata_folders=len(orphaned) + len(has_audio),
+        total_audio_folders=len(has_audio),
+    )
+
+
+@dataclass
+class OrphanCleanupResult:
+    """Result of orphan cleanup operation.
+
+    Attributes:
+        removed: Number of orphaned folders removed
+        skipped: Number skipped (no match or user declined)
+        failed: Number that failed to remove
+        dry_run: Whether this was a dry run
+    """
+
+    removed: int = 0
+    skipped: int = 0
+    failed: int = 0
+    dry_run: bool = False
+
+
+def cleanup_orphaned_folders(
+    orphans: list[OrphanedFolder],
+    *,
+    dry_run: bool = False,
+    require_match: bool = True,
+) -> OrphanCleanupResult:
+    """Remove orphaned folders.
+
+    Args:
+        orphans: List of orphaned folders to clean up
+        dry_run: If True, don't actually delete anything
+        require_match: If True, only remove orphans with matching audio folders
+
+    Returns:
+        OrphanCleanupResult with counts
+    """
+    result = OrphanCleanupResult(dry_run=dry_run)
+
+    for orphan in orphans:
+        # Skip if no match and we require one
+        if require_match and not orphan.matching_folder:
+            logger.debug("Skipping %s - no matching folder", orphan.path.name)
+            result.skipped += 1
+            continue
+
+        if dry_run:
+            logger.info("[DRY RUN] Would remove: %s", orphan.path)
+            result.removed += 1
+            continue
+
+        try:
+            shutil.rmtree(orphan.path)
+            logger.info("Removed orphaned folder: %s", orphan.path)
+            result.removed += 1
+        except OSError as e:
+            logger.error("Failed to remove %s: %s", orphan.path, e)
+            result.failed += 1
+
+    return result

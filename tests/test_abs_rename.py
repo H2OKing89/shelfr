@@ -578,8 +578,12 @@ class TestGenerateReport:
         assert data["summary"]["total"] == 1
         assert data["summary"]["renamed"] == 1
         assert len(data["results"]) == 1
-        assert data["results"][0]["source"] == "OldName"
+        assert data["results"][0]["source_name"] == "OldName"
         assert data["results"][0]["asin_source"] == "abs_metadata"
+        # Check new debugging fields exist
+        assert "warnings" in data
+        assert "by_status" in data
+        assert "similarity_percent" in data["results"][0]
 
 
 class TestFullPipeline:

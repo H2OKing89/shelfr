@@ -453,14 +453,67 @@ class TestIntegration:
 ## Future Enhancements
 
 1. **Undo command**: `mamfast abs-cleanup --undo` to restore moved files
-2. **Cleanup report**: Summary of what was cleaned and space saved
+2. ~~**Cleanup report**: Summary of what was cleaned and space saved~~ ✅ Implemented via `--report`
 3. **Age-based cleanup**: Only cleanup sources older than N days
 4. **Verification scan**: `mamfast abs-verify` to check all imports have seeds
+
+---
+
+## Orphan Detection & Cleanup ✅ (2025-12-07)
+
+New `abs-orphans` command to find and clean up orphaned ABS folders.
+
+### Problem
+
+Audiobookshelf sometimes creates duplicate library entries that leave behind orphaned folders with `metadata.json` and `cover.jpg` but no audio files. These waste space and clutter the library.
+
+### Solution
+
+```bash
+# Scan for orphans (safe - no changes)
+mamfast abs-orphans --source /path/to/abs/library
+
+# Preview cleanup
+mamfast --dry-run abs-orphans --cleanup
+
+# Clean up orphans with matching audio folders (safe)
+mamfast abs-orphans --cleanup
+
+# Clean up ALL orphans (dangerous - prompts for confirmation)
+mamfast abs-orphans --cleanup-all
+
+# Generate JSON report
+mamfast abs-orphans --report orphans.json
+```
+
+### Implementation
+
+Added to `abs/cleanup.py`:
+- `OrphanedFolder` dataclass - path, files, matching_folder, match_score
+- `OrphanScanResult` dataclass - orphaned_with_match, orphaned_no_match, totals
+- `scan_orphaned_folders()` - finds folders with metadata.json but no audio
+- `cleanup_orphaned_folders()` - removes orphaned folders
+- Progress callback support for spinner display
+
+### Matching Logic
+
+1. Scan all folders with `metadata.json`
+2. Classify as "has audio" or "orphaned"
+3. For each orphan, find sibling folders with audio
+4. Calculate name similarity using `difflib.SequenceMatcher`
+5. Match if similarity >= `min_match_score` (default 0.5)
+
+### Safety
+
+- `--cleanup` only removes orphans with confirmed matches
+- `--cleanup-all` requires confirmation prompt: `? Are you sure? [y/N]`
+- Dry-run mode shows what would be removed
 
 ## Changelog
 
 | Date | Change |
 |------|--------|
+| 2025-12-07 | **Orphan detection**: Added `abs-orphans` command with `--cleanup`, `--cleanup-all`, `--report` flags; progress spinner; confirmation prompt with `[y/N]` hint |
 | 2025-12-07 | **Phase 3 complete**: CLI integration with `--cleanup-strategy`, `--cleanup-path`, `--no-cleanup` flags for `abs-import`; standalone `abs-cleanup` command; `CleanupConfig` dataclass and `build_cleanup_prefs()` function; 19 new CLI tests |
 | 2025-01-16 | **Phase 2 complete**: Cleanup integration in `import_single()` and `import_batch()` |
 | 2025-01-16 | **Phase 1 complete**: Core `abs/cleanup.py` module, `CleanupSchema` config, 50 tests |

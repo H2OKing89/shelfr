@@ -18,6 +18,31 @@
 
 ---
 
+## Phase 5: Performance & Debugging ✅ (2025-12-07)
+
+### 5.1 Parallelization ✅
+
+- [x] Added `ThreadPoolExecutor` for stages 2-4 (parse, enrich, resolve)
+- [x] Worker count: `min(32, cpu_count * 4)` for I/O-bound operations
+- [x] Result: ~2.6x speedup (2 min → 46 sec for 1300 folders)
+- [x] Progress bars with Rich for each parallel stage
+
+### 5.2 Enhanced JSON Report ✅
+
+- [x] Added `warnings` section with:
+  - `suspicious_changes_count` and `suspicious_changes` list
+  - `duplicate_asin_groups` for debugging ASIN conflicts
+- [x] Added `by_status` grouping for easier review
+- [x] Per-result fields:
+  - `source_path` and `target_path` (full paths)
+  - `similarity_percent` for change magnitude
+  - `is_suspicious_change` flag
+  - `parsed` metadata block
+  - `abs_metadata` block if available
+- [x] Fixed similarity calculation (was 0-10000, now 0-100)
+
+---
+
 ## Phase 4: Completed ✅
 
 ### 4.1 Interactive Mode (`--interactive`) ✅
@@ -119,10 +144,13 @@ class AbsRenameConfig(BaseModel):
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `src/mamfast/abs/rename.py` | ~890 | Core rename logic, pipeline, report generation |
-| `src/mamfast/cli.py` | +100 | `abs-rename` subcommand with all flags |
+| `src/mamfast/abs/rename.py` | ~999 | Core rename logic, pipeline, parallel processing, report generation |
+| `src/mamfast/abs/cleanup.py` | ~878 | Post-import cleanup + orphan detection/cleanup |
+| `src/mamfast/cli.py` | +280 | `abs-rename` + `abs-orphans` subcommands |
+| `src/mamfast/console.py` | +fix | Fixed `confirm()` hint escaping for Rich |
 | `src/mamfast/utils/naming.py` | +150 | Volume notation support |
-| `tests/test_abs_rename.py` | ~560 | 41 unit + integration tests |
+| `tests/test_abs_rename.py` | ~600 | 41 unit + integration tests |
+| `tests/test_abs_cleanup.py` | ~56 | Cleanup + orphan tests |
 | `tests/test_naming.py` | +130 | 19 volume notation tests |
 
 ---
@@ -149,8 +177,35 @@ Global flags (before subcommand):
 
 ---
 
+## New Command: `abs-orphans` ✅
+
+Added command to find and clean up orphaned ABS folders (metadata.json but no audio).
+
+```bash
+mamfast abs-orphans [OPTIONS]
+
+Options:
+  --source PATH              Directory to scan (default: ABS library from config)
+  --cleanup                  Remove orphans with matching audio folder (safe)
+  --cleanup-all              Remove ALL orphans (DANGEROUS - prompts for confirmation)
+  --min-match-score FLOAT    Minimum similarity to consider a match (default: 0.5)
+  --report PATH              Output JSON report of orphaned folders
+
+Global flags (before subcommand):
+  mamfast --dry-run abs-orphans    # Preview without removing
+```
+
+**Features:**
+- Scans library for folders with `metadata.json` but no audio files
+- Matches orphans to sibling folders with audio (by name similarity)
+- Progress spinner during scan
+- Confirmation prompt for `--cleanup-all` with `[y/N]` hint
+
+---
+
 ## Related Documentation
 
 - [ABS_RENAME_TOOL.md](./ABS_RENAME_TOOL.md) - Full design doc
+- [CLEANUP_PLAN.md](./CLEANUP_PLAN.md) - Cleanup + orphan detection
 - [NAMING_FOLDER_FILE_SCHEMAS.md](../naming/NAMING_FOLDER_FILE_SCHEMAS.md) - Volume notation spec
 - [NAMING_RULES.md](../naming/NAMING_RULES.md) - normalize_position() pseudocode

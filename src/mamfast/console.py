@@ -279,7 +279,7 @@ def print_directory_status(name: str, path: Any, exists: bool, count: int | None
 
 def confirm(message: str, default: bool = False) -> bool:
     """Ask for user confirmation."""
-    suffix = " [Y/n]" if default else " [y/N]"
+    suffix = " \\[Y/n]" if default else " \\[y/N]"
     try:
         response = console.input(f"[warning]?[/] {message}{suffix} ")
         if not response:

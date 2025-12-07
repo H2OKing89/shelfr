@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -32,6 +33,7 @@ from mamfast.console import (
     print_step,
     print_success,
     print_warning,
+    progress_context,
 )
 from mamfast.utils.fuzzy import is_suspicious_change, similarity_ratio
 from mamfast.utils.naming import build_mam_folder_name, format_volume_number
@@ -749,26 +751,68 @@ def run_rename_pipeline(
     results: list[RenameResult] = []
     summary = RenameSummary()
 
-    # Stage 1: Discovery
+    # Stage 1: Discovery (use spinner - count unknown during walk)
     print_step(1, 6, "Discovering folders")
-    folders = discover_rename_candidates(source_dir, pattern)
+    with progress_context("Scanning directories", total=None) as (progress, task):
+        folders = discover_rename_candidates(source_dir, pattern)
+        progress.update(task, description=f"Found {len(folders)} folders")
     summary.total_candidates = len(folders)
     logger.info(f"Found {len(folders)} folders to process")
 
     if not folders:
         return results, summary, []
 
-    # Stage 2: Parse existing names
+    # Determine worker count (I/O bound, so more workers help)
+    max_workers = min(32, (os.cpu_count() or 4) * 4)
+
+    # Stage 2: Parse existing names (parallel - fast but many items)
     print_step(2, 6, "Parsing folder names")
-    candidates = [parse_candidate(f) for f in folders]
+    candidates: list[RenameCandidate] = []
+    with (
+        progress_context("Parsing names", total=len(folders)) as (progress, task),
+        ThreadPoolExecutor(max_workers=max_workers) as executor,
+    ):
+        futures = {executor.submit(parse_candidate, f): i for i, f in enumerate(folders)}
+        results_map: dict[int, RenameCandidate] = {}
+        for future in as_completed(futures):
+            idx = futures[future]
+            results_map[idx] = future.result()
+            progress.update(task, advance=1)
+        candidates = [results_map[i] for i in range(len(folders))]
 
-    # Stage 2.5: Enrich with ABS metadata
+    # Stage 2.5: Enrich with ABS metadata (parallel - reads metadata.json)
     print_step(3, 6, "Reading ABS metadata")
-    candidates = [enrich_from_abs_metadata(c) for c in candidates]
+    with (
+        progress_context("Reading metadata", total=len(candidates)) as (progress, task),
+        ThreadPoolExecutor(max_workers=max_workers) as executor,
+    ):
+        futures = {
+            executor.submit(enrich_from_abs_metadata, c): i for i, c in enumerate(candidates)
+        }
+        results_map = {}
+        for future in as_completed(futures):
+            idx = futures[future]
+            results_map[idx] = future.result()
+            progress.update(task, advance=1)
+        candidates = [results_map[i] for i in range(len(candidates))]
 
-    # Stage 3: ASIN resolution
+    # Stage 3: ASIN resolution (parallel - may call mediainfo subprocess)
     print_step(4, 6, "Resolving ASINs")
-    candidates = [resolve_asin_cascade(c, abs_client, abs_search_confidence) for c in candidates]
+
+    def resolve_one(c: RenameCandidate) -> RenameCandidate:
+        return resolve_asin_cascade(c, abs_client, abs_search_confidence)
+
+    with (
+        progress_context("Resolving ASINs", total=len(candidates)) as (progress, task),
+        ThreadPoolExecutor(max_workers=max_workers) as executor,
+    ):
+        futures = {executor.submit(resolve_one, c): i for i, c in enumerate(candidates)}
+        results_map = {}
+        for future in as_completed(futures):
+            idx = futures[future]
+            results_map[idx] = future.result()
+            progress.update(task, advance=1)
+        candidates = [results_map[i] for i in range(len(candidates))]
 
     # Stage 4: Duplicate detection
     candidates = detect_duplicates(candidates)
@@ -861,19 +905,70 @@ def generate_report(
     """
     from datetime import UTC, datetime
 
-    # Build results with candidate info
+    # Collect duplicate ASIN groups for debugging
+    asin_to_folders: dict[str, list[str]] = {}
+    for candidate in candidates:
+        if candidate.parsed and candidate.parsed.asin:
+            asin = candidate.parsed.asin
+            if asin not in asin_to_folders:
+                asin_to_folders[asin] = []
+            asin_to_folders[asin].append(candidate.current_name)
+    duplicate_groups = {k: v for k, v in asin_to_folders.items() if len(v) > 1}
+
+    # Build results with full candidate info for debugging
     result_items = []
     for result, candidate in zip(results, candidates, strict=False):
-        item = {
-            "source": result.source_path.name,
-            "target": result.target_path.name if result.target_path else None,
+        # Calculate similarity if we have both names
+        # similarity_ratio already returns 0-100
+        sim_score = None
+        if candidate.target_name and candidate.current_name:
+            sim_score = round(similarity_ratio(candidate.current_name, candidate.target_name), 1)
+
+        item: dict[str, object] = {
+            "source_path": str(result.source_path),
+            "source_name": result.source_path.name,
+            "target_name": result.target_path.name if result.target_path else None,
+            "target_path": str(result.target_path) if result.target_path else None,
             "status": result.status,
             "error": result.error,
             "files_renamed": result.files_renamed,
+            # ASIN info
             "asin": candidate.parsed.asin if candidate.parsed else None,
             "asin_source": candidate.asin_source,
+            # Parsed metadata for debugging
+            "parsed": {
+                "author": candidate.parsed.author if candidate.parsed else None,
+                "series": candidate.parsed.series if candidate.parsed else None,
+                "series_position": candidate.parsed.series_position if candidate.parsed else None,
+                "title": candidate.parsed.title if candidate.parsed else None,
+                "year": candidate.parsed.year if candidate.parsed else None,
+            }
+            if candidate.parsed
+            else None,
+            # ABS metadata if available
+            "abs_metadata": {
+                "title": candidate.abs_metadata.title if candidate.abs_metadata else None,
+                "authors": candidate.abs_metadata.authors if candidate.abs_metadata else None,
+                "series": candidate.abs_metadata.series if candidate.abs_metadata else None,
+            }
+            if candidate.abs_metadata
+            else None,
+            # Warnings for debugging
+            "similarity_percent": sim_score,
+            "is_suspicious_change": sim_score is not None and sim_score < 30,
         }
         result_items.append(item)
+
+    # Separate results by status for easier review
+    by_status: dict[str, list[dict[str, object]]] = {}
+    for item in result_items:
+        status = str(item["status"])
+        if status not in by_status:
+            by_status[status] = []
+        by_status[status].append(item)
+
+    # Find suspicious changes (low similarity)
+    suspicious = [r for r in result_items if r.get("is_suspicious_change")]
 
     report = {
         "timestamp": datetime.now(UTC).isoformat(),
@@ -888,6 +983,15 @@ def generate_report(
             "skipped_target_exists": summary.skipped_target_exists,
             "errors": summary.errors,
         },
+        # Debugging sections
+        "warnings": {
+            "suspicious_changes_count": len(suspicious),
+            "suspicious_changes": suspicious,
+            "duplicate_asin_groups": duplicate_groups,
+        },
+        # Results grouped by status
+        "by_status": by_status,
+        # Full results list
         "results": result_items,
     }
 
