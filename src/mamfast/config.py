@@ -272,6 +272,8 @@ class TrumpingConfig:
     max_duration_ratio: float = 1.25
     archive_root: str | None = None
     archive_by_year: bool = True
+    # Own ripper tags: auto-trump if incoming has one of these tags (your uploads)
+    own_ripper_tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -335,6 +337,7 @@ def build_trump_prefs(
         max_duration_ratio=trumping_config.max_duration_ratio,
         archive_root=trumping_config.archive_root,
         archive_by_year=trumping_config.archive_by_year,
+        own_ripper_tags=trumping_config.own_ripper_tags,
     )
 
     return TrumpPrefs.from_config(modified_config)
@@ -723,6 +726,7 @@ def _parse_trumping_config(data: dict[str, Any]) -> TrumpingConfig:
         max_duration_ratio=data.get("max_duration_ratio", 1.25),
         archive_root=data.get("archive_root"),
         archive_by_year=data.get("archive_by_year", True),
+        own_ripper_tags=data.get("own_ripper_tags", []),
     )
 
 

@@ -231,6 +231,11 @@ class TrumpingSchema(BaseModel):
         description="Organize archive by year",
     )
 
+    own_ripper_tags: list[str] = Field(
+        default_factory=list,
+        description="Ripper tags (without brackets) that auto-trump regardless of quality",
+    )
+
     @field_validator("aggressiveness")
     @classmethod
     def validate_aggressiveness(cls, v: str) -> str:

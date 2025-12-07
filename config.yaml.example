@@ -220,6 +220,14 @@ audiobookshelf:
       # Keep archive organized by year?
       archive_by_year: true
 
+      # Own Ripper Tags: Auto-trump existing copies with YOUR uploads
+      # If incoming book has one of these ripper tags, it will ALWAYS replace
+      # existing copies regardless of quality comparison. Use this to maintain
+      # consistent naming/structure for your own uploads.
+      # Tags are case-insensitive and should NOT include brackets.
+      # Example: ["H2OKing", "MyTag"] matches [H2OKing], [h2oking], [MyTag]
+      own_ripper_tags: []
+
     # ───────────────────────────────────────────────────────────────────────
     # Post-Import Cleanup: Manage Libation Source Files
     # See docs/audiobookshelf/CLEANUP_PLAN.md for full documentation
@@ -263,5 +271,4 @@ audiobookshelf:
         - "*/__*"
         - "*/.#*"
 
-  # Index database location (for ASIN caching and duplicate detection)
-  index_db: "./data/abs_index.db"
+
