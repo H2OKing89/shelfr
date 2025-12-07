@@ -75,15 +75,20 @@ class TestTrumpableMeta:
     def test_format_tier_m4b(self) -> None:
         """m4b has highest tier."""
         meta = TrumpableMeta(asin="B0TEST", format="m4b")
-        assert meta.format_tier == 4
+        assert meta.format_tier == 5
 
     def test_format_tier_m4a(self) -> None:
         """m4a has second highest tier."""
         meta = TrumpableMeta(asin="B0TEST", format="m4a")
+        assert meta.format_tier == 4
+
+    def test_format_tier_opus(self) -> None:
+        """opus has third tier (modern efficient codec)."""
+        meta = TrumpableMeta(asin="B0TEST", format="opus")
         assert meta.format_tier == 3
 
     def test_format_tier_mp3(self) -> None:
-        """mp3 has third tier."""
+        """mp3 has fourth tier."""
         meta = TrumpableMeta(asin="B0TEST", format="mp3")
         assert meta.format_tier == 2
 
@@ -98,15 +103,17 @@ class TestTrumpableMeta:
         assert meta.format_tier == 0
 
     def test_format_tier_ranking(self) -> None:
-        """m4b > m4a > mp3 > flac > unknown."""
+        """m4b > m4a > opus > mp3 > flac > unknown."""
         m4b = TrumpableMeta(asin="B0TEST", format="m4b")
         m4a = TrumpableMeta(asin="B0TEST", format="m4a")
+        opus = TrumpableMeta(asin="B0TEST", format="opus")
         mp3 = TrumpableMeta(asin="B0TEST", format="mp3")
         flac = TrumpableMeta(asin="B0TEST", format="flac")
         unknown = TrumpableMeta(asin="B0TEST", format=None)
 
         assert m4b.format_tier > m4a.format_tier
-        assert m4a.format_tier > mp3.format_tier
+        assert m4a.format_tier > opus.format_tier
+        assert opus.format_tier > mp3.format_tier
         assert mp3.format_tier > flac.format_tier
         assert flac.format_tier > unknown.format_tier
 
@@ -153,6 +160,65 @@ class TestTrumpPrefs:
         assert prefs.aggressiveness == TrumpAggressiveness.CONSERVATIVE
         assert prefs.min_bitrate_increase_kbps == 128
         assert prefs.archive_root == Path("/archive")
+
+    def test_from_schema_basic(self) -> None:
+        """from_schema creates TrumpPrefs from TrumpingSchema."""
+        schema = TrumpingSchema(enabled=True, archive_root="/archive")
+        prefs = TrumpPrefs.from_schema(schema)
+
+        assert prefs.enabled is True
+        assert prefs.aggressiveness == TrumpAggressiveness.BALANCED
+        assert prefs.archive_root == Path("/archive")
+
+    def test_from_schema_coerces_archive_root(self) -> None:
+        """from_schema converts archive_root str to Path."""
+        schema = TrumpingSchema(enabled=True, archive_root="/mnt/archive/trumped")
+        prefs = TrumpPrefs.from_schema(schema)
+
+        assert isinstance(prefs.archive_root, Path)
+        assert prefs.archive_root == Path("/mnt/archive/trumped")
+
+    def test_from_schema_handles_none_archive_root(self) -> None:
+        """from_schema handles None archive_root (disabled trumping)."""
+        schema = TrumpingSchema(enabled=False, archive_root=None)
+        prefs = TrumpPrefs.from_schema(schema)
+
+        assert prefs.archive_root is None
+
+    def test_from_schema_aggressiveness_coercion(self) -> None:
+        """from_schema converts aggressiveness str to enum."""
+        schema = TrumpingSchema(
+            enabled=True, archive_root="/archive", aggressiveness="conservative"
+        )
+        prefs = TrumpPrefs.from_schema(schema)
+
+        assert prefs.aggressiveness == TrumpAggressiveness.CONSERVATIVE
+        assert isinstance(prefs.aggressiveness, TrumpAggressiveness)
+
+    def test_from_schema_all_fields(self) -> None:
+        """from_schema maps all TrumpingSchema fields correctly."""
+        schema = TrumpingSchema(
+            enabled=True,
+            archive_root="/archive",
+            aggressiveness="aggressive",
+            min_bitrate_increase_kbps=128,
+            prefer_chapters=False,
+            prefer_stereo=False,
+            min_duration_ratio=0.85,
+            max_duration_ratio=1.5,
+            archive_by_year=False,
+        )
+        prefs = TrumpPrefs.from_schema(schema)
+
+        assert prefs.enabled is True
+        assert prefs.aggressiveness == TrumpAggressiveness.AGGRESSIVE
+        assert prefs.min_bitrate_increase_kbps == 128
+        assert prefs.prefer_chapters is False
+        assert prefs.prefer_stereo is False
+        assert prefs.min_duration_ratio == 0.85
+        assert prefs.max_duration_ratio == 1.5
+        assert prefs.archive_root == Path("/archive")
+        assert prefs.archive_by_year is False
 
 
 class TestIsMultiFileLayout:

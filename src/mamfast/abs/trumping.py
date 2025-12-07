@@ -25,9 +25,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mamfast.abs.asin import AUDIO_EXTENSIONS
+from mamfast.config import get_settings
 
 if TYPE_CHECKING:
-    pass
+    from mamfast.schemas.config import TrumpingSchema
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +74,9 @@ class TrumpingError(Exception):
 # Format tier ranking: higher = better for audiobooks
 # Note: FLAC is intentionally ranked lowest - see TRUMPING.md Appendix
 FORMAT_TIERS: dict[str | None, int] = {
-    "m4b": 4,  # Native audiobook format, chapter support, best app compatibility
-    "m4a": 3,  # AAC without chapters
+    "m4b": 5,  # Native audiobook format, chapter support, best app compatibility
+    "m4a": 4,  # AAC without chapters
+    "opus": 3,  # Modern efficient codec, excellent quality/size ratio
     "mp3": 2,  # Universal playback but older codec
     "flac": 1,  # Lossless but huge, poor chapter support, overkill for speech
     None: 0,  # Unknown format
@@ -141,6 +143,30 @@ class TrumpPrefs:
     canonical_preferred_market: str = "us"
     canonical_search_markets: tuple[str, ...] = ("us", "uk", "au")
 
+    @classmethod
+    def from_schema(cls, schema: TrumpingSchema) -> TrumpPrefs:
+        """Create TrumpPrefs from validated TrumpingSchema.
+
+        Handles type coercion (e.g., archive_root str → Path).
+
+        Args:
+            schema: Validated TrumpingSchema from config
+
+        Returns:
+            Runtime TrumpPrefs instance
+        """
+        return cls(
+            enabled=schema.enabled,
+            aggressiveness=TrumpAggressiveness(schema.aggressiveness),
+            min_bitrate_increase_kbps=schema.min_bitrate_increase_kbps,
+            prefer_chapters=schema.prefer_chapters,
+            prefer_stereo=schema.prefer_stereo,
+            min_duration_ratio=schema.min_duration_ratio,
+            max_duration_ratio=schema.max_duration_ratio,
+            archive_root=Path(schema.archive_root) if schema.archive_root else None,
+            archive_by_year=schema.archive_by_year,
+        )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Multi-File Detection
@@ -174,20 +200,38 @@ def is_multi_file_layout(folder: Path) -> bool:
 
 
 def _get_mediainfo_binary() -> str | None:
-    """Find mediainfo binary on system.
+    """Get mediainfo binary path from config, checking availability.
+
+    Uses the configured mediainfo.binary from settings. Returns the binary
+    path if available (either in PATH or as absolute path), None otherwise.
+
+    Falls back to checking for "mediainfo" in PATH if config is unavailable.
 
     Returns:
-        Path to mediainfo binary, or None if not found
+        Binary path if available, None if not found
     """
-    binary = shutil.which("mediainfo")
-    if binary:
-        return binary
+    # Try to get binary name from config, fall back to default
+    binary = "mediainfo"
+    try:
+        settings = get_settings()
+        binary = settings.mediainfo.binary
+    except Exception:
+        # Config unavailable (e.g., in tests without config file)
+        logger.debug("Config unavailable, using default mediainfo binary")
 
-    # Check common paths
-    for path in ["/usr/bin/mediainfo", "/usr/local/bin/mediainfo"]:
-        if Path(path).exists():
-            return path
+    # If it's an absolute path, check it exists
+    if Path(binary).is_absolute():
+        if Path(binary).exists():
+            return binary
+        logger.debug("Configured mediainfo binary not found: %s", binary)
+        return None
 
+    # Otherwise check if it's in PATH
+    found = shutil.which(binary)
+    if found:
+        return found
+
+    logger.debug("mediainfo binary '%s' not found in PATH", binary)
     return None
 
 
