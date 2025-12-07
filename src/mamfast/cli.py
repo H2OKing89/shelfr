@@ -2277,10 +2277,34 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                     except ValueError:
                         pass  # Can't make relative path
 
-                # List files with rename preview
+                # Helper to check if a filename matches ignore patterns
+                def should_ignore(filename: str) -> bool:
+                    """Check if filename matches any ignore pattern."""
+                    if not ignore_patterns:
+                        return False
+                    import fnmatch
+
+                    filename_lower = filename.lower()
+                    for pattern in ignore_patterns:
+                        pattern_lower = pattern.lower()
+                        is_glob_match = "*" in pattern and fnmatch.fnmatch(
+                            filename_lower, pattern_lower
+                        )
+                        is_ext_match = pattern.startswith(".") and filename_lower.endswith(
+                            pattern_lower
+                        )
+                        if is_glob_match or is_ext_match:
+                            return True
+                    return False
+
+                # List files with rename preview (excluding ignored files)
                 source_folder = r.staging_path if args.dry_run else r.target_path
                 if source_folder.exists():
-                    files = sorted(f.name for f in source_folder.iterdir() if f.is_file())
+                    files = sorted(
+                        f.name
+                        for f in source_folder.iterdir()
+                        if f.is_file() and not should_ignore(f.name)
+                    )
 
                     # In dry-run, compute what files would be renamed to
                     rename_map: dict[str, str] = {}
@@ -2288,7 +2312,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                         try:
                             parsed = r.parsed
                             for f in source_folder.iterdir():
-                                if not f.is_file():
+                                if not f.is_file() or should_ignore(f.name):
                                     continue
                                 ext = f.suffix.lower()
                                 if f.name.lower().endswith(".metadata.json"):
