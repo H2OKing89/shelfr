@@ -288,6 +288,7 @@ class CleanupConfig:
     min_age_days: int = 0
     ignore_dirs: list[str] = field(default_factory=lambda: ["__import_test", ".git", ".venv"])
     ignore_glob: list[str] = field(default_factory=lambda: ["*/__*", "*/.#*"])
+    prune_empty_dirs: bool = True  # Remove empty directories after import
 
 
 def build_trump_prefs(
@@ -384,6 +385,7 @@ def build_cleanup_prefs(
         min_age_days=cleanup_config.min_age_days,
         ignore_dirs=tuple(cleanup_config.ignore_dirs),
         ignore_glob=tuple(cleanup_config.ignore_glob),
+        prune_empty_dirs=cleanup_config.prune_empty_dirs,
     )
 
 
@@ -751,6 +753,7 @@ def _parse_cleanup_config(data: dict[str, Any]) -> CleanupConfig:
         min_age_days=data.get("min_age_days", 0),
         ignore_dirs=data.get("ignore_dirs", ["__import_test", ".git", ".venv"]),
         ignore_glob=data.get("ignore_glob", ["*/__*", "*/.#*"]),
+        prune_empty_dirs=data.get("prune_empty_dirs", True),
     )
 
 

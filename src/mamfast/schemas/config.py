@@ -315,6 +315,11 @@ class CleanupSchema(BaseModel):
         description="Glob patterns to ignore during standalone cleanup",
     )
 
+    prune_empty_dirs: bool = Field(
+        default=True,
+        description="Remove empty directories from staging after import",
+    )
+
     @field_validator("strategy")
     @classmethod
     def validate_strategy(cls, v: str) -> str:
