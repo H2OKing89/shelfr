@@ -316,7 +316,7 @@ class CleanupSchema(BaseModel):
     )
 
     prune_empty_dirs: bool = Field(
-        default=True,
+        default=False,
         description="Remove empty directories from staging after import",
     )
 

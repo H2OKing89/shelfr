@@ -3337,36 +3337,16 @@ def cmd_abs_cleanup(args: argparse.Namespace) -> int:
     )
 
     # Apply CLI overrides for require_seed_exists and min_age_days
+    # Use dataclass replace() for cleaner field overrides
+    from dataclasses import replace
+
     no_verify_seed = getattr(args, "no_verify_seed", False)
     if no_verify_seed:
-        # Create new prefs with require_seed_exists=False
-        from mamfast.abs.cleanup import CleanupPrefs
-
-        cleanup_prefs = CleanupPrefs(
-            strategy=cleanup_prefs.strategy,
-            cleanup_path=cleanup_prefs.cleanup_path,
-            require_seed_exists=False,
-            verify_in_abs=cleanup_prefs.verify_in_abs,
-            hide_marker=cleanup_prefs.hide_marker,
-            min_age_days=cleanup_prefs.min_age_days,
-            ignore_dirs=cleanup_prefs.ignore_dirs,
-            ignore_glob=cleanup_prefs.ignore_glob,
-        )
+        cleanup_prefs = replace(cleanup_prefs, require_seed_exists=False)
 
     min_age_override = getattr(args, "min_age_days", None)
     if min_age_override is not None:
-        from mamfast.abs.cleanup import CleanupPrefs
-
-        cleanup_prefs = CleanupPrefs(
-            strategy=cleanup_prefs.strategy,
-            cleanup_path=cleanup_prefs.cleanup_path,
-            require_seed_exists=cleanup_prefs.require_seed_exists,
-            verify_in_abs=cleanup_prefs.verify_in_abs,
-            hide_marker=cleanup_prefs.hide_marker,
-            min_age_days=min_age_override,
-            ignore_dirs=cleanup_prefs.ignore_dirs,
-            ignore_glob=cleanup_prefs.ignore_glob,
-        )
+        cleanup_prefs = replace(cleanup_prefs, min_age_days=min_age_override)
 
     # Validate cleanup strategy
     if cleanup_prefs.strategy == CleanupStrategy.NONE:

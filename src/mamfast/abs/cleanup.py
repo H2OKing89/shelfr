@@ -14,12 +14,15 @@ import shutil
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+
+from mamfast.abs.asin import extract_asin, is_valid_asin
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-from mamfast.abs.asin import extract_asin, is_valid_asin
+# Type alias for cleanup result status
+CleanupStatus = Literal["success", "skipped", "failed", "dry_run"]
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +84,7 @@ class CleanupPrefs:
     min_age_days: int = 0
     ignore_dirs: tuple[str, ...] = ("__import_test", ".git", ".venv")
     ignore_glob: tuple[str, ...] = ("*/__*", "*/.#*")
-    prune_empty_dirs: bool = True
+    prune_empty_dirs: bool = False  # Default off - opt-in to avoid surprises
 
 
 @dataclass
@@ -97,7 +100,7 @@ class CleanupResult:
     """
 
     source_path: Path
-    status: str  # "success", "skipped", "failed", "dry_run"
+    status: CleanupStatus
     strategy: CleanupStrategy
     error: str | None = None
     destination: Path | None = None  # For move strategy
@@ -271,6 +274,7 @@ def _has_hardlinked_files(source_dir: Path, seed_dir: Path) -> bool:
         try:
             source_inodes.add(os.stat(f).st_ino)
         except OSError:
+            # File may have been moved/deleted between listing and stat - skip it
             continue
 
     if not source_inodes:
@@ -282,6 +286,7 @@ def _has_hardlinked_files(source_dir: Path, seed_dir: Path) -> bool:
             if os.stat(seed_file).st_ino in source_inodes:
                 return True
         except OSError:
+            # Seed file may have been moved/deleted - skip it
             continue
 
     return False
@@ -609,9 +614,7 @@ def prune_empty_dirs(root: Path, *, dry_run: bool = False) -> int:
             # Check if any subdirs actually exist (they may have been removed)
             # In dry-run mode, also check our simulated removal set
             remaining_dirs = [
-                d
-                for d in dirnames
-                if (path / d).exists() and (path / d) not in dry_run_removed
+                d for d in dirnames if (path / d).exists() and (path / d) not in dry_run_removed
             ]
             if remaining_dirs:
                 continue
@@ -620,9 +623,7 @@ def prune_empty_dirs(root: Path, *, dry_run: bool = False) -> int:
         # Double-check by listing directory contents
         # In dry-run mode, filter out dirs we've already "removed"
         try:
-            contents = [
-                c for c in path.iterdir() if c not in dry_run_removed
-            ]
+            contents = [c for c in path.iterdir() if c not in dry_run_removed]
             if contents:
                 # Not actually empty, skip
                 continue

@@ -314,7 +314,9 @@ class TestDecideTrump:
         """Own ripper tag auto-trumps regardless of quality."""
         # Incoming is WORSE quality (mp3 vs m4b) but has our ripper tag
         existing = TrumpableMeta(asin="B0TEST", format="m4b", bitrate_kbps=256)
-        incoming = TrumpableMeta(asin="B0TEST", format="mp3", bitrate_kbps=128, ripper_tag="H2OKing")
+        incoming = TrumpableMeta(
+            asin="B0TEST", format="mp3", bitrate_kbps=128, ripper_tag="H2OKing"
+        )
         prefs = TrumpPrefs(own_ripper_tags=("H2OKing",))
 
         decision, reason = decide_trump(existing, incoming, prefs)
@@ -343,7 +345,9 @@ class TestDecideTrump:
     def test_own_ripper_tag_non_match_proceeds_normally(self) -> None:
         """Non-matching ripper tag falls through to normal quality comparison."""
         existing = TrumpableMeta(asin="B0TEST", format="m4b", bitrate_kbps=256)
-        incoming = TrumpableMeta(asin="B0TEST", format="mp3", bitrate_kbps=128, ripper_tag="OtherUser")
+        incoming = TrumpableMeta(
+            asin="B0TEST", format="mp3", bitrate_kbps=128, ripper_tag="OtherUser"
+        )
         prefs = TrumpPrefs(own_ripper_tags=("H2OKing",))
 
         decision, reason = decide_trump(existing, incoming, prefs)
@@ -355,7 +359,9 @@ class TestDecideTrump:
     def test_own_ripper_tag_empty_list_skips_check(self) -> None:
         """Empty own_ripper_tags list skips the check entirely."""
         existing = TrumpableMeta(asin="B0TEST", format="mp3", bitrate_kbps=128)
-        incoming = TrumpableMeta(asin="B0TEST", format="m4b", bitrate_kbps=256, ripper_tag="H2OKing")
+        incoming = TrumpableMeta(
+            asin="B0TEST", format="m4b", bitrate_kbps=256, ripper_tag="H2OKing"
+        )
         prefs = TrumpPrefs(own_ripper_tags=())  # Empty
 
         decision, reason = decide_trump(existing, incoming, prefs)
@@ -1028,5 +1034,64 @@ class TestExtractRipperTag:
 
     def test_complex_folder_name(self) -> None:
         """Handles complex MAM-style folder names."""
-        folder = "Brandon Sanderson - Stormlight Archive vol_01 - The Way of Kings (2010) (Kate Reading) [H2OKing] {ASIN.B003ZWFO7E}"
+        folder = (
+            "Brandon Sanderson - Stormlight Archive vol_01 - "
+            "The Way of Kings (2010) (Kate Reading) [H2OKing] {ASIN.B003ZWFO7E}"
+        )
         assert _extract_ripper_tag(folder) == "H2OKing"
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Edge cases
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def test_empty_string(self) -> None:
+        """Returns None for empty string input."""
+        assert _extract_ripper_tag("") is None
+
+    def test_whitespace_only(self) -> None:
+        """Returns None for whitespace-only input."""
+        assert _extract_ripper_tag("   ") is None
+
+    def test_nested_brackets(self) -> None:
+        """Nested brackets are not supported by current regex (documents behavior)."""
+        # The regex uses [^\\]] which doesn't match nested brackets
+        # This documents the current behavior - nested brackets return None
+        assert _extract_ripper_tag("Author - Title [outer [inner]] {ASIN.B012345678}") is None
+
+    def test_empty_brackets(self) -> None:
+        """Empty brackets return None (regex requires at least one char)."""
+        # The regex pattern [^\\]]+ requires at least one character
+        assert _extract_ripper_tag("Author - Title []") is None
+
+    def test_empty_braces(self) -> None:
+        """Empty braces return None (regex requires at least one char)."""
+        # The regex pattern [^}]+ requires at least one character
+        assert _extract_ripper_tag("Author - Title {}") is None
+
+    def test_brackets_in_middle(self) -> None:
+        """Returns None when brackets are in middle, not at end."""
+        # Brackets followed by other text shouldn't match
+        assert _extract_ripper_tag("Author [Tag] - Title (2024)") is None
+
+    def test_mixed_brackets_and_parens(self) -> None:
+        """Handles mixed bracket and parenthesis patterns."""
+        # Tag in brackets at end, with ASIN in braces stripped first
+        folder = "Author - (A Book) Title [MyTag] {ASIN.B012345678}"
+        assert _extract_ripper_tag(folder) == "MyTag"
+
+    def test_special_characters_in_tag(self) -> None:
+        """Handles special characters in ripper tag."""
+        assert _extract_ripper_tag("Author - Title [H2O_King-123]") == "H2O_King-123"
+
+    def test_unicode_in_tag(self) -> None:
+        """Handles unicode characters in ripper tag."""
+        assert _extract_ripper_tag("Author - Title [日本語Tag]") == "日本語Tag"
+
+    def test_multiple_valid_tags_takes_last(self) -> None:
+        """When multiple bracket patterns exist, takes the rightmost before ASIN."""
+        folder = "Author [FirstTag] - Title [SecondTag] {ASIN.B012345678}"
+        assert _extract_ripper_tag(folder) == "SecondTag"
+
+    def test_only_parentheses_no_brackets(self) -> None:
+        """Returns None when only parentheses exist (no brackets/braces)."""
+        assert _extract_ripper_tag("Author - Title (2024) (Narrator)") is None

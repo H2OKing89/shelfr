@@ -344,6 +344,7 @@ class TestAbsImportCommand:
         config.import_settings.cleanup.min_age_days = 0
         config.import_settings.cleanup.ignore_dirs = ["__import_test", ".git", ".venv"]
         config.import_settings.cleanup.ignore_glob = ["*/__*", "*/.#*"]
+        config.import_settings.cleanup.prune_empty_dirs = False
         return config
 
     def test_abs_import_config_not_found(self, args: argparse.Namespace) -> None:
@@ -1513,6 +1514,7 @@ class TestAbsCleanupCommand:
         config.import_settings.cleanup.min_age_days = 0
         config.import_settings.cleanup.ignore_dirs = ["__import_test", ".git", ".venv"]
         config.import_settings.cleanup.ignore_glob = ["*/__*", "*/.#*"]
+        config.import_settings.cleanup.prune_empty_dirs = False
         return config
 
     def test_abs_cleanup_config_not_found(self, args: argparse.Namespace) -> None:
