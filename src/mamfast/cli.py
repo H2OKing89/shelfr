@@ -2160,22 +2160,72 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         path_mappings = [{"container": pm.container, "host": pm.host} for pm in abs_config.path_map]
         path_mapper = PathMapper(mappings=path_mappings) if path_mappings else None
 
+    # Import with progress display
+    from rich.progress import (
+        BarColumn,
+        MofNCompleteColumn,
+        Progress,
+        SpinnerColumn,
+        TaskID,
+        TextColumn,
+        TimeElapsedColumn,
+    )
+
+    # Track the progress task ID so callback can update it
+    progress_task_id: TaskID | None = None
+
+    def progress_callback(current: int, total: int, folder: Path) -> None:
+        """Update progress bar with current book being processed."""
+        nonlocal progress_task_id
+        if progress_task_id is not None and progress_ctx is not None:
+            # Truncate folder name to fit nicely
+            book_name = folder.name[:50] + "..." if len(folder.name) > 50 else folder.name
+            progress_ctx.update(progress_task_id, completed=current, current_book=book_name)
+
     try:
-        result = import_batch(
-            staging_folders=staging_folders,
-            library_root=abs_library_root,
-            asin_index=asin_index,
-            abs_client=abs_client_for_import,
-            abs_search_confidence=confidence,
-            staging_root=import_source,
-            duplicate_policy=dup_policy,
-            unknown_asin_policy=unknown_asin_policy,
-            quarantine_path=quarantine_path,
-            ignore_patterns=ignore_patterns,
-            trump_prefs=trump_prefs,
-            path_mapper=path_mapper,
-            dry_run=args.dry_run,
+        # Create progress display
+        progress_ctx = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            TextColumn("[dim]{task.fields[current_book]}[/dim]"),
+            console=console,
+            transient=False,  # Keep visible after completion
         )
+
+        with progress_ctx:
+            progress_task_id = progress_ctx.add_task(
+                "Importing",
+                total=len(staging_folders),
+                current_book="",
+            )
+
+            result = import_batch(
+                staging_folders=staging_folders,
+                library_root=abs_library_root,
+                asin_index=asin_index,
+                abs_client=abs_client_for_import,
+                abs_search_confidence=confidence,
+                staging_root=import_source,
+                duplicate_policy=dup_policy,
+                unknown_asin_policy=unknown_asin_policy,
+                quarantine_path=quarantine_path,
+                ignore_patterns=ignore_patterns,
+                trump_prefs=trump_prefs,
+                path_mapper=path_mapper,
+                progress_callback=progress_callback,
+                dry_run=args.dry_run,
+            )
+
+            # Mark as complete
+            progress_ctx.update(
+                progress_task_id,
+                completed=len(staging_folders),
+                current_book="Done!",
+            )
+
     except Exception as e:
         if use_abs_search:
             client.close()  # Clean up on error

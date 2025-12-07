@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -1569,6 +1570,7 @@ def import_batch(
     ignore_patterns: list[str] | None = None,
     trump_prefs: TrumpPrefs | None = None,
     path_mapper: PathMapper | None = None,
+    progress_callback: Callable[[int, int, Path], None] | None = None,
     dry_run: bool = False,
 ) -> BatchImportResult:
     """Import multiple audiobooks from staging to library.
@@ -1586,14 +1588,20 @@ def import_batch(
         ignore_patterns: File patterns to remove before import (e.g., [".json", "*.metadata.json"])
         trump_prefs: Trumping preferences (None = disabled)
         path_mapper: Optional path mapper for container↔host conversion
+        progress_callback: Optional callback(current, total, folder) for progress updates
         dry_run: If True, don't actually move files
 
     Returns:
         BatchImportResult with all results and counts
     """
     batch_result = BatchImportResult()
+    total = len(staging_folders)
 
-    for folder in staging_folders:
+    for i, folder in enumerate(staging_folders):
+        # Call progress callback before processing each folder
+        if progress_callback:
+            progress_callback(i, total, folder)
+
         result = import_single(
             staging_folder=folder,
             library_root=library_root,

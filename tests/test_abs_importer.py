@@ -696,6 +696,50 @@ class TestImportBatch:
         for folder in folders:
             assert folder.exists()
 
+    def test_batch_progress_callback(
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
+    ) -> None:
+        """Progress callback is called for each book."""
+        folders = [
+            create_audiobook_folder(temp_staging, f"Author - Book {i} [B0ABC{i:05d}]")
+            for i in range(1, 4)
+        ]
+
+        progress_calls: list[tuple[int, int, Path]] = []
+
+        def track_progress(current: int, total: int, folder: Path) -> None:
+            progress_calls.append((current, total, folder))
+
+        result = import_batch(
+            staging_folders=folders,
+            library_root=temp_library,
+            asin_index=empty_asin_index,
+            progress_callback=track_progress,
+        )
+
+        assert result.success_count == 3
+        assert len(progress_calls) == 3
+        # Check progress values
+        assert progress_calls[0] == (0, 3, folders[0])
+        assert progress_calls[1] == (1, 3, folders[1])
+        assert progress_calls[2] == (2, 3, folders[2])
+
+    def test_batch_progress_callback_none(
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
+    ) -> None:
+        """Batch works without progress callback (backward compatible)."""
+        folders = [create_audiobook_folder(temp_staging, "Author - Book [B0TESTBOOK1]")]
+
+        # Should not raise when callback is None
+        result = import_batch(
+            staging_folders=folders,
+            library_root=temp_library,
+            asin_index=empty_asin_index,
+            progress_callback=None,
+        )
+
+        assert result.success_count == 1
+
 
 # =============================================================================
 # Tests: BatchImportResult
