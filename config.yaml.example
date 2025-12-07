@@ -275,5 +275,3 @@ audiobookshelf:
       ignore_glob:
         - "*/__*"
         - "*/.#*"
-
-

@@ -1121,6 +1121,144 @@ class TestFormatVolumeNumber:
         assert format_volume_number(None) == ""
         assert format_volume_number("") == ""
 
+    def test_part_notation(self) -> None:
+        """Test part notation for Graphic Audio splits."""
+        from mamfast.utils.naming import format_volume_number
+
+        assert format_volume_number("1p1") == "vol_01p1"
+        assert format_volume_number("1p2") == "vol_01p2"
+        assert format_volume_number("12p1") == "vol_12p1"
+
+    def test_range_notation(self) -> None:
+        """Test range notation for Publisher Packs."""
+        from mamfast.utils.naming import format_volume_number
+
+        assert format_volume_number("1-3") == "vol_01-03"
+        assert format_volume_number("4-6") == "vol_04-06"
+        assert format_volume_number("10-12") == "vol_10-12"
+
+
+class TestParseVolumeNotation:
+    """Tests for parse_volume_notation function."""
+
+    def test_simple_volume(self) -> None:
+        """Test parsing simple volume numbers."""
+        from mamfast.utils.naming import parse_volume_notation
+
+        result = parse_volume_notation("vol_01")
+        assert result["base"] == 1.0
+        assert result.get("range_end") is None
+        assert result.get("part") is None
+
+        result = parse_volume_notation("vol_12")
+        assert result["base"] == 12.0
+
+    def test_novella_decimal(self) -> None:
+        """Test parsing decimal volumes (novellas)."""
+        from mamfast.utils.naming import parse_volume_notation
+
+        result = parse_volume_notation("vol_01.5")
+        assert result["base"] == 1.5
+        assert result.get("range_end") is None
+        assert result.get("part") is None
+
+    def test_range_publisher_pack(self) -> None:
+        """Test parsing range notation (Publisher Packs)."""
+        from mamfast.utils.naming import parse_volume_notation
+
+        result = parse_volume_notation("vol_01-03")
+        assert result["base"] == 1.0
+        assert result["range_end"] == 3.0
+        assert result.get("part") is None
+
+        result = parse_volume_notation("vol_04-06")
+        assert result["base"] == 4.0
+        assert result["range_end"] == 6.0
+
+    def test_part_graphic_audio(self) -> None:
+        """Test parsing part notation (Graphic Audio splits)."""
+        from mamfast.utils.naming import parse_volume_notation
+
+        result = parse_volume_notation("vol_01p1")
+        assert result["base"] == 1.0
+        assert result["part"] == 1
+        assert result.get("range_end") is None
+
+        result = parse_volume_notation("vol_01p2")
+        assert result["base"] == 1.0
+        assert result["part"] == 2
+
+    def test_invalid_notation(self) -> None:
+        """Test invalid notation returns None."""
+        from mamfast.utils.naming import parse_volume_notation
+
+        assert parse_volume_notation("invalid") is None
+        assert parse_volume_notation("") is None
+        assert parse_volume_notation("volume_01") is None
+
+
+class TestNormalizePosition:
+    """Tests for normalize_position function."""
+
+    def test_simple_number(self) -> None:
+        """Test normalizing simple numbers."""
+        from mamfast.utils.naming import normalize_position
+
+        assert normalize_position("1") == "vol_01"
+        assert normalize_position("12") == "vol_12"
+        assert normalize_position("5") == "vol_05"
+
+    def test_decimal_novella(self) -> None:
+        """Test normalizing decimal numbers (novellas)."""
+        from mamfast.utils.naming import normalize_position
+
+        assert normalize_position("1.5") == "vol_01.5"
+        assert normalize_position("10.5") == "vol_10.5"
+
+    def test_part_notation_variants(self) -> None:
+        """Test normalizing various part notation formats."""
+        from mamfast.utils.naming import normalize_position
+
+        # "1p1" style
+        assert normalize_position("1p1") == "vol_01p1"
+        assert normalize_position("1p2") == "vol_01p2"
+        # "1 part 1" style
+        assert normalize_position("1 part 1") == "vol_01p1"
+        assert normalize_position("1 Part 2") == "vol_01p2"
+        # "1_01" style (legacy)
+        assert normalize_position("1_01") == "vol_01p1"
+        assert normalize_position("1_02") == "vol_01p2"
+
+    def test_range_notation(self) -> None:
+        """Test normalizing range notation (Publisher Packs)."""
+        from mamfast.utils.naming import normalize_position
+
+        assert normalize_position("1-3") == "vol_01-03"
+        assert normalize_position("4-6") == "vol_04-06"
+        assert normalize_position("01-03") == "vol_01-03"
+
+    def test_aliases(self) -> None:
+        """Test volume aliases (prequel, prologue, etc.)."""
+        from mamfast.utils.naming import normalize_position
+
+        assert normalize_position("prequel") == "vol_00"
+        assert normalize_position("Prequel") == "vol_00"
+        assert normalize_position("prologue") == "vol_00"
+        assert normalize_position("prelude") == "vol_00"
+
+    def test_empty_or_none(self) -> None:
+        """Test empty or None returns empty string."""
+        from mamfast.utils.naming import normalize_position
+
+        assert normalize_position("") == ""
+        assert normalize_position(None) == ""
+
+    def test_omnibus(self) -> None:
+        """Test omnibus returns empty (no volume)."""
+        from mamfast.utils.naming import normalize_position
+
+        assert normalize_position("omnibus") == ""
+
 
 class TestBuildMamFolderName:
     """Tests for build_mam_folder_name function."""

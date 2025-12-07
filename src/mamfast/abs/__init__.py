@@ -54,6 +54,20 @@ from mamfast.abs.importer import (
     validate_import_prerequisites,
 )
 from mamfast.abs.paths import PathMapper, abs_path_to_host, host_path_to_abs
+from mamfast.abs.rename import (
+    AbsMetadata,
+    AbsMetadataSchema,
+    RenameCandidate,
+    RenameResult,
+    RenameStatus,
+    RenameSummary,
+    detect_duplicates,
+    detect_edition_flags,
+    discover_rename_candidates,
+    generate_report,
+    parse_abs_metadata,
+    run_rename_pipeline,
+)
 
 __all__ = [
     # ASIN extraction and in-memory index
@@ -107,4 +121,17 @@ __all__ = [
     "PathMapper",
     "abs_path_to_host",
     "host_path_to_abs",
+    # Rename
+    "AbsMetadata",
+    "AbsMetadataSchema",
+    "RenameCandidate",
+    "RenameResult",
+    "RenameSummary",
+    "RenameStatus",
+    "detect_duplicates",
+    "detect_edition_flags",
+    "discover_rename_candidates",
+    "generate_report",
+    "parse_abs_metadata",
+    "run_rename_pipeline",
 ]

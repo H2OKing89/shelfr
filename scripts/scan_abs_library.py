@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 from rich.progress import (
@@ -74,7 +75,7 @@ class MediaInfo:
     file_count: int = 0
     total_size_mb: float = 0.0
     is_multi_file: bool = False
-    files: list[dict] = field(default_factory=list)
+    files: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -104,7 +105,7 @@ class FolderInfo:
     mediainfo: MediaInfo | None = None
 
 
-def get_mediainfo_json(file_path: Path) -> dict | None:
+def get_mediainfo_json(file_path: Path) -> dict[str, Any] | None:
     """Get mediainfo for a single file as JSON."""
     try:
         result = subprocess.run(
@@ -114,15 +115,16 @@ def get_mediainfo_json(file_path: Path) -> dict | None:
             timeout=30,
         )
         if result.returncode == 0:
-            return json.loads(result.stdout)
+            data: dict[str, Any] = json.loads(result.stdout)
+            return data
     except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
         pass
     return None
 
 
-def parse_mediainfo(mi_json: dict) -> dict:
+def parse_mediainfo(mi_json: dict[str, Any]) -> dict[str, Any]:
     """Parse mediainfo JSON into simplified dict."""
-    result = {
+    result: dict[str, Any] = {
         "codec": None,
         "bitrate_kbps": None,
         "sample_rate": None,
@@ -208,6 +210,8 @@ def get_folder_mediainfo(folder: Path, audio_files: list[str]) -> MediaInfo:
             continue
 
         mi_json = get_mediainfo_json(file_path)
+        if mi_json is None:
+            continue
         parsed = parse_mediainfo(mi_json)
 
         file_info = {"name": audio_file}
@@ -360,7 +364,7 @@ async def scan_library_async(
     library_path: Path,
     workers: int = 10,
     skip_mediainfo: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Scan entire library with async mediainfo processing."""
     folders: list[FolderInfo] = []
 
@@ -434,7 +438,7 @@ async def scan_library_async(
             await asyncio.gather(*tasks)
 
     # Compute statistics
-    stats = {
+    stats: dict[str, Any] = {
         "total_folders": len(folders),
         "leaf_folders": len(leaf_folders),
         "with_asin": len([f for f in leaf_folders if f.detected_asin]),
@@ -506,7 +510,9 @@ async def scan_library_async(
     }
 
 
-def scan_library(library_path: Path, workers: int = 10, skip_mediainfo: bool = False) -> dict:
+def scan_library(
+    library_path: Path, workers: int = 10, skip_mediainfo: bool = False
+) -> dict[str, Any]:
     """Synchronous wrapper for async scan."""
     return asyncio.run(scan_library_async(library_path, workers, skip_mediainfo))
 
