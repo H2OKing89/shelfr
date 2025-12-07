@@ -30,6 +30,13 @@ from mamfast.abs.asin import (
     resolve_asin_from_folder_with_mediainfo,
     resolve_asin_via_abs_search,
 )
+from mamfast.abs.cleanup import (
+    CLEANUP_ELIGIBLE_STATUSES,
+    CleanupPrefs,
+    CleanupResult,
+    CleanupStrategy,
+    cleanup_source,
+)
 from mamfast.abs.paths import PathMapper
 from mamfast.abs.trumping import (
     TrumpDecision,
@@ -146,6 +153,7 @@ class ImportResult:
     status: str  # "success", "skipped", "failed", "duplicate"
     error: str | None = None
     parsed: ParsedFolderName | None = None  # Enriched parsed data for display
+    cleanup: CleanupResult | None = None  # Post-import cleanup result
 
 
 @dataclass
@@ -161,6 +169,10 @@ class BatchImportResult:
     trump_replaced_count: int = 0  # Existing archived, new imported
     trump_kept_existing_count: int = 0  # No improvement, kept existing
     trump_rejected_count: int = 0  # Incoming was worse
+    # Cleanup statistics
+    cleanup_success_count: int = 0
+    cleanup_skipped_count: int = 0
+    cleanup_failed_count: int = 0
 
     def add(self, result: ImportResult) -> None:
         """Add a result and update counts."""
@@ -182,6 +194,15 @@ class BatchImportResult:
         elif result.status == "trump_rejected":
             self.trump_rejected_count += 1
             self.skipped_count += 1  # Also count as skipped
+
+        # Track cleanup statistics
+        if result.cleanup is not None:
+            if result.cleanup.status == "success":
+                self.cleanup_success_count += 1
+            elif result.cleanup.status == "skipped":
+                self.cleanup_skipped_count += 1
+            elif result.cleanup.status == "failed":
+                self.cleanup_failed_count += 1
 
 
 @dataclass
@@ -1248,6 +1269,9 @@ def import_single(
     ignore_patterns: list[str] | None = None,
     trump_prefs: TrumpPrefs | None = None,
     path_mapper: PathMapper | None = None,
+    cleanup_prefs: CleanupPrefs | None = None,
+    source_path: Path | None = None,
+    seed_root: Path | None = None,
     dry_run: bool = False,
 ) -> ImportResult:
     """Import a single audiobook from staging to library.
@@ -1265,6 +1289,9 @@ def import_single(
         ignore_patterns: File patterns to remove before import (e.g., [".json", "*.metadata.json"])
         trump_prefs: Trumping preferences (None = disabled)
         path_mapper: Optional path mapper for container↔host conversion
+        cleanup_prefs: Post-import cleanup preferences (None = disabled)
+        source_path: Original Libation source path (for cleanup, if different from staging)
+        seed_root: Seed/staging root path (for cleanup hardlink verification)
         dry_run: If True, don't actually move files
 
     Returns:
@@ -1504,12 +1531,29 @@ def import_single(
         logger.info("[DRY RUN] Would move %s → %s", staging_folder, target_path)
         # Preview file renames
         rename_files_in_folder(staging_folder, parsed, dry_run=True)
+
+        # Preview cleanup (dry_run mode)
+        cleanup_result: CleanupResult | None = None
+        if (
+            cleanup_prefs is not None
+            and cleanup_prefs.strategy != CleanupStrategy.NONE
+            and source_path is not None
+        ):
+            cleanup_result = cleanup_source(
+                source_path=source_path,
+                prefs=cleanup_prefs,
+                seed_root=seed_root,
+                asin=asin,
+                dry_run=True,
+            )
+
         return ImportResult(
             staging_path=staging_folder,
             target_path=target_path,
             asin=asin,
             status="success",
             parsed=parsed,
+            cleanup=cleanup_result,
         )
 
     # Create parent directories
@@ -1546,12 +1590,49 @@ def import_single(
     else:
         final_status = "success"
 
+    # ─────────────────────────────────────────────────────────────────────
+    # Post-import cleanup of Libation source files
+    # ─────────────────────────────────────────────────────────────────────
+    cleanup_result = None
+
+    if (
+        cleanup_prefs is not None
+        and cleanup_prefs.strategy != CleanupStrategy.NONE
+        and final_status in CLEANUP_ELIGIBLE_STATUSES
+        and source_path is not None
+    ):
+        logger.debug(
+            "Running post-import cleanup (strategy=%s) for: %s",
+            cleanup_prefs.strategy.value,
+            source_path,
+        )
+        cleanup_result = cleanup_source(
+            source_path=source_path,
+            prefs=cleanup_prefs,
+            seed_root=seed_root,
+            asin=asin,
+            dry_run=dry_run,
+        )
+        if cleanup_result.status == "success":
+            logger.info(
+                "Cleanup (%s) completed for: %s",
+                cleanup_prefs.strategy.value,
+                source_path,
+            )
+        elif cleanup_result.status == "failed":
+            logger.warning(
+                "Cleanup failed for %s: %s",
+                source_path,
+                cleanup_result.error,
+            )
+
     return ImportResult(
         staging_path=staging_folder,
         target_path=target_path,
         asin=asin,
         status=final_status,
         parsed=parsed,
+        cleanup=cleanup_result,
     )
 
 
@@ -1569,6 +1650,9 @@ def import_batch(
     ignore_patterns: list[str] | None = None,
     trump_prefs: TrumpPrefs | None = None,
     path_mapper: PathMapper | None = None,
+    cleanup_prefs: CleanupPrefs | None = None,
+    source_paths: dict[Path, Path] | None = None,
+    seed_root: Path | None = None,
     progress_callback: Callable[[int, int, Path], None] | None = None,
     dry_run: bool = False,
 ) -> BatchImportResult:
@@ -1587,6 +1671,9 @@ def import_batch(
         ignore_patterns: File patterns to remove before import (e.g., [".json", "*.metadata.json"])
         trump_prefs: Trumping preferences (None = disabled)
         path_mapper: Optional path mapper for container↔host conversion
+        cleanup_prefs: Post-import cleanup preferences (None = disabled)
+        source_paths: Mapping of staging_folder → original source path (for cleanup)
+        seed_root: Seed/staging root path (for cleanup hardlink verification)
         progress_callback: Optional callback(current, total, folder) for progress updates
         dry_run: If True, don't actually move files
 
@@ -1601,6 +1688,9 @@ def import_batch(
         if progress_callback:
             progress_callback(i, total, folder)
 
+        # Get source path for cleanup if mapping provided
+        source_path = source_paths.get(folder) if source_paths else None
+
         result = import_single(
             staging_folder=folder,
             library_root=library_root,
@@ -1614,6 +1704,9 @@ def import_batch(
             ignore_patterns=ignore_patterns,
             trump_prefs=trump_prefs,
             path_mapper=path_mapper,
+            cleanup_prefs=cleanup_prefs,
+            source_path=source_path,
+            seed_root=seed_root,
             dry_run=dry_run,
         )
         batch_result.add(result)

@@ -2011,3 +2011,330 @@ class TestRemoveIgnoredFiles:
         assert (
             folder / "By the Grace of the Gods vol_02 (2023) (Roy) {ASIN.B0C9RS445X}.cue"
         ).exists()
+
+
+# =============================================================================
+# Tests: Cleanup Integration
+# =============================================================================
+
+
+class TestImportSingleWithCleanup:
+    """Tests for import_single with cleanup integration."""
+
+    def test_cleanup_disabled_by_default(self, tmp_path: Path) -> None:
+        """Test that cleanup is disabled when cleanup_prefs is None."""
+        staging = tmp_path / "staging"
+        library = tmp_path / "library"
+        staging.mkdir()
+        library.mkdir()
+
+        # Create staged audiobook
+        folder_name = "Author Name - Book Title (2023) (Narrator) {ASIN.B012345678}"
+        book_folder = staging / folder_name
+        book_folder.mkdir()
+        (book_folder / "book.m4b").write_text("audio content")
+
+        result = import_single(
+            staging_folder=book_folder,
+            library_root=library,
+            asin_index={},
+            # cleanup_prefs=None (default)
+        )
+
+        assert result.status == "success"
+        assert result.cleanup is None
+
+    def test_cleanup_runs_on_success(self, tmp_path: Path) -> None:
+        """Test that cleanup runs after successful import."""
+        import os
+
+        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+
+        staging = tmp_path / "staging"
+        library = tmp_path / "library"
+        source = tmp_path / "source"
+        staging.mkdir()
+        library.mkdir()
+        source.mkdir()
+
+        # Create source folder (Libation original)
+        source_folder = source / "Author Name" / "Book Title"
+        source_folder.mkdir(parents=True)
+        source_m4b = source_folder / "book.m4b"
+        source_m4b.write_text("audio content")
+        (source_folder / "book.metadata.json").write_text("{}")
+
+        # Create staged audiobook (hardlinked from source)
+        folder_name = "Author Name - Book Title (2023) (Narrator) {ASIN.B012345678}"
+        book_folder = staging / folder_name
+        book_folder.mkdir()
+        staged_m4b = book_folder / "book.m4b"
+        os.link(str(source_m4b), str(staged_m4b))
+
+        cleanup_prefs = CleanupPrefs(
+            strategy=CleanupStrategy.HIDE,
+            require_seed_exists=False,  # Skip seed check for test
+        )
+
+        result = import_single(
+            staging_folder=book_folder,
+            library_root=library,
+            asin_index={},
+            cleanup_prefs=cleanup_prefs,
+            source_path=source_folder,
+        )
+
+        assert result.status == "success"
+        assert result.cleanup is not None
+        assert result.cleanup.status == "success"
+        assert result.cleanup.strategy == CleanupStrategy.HIDE
+        # Marker file should exist
+        assert (source_folder / ".mamfast_imported").exists()
+
+    def test_cleanup_not_run_when_source_path_not_provided(self, tmp_path: Path) -> None:
+        """Test that cleanup does not run when source_path is None."""
+        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+
+        staging = tmp_path / "staging"
+        library = tmp_path / "library"
+        staging.mkdir()
+        library.mkdir()
+
+        folder_name = "Author Name - Book Title (2023) (Narrator) {ASIN.B012345678}"
+        book_folder = staging / folder_name
+        book_folder.mkdir()
+        (book_folder / "book.m4b").write_text("audio content")
+
+        cleanup_prefs = CleanupPrefs(
+            strategy=CleanupStrategy.DELETE,  # Would delete if ran
+            require_seed_exists=False,
+        )
+
+        result = import_single(
+            staging_folder=book_folder,
+            library_root=library,
+            asin_index={},
+            cleanup_prefs=cleanup_prefs,
+            source_path=None,  # No source path provided
+        )
+
+        # Import should succeed
+        assert result.status == "success"
+        # But cleanup should not have run (no source_path)
+        assert result.cleanup is None
+
+    def test_cleanup_skipped_on_duplicate(self, tmp_path: Path) -> None:
+        """Test that cleanup does NOT run when book is duplicate."""
+        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+
+        staging = tmp_path / "staging"
+        library = tmp_path / "library"
+        source = tmp_path / "source"
+        staging.mkdir()
+        library.mkdir()
+        source.mkdir()
+
+        source_folder = source / "book"
+        source_folder.mkdir()
+        (source_folder / "book.m4b").touch()
+
+        # Create staged audiobook
+        folder_name = "Author Name - Book Title (2023) (Narrator) {ASIN.B012345678}"
+        book_folder = staging / folder_name
+        book_folder.mkdir()
+        (book_folder / "book.m4b").write_text("audio")
+
+        # ASIN already exists in index
+        asin_index = {
+            "B012345678": AsinEntry(
+                asin="B012345678",
+                path="/audiobooks/existing",
+                library_item_id="li_123",
+                title="Book Title",
+                author="Author Name",
+            )
+        }
+
+        cleanup_prefs = CleanupPrefs(
+            strategy=CleanupStrategy.DELETE,
+            require_seed_exists=False,
+        )
+
+        result = import_single(
+            staging_folder=book_folder,
+            library_root=library,
+            asin_index=asin_index,
+            duplicate_policy="skip",
+            cleanup_prefs=cleanup_prefs,
+            source_path=source_folder,
+        )
+
+        assert result.status == "duplicate"
+        assert result.cleanup is None
+        assert source_folder.exists()
+
+    def test_cleanup_dry_run(self, tmp_path: Path) -> None:
+        """Test cleanup respects dry_run flag."""
+        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+
+        staging = tmp_path / "staging"
+        library = tmp_path / "library"
+        source = tmp_path / "source"
+        staging.mkdir()
+        library.mkdir()
+        source.mkdir()
+
+        source_folder = source / "book"
+        source_folder.mkdir()
+        (source_folder / "book.m4b").touch()
+
+        folder_name = "Author Name - Book Title (2023) (Narrator) {ASIN.B012345678}"
+        book_folder = staging / folder_name
+        book_folder.mkdir()
+        (book_folder / "book.m4b").write_text("audio")
+
+        cleanup_prefs = CleanupPrefs(
+            strategy=CleanupStrategy.DELETE,
+            require_seed_exists=False,
+        )
+
+        result = import_single(
+            staging_folder=book_folder,
+            library_root=library,
+            asin_index={},
+            cleanup_prefs=cleanup_prefs,
+            source_path=source_folder,
+            dry_run=True,
+        )
+
+        assert result.status == "success"
+        assert result.cleanup is not None
+        assert result.cleanup.status == "dry_run"
+        # Source should still exist (dry run)
+        assert source_folder.exists()
+
+
+class TestBatchImportWithCleanup:
+    """Tests for import_batch with cleanup integration."""
+
+    def test_batch_cleanup_counts(self, tmp_path: Path) -> None:
+        """Test batch import tracks cleanup statistics."""
+        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+
+        staging = tmp_path / "staging"
+        library = tmp_path / "library"
+        source = tmp_path / "source"
+        staging.mkdir()
+        library.mkdir()
+        source.mkdir()
+
+        # Create multiple source and staging folders
+        source_paths: dict[Path, Path] = {}
+        staging_folders: list[Path] = []
+
+        for i in range(3):
+            src = source / f"book{i}"
+            src.mkdir()
+            (src / "book.m4b").touch()
+
+            folder_name = f"Author - Book{i} (2023) (Narrator) {{ASIN.B01234567{i}}}"
+            stg = staging / folder_name
+            stg.mkdir()
+            (stg / "book.m4b").write_text(f"audio{i}")
+
+            source_paths[stg] = src
+            staging_folders.append(stg)
+
+        cleanup_prefs = CleanupPrefs(
+            strategy=CleanupStrategy.HIDE,
+            require_seed_exists=False,
+        )
+
+        result = import_batch(
+            staging_folders=staging_folders,
+            library_root=library,
+            asin_index={},
+            cleanup_prefs=cleanup_prefs,
+            source_paths=source_paths,
+        )
+
+        assert result.success_count == 3
+        assert result.cleanup_success_count == 3
+        assert result.cleanup_failed_count == 0
+        assert result.cleanup_skipped_count == 0
+
+        # All markers should exist
+        for src in source_paths.values():
+            assert (src / ".mamfast_imported").exists()
+
+    def test_batch_mixed_cleanup_results(self, tmp_path: Path) -> None:
+        """Test batch with mixed cleanup results (some skipped)."""
+        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+
+        staging = tmp_path / "staging"
+        library = tmp_path / "library"
+        source = tmp_path / "source"
+        seed_root = tmp_path / "seed"
+        staging.mkdir()
+        library.mkdir()
+        source.mkdir()
+        seed_root.mkdir()
+
+        source_paths: dict[Path, Path] = {}
+        staging_folders: list[Path] = []
+
+        # Book 1: Has seed (cleanup should succeed)
+        src1 = source / "book1"
+        src1.mkdir()
+        (src1 / "book.m4b").write_text("audio1")
+
+        folder_name1 = "Author - Book1 (2023) (Narrator) {ASIN.B012345671}"
+        stg1 = staging / folder_name1
+        stg1.mkdir()
+        (stg1 / "book.m4b").write_text("audio1")
+
+        # Create seed with hardlink
+        seed1 = seed_root / folder_name1
+        seed1.mkdir()
+        import os
+
+        os.link(str(src1 / "book.m4b"), str(seed1 / "book.m4b"))
+
+        source_paths[stg1] = src1
+        staging_folders.append(stg1)
+
+        # Book 2: No seed (cleanup should be skipped with require_seed_exists)
+        src2 = source / "book2"
+        src2.mkdir()
+        (src2 / "book.m4b").write_text("audio2")
+
+        folder_name2 = "Author - Book2 (2023) (Narrator) {ASIN.B012345672}"
+        stg2 = staging / folder_name2
+        stg2.mkdir()
+        (stg2 / "book.m4b").write_text("audio2")
+
+        source_paths[stg2] = src2
+        staging_folders.append(stg2)
+
+        cleanup_prefs = CleanupPrefs(
+            strategy=CleanupStrategy.HIDE,
+            require_seed_exists=True,  # Will skip book2 because no seed
+        )
+
+        result = import_batch(
+            staging_folders=staging_folders,
+            library_root=library,
+            asin_index={},
+            cleanup_prefs=cleanup_prefs,
+            source_paths=source_paths,
+            seed_root=seed_root,
+        )
+
+        assert result.success_count == 2
+        assert result.cleanup_success_count == 1  # Only book1
+        assert result.cleanup_skipped_count == 1  # book2 skipped (no seed)
+
+        # Book1 marker exists
+        assert (src1 / ".mamfast_imported").exists()
+        # Book2 marker does not exist
+        assert not (src2 / ".mamfast_imported").exists()

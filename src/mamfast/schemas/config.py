@@ -258,6 +258,96 @@ class TrumpingSchema(BaseModel):
         return self
 
 
+# Valid cleanup strategies
+VALID_CLEANUP_STRATEGIES = frozenset(["none", "hide", "move", "delete"])
+
+
+class CleanupSchema(BaseModel):
+    """Configuration for post-import cleanup of Libation source files.
+
+    Nested under AudiobookshelfImportSchema.cleanup in config.
+    See docs/audiobookshelf/CLEANUP_PLAN.md for full documentation.
+    """
+
+    strategy: str = Field(
+        default="none",
+        description="Cleanup strategy: none | hide | move | delete",
+    )
+
+    cleanup_path: str | None = Field(
+        default=None,
+        description="Destination path for moved files (required if strategy=move)",
+    )
+
+    require_seed_exists: bool = Field(
+        default=True,
+        description="Only cleanup if seed hardlinks exist",
+    )
+
+    verify_in_abs: bool = Field(
+        default=False,
+        description="Query ABS API to confirm book exists before cleanup",
+    )
+
+    hide_marker: str = Field(
+        default=".mamfast_imported",
+        description="Marker filename for hide strategy",
+    )
+
+    min_age_days: int = Field(
+        default=0,
+        ge=0,
+        description="Only cleanup sources older than N days (0 = disabled)",
+    )
+
+    ignore_dirs: list[str] = Field(
+        default_factory=lambda: ["__import_test", ".git", ".venv"],
+        description="Directory names to always ignore during standalone cleanup",
+    )
+
+    ignore_glob: list[str] = Field(
+        default_factory=lambda: ["*/__*", "*/.#*"],
+        description="Glob patterns to ignore during standalone cleanup",
+    )
+
+    @field_validator("strategy")
+    @classmethod
+    def validate_strategy(cls, v: str) -> str:
+        """Validate cleanup strategy is a recognized value."""
+        if v.lower() not in VALID_CLEANUP_STRATEGIES:
+            valid = sorted(VALID_CLEANUP_STRATEGIES)
+            raise ValueError(f"Invalid cleanup strategy '{v}'. Must be one of: {valid}")
+        return v.lower()
+
+    @field_validator("cleanup_path")
+    @classmethod
+    def validate_cleanup_path_absolute(cls, v: str | None) -> str | None:
+        """Ensure cleanup_path is absolute when provided."""
+        if v is not None and v.strip():
+            if not v.startswith("/"):
+                raise ValueError(f"cleanup_path must be an absolute path (start with /), got: {v}")
+            return v.rstrip("/")  # Normalize: remove trailing slash
+        return v
+
+    @field_validator("hide_marker")
+    @classmethod
+    def validate_hide_marker(cls, v: str) -> str:
+        """Validate hide_marker is a valid filename."""
+        if not v or not v.strip():
+            raise ValueError("hide_marker cannot be empty")
+        # Should be a simple filename, not a path
+        if "/" in v or "\\" in v:
+            raise ValueError("hide_marker must be a filename, not a path")
+        return v
+
+    @model_validator(mode="after")
+    def validate_move_requires_path(self) -> CleanupSchema:
+        """Ensure cleanup_path is set when strategy is move."""
+        if self.strategy == "move" and (not self.cleanup_path or not self.cleanup_path.strip()):
+            raise ValueError("cleanup_path is required when strategy is 'move'")
+        return self
+
+
 class AudiobookshelfImportSchema(BaseModel):
     """Audiobookshelf import settings."""
 
@@ -278,6 +368,10 @@ class AudiobookshelfImportSchema(BaseModel):
     trumping: TrumpingSchema = Field(
         default_factory=TrumpingSchema,
         description="Quality-based replacement settings",
+    )
+    cleanup: CleanupSchema = Field(
+        default_factory=CleanupSchema,
+        description="Post-import cleanup settings for Libation source files",
     )
     # ABS search settings (query Audible via ABS for missing ASINs)
     abs_search: bool = Field(

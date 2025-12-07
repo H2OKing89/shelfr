@@ -51,6 +51,7 @@ from dotenv import load_dotenv
 from pydantic import ValidationError as PydanticValidationError
 
 if TYPE_CHECKING:
+    from mamfast.abs.cleanup import CleanupPrefs
     from mamfast.abs.trumping import TrumpPrefs
 
 logger = logging.getLogger(__name__)
@@ -273,6 +274,20 @@ class TrumpingConfig:
     archive_by_year: bool = True
 
 
+@dataclass
+class CleanupConfig:
+    """Post-import cleanup settings for Libation source files."""
+
+    strategy: str = "none"  # none | hide | move | delete
+    cleanup_path: str | None = None  # Required if strategy=move
+    require_seed_exists: bool = True
+    verify_in_abs: bool = False
+    hide_marker: str = ".mamfast_imported"
+    min_age_days: int = 0
+    ignore_dirs: list[str] = field(default_factory=lambda: ["__import_test", ".git", ".venv"])
+    ignore_glob: list[str] = field(default_factory=lambda: ["*/__*", "*/.#*"])
+
+
 def build_trump_prefs(
     trumping_config: TrumpingConfig,
     *,
@@ -325,6 +340,50 @@ def build_trump_prefs(
     return TrumpPrefs.from_config(modified_config)
 
 
+def build_cleanup_prefs(
+    cleanup_config: CleanupConfig,
+    *,
+    strategy_override: str | None = None,
+    cleanup_path_override: str | None = None,
+) -> CleanupPrefs:
+    """Build CleanupPrefs from config with optional CLI overrides.
+
+    Centralizes cleanup preference construction so CLI and importer
+    don't need to know config structure details.
+
+    Args:
+        cleanup_config: CleanupConfig from AudiobookshelfImportConfig
+        strategy_override: Override cleanup strategy (none/hide/move/delete)
+        cleanup_path_override: Override cleanup_path for move strategy
+
+    Returns:
+        CleanupPrefs instance
+    """
+    # Import here to avoid circular dependency
+    from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+
+    # Apply strategy override if provided
+    strategy_str = strategy_override if strategy_override is not None else cleanup_config.strategy
+    strategy = CleanupStrategy(strategy_str.lower())
+
+    # Apply cleanup_path override if provided
+    cleanup_path_str = (
+        cleanup_path_override if cleanup_path_override is not None else cleanup_config.cleanup_path
+    )
+    cleanup_path = Path(cleanup_path_str) if cleanup_path_str else None
+
+    return CleanupPrefs(
+        strategy=strategy,
+        cleanup_path=cleanup_path,
+        require_seed_exists=cleanup_config.require_seed_exists,
+        verify_in_abs=cleanup_config.verify_in_abs,
+        hide_marker=cleanup_config.hide_marker,
+        min_age_days=cleanup_config.min_age_days,
+        ignore_dirs=tuple(cleanup_config.ignore_dirs),
+        ignore_glob=tuple(cleanup_config.ignore_glob),
+    )
+
+
 @dataclass
 class AudiobookshelfImportConfig:
     """Audiobookshelf import settings."""
@@ -332,6 +391,7 @@ class AudiobookshelfImportConfig:
     duplicate_policy: str = "skip"  # skip | warn | overwrite
     trigger_scan: str = "batch"  # none | each | batch
     trumping: TrumpingConfig = field(default_factory=TrumpingConfig)
+    cleanup: CleanupConfig = field(default_factory=CleanupConfig)
     # ABS search: query Audible via ABS for missing ASINs (default: enabled)
     abs_search: bool = True
     abs_search_confidence: float = 0.75  # Minimum confidence threshold (0.0-1.0)
@@ -663,6 +723,30 @@ def _parse_trumping_config(data: dict[str, Any]) -> TrumpingConfig:
         max_duration_ratio=data.get("max_duration_ratio", 1.25),
         archive_root=data.get("archive_root"),
         archive_by_year=data.get("archive_by_year", True),
+    )
+
+
+def _parse_cleanup_config(data: dict[str, Any]) -> CleanupConfig:
+    """Parse cleanup config from YAML data.
+
+    Args:
+        data: Dict from YAML audiobookshelf.import.cleanup section
+
+    Returns:
+        CleanupConfig with values from YAML or defaults
+    """
+    if not data:
+        return CleanupConfig()
+
+    return CleanupConfig(
+        strategy=data.get("strategy", "none"),
+        cleanup_path=data.get("cleanup_path"),
+        require_seed_exists=data.get("require_seed_exists", True),
+        verify_in_abs=data.get("verify_in_abs", False),
+        hide_marker=data.get("hide_marker", ".mamfast_imported"),
+        min_age_days=data.get("min_age_days", 0),
+        ignore_dirs=data.get("ignore_dirs", ["__import_test", ".git", ".venv"]),
+        ignore_glob=data.get("ignore_glob", ["*/__*", "*/.#*"]),
     )
 
 
@@ -1092,6 +1176,7 @@ def load_settings(
             duplicate_policy=abs_import_data.get("duplicate_policy", "skip"),
             trigger_scan=abs_import_data.get("trigger_scan", "batch"),
             trumping=_parse_trumping_config(abs_import_data.get("trumping", {})),
+            cleanup=_parse_cleanup_config(abs_import_data.get("cleanup", {})),
             abs_search=abs_import_data.get("abs_search", True),
             abs_search_confidence=abs_import_data.get("abs_search_confidence", 0.75),
             unknown_asin_policy=abs_import_data.get("unknown_asin_policy", "import"),

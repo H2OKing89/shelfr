@@ -220,5 +220,48 @@ audiobookshelf:
       # Keep archive organized by year?
       archive_by_year: true
 
+    # ───────────────────────────────────────────────────────────────────────
+    # Post-Import Cleanup: Manage Libation Source Files
+    # See docs/audiobookshelf/CLEANUP_PLAN.md for full documentation
+    # ───────────────────────────────────────────────────────────────────────
+    cleanup:
+      # Cleanup strategy for successfully imported books
+      # - none: Leave source files in place (default, safest)
+      # - hide: Add hidden marker file (prevents Libation re-download detection)
+      # - move: Move source to cleanup_path for later review/deletion
+      # - delete: Remove source files (DANGEROUS - data loss if seeding fails)
+      strategy: none
+
+      # Path for moved files (REQUIRED if strategy=move)
+      # Uncomment and set this before using move strategy:
+      # cleanup_path: "/mnt/user/data/audio/imported-cleanup"
+
+      # Only cleanup if seeding hardlinks still exist?
+      # Prevents deletion if torrent was removed from qBittorrent
+      # HIGHLY RECOMMENDED to keep this enabled
+      require_seed_exists: true
+
+      # Delay cleanup until ABS API confirms book exists?
+      # Extra safety check but slower (API call per book)
+      verify_in_abs: false
+
+      # Hidden marker filename (for strategy=hide)
+      hide_marker: ".mamfast_imported"
+
+      # Age-based filter: only cleanup sources older than N days (0 = disabled)
+      # Useful for keeping recent imports available for troubleshooting
+      min_age_days: 0
+
+      # Directories to always ignore during standalone cleanup
+      ignore_dirs:
+        - "__import_test"
+        - ".git"
+        - ".venv"
+
+      # Glob patterns to ignore
+      ignore_glob:
+        - "*/__*"
+        - "*/.#*"
+
   # Index database location (for ASIN caching and duplicate detection)
   index_db: "./data/abs_index.db"

@@ -334,6 +334,16 @@ class TestAbsImportCommand:
         # Unknown ASIN policy settings
         config.import_settings.unknown_asin_policy = "import"
         config.import_settings.quarantine_path = None
+        # Cleanup config - disabled by default for tests
+        config.import_settings.cleanup = MagicMock()
+        config.import_settings.cleanup.strategy = "none"
+        config.import_settings.cleanup.cleanup_path = None
+        config.import_settings.cleanup.require_seed_exists = True
+        config.import_settings.cleanup.verify_in_abs = False
+        config.import_settings.cleanup.hide_marker = ".mamfast_imported"
+        config.import_settings.cleanup.min_age_days = 0
+        config.import_settings.cleanup.ignore_dirs = ["__import_test", ".git", ".venv"]
+        config.import_settings.cleanup.ignore_glob = ["*/__*", "*/.#*"]
         return config
 
     def test_abs_import_config_not_found(self, args: argparse.Namespace) -> None:
@@ -1342,3 +1352,306 @@ class TestAbsRestoreCommand:
         with patch("mamfast.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_restore(args)
             assert result == 1
+
+
+# =============================================================================
+# ABS Cleanup CLI Tests
+# =============================================================================
+
+
+class TestAbsImportCleanupFlags:
+    """Tests for abs-import cleanup-related flags."""
+
+    def test_abs_import_cleanup_strategy_flag(self) -> None:
+        """Test abs-import --cleanup-strategy flag is parsed."""
+        parser = build_parser()
+        args_default = parser.parse_args(["abs-import"])
+        assert args_default.cleanup_strategy is None
+
+        for strategy in ["none", "hide", "move", "delete"]:
+            args_custom = parser.parse_args(["abs-import", "--cleanup-strategy", strategy])
+            assert args_custom.cleanup_strategy == strategy
+
+    def test_abs_import_cleanup_path_flag(self) -> None:
+        """Test abs-import --cleanup-path flag is parsed."""
+        parser = build_parser()
+        args_default = parser.parse_args(["abs-import"])
+        assert args_default.cleanup_path is None
+
+        args_custom = parser.parse_args(["abs-import", "--cleanup-path", "/tmp/cleanup"])
+        assert args_custom.cleanup_path == Path("/tmp/cleanup")
+
+    def test_abs_import_no_cleanup_flag(self) -> None:
+        """Test abs-import --no-cleanup flag is parsed."""
+        parser = build_parser()
+        args_default = parser.parse_args(["abs-import"])
+        assert args_default.no_cleanup is False
+
+        args_disabled = parser.parse_args(["abs-import", "--no-cleanup"])
+        assert args_disabled.no_cleanup is True
+
+    def test_abs_import_cleanup_flags_combined(self) -> None:
+        """Test abs-import cleanup flags can be combined."""
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "abs-import",
+                "--cleanup-strategy",
+                "move",
+                "--cleanup-path",
+                "/mnt/cleanup",
+            ]
+        )
+        assert args.cleanup_strategy == "move"
+        assert args.cleanup_path == Path("/mnt/cleanup")
+
+
+class TestAbsCleanupParser:
+    """Tests for abs-cleanup command parser setup."""
+
+    def test_abs_cleanup_parser_exists(self) -> None:
+        """Test abs-cleanup subcommand is registered."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-cleanup"])
+        assert args.command == "abs-cleanup"
+        assert hasattr(args, "func")
+
+    def test_abs_cleanup_dry_run_flag(self) -> None:
+        """Test abs-cleanup --dry-run flag is parsed (global flag before subcommand)."""
+        parser = build_parser()
+        args = parser.parse_args(["--dry-run", "abs-cleanup"])
+        assert args.dry_run is True
+
+    def test_abs_cleanup_strategy_flag(self) -> None:
+        """Test abs-cleanup --strategy flag is parsed."""
+        parser = build_parser()
+        args_default = parser.parse_args(["abs-cleanup"])
+        assert args_default.strategy is None
+
+        for strategy in ["none", "hide", "move", "delete"]:
+            args_custom = parser.parse_args(["abs-cleanup", "--strategy", strategy])
+            assert args_custom.strategy == strategy
+
+    def test_abs_cleanup_cleanup_path_flag(self) -> None:
+        """Test abs-cleanup --cleanup-path flag is parsed."""
+        parser = build_parser()
+        args_default = parser.parse_args(["abs-cleanup"])
+        assert args_default.cleanup_path is None
+
+        args_custom = parser.parse_args(["abs-cleanup", "--cleanup-path", "/tmp/cleanup"])
+        assert args_custom.cleanup_path == Path("/tmp/cleanup")
+
+    def test_abs_cleanup_no_verify_seed_flag(self) -> None:
+        """Test abs-cleanup --no-verify-seed flag is parsed."""
+        parser = build_parser()
+        args_default = parser.parse_args(["abs-cleanup"])
+        assert args_default.no_verify_seed is False
+
+        args_disabled = parser.parse_args(["abs-cleanup", "--no-verify-seed"])
+        assert args_disabled.no_verify_seed is True
+
+    def test_abs_cleanup_min_age_days_flag(self) -> None:
+        """Test abs-cleanup --min-age-days flag is parsed."""
+        parser = build_parser()
+        args_default = parser.parse_args(["abs-cleanup"])
+        assert args_default.min_age_days is None
+
+        args_custom = parser.parse_args(["abs-cleanup", "--min-age-days", "7"])
+        assert args_custom.min_age_days == 7
+
+    def test_abs_cleanup_paths_positional(self, tmp_path: Path) -> None:
+        """Test abs-cleanup accepts positional paths."""
+        parser = build_parser()
+        path1 = str(tmp_path / "book1")
+        path2 = str(tmp_path / "book2")
+        args = parser.parse_args(["abs-cleanup", path1, path2])
+        assert len(args.paths) == 2
+
+    def test_abs_cleanup_defaults(self) -> None:
+        """Test abs-cleanup default values."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-cleanup"])
+        assert args.strategy is None
+        assert args.cleanup_path is None
+        assert args.no_verify_seed is False
+        assert args.min_age_days is None
+        assert args.paths == []
+
+
+class TestAbsCleanupCommand:
+    """Tests for abs-cleanup command implementation."""
+
+    @pytest.fixture
+    def args(self) -> argparse.Namespace:
+        """Create basic args namespace."""
+        return argparse.Namespace(
+            config="config/config.yaml",
+            dry_run=False,
+            verbose=False,
+            strategy=None,
+            cleanup_path=None,
+            no_verify_seed=False,
+            min_age_days=None,
+            paths=[],
+        )
+
+    @pytest.fixture
+    def mock_abs_config(self, tmp_path: Path) -> MagicMock:
+        """Create mock audiobookshelf config with cleanup settings."""
+        config = MagicMock()
+        config.enabled = True
+        config.host = "http://localhost:13378"
+        config.api_key = "test-key"
+        config.timeout_seconds = 30
+        config.import_settings = MagicMock()
+        config.import_settings.cleanup = MagicMock()
+        config.import_settings.cleanup.strategy = "none"
+        config.import_settings.cleanup.cleanup_path = None
+        config.import_settings.cleanup.require_seed_exists = True
+        config.import_settings.cleanup.verify_in_abs = False
+        config.import_settings.cleanup.hide_marker = ".mamfast_imported"
+        config.import_settings.cleanup.min_age_days = 0
+        config.import_settings.cleanup.ignore_dirs = ["__import_test", ".git", ".venv"]
+        config.import_settings.cleanup.ignore_glob = ["*/__*", "*/.#*"]
+        return config
+
+    def test_abs_cleanup_config_not_found(self, args: argparse.Namespace) -> None:
+        """Test abs-cleanup handles missing config file."""
+        from mamfast.cli import cmd_abs_cleanup
+
+        with patch("mamfast.config.reload_settings") as mock_reload:
+            mock_reload.side_effect = FileNotFoundError("config not found")
+            result = cmd_abs_cleanup(args)
+            assert result == 1
+
+    def test_abs_cleanup_abs_disabled(self, args: argparse.Namespace) -> None:
+        """Test abs-cleanup warns when ABS is disabled."""
+        from mamfast.cli import cmd_abs_cleanup
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf.enabled = False
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_cleanup(args)
+            assert result == 1
+
+    def test_abs_cleanup_strategy_none_exits(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-cleanup exits when strategy is none."""
+        from mamfast.cli import cmd_abs_cleanup
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths = MagicMock()
+        mock_settings.paths.seed_root = tmp_path / "seed"
+        mock_settings.paths.library_root = tmp_path / "library"
+
+        # Strategy is 'none' by default
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_cleanup(args)
+            # Should exit gracefully with 0 (nothing to do)
+            assert result == 0
+
+    def test_abs_cleanup_move_without_path_fails(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-cleanup fails when move strategy has no cleanup_path."""
+        from mamfast.cli import cmd_abs_cleanup
+
+        args.strategy = "move"
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths = MagicMock()
+        mock_settings.paths.seed_root = tmp_path / "seed"
+        mock_settings.paths.library_root = tmp_path / "library"
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_cleanup(args)
+            assert result == 1
+
+    def test_abs_cleanup_no_candidates(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-cleanup exits gracefully when no candidates found."""
+        from mamfast.cli import cmd_abs_cleanup
+
+        args.strategy = "hide"
+
+        library_root = tmp_path / "library"
+        library_root.mkdir()
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths = MagicMock()
+        mock_settings.paths.seed_root = tmp_path / "seed"
+        mock_settings.paths.library_root = library_root
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_cleanup(args)
+            # Should exit gracefully with 0 (no candidates)
+            assert result == 0
+
+    def test_abs_cleanup_dry_run(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-cleanup dry-run mode doesn't modify files."""
+        from mamfast.cli import cmd_abs_cleanup
+
+        args.strategy = "hide"
+        args.dry_run = True
+        args.no_verify_seed = True  # Skip seed verification for simplicity
+
+        library_root = tmp_path / "library"
+        library_root.mkdir()
+
+        # Create an eligible folder (has .metadata.json)
+        book_folder = library_root / "Test Book"
+        book_folder.mkdir()
+        (book_folder / "test.metadata.json").write_text("{}")
+        (book_folder / "test.m4b").write_text("audio")
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths = MagicMock()
+        mock_settings.paths.seed_root = tmp_path / "seed"
+        mock_settings.paths.library_root = library_root
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_cleanup(args)
+            assert result == 0
+
+        # Verify no marker file was created (dry run)
+        assert not (book_folder / ".mamfast_imported").exists()
+
+    def test_abs_cleanup_hide_strategy(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test abs-cleanup hide strategy creates marker file."""
+        from mamfast.cli import cmd_abs_cleanup
+
+        args.strategy = "hide"
+        args.no_verify_seed = True  # Skip seed verification
+
+        library_root = tmp_path / "library"
+        library_root.mkdir()
+
+        # Create an eligible folder
+        book_folder = library_root / "Test Book"
+        book_folder.mkdir()
+        (book_folder / "test.metadata.json").write_text("{}")
+        (book_folder / "test.m4b").write_text("audio")
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths = MagicMock()
+        mock_settings.paths.seed_root = tmp_path / "seed"
+        mock_settings.paths.library_root = library_root
+
+        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+            result = cmd_abs_cleanup(args)
+            assert result == 0
+
+        # Verify marker file was created
+        assert (book_folder / ".mamfast_imported").exists()

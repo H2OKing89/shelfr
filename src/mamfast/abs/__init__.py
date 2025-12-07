@@ -17,6 +17,17 @@ from mamfast.abs.asin import (
     match_search_results,
     resolve_asin_via_abs_search,
 )
+from mamfast.abs.cleanup import (
+    CLEANUP_ELIGIBLE_STATUSES,
+    CleanupError,
+    CleanupPrefs,
+    CleanupResult,
+    CleanupStrategy,
+    cleanup_source,
+    is_cleanup_eligible,
+    should_ignore_folder,
+    verify_seed_exists,
+)
 from mamfast.abs.client import (
     AbsApiError,
     AbsAuthError,
@@ -58,6 +69,16 @@ __all__ = [
     "is_valid_asin",
     "match_search_results",
     "resolve_asin_via_abs_search",
+    # Cleanup
+    "CLEANUP_ELIGIBLE_STATUSES",
+    "CleanupError",
+    "CleanupPrefs",
+    "CleanupResult",
+    "CleanupStrategy",
+    "cleanup_source",
+    "is_cleanup_eligible",
+    "should_ignore_folder",
+    "verify_seed_exists",
     # Client
     "AbsApiError",
     "AbsAuthError",

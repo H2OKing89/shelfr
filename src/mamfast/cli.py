@@ -429,6 +429,25 @@ Examples:
         metavar="LEVEL",
         help="Override trumping aggressiveness (default: from config)",
     )
+    abs_import_parser.add_argument(
+        "--cleanup-strategy",
+        choices=["none", "hide", "move", "delete"],
+        default=None,
+        metavar="STRATEGY",
+        help="Override cleanup strategy for Libation source files (default: from config)",
+    )
+    abs_import_parser.add_argument(
+        "--cleanup-path",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Override cleanup path for 'move' strategy (default: from config)",
+    )
+    abs_import_parser.add_argument(
+        "--no-cleanup",
+        action="store_true",
+        help="Disable post-import cleanup (ignore config setting)",
+    )
     abs_import_parser.set_defaults(func=cmd_abs_import)
 
     # -------------------------------------------------------------------------
@@ -493,6 +512,51 @@ Examples:
         help="List available archives without restoring",
     )
     abs_restore_parser.set_defaults(func=cmd_abs_restore)
+
+    # -------------------------------------------------------------------------
+    # abs-cleanup: Standalone cleanup of already-imported Libation sources
+    # -------------------------------------------------------------------------
+    abs_cleanup_parser = subparsers.add_parser(
+        "abs-cleanup",
+        help="Cleanup Libation source files after import",
+        epilog=(
+            "Standalone cleanup of Libation source folders that have been imported.\n"
+            "Supports multiple strategies: hide (add marker), move, or delete."
+        ),
+    )
+    abs_cleanup_parser.add_argument(
+        "paths",
+        nargs="*",
+        type=Path,
+        help="Specific folder(s) to cleanup (default: all eligible in library_root)",
+    )
+    abs_cleanup_parser.add_argument(
+        "--strategy",
+        choices=["none", "hide", "move", "delete"],
+        default=None,
+        metavar="STRATEGY",
+        help="Cleanup strategy (default: from config)",
+    )
+    abs_cleanup_parser.add_argument(
+        "--cleanup-path",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Destination for 'move' strategy (default: from config)",
+    )
+    abs_cleanup_parser.add_argument(
+        "--no-verify-seed",
+        action="store_true",
+        help="Skip verification of seed hardlinks (DANGEROUS)",
+    )
+    abs_cleanup_parser.add_argument(
+        "--min-age-days",
+        type=int,
+        default=None,
+        metavar="DAYS",
+        help="Only cleanup sources older than N days (default: from config)",
+    )
+    abs_cleanup_parser.set_defaults(func=cmd_abs_cleanup)
 
     # -------------------------------------------------------------------------
     # abs-resolve-asins: Batch resolve ASINs for Unknown/ books via ABS search
@@ -2140,7 +2204,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         print_dry_run(f"Would import {len(staging_folders)} book(s)")
 
     # Build trumping preferences from config with CLI overrides
-    from mamfast.config import build_trump_prefs
+    from mamfast.config import build_cleanup_prefs, build_trump_prefs
 
     trump_prefs = build_trump_prefs(
         abs_config.import_settings.trumping,
@@ -2151,6 +2215,30 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         print_info(f"Trumping enabled (aggressiveness: {trump_prefs.aggressiveness.value})")
     elif args.no_trump:
         print_info("Trumping disabled (--no-trump)")
+
+    # Build cleanup preferences from config with CLI overrides
+    no_cleanup = getattr(args, "no_cleanup", False)
+    cleanup_strategy_override = "none" if no_cleanup else getattr(args, "cleanup_strategy", None)
+    cleanup_path_override = getattr(args, "cleanup_path", None)
+    cleanup_path_override_str = str(cleanup_path_override) if cleanup_path_override else None
+
+    cleanup_prefs = build_cleanup_prefs(
+        abs_config.import_settings.cleanup,
+        strategy_override=cleanup_strategy_override,
+        cleanup_path_override=cleanup_path_override_str,
+    )
+
+    # Log cleanup settings
+    from mamfast.abs.cleanup import CleanupStrategy
+
+    if cleanup_prefs.strategy != CleanupStrategy.NONE:
+        print_info(f"Cleanup strategy: {cleanup_prefs.strategy.value}")
+        if cleanup_prefs.strategy == CleanupStrategy.MOVE and cleanup_prefs.cleanup_path:
+            print_info(f"Cleanup path: {cleanup_prefs.cleanup_path}")
+        if cleanup_prefs.require_seed_exists:
+            print_info("Cleanup requires seed hardlinks to exist")
+    elif no_cleanup:
+        print_info("Cleanup disabled (--no-cleanup)")
 
     # Build path mapper for container↔host conversion (needed for trumping)
     path_mapper: PathMapper | None = None
@@ -2215,6 +2303,9 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                 ignore_patterns=ignore_patterns,
                 trump_prefs=trump_prefs,
                 path_mapper=path_mapper,
+                cleanup_prefs=cleanup_prefs,
+                source_paths={f: f for f in staging_folders},  # 1:1 mapping in staging
+                seed_root=settings.paths.seed_root,
                 progress_callback=progress_callback,
                 dry_run=args.dry_run,
             )
@@ -2533,6 +2624,16 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         summary_table.add_row(
             "Trumped (rejected):", f"[yellow]{result.trump_rejected_count}[/yellow]"
         )
+
+    # Cleanup statistics (if cleanup was enabled)
+    if result.cleanup_success_count > 0:
+        summary_table.add_row(
+            "Cleanup (success):", f"[green]{result.cleanup_success_count}[/green]"
+        )
+    if result.cleanup_skipped_count > 0:
+        summary_table.add_row("Cleanup (skipped):", f"[dim]{result.cleanup_skipped_count}[/dim]")
+    if result.cleanup_failed_count > 0:
+        summary_table.add_row("Cleanup (failed):", f"[red]{result.cleanup_failed_count}[/red]")
 
     if needs_review_count > 0:
         # Build breakdown of what needs review
@@ -3011,6 +3112,251 @@ def cmd_abs_restore(args: argparse.Namespace) -> int:
     except TrumpingError as e:
         fatal_error(str(e))
         return 1
+
+
+def cmd_abs_cleanup(args: argparse.Namespace) -> int:
+    """Cleanup Libation source files after import.
+
+    Standalone cleanup command for manually triggering cleanup of
+    already-imported Libation source folders. Useful when:
+    - Import was run without cleanup enabled
+    - Cleanup failed during import and needs retry
+    - Batch cleanup of historical imports
+    """
+    import logging
+
+    from mamfast.abs.cleanup import (
+        CleanupResult,
+        CleanupStrategy,
+        cleanup_source,
+        is_cleanup_eligible,
+        verify_seed_exists,
+    )
+    from mamfast.config import build_cleanup_prefs, reload_settings
+
+    logger = logging.getLogger(__name__)
+
+    print_header("Audiobookshelf Cleanup", dry_run=args.dry_run)
+
+    try:
+        settings = reload_settings(config_file=args.config)
+    except FileNotFoundError as e:
+        fatal_error(str(e), "Check that config/config.yaml exists")
+        return 1
+
+    # Check if ABS is enabled
+    if not hasattr(settings, "audiobookshelf") or not settings.audiobookshelf.enabled:
+        print_warning("Audiobookshelf integration is not enabled in config")
+        print_info("Set audiobookshelf.enabled: true in config.yaml")
+        return 1
+
+    abs_config = settings.audiobookshelf
+
+    # Build cleanup preferences from config with CLI overrides
+    strategy_override = getattr(args, "strategy", None)
+    cleanup_path_override = getattr(args, "cleanup_path", None)
+    cleanup_path_override_str = str(cleanup_path_override) if cleanup_path_override else None
+
+    cleanup_prefs = build_cleanup_prefs(
+        abs_config.import_settings.cleanup,
+        strategy_override=strategy_override,
+        cleanup_path_override=cleanup_path_override_str,
+    )
+
+    # Apply CLI overrides for require_seed_exists and min_age_days
+    no_verify_seed = getattr(args, "no_verify_seed", False)
+    if no_verify_seed:
+        # Create new prefs with require_seed_exists=False
+        from mamfast.abs.cleanup import CleanupPrefs
+
+        cleanup_prefs = CleanupPrefs(
+            strategy=cleanup_prefs.strategy,
+            cleanup_path=cleanup_prefs.cleanup_path,
+            require_seed_exists=False,
+            verify_in_abs=cleanup_prefs.verify_in_abs,
+            hide_marker=cleanup_prefs.hide_marker,
+            min_age_days=cleanup_prefs.min_age_days,
+            ignore_dirs=cleanup_prefs.ignore_dirs,
+            ignore_glob=cleanup_prefs.ignore_glob,
+        )
+
+    min_age_override = getattr(args, "min_age_days", None)
+    if min_age_override is not None:
+        from mamfast.abs.cleanup import CleanupPrefs
+
+        cleanup_prefs = CleanupPrefs(
+            strategy=cleanup_prefs.strategy,
+            cleanup_path=cleanup_prefs.cleanup_path,
+            require_seed_exists=cleanup_prefs.require_seed_exists,
+            verify_in_abs=cleanup_prefs.verify_in_abs,
+            hide_marker=cleanup_prefs.hide_marker,
+            min_age_days=min_age_override,
+            ignore_dirs=cleanup_prefs.ignore_dirs,
+            ignore_glob=cleanup_prefs.ignore_glob,
+        )
+
+    # Validate cleanup strategy
+    if cleanup_prefs.strategy == CleanupStrategy.NONE:
+        print_warning("Cleanup strategy is 'none' - nothing to do")
+        print_info("Use --strategy to specify a cleanup strategy (hide, move, delete)")
+        return 0
+
+    if cleanup_prefs.strategy == CleanupStrategy.MOVE and not cleanup_prefs.cleanup_path:
+        fatal_error("Cleanup strategy is 'move' but no cleanup_path configured")
+        print_info("Set cleanup.cleanup_path in config.yaml or use --cleanup-path")
+        return 1
+
+    # Get seed_root for hardlink verification
+    seed_root = settings.paths.seed_root
+
+    # Get library_root (source of Libation files)
+    library_root = settings.paths.library_root
+
+    # Discover folders to cleanup
+    print_step(1, 3, "Discovering cleanup candidates")
+    if args.paths:
+        # Specific paths provided
+        candidates = [p for p in args.paths if p.is_dir()]
+        if not candidates:
+            print_warning("No valid directories in provided paths")
+            return 1
+    else:
+        # Discover all eligible folders in library_root (recursive search)
+        # Audiobooks are typically at Author/Series/Book or Author/Book level
+        candidates = []
+
+        def should_ignore_dir(name: str) -> bool:
+            """Check if directory should be ignored."""
+            if name in cleanup_prefs.ignore_dirs:
+                return True
+            return bool(name.startswith("."))
+
+        def find_eligible_folders(root: Path, depth: int = 0, max_depth: int = 4) -> None:
+            """Recursively find eligible folders."""
+            if depth > max_depth:
+                return
+            try:
+                for folder in root.iterdir():
+                    if not folder.is_dir():
+                        continue
+                    if should_ignore_dir(folder.name):
+                        continue
+                    # Check if this folder is eligible for cleanup
+                    if is_cleanup_eligible(folder):
+                        candidates.append(folder)
+                    else:
+                        # Not eligible, search deeper (Author/Series folders)
+                        find_eligible_folders(folder, depth + 1, max_depth)
+            except PermissionError:
+                logger.warning("Permission denied: %s", root)
+
+        find_eligible_folders(library_root)
+
+    if not candidates:
+        print_info("No eligible folders found for cleanup")
+        return 0
+
+    print_info(f"Found {len(candidates)} cleanup candidate(s)")
+
+    # Display cleanup settings
+    print_step(2, 3, "Cleanup settings")
+    print_info(f"Strategy: {cleanup_prefs.strategy.value}")
+    if cleanup_prefs.strategy == CleanupStrategy.MOVE:
+        print_info(f"Cleanup path: {cleanup_prefs.cleanup_path}")
+    if cleanup_prefs.require_seed_exists:
+        print_info(f"Require seed exists: Yes (seed_root: {seed_root})")
+    else:
+        print_warning("Require seed exists: No (DANGEROUS - data loss possible)")
+    if cleanup_prefs.min_age_days > 0:
+        print_info(f"Minimum age: {cleanup_prefs.min_age_days} days")
+
+    if args.dry_run:
+        print_dry_run(f"Would cleanup {len(candidates)} folder(s)")
+
+    # Process cleanup
+    print_step(3, 3, "Processing cleanup")
+    results: list[CleanupResult] = []
+    success_count = 0
+    skipped_count = 0
+    failed_count = 0
+
+    for folder in candidates:
+        # Verify seed exists if required
+        if cleanup_prefs.require_seed_exists:
+            seed_exists, seed_path = verify_seed_exists(folder, seed_root)
+            if not seed_exists:
+                result = CleanupResult(
+                    source_path=folder,
+                    status="skipped",
+                    strategy=cleanup_prefs.strategy,
+                    error="Seed hardlinks not found",
+                )
+                results.append(result)
+                skipped_count += 1
+                print_warning(f"Skipped {folder.name}: seed hardlinks not found")
+                continue
+
+        # Perform cleanup
+        result = cleanup_source(
+            source_path=folder,
+            prefs=cleanup_prefs,
+            seed_root=seed_root,
+            dry_run=args.dry_run,
+        )
+        results.append(result)
+
+        if result.status == "success":
+            success_count += 1
+            if result.strategy == CleanupStrategy.HIDE:
+                print_success(f"Hidden: {folder.name}")
+            elif result.strategy == CleanupStrategy.MOVE:
+                print_success(f"Moved: {folder.name} → {result.destination}")
+            elif result.strategy == CleanupStrategy.DELETE:
+                print_success(f"Deleted: {folder.name}")
+        elif result.status == "dry_run":
+            success_count += 1
+            print_dry_run(f"Would cleanup: {folder.name}")
+        elif result.status == "skipped":
+            skipped_count += 1
+            print_warning(f"Skipped: {folder.name} ({result.error})")
+        else:
+            failed_count += 1
+            print_error(f"Failed: {folder.name} ({result.error})")
+
+    # Summary
+    console.print()
+    from rich.panel import Panel
+    from rich.table import Table
+
+    summary_table = Table(show_header=False, box=None, padding=(0, 2))
+    summary_table.add_column("Label", style="dim")
+    summary_table.add_column("Value", justify="right")
+
+    summary_table.add_row("Folders processed:", str(len(results)))
+    summary_table.add_row("Strategy:", cleanup_prefs.strategy.value)
+    summary_table.add_row("", "")
+
+    if args.dry_run:
+        summary_table.add_row("Would cleanup:", f"[green]{success_count}[/green]")
+    else:
+        summary_table.add_row("Cleaned up:", f"[green]{success_count}[/green]")
+
+    if skipped_count > 0:
+        summary_table.add_row("Skipped:", f"[yellow]{skipped_count}[/yellow]")
+    if failed_count > 0:
+        summary_table.add_row("Failed:", f"[red]{failed_count}[/red]")
+
+    if args.dry_run:
+        panel_title = "[bold yellow]DRY RUN Summary[/bold yellow]"
+        panel_border = "yellow"
+    else:
+        panel_title = "[bold green]Cleanup Summary[/bold green]"
+        panel_border = "green"
+
+    console.print(Panel(summary_table, title=panel_title, border_style=panel_border))
+    console.print()
+
+    return 1 if failed_count > 0 else 0
 
 
 def cmd_abs_resolve_asins(args: argparse.Namespace) -> int:
