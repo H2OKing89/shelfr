@@ -1311,6 +1311,10 @@ def _map_genres_to_categories(genres: list[dict[str, Any]]) -> list[int]:
     """
     Map Audnex genres to MAM category IDs.
 
+    Handles compound genres like "Science Fiction & Fantasy" by:
+    1. First trying exact match for the full compound string
+    2. Then splitting on " & " and ", " to match individual components
+
     Args:
         genres: List of genre dicts from Audnex (with 'name' key)
 
@@ -1326,11 +1330,33 @@ def _map_genres_to_categories(genres: list[dict[str, Any]]) -> list[int]:
     categories: set[int] = set()
 
     for genre in genres:
-        name = genre.get("name", "").lower()
+        name = genre.get("name", "").lower().strip()
+        if not name:
+            continue
+
+        # First try exact match for the full string
         if name in category_map:
             categories.add(category_map[name])
-        else:
-            # Try partial matching
+            continue
+
+        # Split compound genres on " & " and ", " to match individual parts
+        # e.g., "Science Fiction & Fantasy" -> ["science fiction", "fantasy"]
+        # e.g., "Literature & Fiction, Fantasy" -> ["literature", "fiction", "fantasy"]
+        parts = []
+        for part in name.replace(" & ", ", ").split(", "):
+            part = part.strip()
+            if part:
+                parts.append(part)
+
+        # Try to match each part
+        matched = False
+        for part in parts:
+            if part in category_map:
+                categories.add(category_map[part])
+                matched = True
+
+        # Fallback: partial matching if no parts matched
+        if not matched:
             for key, cat_id in category_map.items():
                 if key in name or name in key:
                     categories.add(cat_id)

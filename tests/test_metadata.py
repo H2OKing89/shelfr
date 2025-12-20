@@ -14,6 +14,7 @@ from mamfast.metadata import (
     _format_chapter_time,
     _format_duration,
     _get_mediainfo_string,
+    _map_genres_to_categories,
     _parse_chapters_from_mediainfo,
     build_mam_json,
     detect_audio_format,
@@ -1823,3 +1824,103 @@ class TestDetectAudioFormat:
         assert result.channels == 2  # default
         assert result.sample_rate == 44100  # default
         assert result.is_dolby_atmos is False
+
+
+class TestMapGenresToCategories:
+    """Tests for _map_genres_to_categories function."""
+
+    def test_exact_match(self):
+        """Exact genre match returns correct category."""
+        mock_settings = MagicMock()
+        mock_settings.categories.genre_map = {
+            "fantasy": 13,
+            "science fiction": 45,
+        }
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            result = _map_genres_to_categories([{"name": "Fantasy"}])
+
+        assert result == [13]
+
+    def test_compound_genre_splits_on_ampersand(self):
+        """Compound genre 'Science Fiction & Fantasy' maps to both categories."""
+        mock_settings = MagicMock()
+        mock_settings.categories.genre_map = {
+            "fantasy": 13,
+            "science fiction": 45,
+        }
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            result = _map_genres_to_categories([{"name": "Science Fiction & Fantasy"}])
+
+        # Should map to both Science Fiction (45) and Fantasy (13)
+        assert sorted(result) == [13, 45]
+
+    def test_compound_genre_splits_on_comma(self):
+        """Compound genre 'Literature & Fiction, Fantasy' maps all parts."""
+        mock_settings = MagicMock()
+        mock_settings.categories.genre_map = {
+            "literature": 57,
+            "fiction": 57,
+            "fantasy": 13,
+        }
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            result = _map_genres_to_categories([{"name": "Literature & Fiction, Fantasy"}])
+
+        # Should map to both Literary Fiction (57) and Fantasy (13)
+        assert sorted(result) == [13, 57]
+
+    def test_multiple_genres_deduplicated(self):
+        """Multiple genres with same category are deduplicated."""
+        mock_settings = MagicMock()
+        mock_settings.categories.genre_map = {
+            "fantasy": 13,
+            "epic": 13,
+            "high fantasy": 13,
+        }
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            result = _map_genres_to_categories(
+                [
+                    {"name": "Fantasy"},
+                    {"name": "Epic"},
+                    {"name": "High Fantasy"},
+                ]
+            )
+
+        # All map to Fantasy (13), should be deduplicated
+        assert result == [13]
+
+    def test_partial_match_fallback(self):
+        """Falls back to partial matching when no exact/split match."""
+        mock_settings = MagicMock()
+        mock_settings.categories.genre_map = {
+            "thriller": 51,
+        }
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            result = _map_genres_to_categories([{"name": "Psychological Thriller"}])
+
+        # Partial match should find "thriller"
+        assert result == [51]
+
+    def test_empty_genres_returns_empty(self):
+        """Empty genres list returns empty categories."""
+        mock_settings = MagicMock()
+        mock_settings.categories.genre_map = {"fantasy": 13}
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            result = _map_genres_to_categories([])
+
+        assert result == []
+
+    def test_unmatched_genre_returns_empty(self):
+        """Unmatched genre returns empty categories."""
+        mock_settings = MagicMock()
+        mock_settings.categories.genre_map = {"fantasy": 13}
+
+        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+            result = _map_genres_to_categories([{"name": "Audiobook"}])
+
+        assert result == []
