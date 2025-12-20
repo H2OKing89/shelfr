@@ -2727,6 +2727,13 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                     # Source path is the staging_path for direct staging imports
                     source_path = r.staging_path
 
+                    # Skip cleanup if source was already moved during import
+                    # This happens for direct staging imports where staging_folder == source
+                    if not args.dry_run and not source_path.exists():
+                        cleanup_success_count += 1  # Count as success (already moved)
+                        cleanup_would_succeed_paths.add(source_path)
+                        continue
+
                     cleanup_result = cleanup_source(
                         source_path=source_path,
                         prefs=cleanup_prefs,

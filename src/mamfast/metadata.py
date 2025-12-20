@@ -1364,12 +1364,22 @@ def _clean_html(text: str) -> str:
     """
     Clean HTML tags from description text.
 
-    Strips HTML tags and decodes HTML entities.
+    Converts HTML paragraphs to newlines, strips remaining tags,
+    and decodes HTML entities.
     """
-    # Remove HTML tags
+    # Convert paragraph breaks to double newlines (before stripping tags)
+    # Handle both </p> and <p> as paragraph boundaries
+    text = re.sub(r"</p>\s*", "\n\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<p[^>]*>", "", text, flags=re.IGNORECASE)
+    # Convert <br> tags to single newlines
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    # Remove remaining HTML tags
     text = re.sub(r"<[^>]+>", "", text)
     # Decode HTML entities (handles &amp;, &lt;, &#39;, etc.)
     text = html.unescape(text)
+    # Clean up excessive whitespace while preserving intentional newlines
+    text = re.sub(r"[ \t]+", " ", text)  # Collapse horizontal whitespace
+    text = re.sub(r"\n{3,}", "\n\n", text)  # Max 2 newlines (1 blank line)
     return text.strip()
 
 
