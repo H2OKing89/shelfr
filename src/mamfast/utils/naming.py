@@ -1715,7 +1715,10 @@ def build_mam_folder_name(
         Sanitized folder name within length limit
     """
     # Delegate to build_mam_path for centralized logic
-    # Use folder_max_length for folder-only truncation
+    # Use folder_max_length for folder-specific truncation
+    # For max_path_length: use the larger of max_length or MAM_MAX_PATH_LENGTH
+    # This allows callers (like ABS importer) to disable truncation by passing
+    # a very large max_length, while keeping default MAM behavior for normal calls
     mam_path = build_mam_path(
         series=series,
         title=title,
@@ -1726,8 +1729,8 @@ def build_mam_folder_name(
         asin=asin,
         ripper_tag=ripper_tag,
         naming_config=naming_config,
-        max_path_length=MAM_MAX_PATH_LENGTH,  # Always use full budget
-        folder_max_length=max_length,  # But constrain folder separately
+        max_path_length=max(max_length, MAM_MAX_PATH_LENGTH),  # Never stricter than 225
+        folder_max_length=max_length,  # But constrain folder to caller's limit
     )
     return mam_path.folder
 

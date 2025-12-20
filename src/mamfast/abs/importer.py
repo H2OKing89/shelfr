@@ -488,8 +488,12 @@ def enrich_from_audnex(parsed: ParsedFolderName, asin: str) -> ParsedFolderName:
     return parsed
 
 
+# No path length limit for ABS imports (only applies to MAM uploads)
+ABS_NO_PATH_LIMIT = 10000
+
+
 def build_clean_folder_name(parsed: ParsedFolderName) -> str:
-    """Build a clean MAM-compliant folder name from parsed components.
+    """Build a clean folder name from parsed components.
 
     Uses the naming module's build_mam_folder_name() to apply all cleaning:
     - Volume normalization (Vol. 7 → vol_07)
@@ -497,11 +501,14 @@ def build_clean_folder_name(parsed: ParsedFolderName) -> str:
     - Phrase filtering
     - Sanitization
 
+    Note: No path length limit is applied for ABS imports (personal library).
+    The MAM 225-char limit only applies to `mamfast run` uploads.
+
     Args:
         parsed: ParsedFolderName from parse_mam_folder_name()
 
     Returns:
-        Clean folder name following MAM naming convention
+        Clean folder name following naming convention
     """
     return build_mam_folder_name(
         series=parsed.series,
@@ -512,23 +519,27 @@ def build_clean_folder_name(parsed: ParsedFolderName) -> str:
         author=parsed.narrator or parsed.author,  # Use narrator if available
         asin=parsed.asin,
         ripper_tag=parsed.ripper_tag,
+        max_length=ABS_NO_PATH_LIMIT,  # No limit for personal library
     )
 
 
 def build_clean_file_name(parsed: ParsedFolderName, extension: str = ".m4b") -> str:
-    """Build a clean MAM-compliant file name from parsed components.
+    """Build a clean file name from parsed components.
 
     Uses the naming module's build_mam_file_name() which:
     - Applies same cleaning as folder name
     - Excludes ripper tag (tag is folder-only)
     - Includes file extension
 
+    Note: No path length limit is applied for ABS imports (personal library).
+    The MAM 225-char limit only applies to `mamfast run` uploads.
+
     Args:
         parsed: ParsedFolderName from parse_mam_folder_name()
         extension: File extension (default: ".m4b")
 
     Returns:
-        Clean filename following MAM naming convention
+        Clean filename following naming convention
     """
     return build_mam_file_name(
         series=parsed.series,
@@ -539,6 +550,7 @@ def build_clean_file_name(parsed: ParsedFolderName, extension: str = ".m4b") -> 
         author=parsed.narrator or parsed.author,  # Use narrator if available
         asin=parsed.asin,
         extension=extension,
+        max_length=ABS_NO_PATH_LIMIT,  # No limit for personal library
     )
 
 
