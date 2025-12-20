@@ -578,11 +578,11 @@ class PreflightValidation:
             # Try to create it
             try:
                 seed_root.mkdir(parents=True, exist_ok=True)
-            except PermissionError:
+            except OSError as e:
                 return ValidationCheck(
                     name="seed_root_writable",
                     passed=False,
-                    message=f"Cannot create seed root: {seed_root}",
+                    message=f"Cannot create seed root: {seed_root} ({e})",
                     severity="error",
                     category=CheckCategory.FILESYSTEM,
                 )
@@ -612,11 +612,11 @@ class PreflightValidation:
             # Try to create it
             try:
                 torrent_output.mkdir(parents=True, exist_ok=True)
-            except PermissionError:
+            except OSError as e:
                 return ValidationCheck(
                     name="torrent_output_writable",
                     passed=False,
-                    message=f"Cannot create torrent output: {torrent_output}",
+                    message=f"Cannot create torrent output: {torrent_output} ({e})",
                     severity="error",
                     category=CheckCategory.FILESYSTEM,
                 )
@@ -706,11 +706,11 @@ class PreflightValidation:
             # Try to create it
             try:
                 state_dir.mkdir(parents=True, exist_ok=True)
-            except PermissionError:
+            except OSError as e:
                 return ValidationCheck(
                     name="state_file_writable",
                     passed=False,
-                    message=f"Cannot create state directory: {state_dir}",
+                    message=f"Cannot create state directory: {state_dir} ({e})",
                     severity="error",
                     category=CheckCategory.FILESYSTEM,
                 )

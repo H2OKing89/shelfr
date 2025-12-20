@@ -118,7 +118,7 @@ def get_mediainfo_json(file_path: Path) -> dict[str, Any] | None:
             data: dict[str, Any] = json.loads(result.stdout)
             return data
     except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
-        pass
+        pass  # Skip files with mediainfo errors - missing tool or invalid output
     return None
 
 
@@ -171,7 +171,7 @@ def parse_mediainfo(mi_json: dict[str, Any]) -> dict[str, Any]:
                         result["bitrate_kbps"] = int(float(track[br_key]) / 1000)
                         break
                     except (ValueError, TypeError):
-                        pass
+                        pass  # Skip malformed bitrate value, try next key
 
             # Sample rate
             if "SamplingRate" in track:
@@ -407,35 +407,39 @@ async def scan_library_async(
     if not skip_mediainfo and leaf_folders:
         console.print(f"\n[bold blue]Phase 2:[/] Extracting mediainfo ({workers} workers)...")
 
-        loop = asyncio.get_event_loop()
-        with (
-            ThreadPoolExecutor(max_workers=workers) as executor,
-            Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                MofNCompleteColumn(),
-                TimeElapsedColumn(),
-                TimeRemainingColumn(),
-                console=console,
-            ) as progress,
-        ):
-            task = progress.add_task("Processing", total=len(leaf_folders))
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            with (
+                ThreadPoolExecutor(max_workers=workers) as executor,
+                Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    MofNCompleteColumn(),
+                    TimeElapsedColumn(),
+                    TimeRemainingColumn(),
+                    console=console,
+                ) as progress,
+            ):
+                task = progress.add_task("Processing", total=len(leaf_folders))
 
-            async def process_one(folder_info: FolderInfo) -> FolderInfo:
-                result = await loop.run_in_executor(
-                    executor,
-                    process_mediainfo_for_folder,
-                    folder_info,
-                    library_path,
-                )
-                progress.advance(task)
-                return result
+                async def process_one(folder_info: FolderInfo) -> FolderInfo:
+                    result = await loop.run_in_executor(
+                        executor,
+                        process_mediainfo_for_folder,
+                        folder_info,
+                        library_path,
+                    )
+                    progress.advance(task)
+                    return result
 
-            # Process all leaf folders
-            tasks = [process_one(f) for f in leaf_folders]
-            await asyncio.gather(*tasks)
+                # Process all leaf folders
+                tasks = [process_one(f) for f in leaf_folders]
+                await asyncio.gather(*tasks)
+        finally:
+            loop.close()
 
     # Compute statistics
     stats: dict[str, Any] = {

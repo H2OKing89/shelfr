@@ -280,9 +280,9 @@ def mark_processed(release: AudiobookRelease, infohash: str | None = None) -> No
         release: The release to mark as processed
         infohash: Optional torrent infohash for idempotent upload checks
     """
-    identifier = release.asin or str(release.source_dir)
+    identifier = release.asin or (str(release.source_dir) if release.source_dir else None)
     if not identifier:
-        logger.warning("Cannot mark release processed: no identifier")
+        logger.warning("Cannot mark release processed: no identifier (missing ASIN and source_dir)")
         return
 
     def _mark(state: dict[str, Any]) -> None:
@@ -313,9 +313,9 @@ def mark_processed(release: AudiobookRelease, infohash: str | None = None) -> No
 
 def mark_failed(release: AudiobookRelease, error: str) -> None:
     """Add a release to the failed state with error info."""
-    identifier = release.asin or str(release.source_dir)
+    identifier = release.asin or (str(release.source_dir) if release.source_dir else None)
     if not identifier:
-        logger.warning("Cannot mark release failed: no identifier")
+        logger.warning("Cannot mark release failed: no identifier (missing ASIN and source_dir)")
         return
 
     def _mark(state: dict[str, Any]) -> None:
@@ -397,9 +397,9 @@ def checkpoint_stage(
         checkpoint_stage(release, "staged")
         checkpoint_stage(release, "torrent", infohash="abc123...")
     """
-    identifier = release.asin or str(release.source_dir)
+    identifier = release.asin or (str(release.source_dir) if release.source_dir else None)
     if not identifier:
-        logger.warning(f"Cannot checkpoint {stage}: no identifier")
+        logger.warning(f"Cannot checkpoint {stage}: no identifier (missing ASIN and source_dir)")
         return
 
     def _checkpoint(state: dict[str, Any]) -> None:
@@ -503,7 +503,7 @@ def should_skip_stage(release: AudiobookRelease, stage: str) -> bool:
     Returns:
         True if the stage was already completed and can be skipped
     """
-    identifier = release.asin or str(release.source_dir)
+    identifier = release.asin or (str(release.source_dir) if release.source_dir else None)
     if not identifier:
         return False
 

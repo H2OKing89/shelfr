@@ -509,6 +509,47 @@ class TestRenameFilesInside:
         assert renamed == []
         assert (folder / "Book Name.m4b").exists()
 
+    def test_multi_file_audiobook_gets_part_numbers(self, tmp_path: Path) -> None:
+        """Test that multiple audio files get Part XX suffixes to prevent collisions."""
+        from mamfast.abs.rename import _rename_files_inside
+
+        folder = tmp_path / "Multi Part Book"
+        folder.mkdir()
+        # Create multiple audio files
+        (folder / "disc1.m4b").touch()
+        (folder / "disc2.m4b").touch()
+        (folder / "disc3.m4b").touch()
+        # And a companion file
+        (folder / "playlist.m3u").touch()
+
+        renamed = _rename_files_inside(folder, "Multi Part Book")
+
+        # All files should be renamed
+        assert len(renamed) == 4
+        # Check the new names use Part XX format (sorted alphabetically first)
+        assert (folder / "Multi Part Book - Part 01.m4b").exists()  # disc1
+        assert (folder / "Multi Part Book - Part 02.m4b").exists()  # disc2
+        assert (folder / "Multi Part Book - Part 03.m4b").exists()  # disc3
+        assert (folder / "Multi Part Book - Part 04.m3u").exists()  # playlist
+
+    def test_single_audio_with_companion_files_no_part_numbers(self, tmp_path: Path) -> None:
+        """Test single audio file + companions don't get Part numbers."""
+        from mamfast.abs.rename import _rename_files_inside
+
+        folder = tmp_path / "Single File Book"
+        folder.mkdir()
+        # One audio file with companions
+        (folder / "audio.m4b").touch()
+        (folder / "audio.cue").touch()
+        (folder / "audio.nfo").touch()
+
+        _rename_files_inside(folder, "Single File Book")
+
+        # All non-sidecar files renamed, but without Part numbers
+        assert (folder / "Single File Book.m4b").exists()
+        assert (folder / "Single File Book.cue").exists()
+        assert (folder / "Single File Book.nfo").exists()
+
 
 class TestRenameWithFilesInside:
     """Tests for rename_folder file renaming (always enabled)."""

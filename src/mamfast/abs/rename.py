@@ -615,6 +615,8 @@ def _rename_files_inside(target_path: Path, new_stem: str) -> list[str]:
     """Rename media files inside folder to match new folder name.
 
     Preserves cover.jpg, metadata.json and other sidecar files.
+    For multi-file layouts (multiple audio files), appends a numeric suffix
+    to prevent collisions.
 
     Args:
         target_path: The renamed folder path
@@ -626,15 +628,27 @@ def _rename_files_inside(target_path: Path, new_stem: str) -> list[str]:
     renamed: list[str] = []
 
     try:
-        for f in target_path.iterdir():
-            if not f.is_file():
-                continue
+        # Collect all media files (non-sidecar files)
+        media_files = [
+            f for f in target_path.iterdir() if f.is_file() and f.name.lower() not in SKIP_FILES
+        ]
 
-            # Skip sidecar files
-            if f.name.lower() in SKIP_FILES:
-                continue
+        # Sort by name for deterministic ordering
+        media_files.sort(key=lambda f: f.name)
 
-            new_name = f"{new_stem}{f.suffix}"
+        # Count actual audio files to determine if multi-file layout
+        audio_file_count = sum(1 for f in media_files if f.suffix.lower() in AUDIO_EXTS)
+
+        # Use suffix only for true multi-file audiobooks (multiple audio files)
+        use_suffix = audio_file_count > 1
+
+        for idx, f in enumerate(media_files, start=1):
+            if use_suffix:
+                # Multi-file: "Folder Name - Part 01.m4b", "Folder Name - Part 02.m4b"
+                new_name = f"{new_stem} - Part {idx:02d}{f.suffix}"
+            else:
+                # Single file: "Folder Name.m4b"
+                new_name = f"{new_stem}{f.suffix}"
 
             # Skip if already named correctly
             if f.name == new_name:
@@ -1093,8 +1107,6 @@ def generate_html_report(
         if any("[H2OKing]" in f for f in folders) and any("[H2OKing]" not in f for f in folders):
             return {"class": "ripper-tag", "label": "Ripper Tag"}
         # Check for different volume numbers (wrong ASIN)
-        import re
-
         vol_numbers = set()
         for f in folders:
             match = re.search(r"vol[_\s]*(\d+)", f, re.IGNORECASE)

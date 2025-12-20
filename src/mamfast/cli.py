@@ -1209,6 +1209,7 @@ def cmd_upload(args: argparse.Namespace) -> int:
 def cmd_run(args: argparse.Namespace) -> int:
     """Run full pipeline with run lock protection."""
     from mamfast.config import reload_settings
+    from mamfast.exceptions import StateLockError
     from mamfast.logging_setup import set_console_quiet
     from mamfast.utils.state import run_lock
     from mamfast.workflow import full_run
@@ -1233,7 +1234,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 skip_metadata=args.skip_metadata,
                 dry_run=args.dry_run,
             )
-    except RuntimeError as e:
+    except StateLockError as e:
         set_console_quiet(False)
         fatal_error(str(e), "Another instance is running")
         return 1
@@ -3772,7 +3773,12 @@ def cmd_abs_orphans(args: argparse.Namespace) -> int:
     source_dir = args.source
     if not source_dir:
         # Get ABS library root from path_map (like abs-import does)
-        if settings and settings.audiobookshelf.path_map:
+        if (
+            settings
+            and hasattr(settings, "audiobookshelf")
+            and settings.audiobookshelf
+            and settings.audiobookshelf.path_map
+        ):
             source_dir = Path(settings.audiobookshelf.path_map[0].host)
         else:
             fatal_error(

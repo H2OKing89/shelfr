@@ -37,6 +37,7 @@ from mamfast.console import (
 from mamfast.exceptions import (
     DiscoveryValidationError,
     PreUploadValidationError,
+    StagingError,
     TorrentError,
     UploadError,
 )
@@ -246,7 +247,18 @@ def process_single_release(
         # ---------------------------------------------------------------------
         if should_skip_stage(release, "staged"):
             logger.info("Skipping staging (already completed)")
-            # Load staging_dir from checkpoint
+            # Load staging_dir from checkpoint - it must exist for resume to work
+            if not release.staging_dir:
+                raise StagingError(
+                    f"Cannot resume: staging_dir not found for {release.display_name}",
+                    details={"asin": release.asin, "source_dir": str(release.source_dir)},
+                )
+            staging_dir = release.staging_dir
+            if not staging_dir.exists():
+                raise StagingError(
+                    f"Cannot resume: staging directory missing: {staging_dir}",
+                    details={"staging_dir": str(staging_dir)},
+                )
             release.status = ReleaseStatus.STAGED
         else:
             notify(ProgressStage.STAGING, "Creating hardlinks...")

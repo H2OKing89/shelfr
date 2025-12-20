@@ -718,7 +718,6 @@ def scan_orphaned_folders(
         library_root: Root of ABS library to scan
         min_match_score: Minimum similarity score to consider a match
         progress_callback: Optional callback(description, advance) for progress updates
-        min_match_score: Minimum similarity score to consider a match
 
     Returns:
         OrphanScanResult with categorized orphaned folders
