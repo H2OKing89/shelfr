@@ -213,10 +213,12 @@
   "wildlife": 35,
 
   "paranormal": 36,
-  "paranormal & urban": 53,
   "supernatural": 36,
   "ghosts": 36,
   "occult": 36,
+
+  "_comment_paranormal_urban": "Audible's 'Paranormal & Urban' tag is used for isekai/portal fantasy (206 uses in test library: Dungeon Crawler Carl, Wandering Inn, etc). Maps to Urban Fantasy (53), not Paranormal (36).",
+  "paranormal & urban": 53,
 
   "philosophy": 37,
 
