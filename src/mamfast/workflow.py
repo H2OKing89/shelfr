@@ -34,6 +34,12 @@ from mamfast.console import (
     print_workflow_summary,
     render_libation_status,
 )
+from mamfast.exceptions import (
+    DiscoveryValidationError,
+    PreUploadValidationError,
+    TorrentError,
+    UploadError,
+)
 from mamfast.hardlinker import compute_staging_path, stage_release
 from mamfast.libation import get_libation_status, run_liberate, run_scan
 from mamfast.metadata import fetch_metadata, generate_mam_json_for_release
@@ -224,7 +230,10 @@ def process_single_release(
                 c for c in discovery_result.checks if not c.passed and c.severity == "error"
             ]
             error_msgs = [c.message for c in failed_checks]
-            raise RuntimeError("Discovery validation failed:\n  - " + "\n  - ".join(error_msgs))
+            raise DiscoveryValidationError(
+                "Discovery validation failed:\n  - " + "\n  - ".join(error_msgs),
+                errors=error_msgs,
+            )
 
         if discovery_result.warning_count > 0:
             print_warning(f"Validation passed with {discovery_result.warning_count} warning(s)")
@@ -336,7 +345,7 @@ def process_single_release(
             )
 
             if not mkbrr_result.success:
-                raise RuntimeError(
+                raise TorrentError(
                     f"Torrent creation failed for '{staging_dir.name}'\n"
                     f"Error: {mkbrr_result.error}\n"
                     f"\nTroubleshooting:\n"
@@ -347,7 +356,9 @@ def process_single_release(
                     f"  3. Verify path mappings in config.yaml:\n"
                     f"     - host_data_root: {settings.mkbrr.host_data_root}\n"
                     f"     - container_data_root: {settings.mkbrr.container_data_root}\n"
-                    f"  4. Check Docker logs: docker logs $(docker ps -lq)"
+                    f"  4. Check Docker logs: docker logs $(docker ps -lq)",
+                    release_asin=release.asin,
+                    release_title=release.display_name,
                 )
 
             release.torrent_path = mkbrr_result.torrent_path
@@ -380,7 +391,10 @@ def process_single_release(
         for check in pre_upload_result.checks:
             if not check.passed:
                 if check.severity == "error":
-                    raise RuntimeError(f"Pre-upload validation failed: {check.message}")
+                    raise PreUploadValidationError(
+                        f"Pre-upload validation failed: {check.message}",
+                        errors=[check.message],
+                    )
                 elif check.severity == "warning":
                     print_warning(f"Pre-upload: {check.message}")
 
@@ -391,11 +405,13 @@ def process_single_release(
         logger.debug("Step 4: Uploading to qBittorrent")
 
         if release.torrent_path is None:
-            raise RuntimeError(
+            raise TorrentError(
                 "Internal error: No torrent path after successful mkbrr creation\n"
                 f"This is a bug. Please report with:\n"
                 f"  - Release: {release.display_name}\n"
-                f"  - mkbrr result: {mkbrr_result}"
+                f"  - mkbrr result: {mkbrr_result}",
+                release_asin=release.asin,
+                release_title=release.display_name,
             )
 
         # Use configured save_path (container path) + release folder name
@@ -417,7 +433,7 @@ def process_single_release(
 
         if not success:
             qb_host = settings.qbittorrent.host
-            raise RuntimeError(
+            raise UploadError(
                 f"Failed to upload torrent to qBittorrent\n"
                 f"Torrent: {release.torrent_path}\n"
                 f"Save path: {staging_dir}\n"
@@ -429,7 +445,10 @@ def process_single_release(
                 f"  3. Verify WebUI is enabled in qBittorrent preferences\n"
                 f"  4. Check qBittorrent logs for errors\n"
                 f"  5. Test connection: curl -u username:password "
-                f"{qb_host}/api/v2/app/version"
+                f"{qb_host}/api/v2/app/version",
+                release_asin=release.asin,
+                release_title=release.display_name,
+                infohash=infohash,
             )
 
         release.status = ReleaseStatus.UPLOADED

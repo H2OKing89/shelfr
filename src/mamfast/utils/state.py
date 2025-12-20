@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Any
 
 from mamfast.config import get_settings
+from mamfast.exceptions import StateLockError
 from mamfast.models import AudiobookRelease
 
 logger = logging.getLogger(__name__)
@@ -95,12 +96,13 @@ def run_lock(force: bool = False) -> Generator[None, None, None]:
             logger.debug("Run lock acquired")
             yield
         except BlockingIOError as e:
-            raise RuntimeError(
+            raise StateLockError(
                 f"Another MAMFast instance is already running.\n"
                 f"Lock file: {lock_file}\n\n"
                 f"If you're sure no other instance is running, delete the lock file:\n"
                 f"  rm {lock_file}\n\n"
-                f"Or use --no-run-lock to bypass (DANGEROUS - can cause data corruption)"
+                f"Or use --no-run-lock to bypass (DANGEROUS - can cause data corruption)",
+                lock_file=lock_file,
             ) from e
         finally:
             with contextlib.suppress(Exception):
