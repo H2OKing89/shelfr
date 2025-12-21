@@ -11,8 +11,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-import sh
-from sh import ErrorReturnCode
+import sh  # type: ignore[import-not-found]
+from sh import CommandNotFound, ErrorReturnCode
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,15 @@ class CmdResult:
 
     @property
     def ok(self) -> bool:
-        """True if command succeeded (exit code 0)."""
+        """True if command succeeded (exit code == 0).
+
+        Note: This property only checks whether the process exit code is exactly
+        zero and does not take into account any custom ``ok_codes`` that may
+        have been provided to :func:`run`. If you need to treat non-zero exit
+        codes as success, use the ``ok_codes`` handling on :func:`run` (or
+        explicitly test ``result.exit_code in allowed_codes``) instead of
+        relying on this property.
+        """
         return self.exit_code == 0
 
 
@@ -42,15 +50,20 @@ class CmdError(Exception):
         exit_code: int,
         stdout: str | bytes,
         stderr: str | bytes,
+        timed_out: bool = False,
     ) -> None:
         self.argv = tuple(argv)
         self.exit_code = exit_code
         self.stdout = _to_text(stdout)
         self.stderr = _to_text(stderr)
+        self.timed_out = timed_out
 
         # Build helpful error message
         cmd_str = " ".join(argv)
-        msg = f"Command failed with exit code {exit_code}: {cmd_str}"
+        if timed_out:
+            msg = f"Command timed out: {cmd_str}"
+        else:
+            msg = f"Command failed with exit code {exit_code}: {cmd_str}"
         if self.stderr:
             msg += f"\nStderr: {self.stderr[:500]}"  # Truncate long errors
         super().__init__(msg)
@@ -149,9 +162,18 @@ def run(
             exit_code=-1,
             stdout=b"",
             stderr=f"Command timed out after {timeout}s".encode(),
+            timed_out=True,
+        ) from e
+    except CommandNotFound as e:
+        # Command not found
+        raise CmdError(
+            argv=argv,
+            exit_code=127,
+            stdout=b"",
+            stderr=f"Command not found: {cmd_name}".encode(),
         ) from e
     except Exception as e:
-        # Other errors (command not found, etc.)
+        # Other unexpected errors
         raise CmdError(
             argv=argv,
             exit_code=-1,
