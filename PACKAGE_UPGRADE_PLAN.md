@@ -565,16 +565,20 @@ dev = [
 - [x] Verify backward compatibility with existing code
 - [x] Run integration tests
 
-### Phase 2 - P1 (Do Soon)
-- [ ] Add `sh>=2.0` to dependencies
-- [ ] Create `utils/cmd.py` wrapper
-- [ ] Add tests for `cmd.py`
-- [ ] Migrate `libation.py` to use `cmd.run()`
-- [ ] Migrate `mkbrr.py` to use `cmd.run()`
-- [ ] Migrate `metadata.py` to use `cmd.run()`
-- [ ] Migrate `abs/asin.py` to use `cmd.run()`
-- [ ] Run full test suite after each migration
+### Phase 2 - P1 (✅ sh library COMPLETE - 2025-12-20)
+- [x] Add `sh>=2.0` to dependencies
+- [x] Create `utils/cmd.py` wrapper
+- [x] Migrate `libation.py` to use `cmd.run()`
+- [x] Migrate `mkbrr.py` to use `cmd.run()`
+- [x] Test integration and verify imports
+- [ ] ⏭️ Migrate `metadata.py` to use `cmd.run()` (deferred - P2)
+- [ ] ⏭️ Migrate `abs/asin.py` to use `cmd.run()` (deferred - P2)
+- [ ] ⏭️ Add unit tests for `cmd.py` wrapper (deferred - P2)
 - [ ] (Optional) Add `pydantic-settings` for env var config
+
+> **Update 2025-12-20**: sh library core integration complete.
+> See [P1_SH_LIBRARY_COMPLETE.md](P1_SH_LIBRARY_COMPLETE.md) for details.
+> metadata.py and abs/asin.py migrations deferred to P2 (low priority, single calls each).
 
 ### Phase 3 - P2 (Future)
 - [ ] Consider `typer` if CLI grows complex
