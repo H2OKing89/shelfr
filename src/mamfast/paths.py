@@ -5,13 +5,17 @@ Provides XDG-compliant paths with environment variable overrides for flexibility
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+from typing import Literal
 
 from platformdirs import user_cache_dir, user_data_dir, user_log_dir
 
+logger = logging.getLogger(__name__)
+
 APP_NAME = "mamfast"
-APPAUTHOR = False  # Avoid "CompanyName/AppName" nesting on Windows
+APPAUTHOR: Literal[False] = False  # Avoid "CompanyName/AppName" nesting on Windows
 
 
 def _env_override(env_var: str) -> Path | None:
