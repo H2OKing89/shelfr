@@ -1130,7 +1130,19 @@ class TestSaveJson:
             output_path = Path(tmpdir) / "mam.json"
             data = {"title": "Test", "authors": ["Author"]}
 
-            save_mam_json(data, output_path)
+            # Mock settings for permission fixing
+            mock_settings = MagicMock()
+            mock_settings.target_uid = 99
+            mock_settings.target_gid = 100
+
+            with (
+                patch("mamfast.metadata.get_settings", return_value=mock_settings),
+                patch("mamfast.metadata.fix_ownership") as mock_fix,
+            ):
+                save_mam_json(data, output_path)
+
+                # Verify fix_ownership was called with correct args
+                mock_fix.assert_called_once_with(output_path, 99, 100)
 
             assert output_path.exists()
             import json

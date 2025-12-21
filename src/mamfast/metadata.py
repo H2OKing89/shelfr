@@ -40,6 +40,7 @@ from mamfast.utils.naming import (
     resolve_series,
     transliterate_text,
 )
+from mamfast.utils.permissions import fix_ownership
 from mamfast.utils.retry import SUBPROCESS_EXCEPTIONS, retry_with_backoff
 
 if TYPE_CHECKING:
@@ -1806,6 +1807,11 @@ def save_mam_json(
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(mam_data, f, indent=2, ensure_ascii=False)
+
+    # Fix ownership to target UID:GID (e.g., Unraid's nobody:users)
+    # This ensures JSON files have same permissions as torrent files
+    settings = get_settings()
+    fix_ownership(output_path, settings.target_uid, settings.target_gid)
 
     logger.info(f"Saved MAM JSON: {output_path}")
 
