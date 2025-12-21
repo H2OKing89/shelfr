@@ -42,7 +42,7 @@ def query_region(
 
     url = f"{API_BASE}/{asin}"
     try:
-        with httpx.Client(timeout=timeout) as client:
+        with httpx.Client(timeout=timeout, http2=True) as client:
             r = client.get(url, params=params)
         if r.status_code == 200:
             # r.json() returns Any; ensure we return a dict when possible

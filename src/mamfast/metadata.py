@@ -632,7 +632,7 @@ def _fetch_audnex_book_region(
     try:
         # Circuit breaker protects against cascading failures
         # Only network-level errors trip the breaker (not 404s which are normal)
-        with audnex_breaker, httpx.Client(timeout=timeout) as client:
+        with audnex_breaker, httpx.Client(timeout=timeout, http2=True) as client:
             response = client.get(url, params=params)
 
             if response.status_code == 404:
@@ -750,7 +750,7 @@ def fetch_audnex_author(asin: str, region: str | None = None) -> dict[str, Any] 
         logger.debug(f"Fetching Audnex author: {url} (region={r})")
 
         try:
-            with httpx.Client(timeout=settings.audnex.timeout_seconds) as client:
+            with httpx.Client(timeout=settings.audnex.timeout_seconds, http2=True) as client:
                 response = client.get(url, params=params)
 
                 if response.status_code in (404, 500):
@@ -831,7 +831,7 @@ def _fetch_audnex_chapters_region(
     logger.debug(f"Fetching Audnex chapters: {url} (region={region})")
 
     try:
-        with httpx.Client(timeout=timeout) as client:
+        with httpx.Client(timeout=timeout, http2=True) as client:
             response = client.get(url, params=params)
 
             if response.status_code == 404:
