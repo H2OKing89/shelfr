@@ -8,7 +8,6 @@ Supports: create, inspect, check operations.
 from __future__ import annotations
 
 import logging
-import os
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +17,7 @@ import yaml
 from mamfast.config import get_settings
 from mamfast.utils.cmd import CmdError, CmdResult, run
 from mamfast.utils.paths import host_to_container_data_path, host_to_container_torrent_path
+from mamfast.utils.permissions import fix_directory_ownership
 from mamfast.utils.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
@@ -111,52 +111,20 @@ def fix_torrent_permissions(root_dir: Path | str | None = None) -> int:
         Number of files fixed.
     """
     settings = get_settings()
-    target_uid = settings.target_uid
-    target_gid = settings.target_gid
-
     root_dir = Path(settings.mkbrr.host_output_dir) if root_dir is None else Path(root_dir)
 
-    if not root_dir.is_dir():
-        logger.warning(f"Torrent directory does not exist: {root_dir}")
-        return 0
+    count = fix_directory_ownership(
+        root_dir,
+        settings.target_uid,
+        settings.target_gid,
+        recursive=True,
+        file_extensions={".torrent", ".json"},
+    )
 
-    fixed_count = 0
-    allowed_extensions = {".torrent", ".json"}
-    logger.debug(f"Fixing ownership in {root_dir} to {target_uid}:{target_gid}")
+    if count:
+        logger.info(f"Fixed ownership on {count} item(s)")
 
-    for dirpath, _dirnames, filenames in os.walk(root_dir):
-        # Fix directory ownership
-        dir_path = Path(dirpath)
-        try:
-            stat = dir_path.stat()
-            if stat.st_uid != target_uid or stat.st_gid != target_gid:
-                os.chown(dir_path, target_uid, target_gid)
-                logger.debug(f"Fixed ownership on directory: {dir_path}")
-                fixed_count += 1
-        except PermissionError as e:
-            logger.warning(f"Permission error on directory {dir_path}: {e}")
-
-        # Fix file ownership
-        for name in filenames:
-            if not any(name.lower().endswith(ext) for ext in allowed_extensions):
-                continue
-
-            full_path = Path(dirpath) / name
-            try:
-                stat = full_path.stat()
-                if stat.st_uid != target_uid or stat.st_gid != target_gid:
-                    os.chown(full_path, target_uid, target_gid)
-                    logger.debug(f"Fixed ownership: {full_path}")
-                    fixed_count += 1
-            except FileNotFoundError:
-                continue
-            except PermissionError as e:
-                logger.warning(f"Permission error on {full_path}: {e}")
-
-    if fixed_count:
-        logger.info(f"Fixed ownership on {fixed_count} item(s)")
-
-    return fixed_count
+    return count
 
 
 def _cleanup_stale_torrents(output_dir: Path, content_name: str) -> int:

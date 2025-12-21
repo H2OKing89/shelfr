@@ -20,6 +20,7 @@ from mamfast.utils.naming import (
     extract_volume_number,
     resolve_series,
 )
+from mamfast.utils.permissions import fix_directory_ownership
 
 logger = logging.getLogger(__name__)
 
@@ -214,38 +215,12 @@ def fix_staging_permissions(staging_dir: Path) -> int:
         Number of items (directory + files) with ownership changed
     """
     settings = get_settings()
-    target_uid = settings.target_uid
-    target_gid = settings.target_gid
-
-    fixed_count = 0
-
-    # Fix directory ownership
-    try:
-        stat = staging_dir.stat()
-        if stat.st_uid != target_uid or stat.st_gid != target_gid:
-            os.chown(staging_dir, target_uid, target_gid)
-            logger.debug(f"Fixed ownership on directory: {staging_dir}")
-            fixed_count += 1
-    except PermissionError as e:
-        logger.warning(f"Permission error on directory {staging_dir}: {e}")
-
-    # Fix file ownership
-    for item in staging_dir.iterdir():
-        if not item.is_file():
-            continue
-        try:
-            stat = item.stat()
-            if stat.st_uid != target_uid or stat.st_gid != target_gid:
-                os.chown(item, target_uid, target_gid)
-                logger.debug(f"Fixed ownership on file: {item.name}")
-                fixed_count += 1
-        except PermissionError as e:
-            logger.warning(f"Permission error on {item}: {e}")
-
-    if fixed_count:
-        logger.debug(f"Fixed ownership on {fixed_count} item(s) to {target_uid}:{target_gid}")
-
-    return fixed_count
+    return fix_directory_ownership(
+        staging_dir,
+        settings.target_uid,
+        settings.target_gid,
+        recursive=False,  # Staging dirs are flat
+    )
 
 
 def find_allowed_files(source_dir: Path) -> list[Path]:
