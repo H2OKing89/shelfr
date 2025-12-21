@@ -21,9 +21,6 @@ from mamfast.mkbrr import (
 from mamfast.utils.cmd import CmdError
 from tests.conftest import make_cmd_result
 
-# Alias for backwards compatibility with existing tests
-_make_cmd_result = make_cmd_result
-
 
 class TestMkbrrResult:
     """Tests for MkbrrResult dataclass."""
@@ -58,7 +55,7 @@ class TestCheckDockerAvailable:
 
     def test_docker_available(self):
         """Test when docker is available."""
-        mock_result = _make_cmd_result(exit_code=0)
+        mock_result = make_cmd_result(exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -272,7 +269,7 @@ class TestCreateTorrent:
             # Simulate mkbrr creating the torrent file during execution
             # (after _cleanup_stale_torrents removes any existing files)
             expected_torrent.touch()
-            return _make_cmd_result(stdout="Torrent created", exit_code=0)
+            return make_cmd_result(stdout="Torrent created", exit_code=0)
 
         with (
             patch("mamfast.mkbrr.run", side_effect=mock_run),
@@ -305,7 +302,7 @@ class TestCreateTorrent:
         with (
             patch(
                 "mamfast.mkbrr.run",
-                return_value=_make_cmd_result(exit_code=1, stderr="Error creating torrent"),
+                return_value=make_cmd_result(exit_code=1, stderr="Error creating torrent"),
             ),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
@@ -478,7 +475,7 @@ class TestInspectTorrent:
 
     def test_inspect_success(self, tmp_path: Path):
         """Test successful torrent inspection."""
-        mock_result = _make_cmd_result(stdout="Name: test\nSize: 1234", exit_code=0)
+        mock_result = make_cmd_result(stdout="Name: test\nSize: 1234", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -506,7 +503,7 @@ class TestInspectTorrent:
 
     def test_inspect_verbose(self, tmp_path: Path):
         """Test verbose torrent inspection."""
-        mock_result = _make_cmd_result(stdout="Detailed info...", exit_code=0)
+        mock_result = make_cmd_result(stdout="Detailed info...", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -535,7 +532,7 @@ class TestInspectTorrent:
 
     def test_inspect_failure(self, tmp_path: Path):
         """Test failed torrent inspection."""
-        mock_result = _make_cmd_result(stderr="File not found", exit_code=1)
+        mock_result = make_cmd_result(stderr="File not found", exit_code=1)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -592,7 +589,7 @@ class TestCheckTorrent:
 
     def test_check_success(self, tmp_path: Path):
         """Test successful torrent check."""
-        mock_result = _make_cmd_result(stdout="100% verified", exit_code=0)
+        mock_result = make_cmd_result(stdout="100% verified", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -620,7 +617,7 @@ class TestCheckTorrent:
 
     def test_check_with_options(self, tmp_path: Path):
         """Test torrent check with verbose, quiet and workers options."""
-        mock_result = _make_cmd_result(stdout="OK", exit_code=0)
+        mock_result = make_cmd_result(stdout="OK", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -656,7 +653,7 @@ class TestCheckTorrent:
 
     def test_check_verbose_without_quiet(self, tmp_path: Path):
         """Test torrent check with verbose flag (no quiet)."""
-        mock_result = _make_cmd_result(stdout="Detailed output", exit_code=0)
+        mock_result = make_cmd_result(stdout="Detailed output", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -691,7 +688,7 @@ class TestCheckTorrent:
 
     def test_check_failure(self, tmp_path: Path):
         """Test failed torrent check."""
-        mock_result = _make_cmd_result(stderr="Verification failed", exit_code=1)
+        mock_result = make_cmd_result(stderr="Verification failed", exit_code=1)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -755,7 +752,7 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         output_dir = tmp_path / "torrents"
         output_dir.mkdir()
 
-        mock_result = _make_cmd_result(stdout="Created torrent", exit_code=0)
+        mock_result = make_cmd_result(stdout="Created torrent", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -792,7 +789,7 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         output_dir = tmp_path / "torrents"
         output_dir.mkdir()
 
-        mock_result = _make_cmd_result(exit_code=0, stdout="Created torrent")
+        mock_result = make_cmd_result(exit_code=0, stdout="Created torrent")
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -831,7 +828,7 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         output_dir = tmp_path / "torrents"
         output_dir.mkdir()
 
-        mock_result = _make_cmd_result(exit_code=0, stdout="Created torrent")
+        mock_result = make_cmd_result(exit_code=0, stdout="Created torrent")
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
