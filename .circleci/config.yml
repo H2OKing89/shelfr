@@ -1,0 +1,29 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: pip install -e ".[dev]"
+      - run:
+          name: Run linter
+          command: ruff check src/ tests/
+      - run:
+          name: Run type checker
+          command: mypy src/
+      - run:
+          name: Run tests
+          command: pytest --cov=src/mamfast --cov-report=xml
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage.xml
+
+workflows:
+  main:
+    jobs:
+      - test
