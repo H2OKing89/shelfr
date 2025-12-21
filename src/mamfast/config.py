@@ -1021,13 +1021,18 @@ def load_settings(
         return (config_dir / p).resolve()
 
     # Parse paths config
+    # Import platformdirs-based paths for XDG-compliant defaults
+    from mamfast.paths import data_dir, log_dir
+
     paths_data = yaml_config.get("paths", {})
     paths = PathsConfig(
         library_root=Path(paths_data.get("library_root", "")),
         torrent_output=Path(paths_data.get("torrent_output", "")),
         seed_root=Path(paths_data.get("seed_root", "")),
-        state_file=resolve_path(paths_data.get("state_file", "./data/processed.json")),
-        log_file=resolve_path(paths_data.get("log_file", "./logs/mamfast.log")),
+        state_file=resolve_path(
+            paths_data.get("state_file", str(data_dir() / "processed.json"))
+        ),
+        log_file=resolve_path(paths_data.get("log_file", str(log_dir() / "mamfast.log"))),
     )
 
     # Parse MAM config
