@@ -67,9 +67,7 @@ class QBittorrentEnvSettings(BaseSettings):
     def validate_host(cls, v: str) -> str:
         """Validate qBittorrent host URL format."""
         if v and not v.startswith(("http://", "https://")):
-            raise ValueError(
-                f"QB_HOST must start with http:// or https://, got: {v}"
-            )
+            raise ValueError(f"QB_HOST must start with http:// or https://, got: {v}")
         return v.rstrip("/") if v else v
 
 
@@ -92,9 +90,7 @@ class AudiobookshelfEnvSettings(BaseSettings):
     def validate_host(cls, v: str) -> str:
         """Validate ABS host URL format."""
         if v and not v.startswith(("http://", "https://")):
-            raise ValueError(
-                f"AUDIOBOOKSHELF_HOST must start with http:// or https://, got: {v}"
-            )
+            raise ValueError(f"AUDIOBOOKSHELF_HOST must start with http:// or https://, got: {v}")
         return v.rstrip("/") if v else v
 
 
@@ -134,7 +130,7 @@ class DockerEnvSettings(BaseSettings):
     def validate_docker_bin(cls, v: str) -> str:
         """Validate Docker binary path exists."""
         if v and not Path(v).exists():
-            logger.warning(f"Docker binary not found at: {v}")
+            logger.warning("Docker binary not found at: %s", v)
         return v
 
     @field_validator("target_uid", "target_gid", mode="before")
@@ -142,7 +138,10 @@ class DockerEnvSettings(BaseSettings):
     def coerce_to_int(cls, v: str | int) -> int:
         """Allow string values and convert to int."""
         if isinstance(v, str):
-            return int(v)
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError(f"Must be an integer, got: {v!r}") from None
         return v
 
 
@@ -174,9 +173,7 @@ class AppEnvSettings(BaseSettings):
         valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         upper = v.upper()
         if upper not in valid_levels:
-            raise ValueError(
-                f"LOG_LEVEL must be one of {valid_levels}, got: {v}"
-            )
+            raise ValueError(f"LOG_LEVEL must be one of {valid_levels}, got: {v}")
         return upper
 
 

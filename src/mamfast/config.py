@@ -45,7 +45,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -688,22 +687,6 @@ def validate_settings(settings: Settings) -> list[str]:
         warnings.append(f"Extensions should start with dot: {formatted}")
 
     return warnings
-
-
-def _get_env(key: str, default: str | None = None) -> str:
-    """Get environment variable with optional default."""
-    value = os.getenv(key, default)
-    if value is None:
-        raise ValueError(f"Missing required environment variable: {key}")
-    return value
-
-
-def _get_env_int(key: str, default: int) -> int:
-    """Get environment variable as integer."""
-    value = os.getenv(key)
-    if value is None:
-        return default
-    return int(value)
 
 
 def _parse_trumping_config(data: dict[str, Any]) -> TrumpingConfig:

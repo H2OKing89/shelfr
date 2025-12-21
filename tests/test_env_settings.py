@@ -47,8 +47,9 @@ class TestQBittorrentEnvSettings:
     def test_validates_host_url(self) -> None:
         """Test host URL validation."""
         env = {"QB_HOST": "localhost:8080"}  # Missing protocol
-        with mock.patch.dict(os.environ, env, clear=True), pytest.raises(
-            ValueError, match="must start with http://"
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            pytest.raises(ValueError, match="must start with http://"),
         ):
             QBittorrentEnvSettings()
 
@@ -84,8 +85,9 @@ class TestAudiobookshelfEnvSettings:
     def test_validates_host_url(self) -> None:
         """Test host URL validation."""
         env = {"AUDIOBOOKSHELF_HOST": "abs.example.com"}  # Missing protocol
-        with mock.patch.dict(os.environ, env, clear=True), pytest.raises(
-            ValueError, match="must start with http://"
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            pytest.raises(ValueError, match="must start with http://"),
         ):
             AudiobookshelfEnvSettings()
 
@@ -150,8 +152,9 @@ class TestAppEnvSettings:
     def test_validates_log_level(self) -> None:
         """Test log level validation."""
         env = {"LOG_LEVEL": "VERBOSE"}  # Invalid level
-        with mock.patch.dict(os.environ, env, clear=True), pytest.raises(
-            ValueError, match="LOG_LEVEL must be one of"
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            pytest.raises(ValueError, match="LOG_LEVEL must be one of"),
         ):
             AppEnvSettings()
 
@@ -258,9 +261,7 @@ class TestLoadEnvSettingsFromFile:
         """Test loading environment settings from a .env file."""
         env_file = tmp_path / ".env"
         env_file.write_text(
-            "QB_HOST=http://from-file:8080\n"
-            "QB_USERNAME=fileuser\n"
-            "QB_PASSWORD=filepass\n"
+            "QB_HOST=http://from-file:8080\n" "QB_USERNAME=fileuser\n" "QB_PASSWORD=filepass\n"
         )
 
         # Clear any existing env vars
