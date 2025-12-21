@@ -24,7 +24,6 @@ from mamfast.console import (
 
 if TYPE_CHECKING:
     from mamfast.config import NamingConfig
-    from mamfast.console import DryRunTransform
 
 logger = logging.getLogger(__name__)
 

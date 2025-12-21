@@ -841,8 +841,12 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                     for item in sorted(import_source.iterdir()):
                         if item.is_dir() and not item.name.startswith("."):
                             remaining_folder_names.append(item.name)
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning(
+                    "Failed to list remaining folders in import source %s: %s",
+                    import_source,
+                    exc,
+                )
 
             if remaining_folder_names:
                 from rich.tree import Tree as RemainingTree
