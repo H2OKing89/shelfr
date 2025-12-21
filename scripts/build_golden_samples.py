@@ -266,7 +266,7 @@ def main() -> None:
         "edge_cases": [],
     }
 
-    with httpx.Client() as client:
+    with httpx.Client(http2=True) as client:
         # Step 1: Get all libraries
         print("📖 Fetching Audiobookshelf libraries...")
         libraries = fetch_abs_libraries(client)

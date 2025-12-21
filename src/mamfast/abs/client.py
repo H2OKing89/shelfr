@@ -187,6 +187,7 @@ class AbsClient:
                     "Content-Type": "application/json",
                 },
                 timeout=self.timeout,
+                http2=True,
             )
         return self._client
 
