@@ -17,6 +17,8 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any
 
+from pathvalidate import sanitize_filename as pv_sanitize_filename
+
 if TYPE_CHECKING:
     from mamfast.config import NamingConfig
 
@@ -29,7 +31,6 @@ from mamfast.utils.naming.constants import (
     DEFAULT_CREDIT_WORDS,
     DEFAULT_ROLE_WORDS,
     DUPLICATE_VOL_PATTERN,
-    ILLEGAL_CHARS_PATTERN,
     NORMALIZE_MAP,
     WHITESPACE_PATTERN,
 )
@@ -56,18 +57,14 @@ def sanitize_filename(name: str) -> str:
     """
     Remove or replace characters that are problematic in filenames.
 
-    - Removes: < > ? *
-    - Replaces: / \\ : | " with safer alternatives
-    - Collapses multiple spaces
-    - Strips leading/trailing whitespace and dots
+    Uses pathvalidate library for cross-platform MAM compliance with
+    225-character limit and universal platform compatibility. Additional
+    normalization applies character replacements and whitespace cleanup.
     """
+    # Apply character normalization before pathvalidate
     result = name
-
     for char, replacement in NORMALIZE_MAP.items():
         result = result.replace(char, replacement)
-
-    # Remove any remaining illegal characters (using pre-compiled pattern)
-    result = ILLEGAL_CHARS_PATTERN.sub("", result)
 
     # Collapse multiple spaces (using pre-compiled pattern)
     result = WHITESPACE_PATTERN.sub(" ", result)
@@ -75,7 +72,8 @@ def sanitize_filename(name: str) -> str:
     # Strip leading/trailing whitespace and dots
     result = result.strip(". ")
 
-    return result
+    # Delegate to pathvalidate for cross-platform filename validation
+    return pv_sanitize_filename(result, platform="universal", max_len=225)
 
 
 def filter_title(
