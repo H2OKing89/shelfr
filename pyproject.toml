@@ -24,6 +24,8 @@ dependencies = [
     # P0 upgrades: Better retry logic and cross-platform paths
     "tenacity>=8.0",
     "platformdirs>=4.0",
+    # P1 upgrades: Better subprocess handling
+    "sh>=2.0",
 ]
 
 [project.optional-dependencies]
