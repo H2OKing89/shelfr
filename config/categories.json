@@ -1,14 +1,25 @@
 {
-  "_comment": "MAM category mapping based on Audnex genres. Keys are lowercase genre names, values are MAM category IDs. See mam_categories_reference.json for full MAM schema.",
-  "_version": "2025-12-20",
+  "_comment": "MAM category mapping based on Audnex/ABS genres and tags. Keys are lowercase, values are MAM category IDs. See mam_categories_reference.json for full MAM schema.",
+  "_version": "2025-12-20-v4",
+  "_note": "Compound genres (e.g. 'Science Fiction & Fantasy') are split on ' & ' and ', ' by _map_genres_to_categories() in metadata.py. Both parts get mapped.",
 
   "action & adventure": 1,
   "action": 1,
   "adventure": 1,
+  "action/thriller": 51,
+  "action thriller": 51,
+
+  "anthologies & short stories": 57,
+  "anthologies": 57,
+  "short stories": 57,
 
   "art": 2,
   "art & photography": 2,
   "photography": 2,
+  "arts & entertainment": 2,
+
+  "audio performances & dramatizations": 10,
+  "dramatizations": 10,
 
   "biography": 3,
   "biographical": 3,
@@ -26,6 +37,8 @@
   "economics": 4,
 
   "comedy": 5,
+  "comedy & humor": 5,
+  "romantic comedy": 42,
 
   "computer": 7,
   "computer & internet": 7,
@@ -33,6 +46,7 @@
   "computers & technology": 7,
   "internet": 7,
   "programming": 7,
+  "technothrillers": 51,
 
   "crafts": 8,
   "crafts & hobbies": 8,
@@ -45,6 +59,8 @@
   "crime": 9,
   "crime fiction": 9,
   "true crime": 9,
+  "crime thrillers": 9,
+  "international mystery & crime": 9,
 
   "drama": 60,
   "drama & plays": 60,
@@ -63,18 +79,30 @@
   "current events": 12,
   "journalism": 12,
 
+  "fairy tales": 23,
+  "folk tales & myths": 23,
+  "fairy tales & folklore": 23,
+  "folklore": 23,
+
   "fantasy": 13,
   "epic": 13,
   "epic fantasy": 13,
   "high fantasy": 13,
   "dark fantasy": 13,
   "sword & sorcery": 13,
+  "fantasy & magic": 13,
+  "dragons & mythical creatures": 13,
+  "gaslamp": 13,
 
   "food": 14,
   "food & wine": 14,
   "cooking": 14,
   "cookbooks": 14,
   "wine": 14,
+
+  "genre fiction": 57,
+
+  "greek & roman": 17,
 
   "health": 16,
   "health & fitness": 16,
@@ -93,9 +121,11 @@
 
   "horror": 19,
   "dark": 19,
+  "supernatural horror": 19,
 
   "humor": 20,
   "humour": 20,
+  "humorous": 20,
 
   "instructional": 22,
   "how-to": 22,
@@ -106,7 +136,13 @@
   "children": 23,
   "children's": 23,
   "children's books": 23,
+  "children's audiobooks": 23,
   "kids": 23,
+  "growing up & facts of life": 23,
+  "family life": 23,
+  "social & life skills": 23,
+  "friendship": 23,
+  "family & relationships": 23,
 
   "language": 24,
   "languages": 24,
@@ -124,10 +160,13 @@
   "literary classics": 28,
   "classics": 28,
   "classic literature": 28,
+  "classical crime mystery": 34,
 
+  "literature & fiction": 57,
   "literary fiction": 57,
   "literary": 57,
   "general fiction": 57,
+  "coming of age": 57,
 
   "litrpg": 29,
   "lit rpg": 29,
@@ -141,14 +180,31 @@
   "psychology": 31,
   "mental health": 31,
   "psychiatry": 31,
+  "psychological": 31,
+  "difficult situations": 31,
+
+  "military": 51,
+  "war & military": 51,
+  "military sci-fi": 45,
+
+  "movie, tv & video game tie-ins": 57,
+  "tv & video game tie-ins": 57,
+  "movie": 57,
 
   "music": 32,
 
   "mystery": 34,
   "mystery & detective": 34,
+  "mystery, thriller & suspense": 34,
+  "mysteries & detectives": 34,
   "detective": 34,
   "cozy mystery": 34,
   "whodunit": 34,
+  "private investigators": 34,
+  "police procedurals": 34,
+  "amateur sleuths": 34,
+  "hard-boiled": 34,
+  "traditional detectives": 34,
 
   "nature": 35,
   "nature & environment": 35,
@@ -157,10 +213,12 @@
   "wildlife": 35,
 
   "paranormal": 36,
-  "paranormal & urban": 53,
   "supernatural": 36,
   "ghosts": 36,
   "occult": 36,
+
+  "_comment_paranormal_urban": "Audible's 'Paranormal & Urban' tag is used for isekai/portal fantasy (206 uses in test library: Dungeon Crawler Carl, Wandering Inn, etc). Maps to Urban Fantasy (53), not Paranormal (36).",
+  "paranormal & urban": 53,
 
   "philosophy": 37,
 
@@ -173,6 +231,7 @@
   "political": 39,
   "government": 39,
   "social science": 39,
+  "spies & politics": 51,
 
   "progression fantasy": 58,
   "progression": 58,
@@ -215,12 +274,13 @@
   "sci-fi": 45,
   "scifi": 45,
   "space opera": 45,
+  "space exploration": 45,
   "cyberpunk": 45,
   "dystopian": 45,
   "post-apocalyptic": 45,
   "hard science fiction": 45,
-  "military sci-fi": 45,
   "time travel": 45,
+  "first contact": 45,
 
   "self-help": 46,
   "self help": 46,
@@ -228,6 +288,8 @@
   "self-improvement": 46,
   "motivation": 46,
   "inspirational": 46,
+
+  "small town & rural": 59,
 
   "sports": 49,
   "sports & hobbies": 49,
@@ -242,8 +304,18 @@
   "tech": 50,
   "engineering": 50,
 
+  "teen & young adult": 55,
+  "young adult": 55,
+  "young adult fiction": 55,
+  "young adult literature": 55,
+  "ya": 55,
+  "teen": 55,
+  "teens": 55,
+  "adolescent": 55,
+
   "thriller": 51,
   "thriller & suspense": 51,
+  "thrillers & suspense": 51,
   "suspense": 51,
   "psychological thriller": 51,
   "legal thriller": 51,
@@ -258,11 +330,5 @@
   "urban": 53,
 
   "western": 54,
-  "westerns": 54,
-
-  "young adult": 55,
-  "ya": 55,
-  "teen": 55,
-  "teens": 55,
-  "adolescent": 55
+  "westerns": 54
 }
