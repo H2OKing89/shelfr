@@ -17,13 +17,15 @@ This module provides:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from collections import Counter
 from dataclasses import dataclass, field
+from typing import Any
 
 from mamfast.config import get_settings
-from mamfast.utils.cmd import CmdError, docker
+from mamfast.utils.cmd import CmdError, docker, run
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +58,7 @@ class LibationStatus:
     liberated: int
     not_liberated: int
     error: int = 0
-    other_statuses: dict[str, int] = field(default_factory=dict)
+    other_statuses: dict[str, int] = field(default_factory=lambda: {})
 
     @property
     def has_pending(self) -> bool:
@@ -115,15 +117,15 @@ def get_libation_status() -> LibationStatus:
         )
 
         # Step 3: Parse JSON and count statuses
-        books = json.loads(read_result.stdout)
-
-        if not isinstance(books, list):
-            raise RuntimeError(f"Expected list from export, got {type(books).__name__}")
+        parsed = json.loads(read_result.stdout)
+        if not isinstance(parsed, list):
+            raise RuntimeError(f"Expected list from export, got {type(parsed).__name__}")
+        books: list[dict[str, Any]] = parsed
 
         # Count BookStatus values
         status_counts: Counter[str] = Counter()
         for book in books:
-            status = book.get("BookStatus", "Unknown")
+            status: str = book.get("BookStatus", "Unknown")
             status_counts[status] += 1
 
         # Extract known statuses
@@ -163,10 +165,8 @@ def get_libation_status() -> LibationStatus:
 
     finally:
         # Cleanup: remove temp file from container (best effort)
-        try:
+        with contextlib.suppress(CmdError):
             docker("exec", settings.libation_container, "rm", "-f", container_export_path)
-        except CmdError:
-            pass  # Cleanup failure is not critical
 
 
 def run_scan(interactive: bool = False) -> ScanResult:
@@ -184,35 +184,27 @@ def run_scan(interactive: bool = False) -> ScanResult:
     logger.info(f"Running Libation scan in container: {settings.libation_container}")
 
     try:
+        # Build docker exec arguments
+        docker_args = ["docker", "exec"]
         if interactive:
-            # Interactive mode - use docker -it
-            result = docker(
-                "exec",
-                "-it",
-                settings.libation_container,
-                "/libation/LibationCli",
-                "scan",
-                ok_codes=(0, 1),  # Allow non-zero for partial success
-            )
-            return ScanResult(
-                returncode=result.exit_code,
-                stdout=result.stdout,
-                stderr=result.stderr,
-            )
-        else:
-            # Non-interactive - capture output
-            result = docker(
-                "exec",
-                settings.libation_container,
-                "/libation/LibationCli",
-                "scan",
-                ok_codes=(0, 1),  # Allow non-zero for partial success
-            )
-            return ScanResult(
-                returncode=result.exit_code,
-                stdout=result.stdout,
-                stderr=result.stderr,
-            )
+            docker_args.append("-i")  # Interactive mode
+        docker_args.extend([
+            settings.libation_container,
+            "/libation/LibationCli",
+            "scan",
+        ])
+
+        # Execute docker with TTY allocation if interactive
+        result = run(
+            docker_args,
+            ok_codes=(0, 1),  # Allow non-zero for partial success
+            _tty=interactive,  # Allocate TTY for interactive mode
+        )
+        return ScanResult(
+            returncode=result.exit_code,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
 
     except CmdError as e:
         logger.error(f"Libation scan failed: {e}")
