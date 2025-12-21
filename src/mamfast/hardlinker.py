@@ -20,6 +20,7 @@ from mamfast.utils.naming import (
     extract_volume_number,
     resolve_series,
 )
+from mamfast.utils.permissions import fix_directory_ownership
 
 logger = logging.getLogger(__name__)
 
@@ -193,9 +194,33 @@ def stage_release(release: AudiobookRelease) -> Path:
     if m4b_files:
         release.main_m4b = m4b_files[0]
 
+    # Fix ownership on staged directory and files
+    fix_staging_permissions(staging_dir)
+
     logger.info(f"  Staged {len(staged_files)} files to {staging_dir}")
 
     return staging_dir
+
+
+def fix_staging_permissions(staging_dir: Path) -> int:
+    """
+    Fix ownership on staged directory and all files within.
+
+    Sets UID:GID to configured values (default 99:100 for Unraid).
+
+    Args:
+        staging_dir: Directory to fix ownership on
+
+    Returns:
+        Number of items (directory + files) with ownership changed
+    """
+    settings = get_settings()
+    return fix_directory_ownership(
+        staging_dir,
+        settings.target_uid,
+        settings.target_gid,
+        recursive=False,  # Staging dirs are flat
+    )
 
 
 def find_allowed_files(source_dir: Path) -> list[Path]:

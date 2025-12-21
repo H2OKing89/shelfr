@@ -416,7 +416,7 @@ def checkpoint_stage(
                 "asin": release.asin,
                 "title": release.title,
                 "author": release.author,
-                "processed_at": None,
+                "processed_at": datetime.now().isoformat(),
                 "staging_dir": str(release.staging_dir) if release.staging_dir else None,
                 "torrent_path": str(release.torrent_path) if release.torrent_path else None,
                 "infohash": None,

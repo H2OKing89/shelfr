@@ -8,7 +8,6 @@ Supports: create, inspect, check operations.
 from __future__ import annotations
 
 import logging
-import os
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +17,7 @@ import yaml
 from mamfast.config import get_settings
 from mamfast.utils.cmd import CmdError, CmdResult, run
 from mamfast.utils.paths import host_to_container_data_path, host_to_container_torrent_path
+from mamfast.utils.permissions import fix_directory_ownership
 from mamfast.utils.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
@@ -99,7 +99,7 @@ def _run_docker_command(
 
 def fix_torrent_permissions(root_dir: Path | str | None = None) -> int:
     """
-    Recursively chown all .torrent files to the target UID:GID.
+    Recursively chown all .torrent and .json files to the target UID:GID.
 
     This fixes ownership after Docker creates files as root.
     Default ownership: Unraid's nobody:users (99:100)
@@ -111,39 +111,20 @@ def fix_torrent_permissions(root_dir: Path | str | None = None) -> int:
         Number of files fixed.
     """
     settings = get_settings()
-    target_uid = settings.target_uid
-    target_gid = settings.target_gid
-
     root_dir = Path(settings.mkbrr.host_output_dir) if root_dir is None else Path(root_dir)
 
-    if not root_dir.is_dir():
-        logger.warning(f"Torrent directory does not exist: {root_dir}")
-        return 0
+    count = fix_directory_ownership(
+        root_dir,
+        settings.target_uid,
+        settings.target_gid,
+        recursive=True,
+        file_extensions={".torrent", ".json"},
+    )
 
-    fixed_count = 0
-    logger.debug(f"Fixing .torrent ownership in {root_dir} to {target_uid}:{target_gid}")
+    if count:
+        logger.info(f"Fixed ownership on {count} item(s)")
 
-    for dirpath, _, filenames in os.walk(root_dir):
-        for name in filenames:
-            if not name.lower().endswith(".torrent"):
-                continue
-
-            full_path = Path(dirpath) / name
-            try:
-                stat = full_path.stat()
-                if stat.st_uid != target_uid or stat.st_gid != target_gid:
-                    os.chown(full_path, target_uid, target_gid)
-                    logger.debug(f"Fixed ownership: {full_path}")
-                    fixed_count += 1
-            except FileNotFoundError:
-                continue
-            except PermissionError as e:
-                logger.warning(f"Permission error on {full_path}: {e}")
-
-    if fixed_count:
-        logger.info(f"Fixed ownership on {fixed_count} .torrent file(s)")
-
-    return fixed_count
+    return count
 
 
 def _cleanup_stale_torrents(output_dir: Path, content_name: str) -> int:
