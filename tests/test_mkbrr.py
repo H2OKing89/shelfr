@@ -18,6 +18,8 @@ from mamfast.mkbrr import (
     inspect_torrent,
     load_presets,
 )
+from mamfast.utils.cmd import CmdError
+from tests.conftest import make_cmd_result
 
 
 class TestMkbrrResult:
@@ -53,14 +55,13 @@ class TestCheckDockerAvailable:
 
     def test_docker_available(self):
         """Test when docker is available."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
+        mock_result = make_cmd_result(exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
 
         with (
-            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.run", return_value=mock_result),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
         ):
             assert check_docker_available() is True
@@ -71,7 +72,15 @@ class TestCheckDockerAvailable:
         mock_settings.docker_bin = "/usr/bin/docker"
 
         with (
-            patch("subprocess.run", side_effect=FileNotFoundError),
+            patch(
+                "mamfast.mkbrr.run",
+                side_effect=CmdError(
+                    argv=["docker", "--version"],
+                    exit_code=127,
+                    stdout="",
+                    stderr="Command not found",
+                ),
+            ),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
         ):
             assert check_docker_available() is False
@@ -241,11 +250,6 @@ class TestCreateTorrent:
         output_dir = tmp_path / "torrents"
         output_dir.mkdir()
 
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Torrent created"
-        mock_result.stderr = ""
-
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
         mock_settings.mkbrr.preset = "mam"
@@ -261,14 +265,14 @@ class TestCreateTorrent:
 
         expected_torrent = output_dir / f"{content_dir.name}.torrent"
 
-        def mock_subprocess_run(*args, **kwargs):
+        def mock_run(argv, **kwargs):
             # Simulate mkbrr creating the torrent file during execution
             # (after _cleanup_stale_torrents removes any existing files)
             expected_torrent.touch()
-            return mock_result
+            return make_cmd_result(stdout="Torrent created", exit_code=0)
 
         with (
-            patch("subprocess.run", side_effect=mock_subprocess_run),
+            patch("mamfast.mkbrr.run", side_effect=mock_run),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
             patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
@@ -284,11 +288,6 @@ class TestCreateTorrent:
         content_dir = tmp_path / "content"
         content_dir.mkdir()
 
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = ""
-        mock_result.stderr = "Error creating torrent"
-
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
         mock_settings.mkbrr.preset = "mam"
@@ -301,7 +300,10 @@ class TestCreateTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", return_value=mock_result),
+            patch(
+                "mamfast.mkbrr.run",
+                return_value=make_cmd_result(exit_code=1, stderr="Error creating torrent"),
+            ),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
             patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
@@ -329,7 +331,7 @@ class TestCreateTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", side_effect=Exception("Unexpected error")),
+            patch("mamfast.mkbrr.run", side_effect=Exception("Unexpected error")),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
             patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
@@ -473,10 +475,7 @@ class TestInspectTorrent:
 
     def test_inspect_success(self, tmp_path: Path):
         """Test successful torrent inspection."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Name: test\nSize: 1234"
-        mock_result.stderr = ""
+        mock_result = make_cmd_result(stdout="Name: test\nSize: 1234", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -489,7 +488,7 @@ class TestInspectTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.run", return_value=mock_result),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch(
                 "mamfast.mkbrr.host_to_container_torrent_path",
@@ -504,10 +503,7 @@ class TestInspectTorrent:
 
     def test_inspect_verbose(self, tmp_path: Path):
         """Test verbose torrent inspection."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Detailed info..."
-        mock_result.stderr = ""
+        mock_result = make_cmd_result(stdout="Detailed info...", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -520,7 +516,7 @@ class TestInspectTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", return_value=mock_result) as mock_run,
+            patch("mamfast.mkbrr.run", return_value=mock_result) as mock_run,
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch(
                 "mamfast.mkbrr.host_to_container_torrent_path",
@@ -536,10 +532,7 @@ class TestInspectTorrent:
 
     def test_inspect_failure(self, tmp_path: Path):
         """Test failed torrent inspection."""
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = ""
-        mock_result.stderr = "File not found"
+        mock_result = make_cmd_result(stderr="File not found", exit_code=1)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -552,7 +545,7 @@ class TestInspectTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.run", return_value=mock_result),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch(
                 "mamfast.mkbrr.host_to_container_torrent_path",
@@ -577,7 +570,7 @@ class TestInspectTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", side_effect=Exception("Docker error")),
+            patch("mamfast.mkbrr.run", side_effect=Exception("Docker error")),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch(
                 "mamfast.mkbrr.host_to_container_torrent_path",
@@ -596,10 +589,7 @@ class TestCheckTorrent:
 
     def test_check_success(self, tmp_path: Path):
         """Test successful torrent check."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "100% verified"
-        mock_result.stderr = ""
+        mock_result = make_cmd_result(stdout="100% verified", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -612,7 +602,7 @@ class TestCheckTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.run", return_value=mock_result),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch(
                 "mamfast.mkbrr.host_to_container_torrent_path",
@@ -627,10 +617,7 @@ class TestCheckTorrent:
 
     def test_check_with_options(self, tmp_path: Path):
         """Test torrent check with verbose, quiet and workers options."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "OK"
-        mock_result.stderr = ""
+        mock_result = make_cmd_result(stdout="OK", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -643,7 +630,7 @@ class TestCheckTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", return_value=mock_result) as mock_run,
+            patch("mamfast.mkbrr.run", return_value=mock_result) as mock_run,
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch(
                 "mamfast.mkbrr.host_to_container_torrent_path",
@@ -666,10 +653,7 @@ class TestCheckTorrent:
 
     def test_check_verbose_without_quiet(self, tmp_path: Path):
         """Test torrent check with verbose flag (no quiet)."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Detailed output"
-        mock_result.stderr = ""
+        mock_result = make_cmd_result(stdout="Detailed output", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -682,7 +666,7 @@ class TestCheckTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", return_value=mock_result) as mock_run,
+            patch("mamfast.mkbrr.run", return_value=mock_result) as mock_run,
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch(
                 "mamfast.mkbrr.host_to_container_torrent_path",
@@ -704,10 +688,7 @@ class TestCheckTorrent:
 
     def test_check_failure(self, tmp_path: Path):
         """Test failed torrent check."""
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = ""
-        mock_result.stderr = "Verification failed"
+        mock_result = make_cmd_result(stderr="Verification failed", exit_code=1)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -720,7 +701,7 @@ class TestCheckTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.run", return_value=mock_result),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch(
                 "mamfast.mkbrr.host_to_container_torrent_path",
@@ -746,7 +727,7 @@ class TestCheckTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("subprocess.run", side_effect=Exception("Check failed")),
+            patch("mamfast.mkbrr.run", side_effect=Exception("Check failed")),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch(
                 "mamfast.mkbrr.host_to_container_torrent_path",
@@ -771,10 +752,7 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         output_dir = tmp_path / "torrents"
         output_dir.mkdir()
 
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Created torrent"
-        mock_result.stderr = ""
+        mock_result = make_cmd_result(stdout="Created torrent", exit_code=0)
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -794,7 +772,7 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         prefixed_torrent.touch()
 
         with (
-            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.run", return_value=mock_result),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
             patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
@@ -811,10 +789,7 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         output_dir = tmp_path / "torrents"
         output_dir.mkdir()
 
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Created torrent"
-        mock_result.stderr = ""
+        mock_result = make_cmd_result(exit_code=0, stdout="Created torrent")
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -834,7 +809,7 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         unprefixed_torrent.touch()
 
         with (
-            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.run", return_value=mock_result),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
             patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
@@ -853,10 +828,7 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         output_dir = tmp_path / "torrents"
         output_dir.mkdir()
 
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Created torrent"
-        mock_result.stderr = ""
+        mock_result = make_cmd_result(exit_code=0, stdout="Created torrent")
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -881,7 +853,7 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         newer_torrent.touch()
 
         with (
-            patch("subprocess.run", return_value=mock_result),
+            patch("mamfast.mkbrr.run", return_value=mock_result),
             patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
             patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
             patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),

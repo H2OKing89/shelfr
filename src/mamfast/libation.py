@@ -58,7 +58,7 @@ class LibationStatus:
     liberated: int
     not_liberated: int
     error: int = 0
-    other_statuses: dict[str, int] = field(default_factory=lambda: {})
+    other_statuses: dict[str, int] = field(default_factory=dict)
 
     @property
     def has_pending(self) -> bool:
@@ -188,11 +188,13 @@ def run_scan(interactive: bool = False) -> ScanResult:
         docker_args = ["docker", "exec"]
         if interactive:
             docker_args.append("-i")  # Interactive mode
-        docker_args.extend([
-            settings.libation_container,
-            "/libation/LibationCli",
-            "scan",
-        ])
+        docker_args.extend(
+            [
+                settings.libation_container,
+                "/libation/LibationCli",
+                "scan",
+            ]
+        )
 
         # Execute docker with TTY allocation if interactive
         result = run(

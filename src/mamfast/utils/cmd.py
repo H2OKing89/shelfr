@@ -11,7 +11,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-import sh  # type: ignore[import-not-found]
+import sh  # type: ignore[import-untyped]
 from sh import CommandNotFound, ErrorReturnCode
 
 logger = logging.getLogger(__name__)
@@ -120,20 +120,18 @@ def run(
     # Prepare sh kwargs
     sh_kwargs: dict[str, Any] = {
         "_ok_code": list(ok_codes),
+        "_return_cmd": True,  # Always return RunningCommand for .exit_code access
         **kwargs,
     }
 
     if timeout is not None:
         sh_kwargs["_timeout"] = timeout
 
-    if capture_output:
-        sh_kwargs["_return_cmd"] = True
-
     try:
         # Get the sh Command object
         cmd = sh.Command(cmd_name)
 
-        # Execute with args
+        # Execute with args - returns RunningCommand due to _return_cmd=True
         result = cmd(*cmd_args, **sh_kwargs)
 
         # Extract output
@@ -144,7 +142,7 @@ def run(
             argv=tuple(argv),
             stdout=stdout_text,
             stderr=stderr_text,
-            exit_code=getattr(result, "exit_code", 0),
+            exit_code=result.exit_code,
         )
 
     except ErrorReturnCode as e:

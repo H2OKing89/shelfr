@@ -1035,9 +1035,7 @@ def load_settings(
         library_root=Path(paths_data.get("library_root", "")),
         torrent_output=Path(paths_data.get("torrent_output", "")),
         seed_root=Path(paths_data.get("seed_root", "")),
-        state_file=resolve_path(
-            paths_data.get("state_file", str(data_dir() / "processed.json"))
-        ),
+        state_file=resolve_path(paths_data.get("state_file", str(data_dir() / "processed.json"))),
         log_file=resolve_path(paths_data.get("log_file", str(log_dir() / "mamfast.log"))),
     )
 
