@@ -232,6 +232,7 @@ def cmd_metadata(args: argparse.Namespace) -> int:
     torrent_output = settings.paths.torrent_output
 
     # Determine which directories to process
+    staged_dirs: list[Path]
     if args.path:
         target_dir = Path(args.path).resolve()
         if not target_dir.exists():
