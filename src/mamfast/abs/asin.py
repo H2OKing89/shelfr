@@ -447,8 +447,8 @@ def extract_asin_from_mediainfo(
         ASIN if found and valid, None otherwise
 
     Note:
-        P2 Migration Deferred: This function uses subprocess to call ffprobe (via
-        mediainfo binary check) instead of the sh library wrapper (utils/cmd.py).
+        P2 Migration Deferred: This function uses subprocess to call the
+        mediainfo binary instead of the sh library wrapper (utils/cmd.py).
         Migration deferred due to single niche use case (low priority). See
         P1_SH_LIBRARY_COMPLETE.md and MIGRATION_BACKLOG.md for details.
     """

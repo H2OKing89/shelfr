@@ -11,10 +11,10 @@ The P1 package upgrade (see [P1_SH_LIBRARY_COMPLETE.md](P1_SH_LIBRARY_COMPLETE.m
 
 #### 1. metadata.py - MediaInfo Calls
 
-**File**: `src/mamfast/metadata.py`  
-**Function**: `run_mediainfo()` (line ~990)  
-**Current Implementation**: Direct `subprocess.run()` call to `mediainfo --Output=JSON`  
-**Migration Target**: Use `utils/cmd.run()` wrapper  
+**File**: `src/mamfast/metadata.py`
+**Function**: `run_mediainfo()` (line ~990)
+**Current Implementation**: Direct `subprocess.run()` call to `mediainfo --Output=JSON`
+**Migration Target**: Use `utils/cmd.run()` wrapper
 
 **Rationale for Deferral**:
 - Single subprocess call in a large file (1851 lines)
@@ -22,8 +22,8 @@ The P1 package upgrade (see [P1_SH_LIBRARY_COMPLETE.md](P1_SH_LIBRARY_COMPLETE.m
 - No TTY or complex I/O requirements
 - Current implementation works reliably
 
-**Estimated Effort**: 10-15 minutes  
-**Priority**: P2 (Nice to have)  
+**Estimated Effort**: 10-15 minutes
+**Priority**: P2 (Nice to have)
 
 **Trigger Conditions** (when to migrate):
 - Bug fix or feature work touching `run_mediainfo()`
@@ -39,12 +39,12 @@ The P1 package upgrade (see [P1_SH_LIBRARY_COMPLETE.md](P1_SH_LIBRARY_COMPLETE.m
 
 ---
 
-#### 2. abs/asin.py - ffprobe Calls
+#### 2. abs/asin.py - MediaInfo Calls
 
-**File**: `src/mamfast/abs/asin.py`  
-**Function**: `extract_asin_from_audio()` (line ~440)  
-**Current Implementation**: Direct `subprocess.run()` call to `mediainfo --Output=JSON` (actually uses mediainfo, not ffprobe - naming is historical)  
-**Migration Target**: Use `utils/cmd.run()` wrapper  
+**File**: `src/mamfast/abs/asin.py`
+**Function**: `extract_asin_from_mediainfo()` (line ~430)
+**Current Implementation**: Direct `subprocess.run()` call to `mediainfo --Output=JSON`
+**Migration Target**: Use `utils/cmd.run()` wrapper
 
 **Rationale for Deferral**:
 - Single subprocess call for niche use case (extracting ASIN from audio file metadata)
@@ -52,8 +52,8 @@ The P1 package upgrade (see [P1_SH_LIBRARY_COMPLETE.md](P1_SH_LIBRARY_COMPLETE.m
 - Low impact - most books have ASINs in folder names already
 - Current implementation is defensive and handles errors well
 
-**Estimated Effort**: 10-15 minutes  
-**Priority**: P2 (Nice to have)  
+**Estimated Effort**: 10-15 minutes
+**Priority**: P2 (Nice to have)
 
 **Trigger Conditions** (when to migrate):
 - Bug fix or feature work in ASIN extraction logic
@@ -77,7 +77,7 @@ When migrating subprocess calls to sh library:
    ```python
    # Remove:
    import subprocess
-   
+
    # Add:
    from mamfast.utils.cmd import run, CmdError
    ```
@@ -86,7 +86,7 @@ When migrating subprocess calls to sh library:
    ```python
    # Before:
    result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=60)
-   
+
    # After:
    result = run(cmd, timeout=60, ok_codes=(0,))
    ```
@@ -98,7 +98,7 @@ When migrating subprocess calls to sh library:
        logger.warning("Command timed out")
    except subprocess.SubprocessError as e:
        logger.error(f"Command failed: {e}")
-   
+
    # After:
    except CmdError as e:
        if e.timed_out:
@@ -125,8 +125,8 @@ When migrating subprocess calls to sh library:
 
 ---
 
-**Last Updated**: 2025-12-20  
-**Maintained By**: Development team  
-**Related Documents**: 
+**Last Updated**: 2025-12-20
+**Maintained By**: Development team
+**Related Documents**:
 - [P1_SH_LIBRARY_COMPLETE.md](P1_SH_LIBRARY_COMPLETE.md) - P1 migration completion report
 - [PACKAGE_UPGRADE_PLAN.md](PACKAGE_UPGRADE_PLAN.md) - Overall package upgrade roadmap
