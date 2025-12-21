@@ -246,7 +246,7 @@ class TestRenderLibationStatus:
             panel = mock_print.call_args[0][0]
             assert hasattr(panel, "renderable")
             title_text = panel.title.plain if hasattr(panel.title, "plain") else str(panel.title)
-            assert "Libation Library Status" in title_text
+            assert "Libation Status" in title_text
             table = panel.renderable
             status_column = table.columns[0]
             assert "NotLiberated" in status_column._cells

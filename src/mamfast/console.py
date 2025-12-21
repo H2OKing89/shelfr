@@ -104,7 +104,7 @@ def print_dry_run(message: str) -> None:
 
 def render_libation_status(
     status: LibationStatus,
-    title: str = "Libation Library Status",
+    title: str = "Libation Status",
 ) -> None:
     """Render a Rich table describing Libation book statuses."""
 

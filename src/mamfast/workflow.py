@@ -30,7 +30,6 @@ from mamfast.console import (
     print_info,
     print_step,
     print_success,
-    print_summary,
     print_warning,
     print_workflow_summary,
     render_libation_status,
@@ -479,10 +478,10 @@ def process_single_release(
             )
 
         release.status = ReleaseStatus.UPLOADED
-        # Format the qBittorrent success message with category and truncated hash
+        # Format the qBittorrent success message with explicit labels
         qb_category = settings.qbittorrent.category or "audiobooks"
         hash_short = infohash[:8] + "…" + infohash[-4:] if infohash else "?"
-        print_success(f"Uploaded to qBittorrent ({qb_category}, {hash_short})")
+        print_success(f"Uploaded to qBittorrent (category={qb_category}, hash={hash_short})")
 
         # ---------------------------------------------------------------------
         # 5. Mark as complete
@@ -783,10 +782,7 @@ def full_run(
         skipped=skipped,
     )
 
-    # Print both summary formats - simple line + detailed table
-    print_summary(successful, failed, skipped, duration)
-
-    # Also show detailed workflow stats table
+    # Print workflow summary table (includes duration)
     print_workflow_summary(
         {
             "discovered": len(releases),
