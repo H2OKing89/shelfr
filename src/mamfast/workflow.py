@@ -640,6 +640,21 @@ def full_run(
                         else:
                             print_success("Liberate complete")
 
+                        # Check if any individual books failed (even though command succeeded)
+                        if liberate_result.has_book_errors:
+                            print_warning(
+                                f"Some books failed to download "
+                                f"({liberate_result.skipped_count} skipped)"
+                            )
+                            # Show the error message to user
+                            if liberate_result.error_message:
+                                # Clean up and truncate error message for display
+                                error_lines = liberate_result.error_message.splitlines()
+                                for line in error_lines[:2]:  # Show first 2 lines
+                                    print_warning(f"  → {line.strip()}")
+                            if liberate_result.log_path:
+                                print_info(f"  Full details in: {liberate_result.log_path.name}")
+
                         # Optional: Show updated status after liberate (only if something changed)
                         try:
                             new_status = get_libation_status()

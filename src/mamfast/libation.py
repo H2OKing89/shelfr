@@ -21,6 +21,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -37,6 +38,13 @@ if TYPE_CHECKING:
     from rich.console import Console
 
 logger = logging.getLogger(__name__)
+
+# Pattern to match Libation error messages in stderr
+# Example: "Error processing book. Skipping. This book will be tried again..."
+LIBATION_ERROR_PATTERN = re.compile(
+    r"Error processing book.*?(?:Skipping|failed)",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -288,13 +296,60 @@ class LiberateProgressResult:
     success: bool
     returncode: int
     downloaded_count: int = 0
+    skipped_count: int = 0  # Books that failed/were skipped
     log_path: Path | None = None
     error_message: str = ""
+    has_book_errors: bool = False  # True if individual books failed (even if exit 0)
 
 
 def _is_tty() -> bool:
     """Check if we're running in a TTY (interactive terminal)."""
     return sys.stdout.isatty() and sys.stderr.isatty()
+
+
+def _parse_libation_output(stdout: str, stderr: str) -> dict[str, Any]:
+    """Parse Libation output for book processing results.
+
+    Libation can return exit code 0 even when individual books fail.
+    This function parses stdout/stderr to detect:
+    - Successfully downloaded books
+    - Skipped/errored books
+
+    Returns:
+        Dict with:
+        - completed: List of completed book identifiers
+        - errors: List of error messages
+        - has_book_errors: True if any books failed
+    """
+    completed: list[str] = []
+    errors: list[str] = []
+
+    # Parse stdout for completed books
+    # Format: "DownloadDecryptBook Completed: MM/DD/YYYY [ASIN] Title"
+    for line in stdout.splitlines():
+        if "Completed:" in line:
+            # Extract book info
+            completed.append(line.strip())
+
+    # Parse stderr for error messages
+    # Format: "Error processing book. Skipping..."
+    if stderr:
+        # Look for error patterns
+        if LIBATION_ERROR_PATTERN.search(stderr):
+            errors.append(stderr.strip())
+        # Also check for other common error indicators
+        error_keywords = ["error", "failed", "skipping"]
+        for line in stderr.splitlines():
+            line_stripped = line.strip()
+            has_error_keyword = any(kw in line_stripped.lower() for kw in error_keywords)
+            if line_stripped and line_stripped not in errors and has_error_keyword:
+                errors.append(line_stripped)
+
+    return {
+        "completed": completed,
+        "errors": errors,
+        "has_book_errors": len(errors) > 0,
+    }
 
 
 def run_liberate_with_progress(
@@ -389,6 +444,9 @@ def run_liberate_with_progress(
         log_content += proc.stderr or "(empty)"
         log_path.write_text(log_content)
 
+        # Parse output for book-level errors (Libation returns exit 0 even when books fail)
+        parsed = _parse_libation_output(proc.stdout or "", proc.stderr or "")
+
         if proc.returncode != 0:
             # Extract tail of stderr for error message
             stderr_lines = (proc.stderr or "").strip().splitlines()
@@ -398,11 +456,26 @@ def run_liberate_with_progress(
                 returncode=proc.returncode,
                 log_path=log_path,
                 error_message=f"Last output:\n{tail}",
+                has_book_errors=True,
+            )
+
+        # Exit code was 0, but check if any individual books failed
+        if parsed["has_book_errors"]:
+            error_summary = "\n".join(parsed["errors"][:3])  # First 3 errors
+            return LiberateProgressResult(
+                success=True,  # Command succeeded overall
+                returncode=proc.returncode,
+                downloaded_count=len(parsed["completed"]),
+                skipped_count=len(parsed["errors"]),
+                log_path=log_path,
+                error_message=error_summary,
+                has_book_errors=True,
             )
 
         return LiberateProgressResult(
             success=True,
             returncode=proc.returncode,
+            downloaded_count=len(parsed["completed"]),
             log_path=log_path,
         )
 
