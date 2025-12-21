@@ -381,6 +381,10 @@ class TestConfigurationValidation:
     def test_missing_required_env_vars(self) -> None:
         """Test that missing required environment variables are detected."""
         from mamfast.config import ConfigurationError, validate_required_env_vars
+        from mamfast.env_settings import clear_env_settings_cache
+
+        # Clear cache to ensure fresh settings are loaded
+        clear_env_settings_cache()
 
         with (
             patch.dict("os.environ", {}, clear=True),

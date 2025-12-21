@@ -298,7 +298,7 @@ paths:
             config_path.write_text(yaml_content)
 
             env_path = Path(tmpdir) / ".env"
-            env_path.write_text("QB_HOST=localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
+            env_path.write_text("QB_HOST=http://localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
 
             settings = reload_settings(env_file=env_path, config_file=config_path, validate=False)
 
@@ -390,7 +390,7 @@ paths:
             config_path.write_text(yaml_content)
 
             env_path = Path(tmpdir) / ".env"
-            env_path.write_text("QB_HOST=localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
+            env_path.write_text("QB_HOST=http://localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
 
             # Load settings
             reload_settings(env_file=env_path, config_file=config_path, validate=False)
@@ -415,7 +415,7 @@ paths:
             config_path.write_text(yaml_content)
 
             env_path = Path(tmpdir) / ".env"
-            env_path.write_text("QB_HOST=localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
+            env_path.write_text("QB_HOST=http://localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
 
             settings1 = reload_settings(env_file=env_path, config_file=config_path, validate=False)
             assert settings1.paths.library_root == Path("/tmp/library-v1")
