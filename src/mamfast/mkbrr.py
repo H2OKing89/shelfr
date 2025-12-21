@@ -349,7 +349,7 @@ def create_torrent(
             )
 
     except CmdError as e:
-        if "timed out" in e.stderr.lower():
+        if e.timed_out:
             logger.error(f"mkbrr timed out after {timeout_seconds}s")
             return MkbrrResult(
                 success=False,
@@ -483,12 +483,12 @@ def check_docker_available() -> bool:
     """Check if Docker is available on the system."""
     settings = get_settings()
     try:
-        result = run(
+        run(
             [settings.docker_bin, "--version"],
             timeout=5,  # Quick check
             ok_codes=(0,),
         )
-        return result.exit_code == 0
+        return True
     except CmdError:
         return False
     except Exception as e:
