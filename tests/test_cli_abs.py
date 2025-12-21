@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mamfast.cli import build_parser, cmd_abs_init
+from mamfast.commands.abs import should_ignore
 
 
 class TestAbsCliParser:
@@ -22,6 +23,72 @@ class TestAbsCliParser:
         args = parser.parse_args(["abs-init"])
         assert args.command == "abs-init"
         assert hasattr(args, "func")
+
+
+class TestShouldIgnoreFunction:
+    """Tests for the should_ignore utility function."""
+
+    def test_should_ignore_extension_pattern(self) -> None:
+        """Test extension patterns (starting with dot)."""
+        patterns = [".DS_Store", ".nfo", ".cue"]
+        assert should_ignore(".DS_Store", patterns)
+        assert should_ignore("file.nfo", patterns)
+        assert should_ignore("metadata.cue", patterns)
+        assert not should_ignore("file.txt", patterns)
+
+    def test_should_ignore_glob_pattern(self) -> None:
+        """Test glob pattern matching with asterisk."""
+        patterns = ["*.tmp", "temp_*", "*.log"]
+        assert should_ignore("file.tmp", patterns)
+        assert should_ignore("temp_file.txt", patterns)
+        assert should_ignore("debug.log", patterns)
+        assert not should_ignore("file.txt", patterns)
+
+    def test_should_ignore_complex_glob(self) -> None:
+        """Test complex glob patterns."""
+        patterns = ["*~", ".*", "*.backup"]
+        assert should_ignore("file.txt~", patterns)
+        assert should_ignore(".hidden", patterns)
+        assert should_ignore("data.backup", patterns)
+        assert not should_ignore("normal.txt", patterns)
+
+    def test_should_ignore_mixed_patterns(self) -> None:
+        """Test combination of extension and glob patterns."""
+        patterns = [".jpg", "*.tmp", ".nfo", "temp_*"]
+        # Extension matches
+        assert should_ignore("cover.jpg", patterns)
+        assert should_ignore("metadata.nfo", patterns)
+        # Glob matches
+        assert should_ignore("file.tmp", patterns)
+        assert should_ignore("temp_data.txt", patterns)
+        # No match
+        assert not should_ignore("book.m4b", patterns)
+
+    def test_should_ignore_empty_patterns(self) -> None:
+        """Test with empty pattern list."""
+        assert not should_ignore("anyfile.txt", [])
+        assert not should_ignore(".DS_Store", [])
+
+    def test_should_ignore_case_insensitive(self) -> None:
+        """Test that matching is case-insensitive."""
+        patterns = [".NFO", "*.TMP"]
+        # Extension match (case-insensitive)
+        assert should_ignore("metadata.nfo", patterns)
+        assert should_ignore("METADATA.NFO", patterns)
+        # Glob match (case-insensitive)
+        assert should_ignore("file.tmp", patterns)
+        assert should_ignore("FILE.TMP", patterns)
+
+    def test_should_ignore_non_matching_exact_name(self) -> None:
+        """Test that exact names without . or * don't match."""
+        # These won't match because they're not glob patterns and don't start with .
+        patterns = ["Thumbs.db", "desktop.ini"]
+        assert not should_ignore("Thumbs.db", patterns)
+        assert not should_ignore("desktop.ini", patterns)
+        # But glob versions will match
+        patterns_glob = ["Thumbs.*", "desktop.*"]
+        assert should_ignore("Thumbs.db", patterns_glob)
+        assert should_ignore("desktop.ini", patterns_glob)
 
 
 @dataclass
@@ -1013,9 +1080,9 @@ class TestAbsTrumpCheckCommand:
         assert hasattr(args, "func")
 
     def test_abs_trump_check_verbose_flag(self) -> None:
-        """Test abs-trump-check accepts verbose flag."""
+        """Test abs-trump-check accepts verbose flag (global flag before subcommand)."""
         parser = build_parser()
-        args = parser.parse_args(["abs-trump-check", "--verbose"])
+        args = parser.parse_args(["--verbose", "abs-trump-check"])
         assert args.verbose is True
 
     def test_abs_trump_check_paths_argument(self) -> None:
