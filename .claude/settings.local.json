@@ -5,11 +5,8 @@
       "Bash(grep:*)",
       "Bash(find:*)",
       "Bash(python3:*)",
-      "Bash(python -m pytest tests/ -v --tb=short)",
       "Bash(MAMFAST_DATA_DIR=/tmp/test_mamfast python3:*)",
-      "Bash(python -m pytest:*)",
-      "Bash(ruff check:*)",
-      "Bash(python -m mypy:*)"
+      "Bash(ruff check:*)"
     ]
   }
 }
