@@ -21,6 +21,9 @@ dependencies = [
     "pydantic>=2.0",
     "pathvalidate>=3.0",
     "rapidfuzz>=3.0",
+    # P0 upgrades: Better retry logic and cross-platform paths
+    "tenacity>=8.0",
+    "platformdirs>=4.0",
 ]
 
 [project.optional-dependencies]
