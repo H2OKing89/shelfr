@@ -3,11 +3,13 @@
 MAMFast automates audiobook uploads to MAM: Libation discovery → staging (hardlink) → metadata (Audnex + MediaInfo) → torrent (mkbrr in Docker) → upload → Audiobookshelf import. Python 3.11+, strict typing, Pydantic v2.
 
 ## CLI (CRITICAL)
+
 Global flags go BEFORE subcommand:
 - ✅ `mamfast --dry-run abs-import`
 - ❌ `mamfast abs-import --dry-run` (subcommands don't define their own)
 
 ## Non-negotiable rules
+
 - Use `from __future__ import annotations`, `pathlib.Path`, and `logger = logging.getLogger(__name__)`.
 - User-facing output MUST use `mamfast.console` Rich helpers (no `print()`).
 - External calls (HTTP/Docker/qBittorrent/ABS) must have timeouts + `retry_with_backoff(...)` (no infinite retries).
@@ -17,10 +19,12 @@ Global flags go BEFORE subcommand:
 - Config precedence: `config/config.yaml` > `config/.env` > defaults. NEVER commit `.env`, `config.yaml`, `data/`, `logs/`.
 
 ## Changing behavior
+
 - Prefer updates in `config/naming.json` + golden tests over editing `utils/naming*`.
 - ABS import: ASIN drives duplicate detection; folders without `{ASIN...}` follow "unknown ASIN" policy.
 
 ## Contributing
+
 - New CLI command: add subparser in `cli.py:build_parser()`, `set_defaults(func=...)`, handler returns `int` and respects `args.dry_run`.
 - New config option: update `config.py` dataclass → `schemas/config.py` → `config.yaml.example` → tests.
 - Tests: pytest; one test module per source module; mock Docker/qbit/network; use `tests/conftest.py` helpers (e.g., `make_cmd_result()`).
