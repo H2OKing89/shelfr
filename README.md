@@ -4,11 +4,25 @@
 
 **Fast MAM audiobook upload automation tool**
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+<p>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python 3.11+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/badge/code%20style-ruff-000000.svg" alt="Code style: ruff"></a>
+  <a href="https://coderabbit.ai"><img src="https://img.shields.io/coderabbit/prs/github/H2OKing89/mam_tool?utm_source=oss&utm_medium=github&utm_campaign=H2OKing89%2Fmam_tool&labelColor=171717&color=FF570A&label=CodeRabbit+Reviews" alt="CodeRabbit Pull Request Reviews"></a>
+</p>
 
-Automates the pipeline from Libation audiobook downloads to MAM-ready torrents seeding in qBittorrent.
+<p>
+  <strong>Automates the pipeline from Libation audiobook downloads to MAM-ready torrents seeding in qBittorrent</strong>
+</p>
+
+<p>
+  <a href="#-features">Features</a> •
+  <a href="#-pipeline">Pipeline</a> •
+  <a href="#-installation">Installation</a> •
+  <a href="#-usage">Usage</a> •
+  <a href="#-audiobookshelf-integration">Audiobookshelf</a> •
+  <a href="#-development">Development</a>
+</p>
 
 </div>
 
@@ -18,58 +32,95 @@ Automates the pipeline from Libation audiobook downloads to MAM-ready torrents s
 
 <table>
 <tr>
-<td>🔍</td>
-<td><strong>Libation Integration</strong></td>
-<td>Trigger scans via <code>libationcli</code> in Docker</td>
+<td width="50">🔍</td>
+<td width="200"><strong>Libation Integration</strong></td>
+<td>Trigger scans via <code>libationcli</code> in Docker with automatic book discovery</td>
 </tr>
 <tr>
 <td>📦</td>
 <td><strong>Smart Staging</strong></td>
-<td>Hardlink files to upload workspace with MAM-compliant naming (≤225 chars)</td>
+<td>Hardlink files to upload workspace with MAM-compliant naming (≤225 chars, automatic truncation with hash suffix)</td>
 </tr>
 <tr>
 <td>🌏</td>
 <td><strong>Japanese Transliteration</strong></td>
-<td>Auto-converts Japanese author names using pykakasi</td>
+<td>Auto-converts Japanese author names using pykakasi with intelligent romanization</td>
 </tr>
 <tr>
 <td>📋</td>
 <td><strong>Metadata Enrichment</strong></td>
-<td>Fetch from <a href="https://api.audnex.us">Audnex API</a> + MediaInfo</td>
+<td>Fetch from <a href="https://api.audnex.us">Audnex API</a> + MediaInfo with series/volume detection</td>
 </tr>
 <tr>
 <td>🧲</td>
 <td><strong>Torrent Creation</strong></td>
-<td>Uses mkbrr with configurable presets</td>
+<td>Uses mkbrr in Docker with configurable presets and piece sizes</td>
 </tr>
 <tr>
 <td>⬆️</td>
 <td><strong>qBittorrent Upload</strong></td>
-<td>Auto-add torrents with category/tags</td>
+<td>Auto-add torrents with category/tags, ready for cross-seeding</td>
 </tr>
 <tr>
 <td>🔄</td>
-<td><strong>Retry Logic</strong></td>
-<td>Exponential backoff for network operations</td>
+<td><strong>Production-Grade Retry</strong></td>
+<td>Powered by <a href="https://github.com/jd/tenacity">tenacity</a> with exponential backoff and jitter</td>
 </tr>
 <tr>
 <td>📊</td>
-<td><strong>State Tracking</strong></td>
-<td>Prevents re-processing of already handled releases</td>
+<td><strong>Robust State Tracking</strong></td>
+<td>Atomic writes, automatic backups, stale detection, and checkpoint recovery</td>
+</tr>
+<tr>
+<td>📚</td>
+<td><strong>Audiobookshelf Import</strong></td>
+<td>Direct library import with duplicate detection and quality-based trumping</td>
+</tr>
+<tr>
+<td>🛡️</td>
+<td><strong>Type-Safe Architecture</strong></td>
+<td>Strict typing with Pydantic v2 models and mypy verification</td>
 </tr>
 </table>
 
+---
+
 ## 🔄 Pipeline
 
-```
-Libation Scan → Discover New → Stage (Hardlink) → Metadata → mkbrr → qBittorrent
-```
+\`\`\`mermaid
+graph LR
+    A[📖 Libation Scan] --> B[🔍 Discover New]
+    B --> C[📦 Stage/Hardlink]
+    C --> D[📋 Metadata]
+    D --> E[🧲 mkbrr]
+    E --> F[⬆️ qBittorrent]
+    F --> G[📚 Audiobookshelf]
+    style A fill:#e1f5fe
+    style G fill:#e8f5e9
+\`\`\`
+
+<details>
+<summary><strong>Pipeline Details</strong></summary>
+
+| Stage | Description | Command |
+|-------|-------------|---------|
+| **Scan** | Trigger Libation to check for new Audible books | \`mamfast scan\` |
+| **Discover** | Find new audiobooks not yet processed | \`mamfast discover\` |
+| **Stage** | Hardlink files with MAM-compliant naming | \`mamfast prepare\` |
+| **Metadata** | Fetch Audnex data + extract MediaInfo | \`mamfast metadata\` |
+| **Torrent** | Create .torrent files via mkbrr | \`mamfast torrent\` |
+| **Upload** | Add to qBittorrent with tags | \`mamfast upload\` |
+| **Import** | Import to Audiobookshelf (optional) | \`mamfast abs-import\` |
+
+</details>
+
+---
 
 ## 📥 Installation
 
-```bash
+\`\`\`bash
 # Clone the repo
-git clone <your-repo-url> mamfast
+git clone https://github.com/H2OKing89/mam_tool.git mamfast
 cd mamfast
 
 # Create virtual environment
@@ -82,25 +133,56 @@ pip install -e ".[dev]"
 # Copy config templates
 cp config.yaml.example config/config.yaml
 mkdir -p config
-echo "# See .env.example for available variables" > config/.env
+cp .env.example config/.env
 
 # Edit with your settings
-$EDITOR config/.env config/config.yaml
-```
+\$EDITOR config/.env config/config.yaml
+\`\`\`
+
+### Requirements
+
+<table>
+<tr>
+<th>Requirement</th>
+<th>Version</th>
+<th>Notes</th>
+</tr>
+<tr>
+<td>🐍 Python</td>
+<td>3.11+</td>
+<td>Required</td>
+</tr>
+<tr>
+<td>🐳 Docker</td>
+<td>Latest</td>
+<td>For Libation and mkbrr containers</td>
+</tr>
+<tr>
+<td>📥 qBittorrent</td>
+<td>4.x</td>
+<td>With Web UI enabled</td>
+</tr>
+<tr>
+<td>🎵 mediainfo</td>
+<td>Latest</td>
+<td>CLI tool for audio metadata</td>
+</tr>
+</table>
+
+---
 
 ## ⚙️ Configuration
 
-MAMFast uses three configuration sources:
+MAMFast uses layered configuration with automatic validation:
 
 <details>
-<summary><strong>1. <code>config/.env</code> - Secrets (never commit)</strong></summary>
+<summary><strong>1. 🔐 <code>config/.env</code> - Secrets (never commit)</strong></summary>
 
-```bash
+\`\`\`bash
 # qBittorrent credentials
 QB_HOST=http://10.1.60.10:8080
 QB_USERNAME=admin
 QB_PASSWORD=secret
-
 
 # Optional overrides
 LIBATION_CONTAINER=libation
@@ -108,14 +190,14 @@ DOCKER_BIN=/usr/bin/docker
 TARGET_UID=99
 TARGET_GID=100
 LOG_LEVEL=INFO
-```
+\`\`\`
 
 </details>
 
 <details>
-<summary><strong>2. <code>config/config.yaml</code> - Paths & Settings</strong></summary>
+<summary><strong>2. 📝 <code>config/config.yaml</code> - Paths & Settings</strong></summary>
 
-```yaml
+\`\`\`yaml
 paths:
   library_root: "/mnt/user/data/audio/LibationLibrary"
   seed_root: "/mnt/user/data/seedvault/audiobooks"
@@ -150,31 +232,31 @@ qbittorrent:
 audnex:
   base_url: "https://api.audnex.us"
   timeout_seconds: 30
-```
+\`\`\`
 
 </details>
 
 <details>
-<summary><strong>3. <code>config/categories.json</code> - MAM Genre Mappings</strong></summary>
+<summary><strong>3. 🗂️ <code>config/categories.json</code> - MAM Genre Mappings</strong></summary>
 
 Maps audiobook genres to MAM category IDs:
 
-```json
+\`\`\`json
 {
   "fantasy": 39,
   "science fiction": 40,
   "mystery": 41
 }
-```
+\`\`\`
 
 </details>
 
 <details>
-<summary><strong>4. Environment Variables - Path Overrides</strong></summary>
+<summary><strong>4. 🌍 Environment Variables - XDG Path Overrides</strong></summary>
 
-MAMFast uses XDG-compliant paths by default but allows full customization via environment variables:
+MAMFast uses XDG-compliant paths by default (via [platformdirs](https://github.com/platformdirs/platformdirs)):
 
-```bash
+\`\`\`bash
 # Override default data directory (for state files)
 # Default: ~/.local/share/mamfast (Linux), ~/Library/Application Support/mamfast (macOS)
 export MAMFAST_DATA_DIR="/mnt/cache/appdata/mamfast/data"
@@ -186,32 +268,28 @@ export MAMFAST_CACHE_DIR="/mnt/cache/appdata/mamfast/cache"
 # Override default log directory
 # Default: ~/.local/state/mamfast (Linux), ~/Library/Logs/mamfast (macOS)
 export MAMFAST_LOG_DIR="/mnt/cache/appdata/mamfast/logs"
-```
+\`\`\`
 
-**Note**: These environment variables only affect the *default* paths used when `state_file` and `log_file` are not explicitly configured in `config.yaml`. Explicitly configured paths in YAML always take precedence.
-
-**Example for Unraid**:
-```bash
-# Add to docker-compose or systemd environment
-MAMFAST_DATA_DIR=/mnt/cache/appdata/mamfast/data
-MAMFAST_LOG_DIR=/mnt/cache/appdata/mamfast/logs
-```
+> **Note**: Explicitly configured paths in \`config.yaml\` always take precedence over environment variables.
 
 </details>
+
+---
 
 ## 🚀 Usage
 
 ### Full Pipeline
 
-```bash
+\`\`\`bash
 mamfast run                   # Run everything
 mamfast run --skip-scan       # Skip Libation scan
 mamfast run --skip-metadata   # Skip metadata fetching
-```
+mamfast --dry-run run         # Preview without changes
+\`\`\`
 
 ### Step by Step
 
-```bash
+\`\`\`bash
 mamfast scan              # Trigger Libation download
 mamfast scan --liberate   # Scan and download new books
 mamfast discover          # List new audiobooks
@@ -220,23 +298,43 @@ mamfast prepare           # Stage files (hardlink + rename)
 mamfast metadata          # Fetch Audnex + MediaInfo
 mamfast torrent           # Create .torrent files
 mamfast upload            # Add to qBittorrent
-```
+\`\`\`
+
+### State Management
+
+\`\`\`bash
+mamfast state list            # View all processed entries
+mamfast state list --failed   # Show only failed entries
+mamfast state prune           # Remove stale entries (missing files)
+mamfast state retry <path>    # Clear failed status for retry
+mamfast state clear <path>    # Remove entry completely
+\`\`\`
 
 ### Utilities
 
-```bash
-mamfast status            # Show processing status
+\`\`\`bash
+mamfast status            # Show processing statistics
 mamfast config            # Debug: print loaded config
-```
+mamfast validate          # Validate configuration
+mamfast check-duplicates  # Find potential duplicate releases
+\`\`\`
 
 ### Global Options
 
 | Option | Description |
 |--------|-------------|
-| `-v, --verbose` | Enable DEBUG logging |
-| `-c, --config PATH` | Custom config.yaml path |
-| `--dry-run` | Preview without changes |
-| `-V, --version` | Show version |
+| \`--dry-run\` | Preview without making changes |
+| \`-v, --verbose\` | Enable DEBUG logging |
+| \`-c, --config PATH\` | Custom config.yaml path |
+| \`-V, --version\` | Show version |
+
+> ⚠️ **Important**: Global options like \`--dry-run\` must come **before** the subcommand:
+> \`\`\`bash
+> mamfast --dry-run abs-import  # ✅ Correct
+> mamfast abs-import --dry-run  # ❌ Won't work
+> \`\`\`
+
+---
 
 ## 📚 Audiobookshelf Integration
 
@@ -244,18 +342,20 @@ MAMFast supports importing audiobooks directly to Audiobookshelf libraries with 
 
 ### Basic Commands
 
-```bash
+\`\`\`bash
+mamfast abs-init              # Initialize ABS connection
 mamfast abs-import            # Import staged books to ABS library
-mamfast abs-check-duplicate B0ASIN123  # Check if ASIN exists in library
+mamfast abs-check-duplicate B0ASIN123  # Check if ASIN exists
 mamfast abs-trump-check       # Preview trumping decisions
+mamfast abs-cleanup           # Clean orphaned files
 mamfast abs-restore           # List/restore archived books
-```
+\`\`\`
 
 ### Trumping (Quality-Based Replacement)
 
-When enabled, trumping automatically replaces lower-quality audiobooks with higher-quality versions based on format, bitrate, and other metrics.
+When enabled, trumping automatically replaces lower-quality audiobooks with higher-quality versions:
 
-```yaml
+\`\`\`yaml
 # config/config.yaml
 audiobookshelf:
   enabled: true
@@ -267,83 +367,93 @@ audiobookshelf:
       aggressiveness: balanced  # conservative | balanced | aggressive
       min_bitrate_increase_kbps: 64
       archive_root: "/mnt/user/data/audio/archive"
-```
+\`\`\`
 
-**Quality Hierarchy:** m4b > m4a > opus > mp3 > flac (for audiobooks)
+<details>
+<summary><strong>Quality Hierarchy & Trumping Decisions</strong></summary>
 
-> **Note:** FLAC is intentionally ranked lowest for audiobooks because speech doesn't benefit from lossless encoding, FLAC lacks chapter support, and file sizes are significantly larger. See [TRUMPING.md](docs/audiobookshelf/TRUMPING.md#format-tier-rationale) for detailed rationale.
+**Format Ranking:** m4b > m4a > opus > mp3 > flac (for audiobooks)
+
+> FLAC is ranked lowest because speech doesn't benefit from lossless encoding, FLAC lacks chapter support, and file sizes are significantly larger.
 
 **Trumping Decisions:**
-- **REPLACE_WITH_NEW** - New file is better quality → archive old, import new
-- **KEEP_EXISTING** - Existing is equal or better → skip import
-- **KEEP_BOTH** - Incomparable (different language, etc.) → defer to duplicate policy
-- **REJECT_NEW** - New is worse quality → skip entirely
 
-```bash
-# Preview what would be trumped
-mamfast abs-trump-check
+| Decision | Action |
+|----------|--------|
+| **REPLACE_WITH_NEW** | New file is better → archive old, import new |
+| **KEEP_EXISTING** | Existing is equal or better → skip import |
+| **KEEP_BOTH** | Incomparable (different language) → defer to policy |
+| **REJECT_NEW** | New is worse quality → skip entirely |
 
-# Preview with detailed comparison tables
-mamfast abs-trump-check --verbose
+</details>
 
-# Check specific folders
-mamfast abs-trump-check /path/to/folder
-
-# List archived books
-mamfast abs-restore --list
-
-# Restore a specific archive
-mamfast abs-restore /path/to/archive/folder
-```
+---
 
 ## 📁 Project Structure
 
-```
+MAMFast uses a modular architecture with clean separation of concerns:
+
+\`\`\`
 mamfast/
 ├── src/mamfast/
-│   ├── __init__.py
-│   ├── cli.py              # Command-line interface
-│   ├── config.py           # Configuration loading (.env, yaml, json)
-│   ├── models.py           # Data models (AudiobookRelease, etc.)
-│   ├── libation.py         # Libation Docker wrapper
-│   ├── discovery.py        # Find new audiobooks
-│   ├── hardlinker.py       # Stage files for upload
-│   ├── metadata.py         # Audnex + MediaInfo
-│   ├── mkbrr.py            # Torrent creation
-│   ├── qbittorrent.py      # qBittorrent API
-│   ├── workflow.py         # Pipeline orchestration
-│   ├── logging_setup.py    # Logging configuration
-│   ├── templates/          # Jinja2 templates for MAM BBCode
-│   └── utils/
-│       ├── naming.py       # Filename sanitization & transliteration
-│       ├── paths.py        # Host↔container path mapping
-│       ├── retry.py        # Exponential backoff decorator
-│       └── state.py        # Processed tracking
-├── config/
-│   ├── config.yaml         # Your config (gitignored)
-│   ├── .env                # Your secrets (gitignored)
-│   └── categories.json     # MAM genre → category ID mapping
-├── data/                   # State files (gitignored)
-├── logs/                   # Log files (gitignored)
-├── tests/                  # Test suite
-├── config.yaml.example     # Config template
-├── pyproject.toml
-├── LICENSE
-└── README.md
-```
+│   ├── cli.py                  # CLI parser + main entry point
+│   ├── config.py               # Configuration loading
+│   ├── models.py               # Pydantic data models
+│   ├── workflow.py             # Pipeline orchestration
+│   │
+│   ├── commands/               # 🆕 CLI command handlers
+│   │   ├── core.py             #    scan, discover, prepare, etc.
+│   │   ├── utility.py          #    status, check, validate
+│   │   ├── diagnostics.py      #    dry-run, check-duplicates
+│   │   ├── state.py            #    state list/prune/retry/clear
+│   │   └── abs.py              #    Audiobookshelf commands
+│   │
+│   ├── abs/                    # Audiobookshelf integration
+│   │   ├── client.py           #    ABS API client
+│   │   ├── importer.py         #    Import workflow
+│   │   └── asin.py             #    ASIN extraction/resolution
+│   │
+│   ├── utils/
+│   │   ├── naming/             # 🆕 Modular naming system
+│   │   │   ├── filters.py      #    Title/series filtering
+│   │   │   ├── mam_paths.py    #    MAM path building
+│   │   │   ├── normalization.py#    Book normalization
+│   │   │   └── ...             #    8 focused modules
+│   │   ├── cmd.py              # 🆕 sh-library subprocess wrapper
+│   │   ├── retry.py            # 🆕 tenacity-powered retries
+│   │   ├── state.py            #    State management (v2 schema)
+│   │   └── paths.py            #    Host↔container path mapping
+│   │
+│   └── schemas/                # Pydantic schemas
+│       ├── config.py           #    Configuration validation
+│       └── state.py            #    State file schema v2
+│
+├── config/                     # Configuration (gitignored)
+├── docs/                       # Technical documentation
+│   ├── archive/                #    Completed implementation reports
+│   └── audiobookshelf/         #    ABS integration guides
+├── tests/                      # Comprehensive test suite
+└── pyproject.toml              # Project configuration
+\`\`\`
 
-## 📋 Requirements
+<details>
+<summary><strong>Recent Architecture Improvements (December 2025)</strong></summary>
 
-| Requirement | Notes |
-|-------------|-------|
-| Python 3.11+ | Required |
-| Docker | For Libation and mkbrr containers |
-| qBittorrent | With Web UI enabled |
-| `mediainfo` | CLI tool for audio metadata |
+- **CLI Split**: \`cli.py\` reduced from 4,100 → 820 lines via \`commands/\` subpackage
+- **Naming Refactor**: \`naming.py\` split into 9 focused modules for maintainability
+- **State Hardening**: Schema v2 with atomic writes, checkpoints, and backup recovery
+- **Production Dependencies**: Replaced custom code with battle-tested libraries:
+  - \`tenacity\` for retry logic with exponential backoff
+  - \`platformdirs\` for XDG-compliant paths
+  - \`sh\` library wrapper for cleaner subprocess handling
+
+</details>
+
+---
 
 ## 🛠️ Development
 
-```bash
+\`\`\`bash
 # Install dev dependencies
 pip install -e ".[dev]"
 
@@ -364,8 +474,28 @@ mypy src/
 
 # Run all checks (pre-commit)
 pre-commit run --all-files
-```
+\`\`\`
+
+### Pre-commit Hooks
+
+MAMFast uses pre-commit for automated code quality:
+
+\`\`\`yaml
+# .pre-commit-config.yaml includes:
+- ruff          # Fast Python linting
+- ruff-format   # Code formatting
+- mypy          # Type checking
+- pytest        # Test suite
+\`\`\`
+
+---
 
 ## 📄 License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © 2024-2025
+
+---
+
+<div align="center">
+  <sub>Built with ❤️ for audiobook enthusiasts</sub>
+</div>
