@@ -259,6 +259,18 @@ audnex:
   regions: ["us"]
 ```
 
+**Naming rules** — `config/naming.json`
+
+Naming rules control title/subtitle normalization and filtering used by the naming pipeline (e.g., phrases to remove, author mappings). See `config/naming.json` for the full example.
+
+- `format_indicators`: phrases to remove from titles/subtitles (replaces old `remove_phrases`)
+- `author_map`: explicit foreign name → romanized name mappings
+- `genre_tags`: genre suffixes to strip from titles/subtitles
+- `series_suffixes`: regex patterns to trim from series names
+- `subtitle_patterns`: remove/keep subtitle patterns and related options
+- `subtitle_redundancy_rules`: rules to drop redundant subtitles
+- `preserve_exact`: exact titles that bypass all normalization
+
 </details>
 
 <details>
