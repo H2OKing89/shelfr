@@ -206,8 +206,6 @@ def _migrate_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
             entry["author"] = None
 
     logger.debug("Completed v1 -> v2 migration")
-    # Note: data is mutated in place
-    data["version"] = CURRENT_SCHEMA_VERSION
     return data
 
 
@@ -276,9 +274,13 @@ def _load_state_unsafe(state_file: Path) -> dict[str, Any]:
     if backup_file.exists():
         try:
             data = _parse_json_file(backup_file)
-            logger.warning(f"Main state corrupt, recovered from backup: {backup_file}")
-            # Restore backup as main (will be overwritten on next save anyway)
-            shutil.copy2(backup_file, state_file)
+            data = _migrate_state(data)  # Migrate backup data to current schema
+            logger.warning(
+                "Main state corrupt, recovered from backup and migrated: %s",
+                backup_file,
+            )
+            # Persist migrated state to main file (atomic write)
+            _save_state_unsafe(state_file, data)
             return data
         except json.JSONDecodeError as backup_error:
             # Both files corrupt - this is serious

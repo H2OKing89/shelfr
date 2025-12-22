@@ -1009,7 +1009,7 @@ class TestFindStaleEntries:
             stale = find_stale_entries()
 
         assert len(stale) == 1
-        identifier, title, status, missing = stale[0]
+        identifier, _title, status, missing = stale[0]
         assert identifier == "B09STALE01"
         assert status == "STAGED"
         assert missing == "staging_dir"
@@ -1040,7 +1040,7 @@ class TestFindStaleEntries:
             stale = find_stale_entries()
 
         assert len(stale) == 1
-        identifier, title, status, missing = stale[0]
+        _identifier, _title, _status, missing = stale[0]
         assert missing == "torrent_path"
 
     def test_uploaded_only_needs_torrent_path(self, mock_settings, temp_state_file, tmp_path):

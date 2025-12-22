@@ -30,7 +30,26 @@ logger = logging.getLogger(__name__)
 
 
 def cmd_state_list(args: argparse.Namespace) -> int:
-    """List state entries (processed and/or failed)."""
+    """List state entries (processed and/or failed).
+
+    Displays processed and/or failed entries from the state file with
+    optional filtering and output format control.
+
+    Args:
+        args: Parsed command-line arguments with the following fields:
+            - processed (bool): If True, show only processed entries.
+            - failed (bool): If True, show only failed entries.
+            - limit (int | None): Maximum number of entries to display.
+            - json (bool): If True, output as JSON instead of formatted text.
+
+    Returns:
+        int: Exit code. 0 on success, non-zero on error.
+
+    Raises:
+        StateCorruptionError: If the state file is corrupt and unrecoverable.
+        StateLockError: If unable to acquire state file lock.
+        OSError: If state file cannot be read due to permissions or IO error.
+    """
     state = load_state()
     stats = get_stats()
 
@@ -193,7 +212,7 @@ def cmd_state_clear(args: argparse.Namespace) -> int:
     def _clear(state: dict[str, Any]) -> None:
         if identifier in state.get("processed", {}):
             del state["processed"][identifier]
-            logger.info(f"Cleared processed state for: {identifier}")
+            logger.info("Cleared processed state for: %s", identifier)
 
     update_state(_clear)
     print_success(f"Cleared processed state for: {identifier}")
@@ -204,13 +223,24 @@ def cmd_state_clear(args: argparse.Namespace) -> int:
 
 def cmd_state_export(args: argparse.Namespace) -> int:
     """Export state to JSON file."""
+    from pathlib import Path
+
     state = load_state()
     output_path = args.output
 
     if output_path:
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2, ensure_ascii=False, sort_keys=True)
-        print_success(f"Exported state to: {output_path}")
+        try:
+            path = Path(output_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(state, indent=2, ensure_ascii=False, sort_keys=True),
+                encoding="utf-8",
+            )
+            print_success(f"Exported state to: {output_path}")
+        except OSError as e:
+            logger.exception("Failed to export state to %s", output_path)
+            print_error(f"Failed to export state: {e}")
+            return 1
     else:
         console.print_json(json.dumps(state, indent=2, default=str))
 

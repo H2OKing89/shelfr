@@ -237,7 +237,7 @@ def find_stale_entries() -> list[tuple[str, str, str]]:
 
 ### Design
 
-```
+```bash
 mamfast state list [--failed|--processed] [--limit N] [--json]
 mamfast state prune [--stale-only] [--failed-older-than DAYS]
 mamfast state retry <ASIN>
