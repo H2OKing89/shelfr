@@ -354,6 +354,7 @@ mamfast check-duplicates  # Find potential duplicate releases
 | `-V, --version` | Show version |
 
 > ⚠️ **Important**: Global options like `--dry-run` must come **before** the subcommand:
+>
 > ```bash
 > mamfast --dry-run abs-import  # ✅ Correct
 > mamfast abs-import --dry-run  # ❌ Won't work
@@ -418,7 +419,7 @@ audiobookshelf:
 
 MAMFast uses a modular architecture with clean separation of concerns:
 
-```
+```text
 mamfast/
 ├── src/mamfast/
 │   ├── cli.py                  # CLI parser + main entry point
