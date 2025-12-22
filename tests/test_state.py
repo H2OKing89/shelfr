@@ -37,6 +37,7 @@ from mamfast.utils.state import (
 def temp_state_file(tmp_path: Path):
     """Create a temporary state file using pytest's tmp_path fixture."""
     state_file = tmp_path / "state.json"
+    # Use v1 schema to test migration behavior (loaded state should be upgraded to v2)
     state_file.write_text(json.dumps({"version": 1, "processed": {}, "failed": {}}))
     return state_file
 
