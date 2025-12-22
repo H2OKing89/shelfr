@@ -5,7 +5,7 @@ This document tracks deferred migrations and technical debt that should be addre
 ## P2: sh Library Subprocess Migrations
 
 ### Overview
-The P1 package upgrade (see [P1_SH_LIBRARY_COMPLETE.md](P1_SH_LIBRARY_COMPLETE.md)) migrated critical subprocess calls in `libation.py` and `mkbrr.py` to the sh library wrapper (`utils/cmd.py`). Two lower-priority files were deferred.
+The P1 package upgrade (see [P1_SH_LIBRARY_COMPLETE.md](archive/P1_SH_LIBRARY_COMPLETE.md)) migrated critical subprocess calls in `libation.py` and `mkbrr.py` to the sh library wrapper (`utils/cmd.py`). Two lower-priority files were deferred.
 
 ### Deferred Files
 

@@ -450,7 +450,7 @@ def extract_asin_from_mediainfo(
         P2 Migration Deferred: This function uses subprocess to call the
         mediainfo binary instead of the sh library wrapper (utils/cmd.py).
         Migration deferred due to single niche use case (low priority). See
-        P1_SH_LIBRARY_COMPLETE.md and MIGRATION_BACKLOG.md for details.
+        docs/archive/P1_SH_LIBRARY_COMPLETE.md and docs/MIGRATION_BACKLOG.md for details.
     """
     if not audio_file.exists() or not audio_file.is_file():
         return None
