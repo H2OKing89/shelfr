@@ -182,22 +182,29 @@ $EDITOR config/.env config/config.yaml
 
 MAMFast uses layered configuration with automatic validation:
 
+> **Precedence**: `config.yaml` > `.env` > defaults
+> Put secrets in `.env`, everything else in `config.yaml`.
+
 <details>
-<summary><strong>1. 🔐 <code>config/.env</code> - Secrets (never commit)</strong></summary>
+<summary><strong>1. 🔐 <code>config/.env</code> - Secrets Only (never commit)</strong></summary>
 
 ```bash
-# qBittorrent credentials
-QB_HOST=http://10.1.60.10:8080
+# qBittorrent credentials (REQUIRED)
+QB_HOST=http://192.168.1.100:8080
 QB_USERNAME=admin
 QB_PASSWORD=secret
 
-# Optional overrides
-LIBATION_CONTAINER=libation
-DOCKER_BIN=/usr/bin/docker
-TARGET_UID=99
-TARGET_GID=100
+# Audiobookshelf (only needed for abs-import command)
+AUDIOBOOKSHELF_HOST=https://abs.example.com
+AUDIOBOOKSHELF_API_KEY=your-api-token-here
+
+# Optional runtime settings
+MAMFAST_ENV=production
 LOG_LEVEL=INFO
 ```
+
+> **Note**: Docker/Libation settings (`LIBATION_CONTAINER`, `DOCKER_BIN`, `TARGET_UID`, `TARGET_GID`)
+> belong in `config.yaml`'s `environment:` section, not here.
 
 </details>
 
@@ -205,6 +212,13 @@ LOG_LEVEL=INFO
 <summary><strong>2. 📝 <code>config/config.yaml</code> - Paths & Settings</strong></summary>
 
 ```yaml
+# Docker/Libation settings (preferred location over .env)
+environment:
+  libation_container: "Libation"
+  docker_bin: "/usr/bin/docker"
+  target_uid: 99
+  target_gid: 100
+
 paths:
   library_root: "/mnt/user/data/audio/LibationLibrary"
   seed_root: "/mnt/user/data/seedvault/audiobooks"
@@ -218,13 +232,13 @@ mam:
   allowed_extensions: [".m4b", ".jpg", ".jpeg", ".png", ".pdf", ".cue"]
 
 filters:
-  remove_phrases:
-    - "(Light Novel)"
-    - "Unabridged"
+  # Note: remove_phrases and author_map live in config/naming.json
   remove_book_numbers: true
-  author_map:
-    "日本語名": "Romanized Name"
   transliterate_japanese: true
+
+naming:
+  # Optional: "H2OKing" -> appends "[H2OKing]" to folder names
+  ripper_tag: "H2OKing"
 
 mkbrr:
   image: "ghcr.io/autobrr/mkbrr:latest"
@@ -236,10 +250,13 @@ qbittorrent:
   category: "mam-audiobooks"
   tags: ["mamfast"]
   auto_start: true
+  auto_tmm: false
+  save_path: ""
 
 audnex:
   base_url: "https://api.audnex.us"
   timeout_seconds: 30
+  regions: ["us"]
 ```
 
 </details>
