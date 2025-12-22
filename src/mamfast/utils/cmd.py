@@ -7,6 +7,7 @@ error handling and output management than raw subprocess.
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -127,6 +128,12 @@ def run(
     if timeout is not None:
         sh_kwargs["_timeout"] = timeout
 
+    # Stream output to terminal instead of capturing
+    if not capture_output:
+        sh_kwargs["_out"] = sys.stdout
+        sh_kwargs["_err"] = sys.stderr
+        # Don't set _tty_out - sh detects if stdout is already a TTY
+
     try:
         # Get the sh Command object
         cmd = sh.Command(cmd_name)
@@ -134,9 +141,13 @@ def run(
         # Execute with args - returns RunningCommand due to _return_cmd=True
         result = cmd(*cmd_args, **sh_kwargs)
 
-        # Extract output
-        stdout_text = _to_text(result) if result else ""
-        stderr_text = _to_text(getattr(result, "stderr", ""))
+        # Extract output (empty if streaming)
+        if capture_output:
+            stdout_text = _to_text(result) if result else ""
+            stderr_text = _to_text(getattr(result, "stderr", ""))
+        else:
+            stdout_text = ""
+            stderr_text = ""
 
         return CmdResult(
             argv=tuple(argv),

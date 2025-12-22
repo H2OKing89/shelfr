@@ -12,12 +12,13 @@ repos:
       - id: ruff-format
 
   # MyPy - static type checking (uses local installation to access project dependencies)
+  # Uses separate cache dir to avoid schema conflicts when mypy versions drift
   - repo: local
     hooks:
       - id: mypy
         name: mypy
         entry: .venv/bin/mypy
-        args: [src/]
+        args: [--cache-dir=.cache/mypy-precommit, src/]
         language: script
         pass_filenames: false
         always_run: true

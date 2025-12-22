@@ -49,6 +49,7 @@ logs/*.log
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+.cache/
 
 # Data and config (user-specific, may contain secrets)
 data/

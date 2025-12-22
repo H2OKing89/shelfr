@@ -26,6 +26,16 @@ This runs:
 - **mypy** - Type checking
 - **pytest** - Unit tests
 
+### Troubleshooting
+
+#### mypy KeyError / cache mismatch
+
+If mypy fails with a `KeyError` (e.g., `KeyError: 'is_type_form'`), the cache schema is stale from a mypy version change. Clear both caches:
+
+```bash
+rm -rf .mypy_cache .cache/mypy-precommit
+```
+
 ### Running Tests
 
 ```bash
