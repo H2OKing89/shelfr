@@ -69,7 +69,7 @@ Keep in root `docs/` when:
 
 When referencing other documentation:
 - Use **relative paths** for portability
-- Archive links from root: `archive/P0_UPGRADE_COMPLETE.md`
+- Root links to archive: `archive/P0_UPGRADE_COMPLETE.md`
 - Archive links from archive: `P0_UPGRADE_COMPLETE.md`
 - Root links from archive: `../MIGRATION_BACKLOG.md`
 
