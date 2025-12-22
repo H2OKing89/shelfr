@@ -4,7 +4,7 @@
 **Priority**: P0 (Do immediately) → P1 (Do soon) → P2 (Consider later)
 
 > **Update 2025-12-20**: P0 upgrades (tenacity + platformdirs) successfully implemented.
-> See [P0_UPGRADE_COMPLETE.md](P0_UPGRADE_COMPLETE.md) for implementation details.
+> See [P0_UPGRADE_COMPLETE.md](archive/P0_UPGRADE_COMPLETE.md) for implementation details.
 
 ---
 

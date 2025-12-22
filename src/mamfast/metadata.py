@@ -1001,8 +1001,8 @@ def run_mediainfo(file_path: Path) -> dict[str, Any] | None:
     Note:
         P2 Migration Deferred: This function uses subprocess directly instead of
         the sh library wrapper (utils/cmd.py). Migration deferred due to single
-        call in large file (low impact). See P1_SH_LIBRARY_COMPLETE.md and
-        MIGRATION_BACKLOG.md for rationale and future migration plan.
+        call in large file (low impact). See docs/archive/P1_SH_LIBRARY_COMPLETE.md and
+        docs/MIGRATION_BACKLOG.md for rationale and future migration plan.
     """
     settings = get_settings()
     binary = settings.mediainfo.binary

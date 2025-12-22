@@ -8,7 +8,7 @@
 
 ## Summary
 
-Successfully implemented the **sh library** integration from PACKAGE_UPGRADE_PLAN.md P1 tasks:
+Successfully implemented the **sh library** integration from [PACKAGE_UPGRADE_PLAN.md](../PACKAGE_UPGRADE_PLAN.md) P1 tasks:
 - ✅ Created unified command execution wrapper (`utils/cmd.py`)
 - ✅ Migrated libation.py Docker commands
 - ✅ Migrated mkbrr.py Docker commands
@@ -295,4 +295,4 @@ The migrated functions maintain identical interfaces, so existing tests should p
 ---
 
 **Implementation completed by**: Claude Code
-**Documentation**: PACKAGE_UPGRADE_PLAN.md, P0_UPGRADE_COMPLETE.md
+**Documentation**: [PACKAGE_UPGRADE_PLAN.md](../PACKAGE_UPGRADE_PLAN.md), [P0_UPGRADE_COMPLETE.md](P0_UPGRADE_COMPLETE.md)

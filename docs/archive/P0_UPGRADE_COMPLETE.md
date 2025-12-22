@@ -8,7 +8,7 @@
 
 ## Summary
 
-Successfully implemented P0 package upgrades from PACKAGE_UPGRADE_PLAN.md:
+Successfully implemented P0 package upgrades from [PACKAGE_UPGRADE_PLAN.md](../PACKAGE_UPGRADE_PLAN.md):
 - ✅ **tenacity** - Production-tested retry logic with exponential backoff
 - ✅ **platformdirs** - Cross-platform XDG-compliant path handling
 
@@ -260,7 +260,7 @@ dependencies = [
 
 ### P1 Upgrades (Recommended for Next Sprint)
 
-According to PACKAGE_UPGRADE_PLAN.md, the next recommended upgrades are:
+According to [PACKAGE_UPGRADE_PLAN.md](../PACKAGE_UPGRADE_PLAN.md), the next recommended upgrades are:
 
 1. **sh library** (⭐⭐⭐⭐) - Better subprocess handling
    - Replace raw `subprocess.run()` calls with cleaner `sh` wrapper
@@ -300,5 +300,5 @@ According to PACKAGE_UPGRADE_PLAN.md, the next recommended upgrades are:
 ---
 
 **Implementation completed by**: Claude Code
-**Documentation**: PACKAGE_UPGRADE_PLAN.md
-**Related Files**: REFACTORING_SUMMARY.md
+**Documentation**: [PACKAGE_UPGRADE_PLAN.md](../PACKAGE_UPGRADE_PLAN.md)
+**Related Files**: [REFACTORING_SUMMARY.md](REFACTORING_SUMMARY.md)
