@@ -33,6 +33,8 @@ from mamfast.commands import (
     cmd_prepare,
     cmd_run,
     cmd_scan,
+    # State management
+    cmd_state,
     cmd_status,
     cmd_torrent,
     cmd_upload,
@@ -372,6 +374,87 @@ Examples:
         help="Output results as JSON",
     )
     suspicious_parser.set_defaults(func=cmd_check_suspicious)
+
+    # -------------------------------------------------------------------------
+    # state: State management commands
+    # -------------------------------------------------------------------------
+    state_parser = subparsers.add_parser(
+        "state",
+        help="Manage processed.json state (list, prune, retry, clear)",
+        epilog="Use 'mamfast state <subcommand> --help' for subcommand details.",
+    )
+    state_subparsers = state_parser.add_subparsers(
+        dest="state_command",
+        title="state subcommands",
+        metavar="<subcommand>",
+    )
+
+    # state list
+    state_list_parser = state_subparsers.add_parser(
+        "list",
+        help="List state entries (processed and/or failed)",
+    )
+    state_list_parser.add_argument(
+        "--processed",
+        action="store_true",
+        help="Show only processed entries",
+    )
+    state_list_parser.add_argument(
+        "--failed",
+        action="store_true",
+        help="Show only failed entries",
+    )
+    state_list_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum entries to show (default: 20)",
+    )
+    state_list_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON (machine-readable)",
+    )
+
+    # state prune
+    state_subparsers.add_parser(
+        "prune",
+        help="Remove stale entries with missing required paths",
+        epilog="Tip: Use 'mamfast --dry-run state prune' to preview changes.",
+    )
+
+    # state retry
+    state_retry_parser = state_subparsers.add_parser(
+        "retry",
+        help="Clear a failed entry to allow re-processing",
+    )
+    state_retry_parser.add_argument(
+        "asin",
+        help="ASIN or identifier to clear from failed state",
+    )
+
+    # state clear
+    state_clear_parser = state_subparsers.add_parser(
+        "clear",
+        help="Clear a processed entry to force full re-run",
+    )
+    state_clear_parser.add_argument(
+        "asin",
+        help="ASIN or identifier to clear from processed state",
+    )
+
+    # state export
+    state_export_parser = state_subparsers.add_parser(
+        "export",
+        help="Export state to JSON file",
+    )
+    state_export_parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        help="Output file path (default: stdout)",
+    )
+
+    state_parser.set_defaults(func=cmd_state)
 
     # -------------------------------------------------------------------------
     # abs-init: Initialize Audiobookshelf connection

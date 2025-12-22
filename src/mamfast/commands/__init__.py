@@ -4,6 +4,7 @@ This package organizes CLI commands into logical modules:
 - core: Main workflow commands (scan, discover, prepare, metadata, torrent, upload, run)
 - utility: Status and diagnostic commands (status, check, validate, config)
 - diagnostics: Analysis commands (check_duplicates, check_suspicious, dry_run)
+- state: State management commands (list, prune, retry, clear)
 - abs: Audiobookshelf integration commands
 """
 
@@ -34,6 +35,7 @@ from mamfast.commands.diagnostics import (
     cmd_check_suspicious,
     cmd_dry_run,
 )
+from mamfast.commands.state import cmd_state
 from mamfast.commands.utility import (
     cmd_check,
     cmd_config,
@@ -61,6 +63,8 @@ __all__ = [
     "cmd_dry_run",
     "cmd_check_duplicates",
     "cmd_check_suspicious",
+    # State management
+    "cmd_state",
     # ABS
     "cmd_abs_init",
     "cmd_abs_import",

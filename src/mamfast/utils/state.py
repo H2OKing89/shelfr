@@ -36,6 +36,7 @@ import fcntl
 import json
 import logging
 import os
+import shutil
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import datetime
@@ -43,8 +44,8 @@ from pathlib import Path
 from typing import Any
 
 from mamfast.config import get_settings
-from mamfast.exceptions import StateLockError
-from mamfast.models import AudiobookRelease
+from mamfast.exceptions import StateCorruptionError, StateLockError
+from mamfast.models import AudiobookRelease, ReleaseStatus
 
 logger = logging.getLogger(__name__)
 
@@ -138,40 +139,176 @@ def _locked_state_file(state_file: Path) -> Generator[None, None, None]:
             fcntl.flock(lockf.fileno(), fcntl.LOCK_UN)
 
 
+# ============================================================================
+# Schema Migration
+# ============================================================================
+
+CURRENT_SCHEMA_VERSION = 2  # Bump when schema changes
+
+
+def _migrate_state(data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Migrate state data to current schema version.
+
+    Applies incremental migrations from the data's version to CURRENT_SCHEMA_VERSION.
+    Each migration function handles one version bump.
+
+    Args:
+        data: State data (may be older version)
+
+    Returns:
+        Migrated state data at CURRENT_SCHEMA_VERSION
+    """
+    version = data.get("version", 1)
+
+    if version >= CURRENT_SCHEMA_VERSION:
+        return data
+
+    logger.info(f"Migrating state from v{version} to v{CURRENT_SCHEMA_VERSION}")
+
+    # Apply migrations sequentially
+    if version < 2:
+        data = _migrate_v1_to_v2(data)
+
+    # Future migrations:
+    # - Introduce a new migration function (e.g., _migrate_v2_to_v3).
+    # - Add another conditional here (e.g., "if version < 3:") that calls
+    #   the new migration function.
+
+    # Set final version after all migrations complete
+    data["version"] = CURRENT_SCHEMA_VERSION
+    return data
+
+
+def _migrate_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Migrate from v1 to v2 schema.
+
+    Changes:
+    - Add checkpoints dict to processed entries if missing
+    - Add infohash field to processed entries if missing
+    - Add first_failed_at to failed entries (copy from failed_at)
+    - Add error_type to failed entries
+    """
+    # Migrate processed entries
+    for _identifier, entry in data.get("processed", {}).items():
+        if "checkpoints" not in entry:
+            entry["checkpoints"] = {}
+        if "infohash" not in entry:
+            entry["infohash"] = None
+
+    # Migrate failed entries
+    for _identifier, entry in data.get("failed", {}).items():
+        if "first_failed_at" not in entry:
+            entry["first_failed_at"] = entry.get("failed_at")
+        if "error_type" not in entry:
+            entry["error_type"] = None
+        if "author" not in entry:
+            entry["author"] = None
+
+    logger.debug("Completed v1 -> v2 migration")
+    return data
+
+
+def _parse_json_file(file_path: Path) -> dict[str, Any]:
+    """Parse JSON file, raising JSONDecodeError on failure."""
+    with open(file_path, encoding="utf-8") as f:
+        result: dict[str, Any] = json.load(f)
+        return result
+
+
 def _load_state_unsafe(state_file: Path) -> dict[str, Any]:
     """
     Load state from JSON file without locking.
 
     Internal use only - use load_state() or update_state() instead.
+
+    Recovery strategy:
+    1. Try main state file
+    2. If corrupt, try .bak backup
+    3. If both fail, raise StateCorruptionError with recovery instructions
+    4. Migrate data to current schema version
     """
+    backup_file = state_file.with_suffix(".json.bak")
+    empty_state: dict[str, Any] = {
+        "version": CURRENT_SCHEMA_VERSION,
+        "processed": {},
+        "failed": {},
+    }
+
     if not state_file.exists():
-        return {
-            "version": 1,
-            "processed": {},
-            "failed": {},
-        }
-
-    try:
-        with open(state_file, encoding="utf-8") as f:
-            data: dict[str, Any] = json.load(f)
-
-            # Validate state structure (warns but doesn't fail)
+        # No state file yet - check if backup exists (unusual but possible)
+        if backup_file.exists():
             try:
-                from mamfast.schemas.state import validate_state
+                data = _parse_json_file(backup_file)
+                data = _migrate_state(data)  # Migrate if needed
+                logger.warning(f"Main state missing, recovered from backup: {backup_file}")
+                return data
+            except json.JSONDecodeError:
+                logger.warning(f"Orphaned corrupt backup found: {backup_file}")
+        return empty_state
 
-                validate_state(data)
-                logger.debug("State file validated successfully")
-            except Exception as validation_error:
-                logger.warning(f"State file validation warning: {validation_error}")
+    # Try main file
+    main_error: Exception | None = None
+    try:
+        data = _parse_json_file(state_file)
 
-            return data
+        # Migrate to current schema version
+        data = _migrate_state(data)
+
+        # Validate state structure (warns but doesn't fail)
+        try:
+            from mamfast.schemas.state import validate_state
+
+            validate_state(data)
+            logger.debug("State file validated successfully")
+        except Exception as validation_error:
+            logger.warning(f"State file validation warning: {validation_error}")
+
+        return data
+
     except json.JSONDecodeError as e:
-        logger.warning(f"Invalid JSON in state file: {e}")
-        # Back up corrupted file
-        backup = state_file.with_suffix(".json.bak")
-        state_file.rename(backup)
-        logger.info(f"Backed up corrupted state to {backup}")
-        return {"version": 1, "processed": {}, "failed": {}}
+        main_error = e
+        logger.warning(f"Corrupt JSON in main state file: {e}")
+
+    # Main file corrupt - try backup
+    if backup_file.exists():
+        try:
+            data = _parse_json_file(backup_file)
+            data = _migrate_state(data)  # Migrate backup data to current schema
+            logger.warning(
+                "Main state corrupt, recovered from backup and migrated: %s",
+                backup_file,
+            )
+            # Persist migrated state to main file (atomic write)
+            _save_state_unsafe(state_file, data)
+            return data
+        except json.JSONDecodeError as backup_error:
+            # Both files corrupt - this is serious
+            raise StateCorruptionError(
+                f"State file corrupt and backup also corrupt.\n\n"
+                f"Main file: {state_file}\n"
+                f"  Error: {main_error}\n\n"
+                f"Backup file: {backup_file}\n"
+                f"  Error: {backup_error}\n\n"
+                f"Recovery options:\n"
+                f"1. Restore from external backup if available\n"
+                f"2. Delete both files to start fresh:\n"
+                f"   rm '{state_file}' '{backup_file}'\n\n"
+                f"WARNING: Starting fresh will lose all processed/failed state!"
+            ) from backup_error
+
+    # Main corrupt, no backup exists
+    raise StateCorruptionError(
+        f"State file corrupt and no backup found.\n\n"
+        f"File: {state_file}\n"
+        f"Error: {main_error}\n\n"
+        f"Recovery options:\n"
+        f"1. Restore from external backup if available\n"
+        f"2. Delete the file to start fresh:\n"
+        f"   rm '{state_file}'\n\n"
+        f"WARNING: Starting fresh will lose all processed/failed state!"
+    )
 
 
 def _save_state_unsafe(state_file: Path, state: dict[str, Any]) -> None:
@@ -180,25 +317,40 @@ def _save_state_unsafe(state_file: Path, state: dict[str, Any]) -> None:
 
     Internal use only - use update_state() instead.
 
-    Uses temporary file + atomic rename to prevent corruption.
+    Safety guarantees:
+    1. Preserves last-known-good as .bak before any write
+    2. Writes to .tmp file first
+    3. fsync() ensures data is on disk (not just in kernel buffer)
+    4. Atomic os.replace() swaps in the new file
+    5. Interrupted write never leaves partial JSON
     """
     state_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Write to temporary file first
+    backup_file = state_file.with_suffix(".json.bak")
     temp_file = state_file.with_suffix(".tmp")
 
     try:
+        # Step 1: Preserve last-known-good as backup
+        if state_file.exists():
+            shutil.copy2(state_file, backup_file)
+            logger.debug(f"Preserved backup: {backup_file}")
+
+        # Step 2: Write to temporary file with fsync
         with open(temp_file, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2, ensure_ascii=False, sort_keys=True)
+            f.flush()
+            os.fsync(f.fileno())  # Force data to disk
 
-        # Atomic rename (POSIX guarantee)
+        # Step 3: Atomic rename (POSIX guarantee)
         os.replace(temp_file, state_file)
 
         logger.debug(f"Saved state to {state_file}")
+
     except Exception as e:
         # Clean up temp file on error
         if temp_file.exists():
-            temp_file.unlink()
+            with contextlib.suppress(OSError):
+                temp_file.unlink()
         logger.error(f"Failed to save state: {e}")
         raise
 
@@ -318,21 +470,44 @@ def mark_processed(release: AudiobookRelease, infohash: str | None = None) -> No
     logger.info(f"Marked as processed: {release.display_name}")
 
 
-def mark_failed(release: AudiobookRelease, error: str) -> None:
-    """Add a release to the failed state with error info."""
+def mark_failed(
+    release: AudiobookRelease,
+    error: str,
+    *,
+    error_type: str | None = None,
+) -> None:
+    """
+    Add a release to the failed state with error info.
+
+    Tracks retry count and timestamps for debugging/auditing.
+    If called multiple times for the same release, increments retry_count
+    and preserves first_failed_at while updating failed_at.
+
+    Args:
+        release: The release that failed
+        error: Human-readable error message
+        error_type: Optional exception class name (e.g., "NetworkError")
+    """
     identifier = release.asin or (str(release.source_dir) if release.source_dir else None)
     if not identifier:
         logger.warning("Cannot mark release failed: no identifier (missing ASIN and source_dir)")
         return
 
+    now = datetime.now().isoformat()
+
     def _mark(state: dict[str, Any]) -> None:
+        existing = state.get("failed", {}).get(identifier, {})
+
         state["failed"][identifier] = {
             "asin": release.asin,
             "title": release.title,
             "author": release.author,
-            "failed_at": datetime.now().isoformat(),
+            "failed_at": now,
+            "first_failed_at": existing.get("first_failed_at", now),
             "error": error,
+            "error_type": error_type,
             "source_dir": str(release.source_dir) if release.source_dir else None,
+            "retry_count": existing.get("retry_count", 0) + 1,
         }
 
     update_state(_mark)
@@ -377,6 +552,193 @@ def get_stats() -> dict[str, int]:
         "processed": len(state.get("processed", {})),
         "failed": len(state.get("failed", {})),
     }
+
+
+# ============================================================================
+# Stale Entry Detection - Find entries with missing required paths
+# ============================================================================
+
+# Path requirements vary by status - after completion, paths may legitimately disappear
+REQUIRED_PATHS_BY_STATUS: dict[str, list[str]] = {
+    "DISCOVERED": [],  # No paths required yet
+    "STAGED": ["staging_dir"],
+    "METADATA_FETCHED": ["staging_dir"],
+    "TORRENT_CREATED": ["staging_dir", "torrent_path"],
+    "UPLOADED": ["torrent_path"],  # staging_dir may be gone after upload
+    "COMPLETE": [],  # All paths may be gone after completion
+    "FAILED": [],  # Failed entries don't require path validation
+}
+
+
+def find_stale_entries() -> list[tuple[str, str, str, str]]:
+    """
+    Find entries with missing required paths (status-aware).
+
+    Only flags entries where paths that should exist for that status
+    are actually missing. For example, a COMPLETE entry with missing
+    staging_dir is NOT stale, but a STAGED entry with missing
+    staging_dir IS stale.
+
+    Returns:
+        List of (identifier, title, status, missing_path) tuples
+
+    Example:
+        stale = find_stale_entries()
+        for identifier, title, status, missing in stale:
+            print(f"{identifier}: {title} ({status}) missing {missing}")
+    """
+    stale: list[tuple[str, str, str, str]] = []
+    state = load_state()
+
+    for identifier, entry in state.get("processed", {}).items():
+        status = entry.get("status", "COMPLETE")
+        title = entry.get("title", "Unknown")
+        required = REQUIRED_PATHS_BY_STATUS.get(status, [])
+
+        for path_key in required:
+            path_str = entry.get(path_key)
+            if path_str and not Path(path_str).exists():
+                stale.append((identifier, title, status, path_key))
+
+    return stale
+
+
+def prune_stale_entries(*, dry_run: bool = False) -> list[tuple[str, str]]:
+    """
+    Remove stale entries from processed state.
+
+    Args:
+        dry_run: If True, only report what would be removed
+
+    Returns:
+        List of (identifier, title) tuples that were (or would be) removed
+    """
+    stale = find_stale_entries()
+    if not stale:
+        return []
+
+    # Deduplicate by identifier (entry might have multiple missing paths)
+    to_remove: dict[str, str] = {}
+    for identifier, title, _status, _missing_path in stale:
+        if identifier not in to_remove:
+            to_remove[identifier] = title
+
+    if dry_run:
+        return list(to_remove.items())
+
+    def _prune(state: dict[str, Any]) -> None:
+        for identifier in to_remove:
+            if identifier in state.get("processed", {}):
+                del state["processed"][identifier]
+                logger.info(f"Pruned stale entry: {identifier}")
+
+    update_state(_prune)
+    return list(to_remove.items())
+
+
+# ============================================================================
+# Status Transition Validation
+# ============================================================================
+
+# Define allowed status transitions (state machine)
+# Each status can transition to itself (idempotent) or forward
+ALLOWED_TRANSITIONS: dict[ReleaseStatus, set[ReleaseStatus]] = {
+    ReleaseStatus.DISCOVERED: {ReleaseStatus.DISCOVERED, ReleaseStatus.STAGED},
+    ReleaseStatus.STAGED: {ReleaseStatus.STAGED, ReleaseStatus.METADATA_FETCHED},
+    ReleaseStatus.METADATA_FETCHED: {
+        ReleaseStatus.METADATA_FETCHED,
+        ReleaseStatus.TORRENT_CREATED,
+    },
+    ReleaseStatus.TORRENT_CREATED: {
+        ReleaseStatus.TORRENT_CREATED,
+        ReleaseStatus.UPLOADED,
+        ReleaseStatus.COMPLETE,  # Can skip UPLOADED in some workflows
+    },
+    ReleaseStatus.UPLOADED: {ReleaseStatus.UPLOADED, ReleaseStatus.COMPLETE},
+    ReleaseStatus.COMPLETE: {ReleaseStatus.COMPLETE},
+    ReleaseStatus.FAILED: {ReleaseStatus.FAILED, ReleaseStatus.DISCOVERED},  # Can retry from start
+}
+
+
+class InvalidStatusTransitionError(Exception):
+    """Raised when an invalid status transition is attempted."""
+
+    def __init__(
+        self,
+        current: ReleaseStatus,
+        new: ReleaseStatus,
+        identifier: str | None = None,
+    ) -> None:
+        allowed = ALLOWED_TRANSITIONS.get(current, set())
+        allowed_names = ", ".join(s.name for s in allowed) if allowed else "none"
+        msg = (
+            f"Invalid status transition: {current.name} → {new.name}\n"
+            f"Allowed transitions from {current.name}: {allowed_names}"
+        )
+        if identifier:
+            msg = f"[{identifier}] {msg}"
+        super().__init__(msg)
+        self.current = current
+        self.new = new
+        self.identifier = identifier
+
+
+def validate_status_transition(
+    current: ReleaseStatus | str | None,
+    new: ReleaseStatus | str,
+    *,
+    identifier: str | None = None,
+    strict: bool = False,
+) -> bool:
+    """
+    Validate that a status transition is allowed.
+
+    Args:
+        current: Current status (None means new entry)
+        new: Target status
+        identifier: Optional identifier for error messages
+        strict: If True, raise InvalidStatusTransitionError; otherwise log warning
+
+    Returns:
+        True if valid, False if invalid (when strict=False)
+
+    Raises:
+        InvalidStatusTransitionError: If strict=True and transition is invalid
+    """
+    # Convert strings to enum if needed
+    if isinstance(new, str):
+        try:
+            new = ReleaseStatus[new]
+        except KeyError:
+            logger.warning(f"Unknown status: {new}")
+            return True  # Don't block unknown statuses
+
+    if current is None:
+        # New entry - allow any status (but DISCOVERED is expected)
+        if new != ReleaseStatus.DISCOVERED:
+            logger.debug(f"New entry starting at non-DISCOVERED status: {new.name}")
+        return True
+
+    if isinstance(current, str):
+        try:
+            current = ReleaseStatus[current]
+        except KeyError:
+            logger.warning(f"Unknown current status: {current}")
+            return True  # Don't block unknown statuses
+
+    allowed = ALLOWED_TRANSITIONS.get(current, set())
+    if new in allowed:
+        return True
+
+    # Invalid transition
+    if strict:
+        raise InvalidStatusTransitionError(current, new, identifier)
+
+    logger.warning(
+        f"Invalid status transition: {current.name} → {new.name} "
+        f"(allowed: {', '.join(s.name for s in allowed)})"
+    )
+    return False
 
 
 # ============================================================================

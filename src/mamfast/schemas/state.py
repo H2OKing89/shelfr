@@ -39,10 +39,14 @@ class FailedRelease(BaseModel):
 
     asin: str | None = None
     title: str | None = None
-    path: str | None = None
+    author: str | None = None  # NEW: for better display
+    path: str | None = None  # LEGACY: kept for backward compat, prefer source_dir
+    source_dir: str | None = None  # NEW: consistent with mark_failed
     error: str | None = None
+    error_type: str | None = None  # NEW: exception class name for debugging
     failed_at: str | None = None
-    retry_count: int = 0
+    first_failed_at: str | None = None  # NEW: track duration of failure
+    retry_count: int = 0  # NOW USED: incremented on each failure
 
     model_config = {"extra": "ignore"}
 
@@ -55,7 +59,7 @@ class ProcessedState(BaseModel):
     Version field allows for schema migrations.
     """
 
-    version: int = 1
+    version: int = 2  # Current schema version
     processed: dict[str, ProcessedRelease] = Field(default_factory=dict)
     failed: dict[str, FailedRelease] = Field(default_factory=dict)
 

@@ -6,7 +6,9 @@
       "Bash(find:*)",
       "Bash(python3:*)",
       "Bash(MAMFAST_DATA_DIR=/tmp/test_mamfast python3:*)",
-      "Bash(ruff check:*)"
+      "Bash(ruff check:*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)"
     ]
   }
 }

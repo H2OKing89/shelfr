@@ -140,7 +140,7 @@ class TestProcessedState:
     def test_create_empty_state(self):
         """Test create_empty_state helper."""
         state = create_empty_state()
-        assert state.version == 1
+        assert state.version == 2  # Current schema version
         assert state.processed == {}
         assert state.failed == {}
 
@@ -152,7 +152,7 @@ class TestProcessedState:
                 "failed": {},
             }
         )
-        assert state.version == 1
+        assert state.version == 2  # Current schema version
 
     def test_real_processed_json_structure(self):
         """Test with structure matching actual processed.json from project."""
