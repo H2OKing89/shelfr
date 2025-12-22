@@ -2,6 +2,46 @@
 
 This document provides AI assistants with essential context about the MAMFast codebase, development workflows, and key conventions to follow when making changes.
 
+## Recent Updates (2025-12-22)
+
+**Major changes since last update (2025-12-03)**:
+
+### 🆕 Audiobookshelf Integration
+- **New `abs/` module**: Complete ABS API integration for post-upload workflow
+- **Import workflow**: Move staged audiobooks into ABS library with duplicate detection
+- **Rename tool**: Bulk rename existing ABS library items to MAM conventions
+- **Cleanup operations**: Post-import source file cleanup with safety checks
+- **Trumping detection**: Identify when new uploads supersede existing library items
+- **ASIN indexing**: Fast in-memory ASIN index for duplicate detection (~200ms build)
+
+### 🏗️ Architecture Improvements
+- **Command reorganization**: Split `cli.py` into organized modules (`commands/`)
+  - `core.py` - Main workflow commands
+  - `abs.py` - Audiobookshelf integration
+  - `state.py` - State management
+  - `utility.py` - Status and diagnostics
+  - `diagnostics.py` - Analysis and validation
+- **Exception hierarchy**: Typed exceptions in `exceptions.py` for better error handling
+- **Circuit breaker pattern**: Prevent cascading failures in external API calls
+- **Naming refactoring**: Split monolithic `naming.py` into focused modules
+
+### 📦 Package Upgrades
+- **tenacity**: Replaced custom retry logic with industry-standard library
+- **sh library**: Better subprocess execution (replacing raw `subprocess`)
+- **platformdirs**: Cross-platform directory handling
+- **rapidfuzz**: Fuzzy string matching for duplicate detection
+- **pydantic-settings**: Environment-based configuration
+
+### 🔧 State Management
+- **Schema v2**: Enhanced state file format with atomic writes
+- **Migration support**: Automatic v1 → v2 migration
+- **Validation**: Comprehensive validation with helpful error messages
+
+### 📚 Documentation
+- **Reorganized docs/**: Moved technical docs to `docs/` directory
+- **ABS documentation**: Extensive guides in `docs/audiobookshelf/`
+- **Archive directory**: Completed implementation reports in `docs/archive/`
+
 ## Repository Overview
 
 **MAMFast** is a Python-based automation tool for preparing and uploading audiobooks to MyAnonaMouse (MAM). It orchestrates a complete pipeline from Libation audiobook library discovery to torrent creation and qBittorrent upload.
@@ -15,10 +55,14 @@ This document provides AI assistants with essential context about the MAMFast co
 
 **Technology Stack**:
 - Python 3.11+ (strict type checking with mypy)
-- Pydantic 2.0+ for data validation and schemas
+- Pydantic 2.0+ for data validation and schemas (including pydantic-settings)
 - pathvalidate for robust filename sanitization
-- Docker (for Libation and mkbrr containers)
-- External services: qBittorrent API, Audnex API
+- tenacity for retry logic with exponential backoff
+- rapidfuzz for fuzzy string matching
+- sh library for subprocess execution
+- platformdirs for cross-platform directory handling
+- Docker (for Libation, Audiobookshelf, and mkbrr containers)
+- External services: qBittorrent API, Audnex API, Audiobookshelf API
 - CLI interface with Rich for pretty output
 
 ## Project Structure
@@ -29,6 +73,7 @@ mam_tool/
 │   ├── __init__.py           # Version: 0.1.0
 │   ├── cli.py                # Command-line interface (argparse)
 │   ├── config.py             # Configuration loading (.env, YAML, JSON)
+│   ├── env_settings.py       # Pydantic-based environment settings
 │   ├── models.py             # Data models (AudiobookRelease, NormalizedBook, MamPath, etc.)
 │   ├── workflow.py           # Pipeline orchestration
 │   ├── discovery.py          # Find audiobooks in Libation library
@@ -40,24 +85,59 @@ mam_tool/
 │   ├── logging_setup.py      # Logging configuration
 │   ├── console.py            # Rich console output formatting
 │   ├── validation.py         # Configuration and data validation
+│   ├── exceptions.py         # Typed exception hierarchy
+│   ├── paths.py              # Path utilities
+│   ├── abs/                  # Audiobookshelf integration
+│   │   ├── __init__.py       # ABS module exports
+│   │   ├── client.py         # ABS API client
+│   │   ├── asin.py           # ASIN extraction & in-memory indexing
+│   │   ├── importer.py       # Import workflow (staged → ABS library)
+│   │   ├── rename.py         # Bulk rename tool
+│   │   ├── cleanup.py        # Post-import cleanup (delete/archive source)
+│   │   ├── paths.py          # Host ↔ ABS container path mapping
+│   │   └── trumping.py       # Duplicate detection & trumping logic
+│   ├── commands/             # CLI command implementations (organized)
+│   │   ├── __init__.py       # Command exports
+│   │   ├── core.py           # Main workflow (scan, discover, prepare, run)
+│   │   ├── abs.py            # ABS commands (import, rename, cleanup, etc.)
+│   │   ├── state.py          # State management (list, prune, retry, clear)
+│   │   ├── utility.py        # Status & validation (status, config, check)
+│   │   └── diagnostics.py    # Analysis (duplicates, suspicious, dry-run)
 │   ├── schemas/              # Pydantic validation schemas
 │   │   ├── __init__.py       # Schema exports
 │   │   ├── audnex.py         # Audnex API response validation
 │   │   ├── config.py         # Configuration YAML validation
 │   │   ├── naming.py         # Naming conventions validation
-│   │   └── state.py          # State file validation
+│   │   ├── state.py          # State file validation (v1 & v2 schemas)
+│   │   └── abs.py            # ABS API response validation
 │   ├── templates/            # Jinja2 templates for MAM BBCode
 │   │   └── mam_description.j2
 │   └── utils/
-│       ├── naming.py         # Filename sanitization & Japanese transliteration
+│       ├── __init__.py
+│       ├── circuit_breaker.py # Circuit breaker pattern for network calls
+│       ├── cmd.py            # Subprocess execution wrapper (using sh library)
+│       ├── fuzzy.py          # Fuzzy string matching (rapidfuzz)
 │       ├── paths.py          # Host↔container path mapping
-│       ├── retry.py          # Exponential backoff decorator
-│       ├── state.py          # Processed release tracking (JSON)
-│       └── validate_naming.py # Naming validation utilities
+│       ├── permissions.py    # File permission utilities
+│       ├── retry.py          # Exponential backoff decorator (tenacity)
+│       ├── state.py          # Processed release tracking (JSON, v2 schema)
+│       ├── torrent.py        # Torrent utilities
+│       ├── validate_naming.py # Naming validation utilities
+│       └── naming/           # Naming system (refactored into modules)
+│           ├── __init__.py   # Naming exports
+│           ├── authors.py    # Author name processing
+│           ├── constants.py  # Naming constants & patterns
+│           ├── filters.py    # Title/author filtering
+│           ├── mam_paths.py  # MAM path generation with truncation
+│           ├── normalization.py # Audnex metadata normalization
+│           ├── series_parsing.py # Series name extraction
+│           ├── string_utils.py # String manipulation utilities
+│           └── volume_parsing.py # Volume number parsing
 ├── tests/                     # Pytest test suite
 │   ├── test_discovery.py     # Discovery module tests
 │   ├── test_models.py        # Data model tests
 │   ├── test_config.py        # Configuration loading tests
+│   ├── test_env_settings.py  # Environment settings tests
 │   ├── test_naming.py        # Filename sanitization tests
 │   ├── test_hardlinker.py    # Hardlinking tests
 │   ├── test_metadata.py      # Metadata fetching tests
@@ -70,6 +150,7 @@ mam_tool/
 │   ├── test_integration.py   # End-to-end tests
 │   ├── test_console.py       # Console output tests
 │   ├── test_validation.py    # Validation logic tests
+│   ├── test_exceptions.py    # Exception hierarchy tests
 │   ├── test_schemas.py       # Pydantic schema tests
 │   ├── test_audnex_schema.py # Audnex schema validation tests
 │   ├── test_config_schema.py # Config schema validation tests
@@ -77,6 +158,19 @@ mam_tool/
 │   ├── test_normalization.py # Book normalization tests
 │   ├── test_pathvalidate.py  # pathvalidate integration tests
 │   ├── test_golden.py        # Golden file regression tests
+│   ├── test_golden_normalization.py # Golden normalization tests
+│   ├── test_circuit_breaker.py # Circuit breaker tests
+│   ├── test_fuzzy.py         # Fuzzy matching tests
+│   ├── test_series_resolution.py # Series resolution tests
+│   ├── test_trumping.py      # Trumping logic tests
+│   ├── test_abs_asin.py      # ABS ASIN extraction tests
+│   ├── test_abs_client.py    # ABS API client tests
+│   ├── test_abs_cleanup.py   # ABS cleanup tests
+│   ├── test_abs_importer.py  # ABS importer tests
+│   ├── test_abs_paths.py     # ABS path mapping tests
+│   ├── test_abs_rename.py    # ABS rename tests
+│   ├── test_abs_schemas.py   # ABS schema tests
+│   ├── test_cli_abs.py       # ABS CLI command tests
 │   ├── fixtures/             # Test fixtures directory
 │   └── golden/               # Golden files for regression testing
 ├── config/
@@ -93,7 +187,36 @@ mam_tool/
 ├── CONTRIBUTING.md          # Contribution guidelines
 ├── SECURITY.md              # Security policy
 ├── CHANGELOG.md             # Version history
-└── MAMFAST_PROJECT_PLAN.md  # Project roadmap
+├── CLAUDE.md                # AI assistant guide (this file)
+├── docs/                    # Technical documentation
+│   ├── README.md            # Documentation directory overview
+│   ├── archive/             # Completed implementation reports
+│   │   ├── P0_UPGRADE_COMPLETE.md
+│   │   ├── P1_SH_LIBRARY_COMPLETE.md
+│   │   ├── REFACTORING_SUMMARY.md
+│   │   └── ...
+│   ├── audiobookshelf/      # ABS integration documentation
+│   │   ├── AUDIOBOOKSHELF_IMPORT.md # Import workflow
+│   │   ├── AUDIOBOOKSHELF_API.md    # API reference
+│   │   ├── ABS_RENAME_TOOL.md       # Rename tool guide
+│   │   ├── CLEANUP_PLAN.md          # Cleanup strategies
+│   │   ├── TRUMPING.md              # Duplicate detection
+│   │   └── ...
+│   ├── naming/              # Naming system documentation
+│   │   ├── NAMING.md
+│   │   ├── NAMING_RULES.md
+│   │   ├── NAMING_PIPELINE.md
+│   │   └── ...
+│   ├── tracked_issues/      # Active issue tracking
+│   ├── MIGRATION_BACKLOG.md # Deferred migrations
+│   ├── PACKAGE_UPGRADE_PLAN.md # Future upgrades
+│   ├── STATE_HARDENING_PLAN.md # State management improvements
+│   └── VALIDATION_PLAN.md   # Input validation enhancements
+└── scripts/                 # Development scripts
+    ├── build_golden_samples.py
+    ├── fetch_abs_library.py
+    ├── scan_abs_library.py
+    └── test_abs_search.py
 ```
 
 ## Architecture & Core Concepts
@@ -248,17 +371,94 @@ Functions:
 
 ### Retry Logic (utils/retry.py)
 
-Network operations use exponential backoff:
+Network operations use **tenacity** library for exponential backoff:
 
 ```python
-@retry_with_backoff(
-    max_retries=3,
-    base_delay=2.0,
-    max_delay=30.0,
-    exceptions=NETWORK_EXCEPTIONS  # httpx, qbittorrent, OSError
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    reraise=True
 )
 def network_operation():
     ...
+```
+
+**Key Features**:
+- Configurable max retries and delay
+- Exponential backoff with jitter
+- Specific exception filtering
+- Used for: Audnex API, qBittorrent API, ABS API, Docker operations
+
+### Circuit Breaker Pattern (utils/circuit_breaker.py)
+
+**NEW**: Circuit breaker pattern for external services to prevent cascading failures:
+
+```python
+from mamfast.utils.circuit_breaker import CircuitBreaker, CircuitState
+
+breaker = CircuitBreaker(
+    failure_threshold=5,      # Open after 5 failures
+    recovery_timeout=60.0,    # Try again after 60 seconds
+    expected_exception=AudnexError
+)
+
+@breaker
+def call_external_api():
+    # Will raise CircuitOpenError if circuit is open
+    ...
+```
+
+**States**:
+- `CLOSED` - Normal operation
+- `OPEN` - Too many failures, reject all calls
+- `HALF_OPEN` - Testing if service recovered
+
+### Exception Hierarchy (exceptions.py)
+
+**NEW**: Typed exception hierarchy for better error handling:
+
+```
+MAMFastError (base)
+├── ConfigurationError - Config file issues
+├── ValidationError - Pre-flight/runtime validation
+│   ├── DiscoveryValidationError
+│   └── PreUploadValidationError
+├── PipelineError - Stage execution failures
+│   ├── StagingError
+│   ├── MetadataError
+│   ├── TorrentError
+│   └── UploadError
+├── NetworkError - External service failures
+│   ├── AudnexError
+│   ├── QBittorrentError
+│   └── AudiobookshelfError
+├── StateError - State file operations
+│   ├── StateLockError
+│   └── StateCorruptionError
+└── ExternalToolError - Docker/subprocess failures
+    ├── DockerError
+    ├── MkbrrError
+    └── LibationError
+```
+
+**All exceptions include**:
+- `message` - Human-readable error
+- `details` - Structured metadata for logging
+
+**Example**:
+```python
+from mamfast.exceptions import MetadataError, AudnexError
+
+try:
+    metadata = fetch_audnex_metadata(asin)
+except AudnexError as e:
+    raise MetadataError(
+        f"Failed to fetch metadata for {asin}",
+        release_asin=asin,
+        details={"service": "audnex", "error": str(e)}
+    ) from e
 ```
 
 ### Pydantic Validation (schemas/)
@@ -336,6 +536,97 @@ safe_name = sanitize_filename(
 - `utils/naming.py` - Filename sanitization with MAM compliance
 - `utils/validate_naming.py` - Naming validation utilities
 - `hardlinker.py` - File staging with validated names
+
+### Audiobookshelf Integration (abs/)
+
+**NEW: Post-upload workflow** for importing MAM-prepared audiobooks into your Audiobookshelf library.
+
+**Architecture**:
+- **ABS API as source of truth**: Uses Audiobookshelf API to discover existing books
+- **In-memory ASIN indexing**: Fast duplicate detection (~200ms to build, ~1µs per lookup)
+- **MAM folder parsing**: Extracts metadata from staging folder names
+- **Docker path mapping**: Translates host paths ↔ ABS container paths
+- **Atomic moves**: Instant file operations that preserve hardlinks to seed folder
+
+**Key Modules**:
+
+1. **`abs/client.py`** - Audiobookshelf API client
+   ```python
+   class AbsClient:
+       def get_libraries() -> list[AbsLibrary]
+       def get_library_items(library_id: str) -> list[AbsLibraryItem]
+       def scan_library(library_id: str) -> bool
+   ```
+
+2. **`abs/asin.py`** - ASIN extraction and in-memory indexing
+   ```python
+   def build_asin_index(items: list[AbsLibraryItem]) -> dict[str, AsinEntry]
+   def extract_asin(text: str) -> str | None
+   def asin_exists(asin: str, index: dict) -> bool
+   def resolve_asin_via_abs_search(client: AbsClient, title: str, author: str) -> str | None
+   ```
+
+3. **`abs/importer.py`** - Import workflow
+   ```python
+   def discover_staged_books(staging_dir: Path) -> list[ParsedFolderName]
+   def import_single(source: Path, target: Path) -> ImportResult
+   def import_batch(staging_dir: Path, target_lib: Path, client: AbsClient) -> BatchImportResult
+   ```
+
+4. **`abs/rename.py`** - Bulk rename tool for existing ABS library
+   ```python
+   def discover_rename_candidates(client: AbsClient, library_id: str) -> list[RenameCandidate]
+   def run_rename_pipeline(client: AbsClient, library_id: str, dry_run: bool) -> RenameSummary
+   ```
+
+5. **`abs/cleanup.py`** - Post-import cleanup (delete/archive source)
+   ```python
+   def cleanup_source(source_path: Path, strategy: CleanupStrategy) -> CleanupResult
+   def verify_seed_exists(abs_path: Path, seed_root: Path) -> bool
+   ```
+
+6. **`abs/trumping.py`** - Duplicate detection logic
+   - Detects when new upload is better quality (trumps existing)
+   - Compares bitrates, file formats, edition flags
+
+**CLI Commands** (`commands/abs.py`):
+- `mamfast abs-init` - Test ABS connection, list libraries
+- `mamfast abs-import` - Import staged books into ABS library
+- `mamfast abs-check-duplicate <ASIN>` - Check if ASIN exists in library
+- `mamfast abs-rename` - Bulk rename existing ABS library items
+- `mamfast abs-cleanup` - Delete/archive source files after import
+- `mamfast abs-trump-check` - Detect trumpable duplicates
+- `mamfast abs-orphans` - Find ABS items without corresponding seed files
+- `mamfast abs-resolve-asins` - Find ASINs for books via search
+
+**Configuration** (`config.yaml`):
+```yaml
+audiobookshelf:
+  url: "http://localhost:13378"
+  token: "${ABS_TOKEN}"
+  library_id: "lib_xyz123"
+  library_path: "/audiobooks"  # Path inside ABS container
+  host_library_path: "/mnt/user/media/audiobooks"  # Host path
+
+  # Path mapping for Docker
+  path_mappings:
+    - container: "/audiobooks"
+      host: "/mnt/user/media/audiobooks"
+```
+
+**Integrated Workflow**:
+```
+Libation → Discovery → Staging → Torrent → qBittorrent → ABS Import → ABS Cleanup
+                         ↓                                    ↓
+                    seed_root/                         abs_library/
+```
+
+**Key Features**:
+- **Duplicate detection**: Fast in-memory ASIN index prevents re-imports
+- **Trumping logic**: Detects when new upload is better quality
+- **Fuzzy matching**: Uses rapidfuzz for author/title matching when ASIN missing
+- **Safe cleanup**: Verifies hardlink to seed folder before deletion
+- **Bulk operations**: Process entire staging directory in one command
 
 ## Development Workflows
 
@@ -597,11 +888,48 @@ logger.debug(f"QB password: {settings.qbittorrent.password}")  # NEVER DO THIS
 
 ### Adding a New CLI Command
 
-1. **Update `cli.py`**: Add subparser in `build_parser()`
-2. **Create command function**: `def cmd_yourcommand(args, settings) -> int`
-3. **Set function in parser**: `yourcommand_parser.set_defaults(func=cmd_yourcommand)`
-4. **Update help text** in `cli.py` epilog
-5. **Add tests** in `tests/test_cli.py` or new test file
+**Commands are now organized into modules** in `src/mamfast/commands/`:
+
+1. **Choose the appropriate module**:
+   - `commands/core.py` - Main workflow commands (scan, discover, run)
+   - `commands/abs.py` - Audiobookshelf integration
+   - `commands/state.py` - State management
+   - `commands/utility.py` - Status and diagnostics
+   - `commands/diagnostics.py` - Analysis and validation
+
+2. **Create command function** in the chosen module:
+   ```python
+   def cmd_yourcommand(args: argparse.Namespace, settings: Settings) -> int:
+       """Command implementation."""
+       try:
+           # Implementation here
+           return 0  # Success
+       except MAMFastError as e:
+           logger.error(f"Error: {e}")
+           return 1  # Failure
+   ```
+
+3. **Export from `commands/__init__.py`**:
+   ```python
+   from mamfast.commands.yourmodule import cmd_yourcommand
+
+   __all__ = [
+       # ... other exports
+       "cmd_yourcommand",
+   ]
+   ```
+
+4. **Register in `cli.py`**: Add subparser in `build_parser()`
+   ```python
+   yourcommand_parser = subparsers.add_parser(
+       "yourcommand",
+       help="Brief description"
+   )
+   yourcommand_parser.add_argument("--option", help="Option help")
+   yourcommand_parser.set_defaults(func=cmd_yourcommand)
+   ```
+
+5. **Add tests** in appropriate test file (e.g., `tests/test_cli_yourmodule.py`)
 6. **Update README.md** usage section
 
 ### Adding Configuration Options
@@ -617,10 +945,51 @@ logger.debug(f"QB password: {settings.qbittorrent.password}")  # NEVER DO THIS
 
 1. **Create module** `src/mamfast/newservice.py`
 2. **Define config class** in `config.py` (e.g., `NewServiceConfig`)
-3. **Add retry decorator** for network calls
-4. **Handle errors gracefully** with specific exceptions
-5. **Add comprehensive tests** with mocked responses
-6. **Update dependencies** in `pyproject.toml` if needed
+3. **Define Pydantic schema** in `schemas/newservice.py` for API responses
+4. **Add retry decorator** for network calls (use tenacity)
+5. **Add circuit breaker** if the service is unreliable
+6. **Define specific exceptions** in `exceptions.py` (inherit from `NetworkError`)
+7. **Handle errors gracefully** with typed exceptions
+8. **Add comprehensive tests** with mocked responses
+9. **Update dependencies** in `pyproject.toml` if needed
+
+### Adding Audiobookshelf Features
+
+**For new ABS integration features**:
+
+1. **Choose the appropriate module**:
+   - `abs/client.py` - API client methods
+   - `abs/asin.py` - ASIN extraction/indexing
+   - `abs/importer.py` - Import workflow
+   - `abs/rename.py` - Rename operations
+   - `abs/cleanup.py` - Cleanup operations
+   - `abs/trumping.py` - Duplicate detection
+
+2. **Add the feature**:
+   - Use `AbsClient` for API calls
+   - Raise `AudiobookshelfError` for API failures
+   - Use `PathMapper` for container ↔ host path translation
+   - Add retry logic with tenacity
+   - Add circuit breaker if needed
+
+3. **Add CLI command** in `commands/abs.py`:
+   ```python
+   def cmd_abs_yourfeature(args: argparse.Namespace, settings: Settings) -> int:
+       """Your ABS feature."""
+       client = AbsClient(settings.audiobookshelf.url, settings.audiobookshelf.token)
+       # Feature implementation
+       return 0
+   ```
+
+4. **Add tests** in `tests/test_abs_yourmodule.py`:
+   - Mock `AbsClient` API calls
+   - Test path mapping
+   - Test error handling
+
+5. **Document in `docs/audiobookshelf/`**:
+   - Add usage examples
+   - Explain configuration
+   - Document edge cases
 
 ### Modifying the Pipeline
 
@@ -790,6 +1159,88 @@ container_path = "/data/seedvault/audiobooks/release"
 - **Always use `platform="universal"`** for MAM compatibility
 - **Test with edge cases**: Unicode, emoji, long names, reserved names
 
+### State File Schema v2
+
+**State tracking now uses versioned schemas**:
+- **v1 schema** (legacy): Simple flat structure
+- **v2 schema** (current): Enhanced with validation, metadata
+  - Atomic writes with `.tmp` files
+  - Schema version tracking
+  - Timestamp validation (ISO 8601 format)
+  - Migration path from v1 → v2
+
+**Important**:
+```python
+# State file automatically migrates from v1 to v2 on first write
+from mamfast.utils.state import load_state, save_state
+
+state = load_state(state_file)  # Auto-detects version
+# Modify state
+save_state(state, state_file)  # Saves as v2 with atomic write
+```
+
+**Schema validation** (`schemas/state.py`):
+- `ProcessedStateV1` - Legacy schema
+- `ProcessedStateV2` - Current schema with validation
+- `ProcessedRelease` - Individual release entry
+- `FailedRelease` - Failed release tracking
+
+### Naming System Refactoring
+
+**Naming logic split into focused modules**:
+- **Old**: Monolithic `utils/naming.py` (~1000+ lines)
+- **New**: Organized modules in `utils/naming/`:
+  - `authors.py` - Author name processing (transliteration, mapping)
+  - `filters.py` - Title/author filtering rules
+  - `mam_paths.py` - MAM path generation with truncation
+  - `normalization.py` - Audnex metadata normalization
+  - `series_parsing.py` - Series name extraction
+  - `volume_parsing.py` - Volume number parsing
+  - `string_utils.py` - String manipulation utilities
+  - `constants.py` - Naming constants and patterns
+
+**When working with naming**:
+- Import from `mamfast.utils.naming` (not submodules directly)
+- Use `generate_mam_path()` for MAM-compliant paths
+- Use `normalize_audnex_metadata()` for Audnex data
+- Test with golden samples in `tests/golden/`
+
+### Subprocess Execution
+
+**Use `sh` library instead of `subprocess`**:
+```python
+# Old (deprecated)
+import subprocess
+result = subprocess.run(["docker", "ps"], capture_output=True)
+
+# New (preferred)
+from mamfast.utils.cmd import run
+
+result = run(["docker", "ps"], capture_output=True)
+# Raises ExternalToolError on failure
+```
+
+**Benefits**:
+- Cleaner API
+- Better error messages
+- Automatic logging
+- Type-safe return values
+
+### Fuzzy Matching
+
+**Use `rapidfuzz` for author/title matching**:
+```python
+from mamfast.utils.fuzzy import fuzzy_match_author, fuzzy_match_title
+
+score = fuzzy_match_author("J.K. Rowling", "JK Rowling")  # → 95.0
+is_match = score >= 90.0  # Threshold for matching
+```
+
+**Use cases**:
+- Matching ABS items without ASIN to staged books
+- Detecting duplicates with slightly different metadata
+- Author name normalization
+
 ## Git Workflow for AI Assistants
 
 ### Branch Naming
@@ -902,12 +1353,37 @@ ruff check --fix src/                # Auto-fix
 ruff format src/                     # Format
 mypy src/                            # Type check
 
-# Application
+# Application - Main Workflow
 mamfast --help                       # Show all commands
 mamfast config                       # Debug: print loaded config
 mamfast discover                     # List new audiobooks
 mamfast run --dry-run                # Preview full pipeline
 mamfast run --skip-scan              # Run without Libation scan
+
+# Audiobookshelf Integration
+mamfast abs-init                     # Test ABS connection, list libraries
+mamfast abs-import                   # Import staged books to ABS
+mamfast abs-import --dry-run         # Preview import without changes
+mamfast abs-check-duplicate B0ABC123 # Check if ASIN exists
+mamfast abs-rename                   # Bulk rename ABS library
+mamfast abs-rename --dry-run         # Preview rename changes
+mamfast abs-cleanup                  # Delete/archive source files
+mamfast abs-trump-check              # Detect trumpable duplicates
+mamfast abs-orphans                  # Find ABS items without seed files
+mamfast abs-resolve-asins            # Find ASINs via ABS search
+
+# State Management
+mamfast state list                   # List processed releases
+mamfast state list --failed          # List failed releases
+mamfast state prune                  # Remove old entries
+mamfast state retry <ASIN>           # Retry failed release
+mamfast state clear                  # Clear all state (dangerous!)
+
+# Diagnostics
+mamfast check                        # Check configuration
+mamfast check-duplicates             # Find duplicate ASINs
+mamfast check-suspicious             # Find suspicious metadata
+mamfast validate                     # Validate all staged releases
 
 # Debugging
 mamfast -v discover                  # Verbose logging
@@ -916,12 +1392,39 @@ mamfast -c /path/to/config.yaml run  # Custom config
 
 ## Resources & Documentation
 
+### Root-Level Documentation
 - **User Guide**: README.md
 - **Contributing**: CONTRIBUTING.md
 - **Security**: SECURITY.md
 - **Changelog**: CHANGELOG.md
-- **Project Plan**: MAMFAST_PROJECT_PLAN.md
-- **CI Workflows**: `.github/workflows/`
+- **AI Assistant Guide**: CLAUDE.md (this file)
+
+### Technical Documentation (`docs/`)
+- **Overview**: docs/README.md
+- **ABS Integration**: docs/audiobookshelf/
+  - AUDIOBOOKSHELF_IMPORT.md - Import workflow guide
+  - AUDIOBOOKSHELF_API.md - API reference
+  - ABS_RENAME_TOOL.md - Rename tool documentation
+  - CLEANUP_PLAN.md - Cleanup strategies
+  - TRUMPING.md - Duplicate detection logic
+- **Naming System**: docs/naming/
+  - NAMING.md - Naming system overview
+  - NAMING_RULES.md - Naming conventions
+  - NAMING_PIPELINE.md - Pipeline stages
+  - NAMING_AUDNEX_NORMALIZATION.md - Audnex normalization
+- **Implementation History**: docs/archive/
+  - P0_UPGRADE_COMPLETE.md - Package upgrades (tenacity, platformdirs)
+  - P1_SH_LIBRARY_COMPLETE.md - sh library integration
+  - REFACTORING_SUMMARY.md - Large file refactoring
+- **Active Plans**:
+  - docs/MIGRATION_BACKLOG.md - Deferred migrations
+  - docs/PACKAGE_UPGRADE_PLAN.md - Future package upgrades
+  - docs/STATE_HARDENING_PLAN.md - State management improvements
+  - docs/VALIDATION_PLAN.md - Input validation enhancements
+
+### CI/CD
+- `.github/workflows/ci.yml` - Main CI pipeline
+- `.github/workflows/dependency-review.yml` - Security scanning
 
 ## Version Information
 
@@ -931,6 +1434,6 @@ mamfast -c /path/to/config.yaml run  # Custom config
 
 ---
 
-**Last Updated**: 2025-12-03
+**Last Updated**: 2025-12-22
 **Maintained By**: MAMFast Project
 **For AI Assistants**: This document is regularly updated. Check git history for changes.
