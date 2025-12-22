@@ -87,7 +87,7 @@
 
 ## 🔄 Pipeline
 
-\`\`\`mermaid
+```mermaid
 graph LR
     A[📖 Libation Scan] --> B[🔍 Discover New]
     B --> C[📦 Stage/Hardlink]
@@ -97,20 +97,20 @@ graph LR
     F --> G[📚 Audiobookshelf]
     style A fill:#e1f5fe
     style G fill:#e8f5e9
-\`\`\`
+```
 
 <details>
 <summary><strong>Pipeline Details</strong></summary>
 
 | Stage | Description | Command |
 |-------|-------------|---------|
-| **Scan** | Trigger Libation to check for new Audible books | \`mamfast scan\` |
-| **Discover** | Find new audiobooks not yet processed | \`mamfast discover\` |
-| **Stage** | Hardlink files with MAM-compliant naming | \`mamfast prepare\` |
-| **Metadata** | Fetch Audnex data + extract MediaInfo | \`mamfast metadata\` |
-| **Torrent** | Create .torrent files via mkbrr | \`mamfast torrent\` |
-| **Upload** | Add to qBittorrent with tags | \`mamfast upload\` |
-| **Import** | Import to Audiobookshelf (optional) | \`mamfast abs-import\` |
+| **Scan** | Trigger Libation to check for new Audible books | `mamfast scan` |
+| **Discover** | Find new audiobooks not yet processed | `mamfast discover` |
+| **Stage** | Hardlink files with MAM-compliant naming | `mamfast prepare` |
+| **Metadata** | Fetch Audnex data + extract MediaInfo | `mamfast metadata` |
+| **Torrent** | Create .torrent files via mkbrr | `mamfast torrent` |
+| **Upload** | Add to qBittorrent with tags | `mamfast upload` |
+| **Import** | Import to Audiobookshelf (optional) | `mamfast abs-import` |
 
 </details>
 
@@ -118,26 +118,33 @@ graph LR
 
 ## 📥 Installation
 
-\`\`\`bash
+> Repo name is `mam_tool`; the app name/CLI is `mamfast`.
+
+```bash
 # Clone the repo
 git clone https://github.com/H2OKing89/mam_tool.git mamfast
 cd mamfast
 
 # Create virtual environment
 python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+
+# Linux/macOS (bash/zsh)
+source .venv/bin/activate
+
+# Windows PowerShell
+# .\.venv\Scripts\Activate.ps1
 
 # Install in development mode
 pip install -e ".[dev]"
 
 # Copy config templates
-cp config.yaml.example config/config.yaml
 mkdir -p config
+cp config.yaml.example config/config.yaml
 cp .env.example config/.env
 
 # Edit with your settings
-\$EDITOR config/.env config/config.yaml
-\`\`\`
+$EDITOR config/.env config/config.yaml
+```
 
 ### Requirements
 
@@ -159,13 +166,13 @@ cp .env.example config/.env
 </tr>
 <tr>
 <td>📥 qBittorrent</td>
-<td>4.x</td>
+<td>4.x+</td>
 <td>With Web UI enabled</td>
 </tr>
 <tr>
 <td>🎵 mediainfo</td>
 <td>Latest</td>
-<td>CLI tool for audio metadata</td>
+<td>CLI tool for audio metadata (runs on host, not inside Docker)</td>
 </tr>
 </table>
 
@@ -178,7 +185,7 @@ MAMFast uses layered configuration with automatic validation:
 <details>
 <summary><strong>1. 🔐 <code>config/.env</code> - Secrets (never commit)</strong></summary>
 
-\`\`\`bash
+```bash
 # qBittorrent credentials
 QB_HOST=http://10.1.60.10:8080
 QB_USERNAME=admin
@@ -190,20 +197,21 @@ DOCKER_BIN=/usr/bin/docker
 TARGET_UID=99
 TARGET_GID=100
 LOG_LEVEL=INFO
-\`\`\`
+```
 
 </details>
 
 <details>
 <summary><strong>2. 📝 <code>config/config.yaml</code> - Paths & Settings</strong></summary>
 
-\`\`\`yaml
+```yaml
 paths:
   library_root: "/mnt/user/data/audio/LibationLibrary"
   seed_root: "/mnt/user/data/seedvault/audiobooks"
   torrent_output: "/mnt/user/data/downloads/torrents/torrentfiles"
-  state_file: "./data/processed.json"
-  log_file: "./logs/mamfast.log"
+  # Optional: override the default XDG locations (platformdirs)
+  # state_file: "./data/processed.json"
+  # log_file: "./logs/mamfast.log"
 
 mam:
   max_filename_length: 225
@@ -232,7 +240,7 @@ qbittorrent:
 audnex:
   base_url: "https://api.audnex.us"
   timeout_seconds: 30
-\`\`\`
+```
 
 </details>
 
@@ -241,13 +249,13 @@ audnex:
 
 Maps audiobook genres to MAM category IDs:
 
-\`\`\`json
+```json
 {
   "fantasy": 39,
   "science fiction": 40,
   "mystery": 41
 }
-\`\`\`
+```
 
 </details>
 
@@ -256,7 +264,7 @@ Maps audiobook genres to MAM category IDs:
 
 MAMFast uses XDG-compliant paths by default (via [platformdirs](https://github.com/platformdirs/platformdirs)):
 
-\`\`\`bash
+```bash
 # Override default data directory (for state files)
 # Default: ~/.local/share/mamfast (Linux), ~/Library/Application Support/mamfast (macOS)
 export MAMFAST_DATA_DIR="/mnt/cache/appdata/mamfast/data"
@@ -268,9 +276,9 @@ export MAMFAST_CACHE_DIR="/mnt/cache/appdata/mamfast/cache"
 # Override default log directory
 # Default: ~/.local/state/mamfast (Linux), ~/Library/Logs/mamfast (macOS)
 export MAMFAST_LOG_DIR="/mnt/cache/appdata/mamfast/logs"
-\`\`\`
+```
 
-> **Note**: Explicitly configured paths in \`config.yaml\` always take precedence over environment variables.
+> **Note**: Explicitly configured paths in `config.yaml` always take precedence over environment variables.
 
 </details>
 
@@ -280,16 +288,16 @@ export MAMFAST_LOG_DIR="/mnt/cache/appdata/mamfast/logs"
 
 ### Full Pipeline
 
-\`\`\`bash
+```bash
 mamfast run                   # Run everything
 mamfast run --skip-scan       # Skip Libation scan
 mamfast run --skip-metadata   # Skip metadata fetching
 mamfast --dry-run run         # Preview without changes
-\`\`\`
+```
 
 ### Step by Step
 
-\`\`\`bash
+```bash
 mamfast scan              # Trigger Libation download
 mamfast scan --liberate   # Scan and download new books
 mamfast discover          # List new audiobooks
@@ -298,41 +306,41 @@ mamfast prepare           # Stage files (hardlink + rename)
 mamfast metadata          # Fetch Audnex + MediaInfo
 mamfast torrent           # Create .torrent files
 mamfast upload            # Add to qBittorrent
-\`\`\`
+```
 
 ### State Management
 
-\`\`\`bash
+```bash
 mamfast state list            # View all processed entries
 mamfast state list --failed   # Show only failed entries
 mamfast state prune           # Remove stale entries (missing files)
-mamfast state retry <path>    # Clear failed status for retry
-mamfast state clear <path>    # Remove entry completely
-\`\`\`
+mamfast state retry <asin-or-id>  # Clear failed status for retry
+mamfast state clear <asin-or-id>  # Remove entry completely
+```
 
 ### Utilities
 
-\`\`\`bash
+```bash
 mamfast status            # Show processing statistics
 mamfast config            # Debug: print loaded config
 mamfast validate          # Validate configuration
 mamfast check-duplicates  # Find potential duplicate releases
-\`\`\`
+```
 
 ### Global Options
 
 | Option | Description |
 |--------|-------------|
-| \`--dry-run\` | Preview without making changes |
-| \`-v, --verbose\` | Enable DEBUG logging |
-| \`-c, --config PATH\` | Custom config.yaml path |
-| \`-V, --version\` | Show version |
+| `--dry-run` | Preview without making changes |
+| `-v, --verbose` | Enable DEBUG logging |
+| `-c, --config PATH` | Custom config.yaml path |
+| `-V, --version` | Show version |
 
-> ⚠️ **Important**: Global options like \`--dry-run\` must come **before** the subcommand:
-> \`\`\`bash
+> ⚠️ **Important**: Global options like `--dry-run` must come **before** the subcommand:
+> ```bash
 > mamfast --dry-run abs-import  # ✅ Correct
 > mamfast abs-import --dry-run  # ❌ Won't work
-> \`\`\`
+> ```
 
 ---
 
@@ -342,20 +350,20 @@ MAMFast supports importing audiobooks directly to Audiobookshelf libraries with 
 
 ### Basic Commands
 
-\`\`\`bash
+```bash
 mamfast abs-init              # Initialize ABS connection
 mamfast abs-import            # Import staged books to ABS library
 mamfast abs-check-duplicate B0ASIN123  # Check if ASIN exists
 mamfast abs-trump-check       # Preview trumping decisions
 mamfast abs-cleanup           # Clean orphaned files
 mamfast abs-restore           # List/restore archived books
-\`\`\`
+```
 
 ### Trumping (Quality-Based Replacement)
 
 When enabled, trumping automatically replaces lower-quality audiobooks with higher-quality versions:
 
-\`\`\`yaml
+```yaml
 # config/config.yaml
 audiobookshelf:
   enabled: true
@@ -367,7 +375,7 @@ audiobookshelf:
       aggressiveness: balanced  # conservative | balanced | aggressive
       min_bitrate_increase_kbps: 64
       archive_root: "/mnt/user/data/audio/archive"
-\`\`\`
+```
 
 <details>
 <summary><strong>Quality Hierarchy & Trumping Decisions</strong></summary>
@@ -393,7 +401,7 @@ audiobookshelf:
 
 MAMFast uses a modular architecture with clean separation of concerns:
 
-\`\`\`
+```
 mamfast/
 ├── src/mamfast/
 │   ├── cli.py                  # CLI parser + main entry point
@@ -434,7 +442,7 @@ mamfast/
 │   └── audiobookshelf/         #    ABS integration guides
 ├── tests/                      # Comprehensive test suite
 └── pyproject.toml              # Project configuration
-\`\`\`
+```
 
 <details>
 <summary><strong>Recent Architecture Improvements (December 2025)</strong></summary>
@@ -447,13 +455,15 @@ mamfast/
   - \`platformdirs\` for XDG-compliant paths
   - \`sh\` library wrapper for cleaner subprocess handling
 
+  See `docs/README.md` for the documentation layout.
+
 </details>
 
 ---
 
 ## 🛠️ Development
 
-\`\`\`bash
+```bash
 # Install dev dependencies
 pip install -e ".[dev]"
 
@@ -474,19 +484,27 @@ mypy src/
 
 # Run all checks (pre-commit)
 pre-commit run --all-files
-\`\`\`
+```
 
 ### Pre-commit Hooks
 
 MAMFast uses pre-commit for automated code quality:
 
-\`\`\`yaml
-# .pre-commit-config.yaml includes:
-- ruff          # Fast Python linting
-- ruff-format   # Code formatting
-- mypy          # Type checking
-- pytest        # Test suite
-\`\`\`
+```yaml
+# .pre-commit-config.yaml (excerpt)
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      - id: ruff
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy
+      - id: pytest
+```
 
 ---
 
