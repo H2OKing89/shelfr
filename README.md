@@ -464,13 +464,13 @@ mamfast/
 <details>
 <summary><strong>Recent Architecture Improvements (December 2025)</strong></summary>
 
-- **CLI Split**: \`cli.py\` reduced from 4,100 → 820 lines via \`commands/\` subpackage
-- **Naming Refactor**: \`naming.py\` split into 9 focused modules for maintainability
+- **CLI Split**: `cli.py` reduced from 4,100 → 820 lines via `commands/` subpackage
+- **Naming Refactor**: `naming.py` split into 9 focused modules for maintainability
 - **State Hardening**: Schema v2 with atomic writes, checkpoints, and backup recovery
 - **Production Dependencies**: Replaced custom code with battle-tested libraries:
-  - \`tenacity\` for retry logic with exponential backoff
-  - \`platformdirs\` for XDG-compliant paths
-  - \`sh\` library wrapper for cleaner subprocess handling
+  - `tenacity` for retry logic with exponential backoff
+  - `platformdirs` for XDG-compliant paths
+  - `sh` library wrapper for cleaner subprocess handling
 
   See `docs/README.md` for the documentation layout.
 
@@ -520,7 +520,16 @@ repos:
   - repo: local
     hooks:
       - id: mypy
+        name: mypy type checking
+        entry: mypy
+        language: system
+        types: [python]
       - id: pytest
+        name: pytest unit tests
+        entry: pytest
+        language: system
+        types: [python]
+
 ```
 
 ---
