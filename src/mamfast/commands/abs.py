@@ -377,12 +377,16 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     if ignore_patterns:
         print_info(f"Ignoring file patterns: {', '.join(ignore_patterns)}")
 
-    # Handle --no-metadata CLI flag override
+    # Handle --no-metadata CLI flag override (use local copy to avoid mutating global config)
     no_metadata = getattr(args, "no_metadata", False)
+    import_settings = abs_config.import_settings
     if no_metadata:
-        # Override both config settings
-        abs_config.import_settings.generate_metadata_json = False
-        abs_config.import_settings.metadata_json_fallback = False
+        # Create modified copy with metadata generation disabled
+        import_settings = replace(
+            abs_config.import_settings,
+            generate_metadata_json=False,
+            metadata_json_fallback=False,
+        )
         print_info("Metadata.json generation disabled (--no-metadata)")
     elif abs_config.import_settings.generate_metadata_json:
         print_info("Metadata.json generation enabled")
@@ -392,7 +396,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
 
     # Build trumping preferences from config with CLI overrides
     trump_prefs = build_trump_prefs(
-        abs_config.import_settings.trumping,
+        import_settings.trumping,
         enabled_override=False if args.no_trump else None,
         aggressiveness_override=args.trump_aggressiveness,
     )
@@ -409,7 +413,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     cleanup_path_override_str = str(cleanup_path_override) if cleanup_path_override else None
 
     cleanup_prefs = build_cleanup_prefs(
-        abs_config.import_settings.cleanup,
+        import_settings.cleanup,
         strategy_override=cleanup_strategy_override,
         cleanup_path_override=cleanup_path_override_str,
     )
@@ -469,8 +473,8 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                 source_paths={f: f for f in staging_folders},  # 1:1 mapping in staging
                 seed_root=settings.paths.seed_root,
                 preferred_asin_region=settings.audnex.preferred_asin_region,
-                generate_metadata_json=abs_config.import_settings.generate_metadata_json,
-                metadata_json_fallback=abs_config.import_settings.metadata_json_fallback,
+                generate_metadata_json=import_settings.generate_metadata_json,
+                metadata_json_fallback=import_settings.metadata_json_fallback,
                 progress_callback=progress_callback,
                 dry_run=args.dry_run,
             )
