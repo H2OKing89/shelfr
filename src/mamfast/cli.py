@@ -535,6 +535,11 @@ Examples:
         action="store_true",
         help="Disable post-import cleanup (ignore config setting)",
     )
+    abs_import_parser.add_argument(
+        "--no-metadata",
+        action="store_true",
+        help="Disable metadata.json generation (ignore config setting)",
+    )
     abs_import_parser.set_defaults(func=cmd_abs_import)
 
     # -------------------------------------------------------------------------

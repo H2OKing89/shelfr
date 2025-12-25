@@ -421,6 +421,10 @@ class AudiobookshelfImportConfig:
     quarantine_path: str | None = None
     # File patterns to ignore during import (e.g., [".json", "*.metadata.json"])
     ignore_file_extensions: list[str] = field(default_factory=list)
+    # Generate metadata.json for Audiobookshelf (with Audnex data)
+    generate_metadata_json: bool = True
+    # Generate metadata.json even without ASIN (minimal data from folder name)
+    metadata_json_fallback: bool = True
 
 
 @dataclass

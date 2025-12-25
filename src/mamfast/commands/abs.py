@@ -377,6 +377,16 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     if ignore_patterns:
         print_info(f"Ignoring file patterns: {', '.join(ignore_patterns)}")
 
+    # Handle --no-metadata CLI flag override
+    no_metadata = getattr(args, "no_metadata", False)
+    if no_metadata:
+        # Override both config settings
+        abs_config.import_settings.generate_metadata_json = False
+        abs_config.import_settings.metadata_json_fallback = False
+        print_info("Metadata.json generation disabled (--no-metadata)")
+    elif abs_config.import_settings.generate_metadata_json:
+        print_info("Metadata.json generation enabled")
+
     if args.dry_run:
         print_dry_run(f"Would import {len(staging_folders)} book(s)")
 
@@ -459,6 +469,8 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                 source_paths={f: f for f in staging_folders},  # 1:1 mapping in staging
                 seed_root=settings.paths.seed_root,
                 preferred_asin_region=settings.audnex.preferred_asin_region,
+                generate_metadata_json=abs_config.import_settings.generate_metadata_json,
+                metadata_json_fallback=abs_config.import_settings.metadata_json_fallback,
                 progress_callback=progress_callback,
                 dry_run=args.dry_run,
             )

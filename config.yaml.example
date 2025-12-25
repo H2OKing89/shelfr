@@ -199,6 +199,14 @@ audiobookshelf:
     abs_search_confidence: 0.75       # Minimum match confidence (0.0-1.0)
 
     # ───────────────────────────────────────────────────────────────────────
+    # Metadata.json Generation: Create ABS-compatible metadata files
+    # Audiobookshelf reads metadata.json during library scans to populate
+    # audiobook metadata (title, author, series, chapters, etc.)
+    # ───────────────────────────────────────────────────────────────────────
+    generate_metadata_json: true      # Generate metadata.json with Audnex data
+    metadata_json_fallback: true      # Generate even without ASIN (minimal data)
+
+    # ───────────────────────────────────────────────────────────────────────
     # Trumping: Quality-Based Replacement (optional)
     # See docs/audiobookshelf/TRUMPING.md for full documentation
     # ───────────────────────────────────────────────────────────────────────
