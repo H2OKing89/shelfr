@@ -443,11 +443,11 @@ def enrich_from_audnex(
     try:
         audnex_data, audnex_region = fetch_audnex_book(asin)
     except Exception as e:
-        logger.debug(f"Failed to fetch Audnex data for {asin}: {e}")
+        logger.debug("Failed to fetch Audnex data for %s: %s", asin, e)
         return parsed, None, None  # Return None for audnex_data and region on error
 
     if not audnex_data:
-        logger.debug(f"No Audnex data found for ASIN {asin}")
+        logger.debug("No Audnex data found for ASIN %s", asin)
         return parsed, None, None  # Return None for audnex_data and region when not found
 
     # Use the naming module's normalizer for consistent series extraction
