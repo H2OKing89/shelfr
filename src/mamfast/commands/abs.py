@@ -594,8 +594,17 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                     )
 
                     # In dry-run, compute what files would be renamed to
+                    # Multi-file books skip renaming to prevent data loss
                     rename_map: dict[str, str] = {}
-                    if args.dry_run and r.parsed:
+                    audio_exts = {".m4b", ".m4a", ".mp3", ".ogg", ".flac", ".opus"}
+                    audio_count = sum(
+                        1
+                        for f in source_folder.iterdir()
+                        if f.is_file() and f.suffix.lower() in audio_exts
+                    )
+                    skip_rename = audio_count > 1  # Multi-file protection
+
+                    if args.dry_run and r.parsed and not skip_rename:
                         try:
                             parsed = r.parsed
                             for f in source_folder.iterdir():
@@ -613,6 +622,10 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                     # Show files
                     if files:
                         console.print("  [dim]Files:[/dim]")
+                        if skip_rename:
+                            console.print(
+                                "    [dim italic](multi-file: preserving names)[/dim italic]"
+                            )
                         for filename in files:
                             new_name = rename_map.get(filename)
                             if new_name and new_name != filename:

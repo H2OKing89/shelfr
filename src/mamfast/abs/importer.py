@@ -614,12 +614,12 @@ def rename_files_in_folder(
         f for f in folder_path.iterdir() if f.is_file() and f.suffix.lower() in audio_extensions
     ]
 
-    # SAFETY: Multi-file books without ASIN keep original filenames
+    # SAFETY: Multi-file books keep original filenames regardless of ASIN
     # Renaming multiple files to the same base name would cause data loss
-    if len(audio_files) > 1 and not parsed.asin:
-        logger.warning(
-            "Multi-file book without ASIN (%d audio files) - preserving original "
-            "filenames to prevent data loss: %s",
+    if len(audio_files) > 1:
+        logger.debug(
+            "Multi-file book (%d audio files) - preserving original filenames "
+            "to prevent data loss: %s",
             len(audio_files),
             folder_path.name,
         )

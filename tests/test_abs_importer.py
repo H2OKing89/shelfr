@@ -1127,14 +1127,15 @@ class TestMultiFileProtection:
         assert len(renamed) == 1
         assert renamed[0][0] == "Original Name.m4b"
 
-    def test_multi_file_with_asin_can_rename(self, tmp_path: Path) -> None:
-        """Multi-file book WITH ASIN can still rename (has unique identifier)."""
+    def test_multi_file_with_asin_also_protected(self, tmp_path: Path) -> None:
+        """Multi-file book WITH ASIN still protected - all files would get same name."""
         from mamfast.abs.importer import parse_mam_folder_name, rename_files_in_folder
 
         folder = tmp_path / "Known Book (2024) (Author) {ASIN.B0ABCDEFGH}"
         folder.mkdir()
 
-        # Multiple audio files but we have ASIN
+        # Multiple audio files - even with ASIN, renaming would cause data loss
+        # because all files would be renamed to the same base name
         (folder / "Part 1.m4b").touch()
         (folder / "Part 2.m4b").touch()
 
@@ -1143,9 +1144,9 @@ class TestMultiFileProtection:
 
         renamed = rename_files_in_folder(folder, parsed)
 
-        # With ASIN, normal rename logic applies
-        # (Note: both files would get same name - but ASIN is the identifier)
-        assert len(renamed) >= 1
+        # Multi-file books are protected regardless of ASIN
+        # Renaming would cause data loss (both → same filename)
+        assert renamed == []
 
     def test_multi_file_no_asin_dry_run_still_protects(self, tmp_path: Path) -> None:
         """Dry-run mode also protects multi-file books without ASIN."""
