@@ -508,7 +508,7 @@ def enrich_from_audnex(parsed: ParsedFolderName, asin: str) -> ParsedFolderName:
         year = release_date[:4] if len(release_date) >= 4 else None
         if year and year.isdigit():
             parsed.year = year
-            logger.info(f"Enriched year from Audnex: {year}")
+            logger.info("Enriched year from Audnex: %s", year)
 
     return parsed
 
