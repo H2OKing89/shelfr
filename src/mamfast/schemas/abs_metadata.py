@@ -6,9 +6,11 @@ during library scans to populate audiobook metadata.
 
 from __future__ import annotations
 
+import logging
+import re
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AbsChapter(BaseModel):
@@ -39,7 +41,8 @@ class AbsMetadataJson(BaseModel):
     genres: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     chapters: list[AbsChapter] = Field(default_factory=list)
-    # Accept ABS-style camelCase keys on input (validation_alias) and emit them on output (serialization_alias)
+    # Accept ABS-style camelCase keys on input (validation_alias)
+    # and emit them on output (serialization_alias).
     # With populate_by_name=True, Python code can still use snake_case field names
     published_year: str | None = Field(
         default=None, validation_alias="publishedYear", serialization_alias="publishedYear"
@@ -68,6 +71,27 @@ class AbsMetadataJson(BaseModel):
             ]
         },
     }
+
+    @field_validator("asin")
+    @classmethod
+    def validate_asin_format(cls, v: str | None) -> str | None:
+        """Validate ASIN format and log warning if invalid.
+
+        ASINs should be 10 alphanumeric characters (uppercase letters and digits).
+        Does not raise on invalid ASINs, only logs a warning.
+
+        Args:
+            v: ASIN value to validate
+
+        Returns:
+            Original ASIN value (unchanged)
+        """
+        if v is not None and v != "" and not re.match(r"^[A-Z0-9]{10}$", v):
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Invalid ASIN format: %r (expected 10 uppercase alphanumeric characters)", v
+            )
+        return v
 
 
 def validate_abs_metadata(data: dict[str, Any]) -> AbsMetadataJson:
