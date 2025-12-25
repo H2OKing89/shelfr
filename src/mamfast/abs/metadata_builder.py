@@ -203,6 +203,7 @@ def write_abs_metadata_json(
         logger.info("[DRY RUN] Would write metadata.json to %s", dst_folder)
         return None
 
+    result: Path | None = None
     try:
         # Serialize using Pydantic's model_dump with by_alias for camelCase
         json_data = metadata.model_dump(
@@ -212,7 +213,9 @@ def write_abs_metadata_json(
 
         metadata_path.write_text(json.dumps(json_data, indent=2, ensure_ascii=False))
         logger.debug("Wrote metadata.json to %s", metadata_path)
-        return metadata_path
+        result = metadata_path
     except OSError as e:
         logger.warning("Failed to write metadata.json to %s: %s", dst_folder, e)
-        return None
+        # result stays None on error
+
+    return result
