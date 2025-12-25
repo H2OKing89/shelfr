@@ -594,7 +594,7 @@ def rename_files_in_folder(
     - cover.jpg is kept as-is (standard ABS naming)
     - Files already matching clean name are skipped
     - Compound extensions like .metadata.json are preserved
-    - Multi-file books without ASIN preserve original filenames (data protection)
+    - Multi-file books: preserve track suffix (e.g., " - 01", " - 02")
 
     Args:
         folder_path: Path to folder containing files
@@ -610,20 +610,10 @@ def rename_files_in_folder(
     audio_extensions = {".m4b", ".m4a", ".mp3", ".ogg", ".flac", ".opus"}
 
     # Count audio files to detect multi-file books
-    audio_files = [
-        f for f in folder_path.iterdir() if f.is_file() and f.suffix.lower() in audio_extensions
-    ]
-
-    # SAFETY: Multi-file books keep original filenames regardless of ASIN
-    # Renaming multiple files to the same base name would cause data loss
-    if len(audio_files) > 1:
-        logger.debug(
-            "Multi-file book (%d audio files) - preserving original filenames "
-            "to prevent data loss: %s",
-            len(audio_files),
-            folder_path.name,
-        )
-        return []  # Don't rename anything
+    audio_files = sorted(
+        [f for f in folder_path.iterdir() if f.is_file() and f.suffix.lower() in audio_extensions]
+    )
+    is_multi_file = len(audio_files) > 1
 
     # Extensions to rename (audio, cue, images, metadata)
     rename_extensions = {
@@ -669,14 +659,45 @@ def rename_files_in_folder(
             if ext not in rename_extensions:
                 continue
 
-        # Build the clean filename
-        new_name = build_clean_file_name(parsed, extension=ext)
+        # Build the clean filename (without extension for multi-file handling)
+        base_clean_name = build_clean_file_name(parsed, extension="")
+
+        # For multi-file audio books, extract and preserve track suffix
+        track_suffix = ""
+        if is_multi_file and ext in audio_extensions:
+            # Try to extract track number from original filename
+            # Common patterns: " - 01", " - 1", "_01", " 01", "Part 1", etc.
+            stem = file_path.stem
+            track_match = re.search(r"[\s_-]+(\d{1,3})$", stem)
+            if track_match:
+                track_num = track_match.group(1)
+                # Pad to 2 digits for consistent sorting
+                track_suffix = f" - {int(track_num):02d}"
+            else:
+                # No track number found - preserve original filename to be safe
+                logger.debug(
+                    "Multi-file book: no track number found in '%s', preserving original",
+                    file_path.name,
+                )
+                continue
+
+        # Build final filename
+        new_name = f"{base_clean_name}{track_suffix}{ext}"
 
         # Skip if already has the correct name
         if file_path.name == new_name:
             continue
 
         new_path = file_path.parent / new_name
+
+        # Safety check: don't overwrite existing files
+        if new_path.exists() and new_path != file_path:
+            logger.warning(
+                "Target file already exists, skipping rename: %s → %s",
+                file_path.name,
+                new_name,
+            )
+            continue
 
         if dry_run:
             logger.info("[DRY RUN] Would rename: %s → %s", file_path.name, new_name)
