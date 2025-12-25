@@ -39,8 +39,14 @@ class AbsMetadataJson(BaseModel):
     genres: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     chapters: list[AbsChapter] = Field(default_factory=list)
-    published_year: str | None = Field(default=None, serialization_alias="publishedYear")
-    published_date: str | None = Field(default=None, serialization_alias="publishedDate")
+    # Accept ABS-style camelCase keys on input (validation_alias) and emit them on output (serialization_alias)
+    # With populate_by_name=True, Python code can still use snake_case field names
+    published_year: str | None = Field(
+        default=None, validation_alias="publishedYear", serialization_alias="publishedYear"
+    )
+    published_date: str | None = Field(
+        default=None, validation_alias="publishedDate", serialization_alias="publishedDate"
+    )
     publisher: str | None = None
     description: str | None = None  # HTML allowed
     isbn: str | None = None

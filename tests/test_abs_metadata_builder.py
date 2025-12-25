@@ -479,3 +479,21 @@ class TestAbsMetadataJsonSchema:
 
         assert "publishedYear" in dumped
         assert dumped["publishedYear"] == "2023"
+
+    def test_validation_accepts_camel_case_input(self) -> None:
+        """Test that validation accepts ABS-style camelCase keys."""
+        from mamfast.schemas.abs_metadata import validate_abs_metadata
+
+        # Simulate reading an existing ABS metadata.json file
+        abs_style_data = {
+            "title": "Test Book",
+            "authors": ["Author"],
+            "publishedYear": "2024",
+            "publishedDate": "2024-06-15",
+        }
+
+        result = validate_abs_metadata(abs_style_data)
+
+        assert result.title == "Test Book"
+        assert result.published_year == "2024"
+        assert result.published_date == "2024-06-15"
