@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -204,6 +206,7 @@ def write_abs_metadata_json(
         return None
 
     result: Path | None = None
+    temp_path: str | None = None
     try:
         # Serialize using Pydantic's model_dump with by_alias for camelCase
         json_data = metadata.model_dump(
@@ -211,11 +214,39 @@ def write_abs_metadata_json(
             exclude_none=True,  # Don't include null fields
         )
 
-        metadata_path.write_text(json.dumps(json_data, indent=2, ensure_ascii=False))
+        # Write to a temporary file in the same directory and fsync to ensure durability
+        with tempfile.NamedTemporaryFile("w", dir=dst_folder, delete=False, encoding="utf-8") as tf:
+            temp_path = tf.name
+            tf.write(json.dumps(json_data, indent=2, ensure_ascii=False))
+            tf.flush()
+            try:
+                os.fsync(tf.fileno())
+            except OSError:
+                # fsync not critical on some platforms/filesystems, but log failure
+                logger.debug("fsync failed for %s", temp_path)
+
+        # Atomically replace the target file with the temp file
+        try:
+            os.replace(temp_path, metadata_path)
+        except OSError as e:
+            logger.warning("Failed to atomically replace metadata file %s: %s", metadata_path, e)
+            # Attempt to clean up temp file; do not raise further
+            try:
+                if temp_path and os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception:
+                logger.debug("Failed to remove temp metadata file %s", temp_path)
+            return None
+
         logger.debug("Wrote metadata.json to %s", metadata_path)
         result = metadata_path
     except OSError as e:
         logger.warning("Failed to write metadata.json to %s: %s", dst_folder, e)
-        # result stays None on error
+        # Try to remove temp file on error
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                logger.debug("Could not remove temporary metadata file %s", temp_path)
 
     return result
