@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from mamfast.abs.importer import ParsedFolderName
 from mamfast.abs.metadata_builder import (
     build_abs_metadata_fallback,
     build_abs_metadata_from_audnex,
@@ -232,9 +233,6 @@ class TestBuildAbsMetadataFallback:
 
     def test_basic_fallback(self) -> None:
         """Test fallback with minimal data."""
-        # Import here to avoid circular import issues in tests
-        from mamfast.abs.importer import ParsedFolderName
-
         parsed = ParsedFolderName(
             author="Test Author",
             title="Test Title",
@@ -258,8 +256,6 @@ class TestBuildAbsMetadataFallback:
 
     def test_fallback_with_series(self) -> None:
         """Test fallback with series data."""
-        from mamfast.abs.importer import ParsedFolderName
-
         parsed = ParsedFolderName(
             author="Author",
             title="Book 5",
@@ -278,8 +274,6 @@ class TestBuildAbsMetadataFallback:
 
     def test_fallback_series_without_position(self) -> None:
         """Test fallback with series but no position."""
-        from mamfast.abs.importer import ParsedFolderName
-
         parsed = ParsedFolderName(
             author="Author",
             title="Standalone",
@@ -298,8 +292,6 @@ class TestBuildAbsMetadataFallback:
 
     def test_fallback_with_asin(self) -> None:
         """Test fallback preserves ASIN when available."""
-        from mamfast.abs.importer import ParsedFolderName
-
         parsed = ParsedFolderName(
             author="Author",
             title="Book with ASIN",
@@ -318,8 +310,6 @@ class TestBuildAbsMetadataFallback:
 
     def test_fallback_empty_narrator(self) -> None:
         """Test fallback with no narrator."""
-        from mamfast.abs.importer import ParsedFolderName
-
         parsed = ParsedFolderName(
             author="Author",
             title="Book",
