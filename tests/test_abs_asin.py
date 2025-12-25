@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from mamfast.abs.asin import (
+    AsinNormalizationResult,
     AsinResolution,
+    SearchMatch,
     _get_mediainfo_binary,
     extract_all_asins,
     extract_asin,
@@ -18,6 +20,7 @@ from mamfast.abs.asin import (
     extract_asin_from_mediainfo,
     extract_asin_with_source,
     is_valid_asin,
+    normalize_asin_to_preferred_region,
     resolve_asin_from_folder,
     resolve_asin_from_folder_with_mediainfo,
 )
@@ -1128,9 +1131,10 @@ class TestResolveAsinViaAbsSearch:
         from unittest.mock import MagicMock
 
         from mamfast.abs.asin import resolve_asin_via_abs_search
+        from mamfast.abs.client import AbsConnectionError
 
         mock_client = MagicMock()
-        mock_client.search_books.side_effect = Exception("Connection failed")
+        mock_client.search_books.side_effect = AbsConnectionError("Connection failed")
 
         result = resolve_asin_via_abs_search(mock_client, title="Any Title", author="Any Author")
 
@@ -1332,3 +1336,220 @@ class TestExtractCoreTitle:
         # But keep the main content words
         assert "hero" in result.lower()
         assert "journey" in result.lower()
+
+
+# =============================================================================
+# Tests: ASIN Region Normalization
+# =============================================================================
+
+
+class TestAsinNormalizationResult:
+    """Tests for AsinNormalizationResult dataclass."""
+
+    def test_not_normalized(self) -> None:
+        """Result when ASIN was not changed."""
+        result = AsinNormalizationResult(
+            original_asin="B0FDCW8SS7",
+            original_region="us",
+            normalized_asin="B0FDCW8SS7",
+            normalized_region="us",
+            was_normalized=False,
+        )
+        assert result.original_asin == "B0FDCW8SS7"
+        assert result.normalized_asin == "B0FDCW8SS7"
+        assert result.was_normalized is False
+        assert result.confidence is None
+
+    def test_normalized(self) -> None:
+        """Result when ASIN was changed to preferred region."""
+        result = AsinNormalizationResult(
+            original_asin="B0FDCW8SS7",
+            original_region="es",
+            normalized_asin="B0FDCLSZ7G",
+            normalized_region="us",
+            was_normalized=True,
+            confidence=0.95,
+        )
+        assert result.original_asin == "B0FDCW8SS7"
+        assert result.normalized_asin == "B0FDCLSZ7G"
+        assert result.original_region == "es"
+        assert result.normalized_region == "us"
+        assert result.was_normalized is True
+        assert result.confidence == 0.95
+
+
+class TestNormalizeAsinToPreferredRegion:
+    """Tests for normalize_asin_to_preferred_region()."""
+
+    def test_already_preferred_region(self) -> None:
+        """Return original when already in preferred region."""
+        mock_client = MagicMock()
+        result = normalize_asin_to_preferred_region(
+            client=mock_client,
+            asin="B0FDCLSZ7G",
+            found_region="us",
+            preferred_region="us",
+            title="Beware of Chicken 5",
+            author="Casualfarmer",
+        )
+
+        assert result.original_asin == "B0FDCLSZ7G"
+        assert result.normalized_asin == "B0FDCLSZ7G"
+        assert result.was_normalized is False
+        # Should not have called search when already in preferred region
+        mock_client.search_books.assert_not_called()
+
+    def test_no_region_info(self) -> None:
+        """Return original when no region info available."""
+        mock_client = MagicMock()
+        result = normalize_asin_to_preferred_region(
+            client=mock_client,
+            asin="B0FDCLSZ7G",
+            found_region=None,
+            preferred_region="us",
+            title="Test Book",
+        )
+
+        assert result.normalized_asin == "B0FDCLSZ7G"
+        assert result.was_normalized is False
+        mock_client.search_books.assert_not_called()
+
+    def test_successful_normalization(self) -> None:
+        """Successfully normalize ASIN from non-preferred to preferred region."""
+        mock_client = MagicMock()
+
+        # Create a mock SearchMatch for the US ASIN
+        with patch("mamfast.abs.asin.match_search_results") as mock_match:
+            mock_match.return_value = SearchMatch(
+                asin="B0FDCLSZ7G",  # US ASIN
+                title="Beware of Chicken 5",
+                author="Casualfarmer",
+                confidence=0.92,
+                language="English",
+                series=None,
+                sequence=None,
+            )
+
+            result = normalize_asin_to_preferred_region(
+                client=mock_client,
+                asin="B0FDCW8SS7",  # Spain ASIN
+                found_region="es",
+                preferred_region="us",
+                title="Beware of Chicken 5",
+                author="Casualfarmer",
+            )
+
+        assert result.original_asin == "B0FDCW8SS7"
+        assert result.normalized_asin == "B0FDCLSZ7G"
+        assert result.original_region == "es"
+        assert result.normalized_region == "us"
+        assert result.was_normalized is True
+        assert result.confidence == 0.92
+        mock_client.search_books.assert_called_once()
+
+    def test_no_match_found(self) -> None:
+        """Return original when no confident match found."""
+        mock_client = MagicMock()
+        mock_client.search_books.return_value = []
+
+        with patch("mamfast.abs.asin.match_search_results") as mock_match:
+            mock_match.return_value = None  # No match above threshold
+
+            result = normalize_asin_to_preferred_region(
+                client=mock_client,
+                asin="B0FDCW8SS7",
+                found_region="es",
+                preferred_region="us",
+                title="Unknown Book",
+                confidence_threshold=0.85,
+            )
+
+        assert result.normalized_asin == "B0FDCW8SS7"  # Original unchanged
+        assert result.was_normalized is False
+
+    def test_search_returns_same_asin(self) -> None:
+        """Return original when search returns the same ASIN."""
+        mock_client = MagicMock()
+
+        with patch("mamfast.abs.asin.match_search_results") as mock_match:
+            # Search returns same ASIN (rare but possible)
+            mock_match.return_value = SearchMatch(
+                asin="B0FDCW8SS7",  # Same as input
+                title="Some Book",
+                author=None,
+                confidence=0.90,
+                language=None,
+                series=None,
+                sequence=None,
+            )
+
+            result = normalize_asin_to_preferred_region(
+                client=mock_client,
+                asin="B0FDCW8SS7",
+                found_region="es",
+                preferred_region="us",
+                title="Some Book",
+            )
+
+        assert result.normalized_asin == "B0FDCW8SS7"
+        assert result.was_normalized is False
+
+    def test_search_exception(self) -> None:
+        """Return original when search throws an exception."""
+        from mamfast.abs.client import AbsConnectionError
+
+        mock_client = MagicMock()
+        mock_client.search_books.side_effect = AbsConnectionError("Network error")
+
+        result = normalize_asin_to_preferred_region(
+            client=mock_client,
+            asin="B0FDCW8SS7",
+            found_region="es",
+            preferred_region="us",
+            title="Test Book",
+        )
+
+        assert result.normalized_asin == "B0FDCW8SS7"
+        assert result.was_normalized is False
+
+    def test_case_insensitive_region_comparison(self) -> None:
+        """Region comparison should be case-insensitive."""
+        mock_client = MagicMock()
+
+        # Test "US" == "us"
+        result = normalize_asin_to_preferred_region(
+            client=mock_client,
+            asin="B0FDCLSZ7G",
+            found_region="US",  # Uppercase
+            preferred_region="us",  # Lowercase
+            title="Test Book",
+        )
+
+        assert result.was_normalized is False
+        mock_client.search_books.assert_not_called()
+
+    def test_default_confidence_threshold(self) -> None:
+        """Uses 0.85 as default confidence threshold."""
+        mock_client = MagicMock()
+
+        with patch("mamfast.abs.asin.match_search_results") as mock_match:
+            # Return None to simulate no match above threshold
+            mock_match.return_value = None
+
+            result = normalize_asin_to_preferred_region(
+                client=mock_client,
+                asin="B0OLDASINN",
+                found_region="es",
+                preferred_region="us",
+                title="Test Book",
+                # Using default confidence_threshold=0.85
+            )
+
+        # Verify match_search_results was called with 0.85 threshold
+        mock_match.assert_called_once()
+        call_kwargs = mock_match.call_args.kwargs
+        assert call_kwargs["confidence_threshold"] == 0.85
+
+        # Result should be unchanged since no match above threshold
+        assert result.normalized_asin == "B0OLDASINN"
+        assert result.was_normalized is False

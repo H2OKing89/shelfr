@@ -458,6 +458,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                 cleanup_prefs=None,  # Cleanup runs separately in Step 5
                 source_paths={f: f for f in staging_folders},  # 1:1 mapping in staging
                 seed_root=settings.paths.seed_root,
+                preferred_asin_region=settings.audnex.preferred_asin_region,
                 progress_callback=progress_callback,
                 dry_run=args.dry_run,
             )

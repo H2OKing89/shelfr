@@ -387,7 +387,9 @@ def run_liberate_with_progress(
     # Passthrough mode: Let Libation draw its own progress
     # -------------------------------------------
     if passthrough_mode:
-        console.print(f"  → Downloading {pending_count} pending book(s)... (Libation progress)")
+        console.print(
+            f"  → Downloading {pending_count} pending audiobook(s)... (Libation progress)"
+        )
         try:
             # Run with inherited stdio so Libation's progress bar shows
             # 1 hour timeout to prevent indefinite hangs
@@ -420,7 +422,7 @@ def run_liberate_with_progress(
 
     try:
         with console.status(
-            f"  → Downloading {pending_count} pending book(s)...",
+            f"  → Downloading {pending_count} pending audiobook(s)...",
             spinner="dots",
         ):
             # 1 hour timeout to prevent indefinite hangs

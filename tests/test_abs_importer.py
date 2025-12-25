@@ -214,12 +214,13 @@ class TestEnrichFromAudnex:
             },
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
-            result = enrich_from_audnex(parsed, "B0TEST1234")
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+            result, region = enrich_from_audnex(parsed, "B0TEST1234")
 
         assert result.series == "Epic Adventure"
         assert result.series_position == "5"  # Must be string
         assert isinstance(result.series_position, str)
+        assert region == "us"
 
     def test_series_position_float_coerced_to_string(self) -> None:
         """Handle float position like 1.5 (sub-books)."""
@@ -246,12 +247,13 @@ class TestEnrichFromAudnex:
             },
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
-            result = enrich_from_audnex(parsed, "B0TEST1234")
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+            result, region = enrich_from_audnex(parsed, "B0TEST1234")
 
         assert result.series == "Epic Adventure"
         assert result.series_position == "1.5"
         assert isinstance(result.series_position, str)
+        assert region == "us"
 
     def test_series_position_none_handled(self) -> None:
         """Handle None position gracefully."""
@@ -278,11 +280,12 @@ class TestEnrichFromAudnex:
             },
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
-            result = enrich_from_audnex(parsed, "B0TEST1234")
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+            result, region = enrich_from_audnex(parsed, "B0TEST1234")
 
         assert result.series == "Epic Adventure"
         assert result.series_position is None  # Should remain None
+        assert region == "us"
 
     def test_subtitle_series_position_coerced(self) -> None:
         """Subtitle fallback also coerces position to string."""
@@ -308,12 +311,13 @@ class TestEnrichFromAudnex:
             "subtitle": "Epic Adventure, Book 3",
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
-            result = enrich_from_audnex(parsed, "B0TEST1234")
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+            result, region = enrich_from_audnex(parsed, "B0TEST1234")
 
         assert result.series == "Epic Adventure"
         assert result.series_position == "3"
         assert isinstance(result.series_position, str)
+        assert region == "us"
 
     def test_series_extracted_from_title_pattern(self) -> None:
         """Extract series from title when no seriesPrimary or subtitle available.
@@ -344,13 +348,14 @@ class TestEnrichFromAudnex:
             # No seriesPrimary, no parseable subtitle
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
-            result = enrich_from_audnex(parsed, "B0FZLQ9LQD")
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+            result, region = enrich_from_audnex(parsed, "B0FZLQ9LQD")
 
         assert result.author == "Brandon Varnell"
         assert result.series == "A Most Unlikely Hero"
         assert result.series_position == "8"
         assert result.is_standalone is False
+        assert region == "us"
 
     def test_series_extracted_from_title_vol_dot_pattern(self) -> None:
         """Extract series from title with 'Vol.' notation."""
@@ -375,11 +380,12 @@ class TestEnrichFromAudnex:
             "authors": [{"name": "Author Name"}],
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
-            result = enrich_from_audnex(parsed, "B012345678")
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+            result, region = enrich_from_audnex(parsed, "B012345678")
 
         assert result.series == "Epic Adventure"
         assert result.series_position == "5"
+        assert region == "us"
 
     def test_series_not_extracted_when_series_primary_exists(self) -> None:
         """Don't extract from title if seriesPrimary already provided series."""
@@ -408,12 +414,13 @@ class TestEnrichFromAudnex:
             },
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
-            result = enrich_from_audnex(parsed, "B012345678")
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+            result, region = enrich_from_audnex(parsed, "B012345678")
 
         # Should use seriesPrimary, NOT extract from title
         assert result.series == "Actual Series Name"
         assert result.series_position == "3"
+        assert region == "us"
 
     def test_audnex_series_overrides_incorrect_parsed_series(self) -> None:
         """Audnex series should override incorrectly parsed series from folder name.
@@ -447,13 +454,14 @@ class TestEnrichFromAudnex:
             },
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=mock_audnex_data):
-            result = enrich_from_audnex(parsed, "B0BN2GGTCK")
+        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+            result, region = enrich_from_audnex(parsed, "B0BN2GGTCK")
 
         # Audnex should override the incorrect parsed series
         assert result.series == "The Rising of the Shield Hero"  # "The" inherited
         assert result.series_position == "4"
         assert result.is_standalone is False
+        assert region == "us"
 
 
 # =============================================================================

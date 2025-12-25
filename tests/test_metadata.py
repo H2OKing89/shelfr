@@ -54,11 +54,12 @@ class TestFetchAudnexBook:
             patch("httpx.Client", return_value=mock_client),
             patch("mamfast.metadata.get_settings", return_value=mock_settings),
         ):
-            result = fetch_audnex_book("B09TEST123")
+            result, region = fetch_audnex_book("B09TEST123")
 
         assert result is not None
         assert result["asin"] == "B09TEST123"
         assert result["title"] == "Test Book"
+        assert region == "us"
 
     def test_fetch_not_found(self):
         """Test handling 404 response."""
@@ -79,9 +80,10 @@ class TestFetchAudnexBook:
             patch("httpx.Client", return_value=mock_client),
             patch("mamfast.metadata.get_settings", return_value=mock_settings),
         ):
-            result = fetch_audnex_book("INVALID_ASIN")
+            result, region = fetch_audnex_book("INVALID_ASIN")
 
         assert result is None
+        assert region is None
 
     def test_region_fallback(self):
         """Test fallback to second region when first returns 500."""
@@ -119,11 +121,12 @@ class TestFetchAudnexBook:
             patch("httpx.Client", return_value=mock_client),
             patch("mamfast.metadata.get_settings", return_value=mock_settings),
         ):
-            result = fetch_audnex_book("B09TEST123")
+            result, region = fetch_audnex_book("B09TEST123")
 
         assert result is not None
         assert result["asin"] == "B09TEST123"
         assert call_count == 2  # Both regions tried
+        assert region == "us"  # Found in US region
 
     def test_specific_region_no_fallback(self):
         """Test that specifying region skips fallback."""
@@ -144,9 +147,10 @@ class TestFetchAudnexBook:
             patch("httpx.Client", return_value=mock_client),
             patch("mamfast.metadata.get_settings", return_value=mock_settings),
         ):
-            result = fetch_audnex_book("B09TEST123", region="uk")
+            result, region = fetch_audnex_book("B09TEST123", region="uk")
 
         assert result is None
+        assert region is None
         # Only called once (no fallback to other regions)
         assert mock_client.get.call_count == 1
 
@@ -1193,9 +1197,10 @@ class TestFetchAudnexEdgeCases:
             mock_client.get.side_effect = httpx.TimeoutException("Timeout")
             mock_client_class.return_value = mock_client
 
-            result = fetch_audnex_book("B09TEST123")
+            result, region = fetch_audnex_book("B09TEST123")
 
         assert result is None
+        assert region is None
 
     def test_http_error(self):
         """Test handling HTTP status error."""
@@ -1222,9 +1227,10 @@ class TestFetchAudnexEdgeCases:
             mock_client.get.return_value = mock_response
             mock_client_class.return_value = mock_client
 
-            result = fetch_audnex_book("B09TEST123")
+            result, region = fetch_audnex_book("B09TEST123")
 
         assert result is None
+        assert region is None
 
 
 class TestRunMediainfoEdgeCases:

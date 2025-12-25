@@ -61,6 +61,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Valid Audnex regions (must match schemas/config.py:VALID_AUDNEX_REGIONS)
+VALID_AUDNEX_REGIONS = frozenset(["us", "uk", "au", "ca", "de", "es", "fr", "in", "it", "jp"])
+
+# Default ASIN region for normalization (centralized constant)
+# Also update in schemas/config.py AudnexSchema and config.yaml.example if changed
+DEFAULT_ASIN_REGION = "us"
+
 
 class ConfigurationError(Exception):
     """Raised when configuration is invalid."""
@@ -130,7 +137,10 @@ class AudnexConfig:
     timeout_seconds: int = 30
     # Regions to try in order (first success wins)
     # Valid: us, uk, au, ca, de, es, fr, in, it, jp
-    regions: list[str] = field(default_factory=lambda: ["us"])
+    regions: list[str] = field(default_factory=lambda: [DEFAULT_ASIN_REGION])
+    # Preferred ASIN region - when ASIN found in different region, use ABS search
+    # to find the preferred region's ASIN. Set to None to disable normalization.
+    preferred_asin_region: str | None = DEFAULT_ASIN_REGION
 
 
 @dataclass
@@ -1061,10 +1071,38 @@ def load_settings(
 
     # Parse Audnex config
     audnex_data = yaml_config.get("audnex", {})
+
+    # Validate and normalize regions (guard against bypassed Pydantic validation)
+    raw_regions = audnex_data.get("regions", [DEFAULT_ASIN_REGION])
+    validated_regions: list[str] = []
+    for region in raw_regions:
+        region_lower = region.lower()
+        if region_lower not in VALID_AUDNEX_REGIONS:
+            raise ConfigurationError(
+                f"Invalid audnex region '{region}'. Valid: {sorted(VALID_AUDNEX_REGIONS)}"
+            )
+        validated_regions.append(region_lower)
+    if not validated_regions:
+        validated_regions = [DEFAULT_ASIN_REGION]
+
+    # Validate preferred_asin_region (None disables normalization)
+    raw_preferred = audnex_data.get("preferred_asin_region", DEFAULT_ASIN_REGION)
+    if raw_preferred is not None:
+        preferred_lower = raw_preferred.lower()
+        if preferred_lower not in VALID_AUDNEX_REGIONS:
+            raise ConfigurationError(
+                f"Invalid preferred_asin_region '{raw_preferred}'. "
+                f"Valid: {sorted(VALID_AUDNEX_REGIONS)} or null"
+            )
+        validated_preferred: str | None = preferred_lower
+    else:
+        validated_preferred = None
+
     audnex = AudnexConfig(
         base_url=audnex_data.get("base_url", "https://api.audnex.us"),
         timeout_seconds=audnex_data.get("timeout_seconds", 30),
-        regions=audnex_data.get("regions", ["us"]),
+        regions=validated_regions,
+        preferred_asin_region=validated_preferred,
     )
 
     # Parse MediaInfo config

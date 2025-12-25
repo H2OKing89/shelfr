@@ -121,6 +121,20 @@ audnex:
     - us
     # - uk  # Uncomment to add UK as fallback
 
+  # Preferred ASIN region for folder/file naming
+  # When an audiobook's ASIN is found in a different region (e.g., "es" for Spain),
+  # mamfast will use Audiobookshelf's Audible search to find the ASIN for the
+  # preferred region. This ensures consistent ASINs across your library.
+  #
+  # Example: A book downloaded from Audible Spain has ASIN B0FDCW8SS7 (Spain).
+  # With preferred_asin_region: us, mamfast searches ABS and finds the US ASIN
+  # B0FDCLSZ7G, which is then used in folder/file names.
+  #
+  # Set to null to disable ASIN normalization (use whatever ASIN is found).
+  # Requires audiobookshelf.enabled: true for the ABS search to work.
+  # Valid: us, uk, au, ca, de, es, fr, in, it, jp, or null
+  preferred_asin_region: us
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MediaInfo (for extracting audio file metadata)
 # ─────────────────────────────────────────────────────────────────────────────

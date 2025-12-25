@@ -102,6 +102,34 @@ class TestQBittorrentConfig:
         assert "mamfast" in config.tags
 
 
+class TestAudnexConfig:
+    """Tests for AudnexConfig dataclass and region validation."""
+
+    def test_default_values(self) -> None:
+        """Test default audnex configuration."""
+        from mamfast.config import DEFAULT_ASIN_REGION, AudnexConfig
+
+        config = AudnexConfig()
+        assert config.base_url == "https://api.audnex.us"
+        assert config.timeout_seconds == 30
+        assert config.regions == [DEFAULT_ASIN_REGION]
+        assert config.preferred_asin_region == DEFAULT_ASIN_REGION
+
+    def test_valid_audnex_regions_constant(self) -> None:
+        """Test that VALID_AUDNEX_REGIONS contains expected values."""
+        from mamfast.config import VALID_AUDNEX_REGIONS
+
+        # Should include all documented regions
+        assert "us" in VALID_AUDNEX_REGIONS
+        assert "uk" in VALID_AUDNEX_REGIONS
+        assert "de" in VALID_AUDNEX_REGIONS
+        assert "es" in VALID_AUDNEX_REGIONS
+        assert "jp" in VALID_AUDNEX_REGIONS
+        # Should not include invalid regions
+        assert "invalid" not in VALID_AUDNEX_REGIONS
+        assert "xx" not in VALID_AUDNEX_REGIONS
+
+
 class TestLoadYamlConfig:
     """Tests for YAML config loading."""
 
@@ -238,6 +266,99 @@ paths:
                 "http://found:8080",
                 "",
             ]  # May vary based on test isolation
+
+    def test_rejects_invalid_audnex_region(self) -> None:
+        """Test that invalid audnex region raises ConfigurationError."""
+        from mamfast.config import ConfigurationError
+
+        yaml_content = """
+paths:
+  library_root: "/tmp/library"
+  torrent_output: "/tmp/torrents"
+  seed_root: "/tmp/seed"
+
+audnex:
+  regions:
+    - "invalid_region"
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.yaml"
+            config_path.write_text(yaml_content)
+
+            env_path = Path(tmpdir) / ".env"
+            env_path.write_text("QB_HOST=http://localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
+
+            with pytest.raises(ConfigurationError, match="Invalid audnex region"):
+                load_settings(env_file=env_path, config_file=config_path, validate=False)
+
+    def test_rejects_invalid_preferred_asin_region(self) -> None:
+        """Test that invalid preferred_asin_region raises ConfigurationError."""
+        from mamfast.config import ConfigurationError
+
+        yaml_content = """
+paths:
+  library_root: "/tmp/library"
+  torrent_output: "/tmp/torrents"
+  seed_root: "/tmp/seed"
+
+audnex:
+  preferred_asin_region: "bad_region"
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.yaml"
+            config_path.write_text(yaml_content)
+
+            env_path = Path(tmpdir) / ".env"
+            env_path.write_text("QB_HOST=http://localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
+
+            with pytest.raises(ConfigurationError, match="Invalid preferred_asin_region"):
+                load_settings(env_file=env_path, config_file=config_path, validate=False)
+
+    def test_accepts_null_preferred_asin_region(self) -> None:
+        """Test that null preferred_asin_region is accepted (disables normalization)."""
+        yaml_content = """
+paths:
+  library_root: "/tmp/library"
+  torrent_output: "/tmp/torrents"
+  seed_root: "/tmp/seed"
+
+audnex:
+  preferred_asin_region: null
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.yaml"
+            config_path.write_text(yaml_content)
+
+            env_path = Path(tmpdir) / ".env"
+            env_path.write_text("QB_HOST=http://localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
+
+            settings = load_settings(env_file=env_path, config_file=config_path, validate=False)
+            assert settings.audnex.preferred_asin_region is None
+
+    def test_normalizes_regions_to_lowercase(self) -> None:
+        """Test that region codes are normalized to lowercase."""
+        yaml_content = """
+paths:
+  library_root: "/tmp/library"
+  torrent_output: "/tmp/torrents"
+  seed_root: "/tmp/seed"
+
+audnex:
+  regions:
+    - "US"
+    - "UK"
+  preferred_asin_region: "DE"
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.yaml"
+            config_path.write_text(yaml_content)
+
+            env_path = Path(tmpdir) / ".env"
+            env_path.write_text("QB_HOST=http://localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
+
+            settings = load_settings(env_file=env_path, config_file=config_path, validate=False)
+            assert settings.audnex.regions == ["us", "uk"]
+            assert settings.audnex.preferred_asin_region == "de"
 
 
 class TestReloadSettings:

@@ -32,6 +32,10 @@ from mamfast.config import get_settings
 if TYPE_CHECKING:
     from mamfast.abs.client import AbsClient
 
+# Import ABS exceptions for narrow exception handling
+# These are the documented error types from AbsClient.search_books()
+from mamfast.abs.client import AbsApiError, AbsConnectionError
+
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1001,8 +1005,8 @@ def resolve_asin_via_abs_search(
     """
     try:
         results = client.search_books(title=title, author=author, provider="audible")
-    except Exception as e:
-        logger.warning(f"ABS search failed for {title!r}: {e}")
+    except (AbsConnectionError, AbsApiError) as exc:
+        logger.warning("ABS search failed for %r: %s", title, exc)
         return AsinResolution(asin=None, source="unknown")
 
     match = match_search_results(
@@ -1022,3 +1026,156 @@ def resolve_asin_via_abs_search(
         )
 
     return AsinResolution(asin=None, source="unknown")
+
+
+# =============================================================================
+# Phase 6: ASIN Region Normalization
+# =============================================================================
+
+
+@dataclass
+class AsinNormalizationResult:
+    """Result of ASIN region normalization.
+
+    Attributes:
+        original_asin: The ASIN that was originally found
+        original_region: Region where the original ASIN was found (e.g., "es")
+        normalized_asin: The ASIN for the preferred region (may equal original)
+        normalized_region: The preferred region (e.g., "us")
+        was_normalized: True if ASIN was changed during normalization
+        confidence: Match confidence if ABS search was used (0-1)
+    """
+
+    original_asin: str
+    original_region: str | None
+    normalized_asin: str
+    normalized_region: str | None
+    was_normalized: bool = False
+    confidence: float | None = None
+
+
+def normalize_asin_to_preferred_region(
+    client: AbsClient,
+    asin: str,
+    found_region: str | None,
+    preferred_region: str,
+    title: str,
+    author: str | None = None,
+    confidence_threshold: float = 0.85,
+) -> AsinNormalizationResult:
+    """Normalize an ASIN to the preferred region using ABS search.
+
+    When an audiobook's ASIN is found in a non-preferred region (e.g., Spain "es"),
+    this function uses ABS's Audible search to find the ASIN for the preferred
+    region (e.g., US "us"). This ensures consistent ASINs across the library.
+
+    The ABS search returns results from the US Audible store by default, so
+    when preferred_region is "us", the search will return US ASINs.
+
+    Args:
+        client: AbsClient instance for searching
+        asin: Original ASIN found in the audiobook
+        found_region: Region where the original ASIN was found (from Audnex)
+        preferred_region: Target region for ASIN (e.g., "us")
+        title: Book title for search matching
+        author: Author name for search matching (improves accuracy)
+        confidence_threshold: Minimum confidence to accept a match (default: 0.85)
+                              Higher than normal since we're replacing a known ASIN
+
+    Returns:
+        AsinNormalizationResult with original and normalized ASIN info
+
+    Example:
+        # Book downloaded from Audible Spain has Spanish ASIN
+        result = normalize_asin_to_preferred_region(
+            client, "B0FDCW8SS7", "es", "us",
+            title="Beware of Chicken 5", author="Casualfarmer"
+        )
+        # result.normalized_asin = "B0FDCLSZ7G" (US ASIN)
+        # result.was_normalized = True
+    """
+    # If already in preferred region or no region info, return as-is
+    if found_region is None or found_region.lower() == preferred_region.lower():
+        return AsinNormalizationResult(
+            original_asin=asin,
+            original_region=found_region,
+            normalized_asin=asin,
+            normalized_region=found_region,
+            was_normalized=False,
+        )
+
+    logger.debug(
+        "Attempting ASIN normalization: %s (region=%s) → preferred=%s",
+        asin,
+        found_region,
+        preferred_region,
+    )
+
+    # Search ABS for the book (returns US Audible results by default)
+    try:
+        results = client.search_books(title=title, author=author, provider="audible")
+    except (AbsConnectionError, AbsApiError) as exc:
+        logger.warning("ASIN normalization search failed for %r: %s", title, exc)
+        return AsinNormalizationResult(
+            original_asin=asin,
+            original_region=found_region,
+            normalized_asin=asin,
+            normalized_region=found_region,
+            was_normalized=False,
+        )
+
+    # Determine language preference based on preferred region
+    # English-speaking regions: us, uk, ca, au, nz, ie
+    english_regions = {"us", "uk", "ca", "au", "nz", "ie"}
+    prefer_english = bool(preferred_region and preferred_region.lower() in english_regions)
+
+    # Find best match
+    match = match_search_results(
+        results,
+        folder_title=title,
+        folder_author=author,
+        confidence_threshold=confidence_threshold,
+        prefer_english=prefer_english,
+    )
+
+    if match and match.asin != asin:
+        logger.info(
+            "Normalized ASIN from %s (%s) to %s (%s) via ABS search "
+            "(title=%r, confidence=%.0f%%)",
+            found_region,
+            asin,
+            preferred_region,
+            match.asin,
+            match.title,
+            match.confidence * 100,
+        )
+        return AsinNormalizationResult(
+            original_asin=asin,
+            original_region=found_region,
+            normalized_asin=match.asin,
+            normalized_region=preferred_region,
+            was_normalized=True,
+            confidence=match.confidence,
+        )
+
+    # No match found or same ASIN returned
+    if match:
+        logger.debug(
+            "ASIN normalization: search returned same ASIN %s (confidence=%.0f%%)",
+            asin,
+            match.confidence * 100,
+        )
+    else:
+        logger.debug(
+            "ASIN normalization: no confident match found for %s in %s region",
+            asin,
+            preferred_region,
+        )
+
+    return AsinNormalizationResult(
+        original_asin=asin,
+        original_region=found_region,
+        normalized_asin=asin,
+        normalized_region=found_region,
+        was_normalized=False,
+    )

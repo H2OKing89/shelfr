@@ -153,7 +153,7 @@ class TestAudnexSchema:
         """Test invalid region codes are rejected."""
         with pytest.raises(ValidationError) as exc_info:
             AudnexSchema(regions=["us", "invalid"])
-        assert "Invalid regions" in str(exc_info.value)
+        assert "Invalid region 'invalid'" in str(exc_info.value)
 
     def test_empty_regions_rejected(self) -> None:
         """Test empty regions list is rejected."""

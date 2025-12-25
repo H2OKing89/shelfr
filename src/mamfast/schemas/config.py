@@ -101,6 +101,15 @@ class QBittorrentSchema(BaseModel):
 # Valid Audnex regions
 VALID_AUDNEX_REGIONS = frozenset(["us", "uk", "au", "ca", "de", "es", "fr", "in", "it", "jp"])
 
+# Default ASIN region for normalization (must match config.py:DEFAULT_ASIN_REGION)
+DEFAULT_ASIN_REGION = "us"
+
+
+def _invalid_region_error(value: str, *, allow_null: bool = False) -> ValueError:
+    """Create a ValueError for invalid region codes."""
+    suffix = " or null" if allow_null else ""
+    return ValueError(f"Invalid region '{value}'. Valid: {sorted(VALID_AUDNEX_REGIONS)}{suffix}")
+
 
 class AudnexSchema(BaseModel):
     """Audnex API settings."""
@@ -108,7 +117,11 @@ class AudnexSchema(BaseModel):
     base_url: str = "https://api.audnex.us"
     timeout_seconds: int = Field(default=30, ge=5, le=120)
     # Regions to try in order (first success wins)
-    regions: list[str] = Field(default_factory=lambda: ["us"])
+    regions: list[str] = Field(default_factory=lambda: [DEFAULT_ASIN_REGION])
+    # Preferred ASIN region - when ASIN found in different region, use ABS search
+    # to find the preferred region's ASIN. Set to null/None to disable.
+    # Valid: us, uk, au, ca, de, es, fr, in, it, jp, or null
+    preferred_asin_region: str | None = Field(default=DEFAULT_ASIN_REGION)
 
     @field_validator("base_url")
     @classmethod
@@ -124,10 +137,20 @@ class AudnexSchema(BaseModel):
         """Validate region codes are valid."""
         if not v:
             raise ValueError("At least one region is required")
-        invalid = [r for r in v if r.lower() not in VALID_AUDNEX_REGIONS]
-        if invalid:
-            raise ValueError(f"Invalid regions: {invalid}. Valid: {sorted(VALID_AUDNEX_REGIONS)}")
+        for r in v:
+            if r.lower() not in VALID_AUDNEX_REGIONS:
+                raise _invalid_region_error(r)
         return [r.lower() for r in v]  # Normalize to lowercase
+
+    @field_validator("preferred_asin_region")
+    @classmethod
+    def validate_preferred_region(cls, v: str | None) -> str | None:
+        """Validate preferred region is valid or None."""
+        if v is None:
+            return None
+        if v.lower() not in VALID_AUDNEX_REGIONS:
+            raise _invalid_region_error(v, allow_null=True)
+        return v.lower()
 
 
 class MediaInfoSchema(BaseModel):

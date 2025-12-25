@@ -689,7 +689,9 @@ def _fetch_audnex_book_region(
         return None
 
 
-def fetch_audnex_book(asin: str, region: str | None = None) -> dict[str, Any] | None:
+def fetch_audnex_book(
+    asin: str, region: str | None = None
+) -> tuple[dict[str, Any] | None, str | None]:
     """
     Fetch book metadata from Audnex API with region fallback.
 
@@ -701,7 +703,8 @@ def fetch_audnex_book(asin: str, region: str | None = None) -> dict[str, Any] | 
         region: Optional specific region to try (skips fallback if provided)
 
     Returns:
-        Parsed JSON response or None if not found in any region.
+        Tuple of (parsed JSON response or None, region found in or None).
+        The region is useful for ASIN normalization to a preferred region.
     """
     settings = get_settings()
 
@@ -712,9 +715,9 @@ def fetch_audnex_book(asin: str, region: str | None = None) -> dict[str, Any] | 
         )
         if data:
             logger.info(f"Fetched Audnex metadata for ASIN: {asin} (region={region})")
-        else:
-            logger.warning(f"ASIN {asin} not found in region {region}")
-        return data
+            return data, region
+        logger.warning(f"ASIN {asin} not found in region {region}")
+        return None, None
 
     # Try each configured region in order
     regions = settings.audnex.regions
@@ -724,10 +727,10 @@ def fetch_audnex_book(asin: str, region: str | None = None) -> dict[str, Any] | 
         )
         if data:
             logger.info(f"Fetched Audnex metadata for ASIN: {asin} (region={r})")
-            return data
+            return data, r
 
     logger.warning(f"ASIN {asin} not found in any configured region: {regions}")
-    return None
+    return None, None
 
 
 def fetch_audnex_author(asin: str, region: str | None = None) -> dict[str, Any] | None:
@@ -1074,7 +1077,7 @@ def fetch_metadata(
     audnex_chapters = None
 
     if asin:
-        audnex_data = fetch_audnex_book(asin)
+        audnex_data, _ = fetch_audnex_book(asin)  # Region not needed here
         # Also fetch chapter data from Audnex (authoritative source)
         audnex_chapters = fetch_audnex_chapters(asin)
 

@@ -27,6 +27,7 @@ from mamfast.abs.asin import (
     AsinEntry,
     asin_exists,
     extract_asin,
+    normalize_asin_to_preferred_region,
     resolve_asin_from_folder_with_mediainfo,
     resolve_asin_via_abs_search,
 )
@@ -410,7 +411,7 @@ def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
     )
 
 
-def enrich_from_audnex(parsed: ParsedFolderName, asin: str) -> ParsedFolderName:
+def enrich_from_audnex(parsed: ParsedFolderName, asin: str) -> tuple[ParsedFolderName, str | None]:
     """Enrich parsed folder data with Audnex metadata.
 
     When we resolve an ASIN (from mediainfo or folder), fetch Audnex metadata
@@ -429,19 +430,20 @@ def enrich_from_audnex(parsed: ParsedFolderName, asin: str) -> ParsedFolderName:
         asin: Resolved ASIN to look up
 
     Returns:
-        ParsedFolderName with enriched data (modified in place and returned)
+        Tuple of (ParsedFolderName with enriched data, region where ASIN was found).
+        Region is None if Audnex lookup failed.
     """
     from mamfast.utils.naming import normalize_audnex_book
 
     try:
-        audnex_data = fetch_audnex_book(asin)
+        audnex_data, audnex_region = fetch_audnex_book(asin)
     except Exception as e:
         logger.debug(f"Failed to fetch Audnex data for {asin}: {e}")
-        return parsed
+        return parsed, None  # Return None for region on error
 
     if not audnex_data:
         logger.debug(f"No Audnex data found for ASIN {asin}")
-        return parsed
+        return parsed, None  # Return None for region when not found
 
     # Use the naming module's normalizer for consistent series extraction
     normalized = normalize_audnex_book(audnex_data)
@@ -510,7 +512,7 @@ def enrich_from_audnex(parsed: ParsedFolderName, asin: str) -> ParsedFolderName:
             parsed.year = year
             logger.info("Enriched year from Audnex: %s", year)
 
-    return parsed
+    return parsed, audnex_region
 
 
 # No path length limit for ABS imports (only applies to MAM uploads)
@@ -1313,6 +1315,87 @@ def build_target_path(
         return author_folder / clean_folder_name
 
 
+def _handle_duplicate(
+    staging_folder: Path,
+    asin: str,
+    existing_path: str | None,
+    duplicate_policy: str,
+    parsed: ParsedFolderName,
+    *,
+    context: str = "",
+) -> ImportResult | None:
+    """Handle duplicate ASIN based on policy.
+
+    Args:
+        staging_folder: Staging folder path
+        asin: ASIN that is duplicate
+        existing_path: Path where ASIN already exists (may be None)
+        duplicate_policy: "skip", "warn", or "overwrite"
+        parsed: Parsed folder name data
+        context: Optional context string (e.g., "Normalized ") for log messages
+
+    Returns:
+        ImportResult if duplicate should stop import (skip/warn)
+        None if import should continue (overwrite)
+    """
+    # Handle None gracefully - shouldn't happen but be defensive
+    path_str = existing_path or "unknown location"
+
+    if duplicate_policy == "skip":
+        error_msg = (
+            f"{context}ASIN already exists at {path_str}"
+            if context
+            else f"Already exists at {path_str}"
+        )
+        return ImportResult(
+            staging_path=staging_folder,
+            target_path=None,
+            asin=asin,
+            status="duplicate",
+            error=error_msg,
+            parsed=parsed,
+        )
+    elif duplicate_policy == "warn":
+        log_msg = (
+            f"{context}ASIN %s exists at %s, skipping"
+            if context
+            else "Duplicate ASIN %s exists at %s, skipping"
+        )
+        logger.warning(log_msg, asin, path_str)
+        error_msg = (
+            f"{context}ASIN already exists at {path_str}"
+            if context
+            else f"Already exists at {path_str}"
+        )
+        return ImportResult(
+            staging_path=staging_folder,
+            target_path=None,
+            asin=asin,
+            status="duplicate",
+            error=error_msg,
+            parsed=parsed,
+        )
+    elif duplicate_policy == "overwrite":
+        # For overwrite, we proceed but note the existing path
+        log_msg = (
+            f"{context}ASIN %s exists, will overwrite at %s"
+            if context
+            else "Duplicate ASIN %s, will overwrite at %s"
+        )
+        logger.info(log_msg, asin, path_str)
+        return None  # Continue with import
+    else:
+        # Shouldn't happen if config validation works, but be defensive
+        return ImportResult(
+            staging_path=staging_folder,
+            target_path=None,
+            asin=asin,
+            status="failed",
+            error=f"Invalid duplicate_policy: {duplicate_policy}",
+            parsed=parsed,
+        )
+
+
 def import_single(
     staging_folder: Path,
     library_root: Path,
@@ -1330,6 +1413,7 @@ def import_single(
     cleanup_prefs: CleanupPrefs | None = None,
     source_path: Path | None = None,
     seed_root: Path | None = None,
+    preferred_asin_region: str | None = None,
     dry_run: bool = False,
 ) -> ImportResult:
     """Import a single audiobook from staging to library.
@@ -1350,6 +1434,8 @@ def import_single(
         cleanup_prefs: Post-import cleanup preferences (None = disabled)
         source_path: Original Libation source path (for cleanup, if different from staging)
         seed_root: Seed/staging root path (for cleanup hardlink verification)
+        preferred_asin_region: Preferred ASIN region code (e.g., "us"). If set and
+            audnex returns a different region, normalizes to preferred region via ABS search.
         dry_run: If True, don't actually move files
 
     Returns:
@@ -1522,33 +1608,59 @@ def import_single(
     # Standard duplicate handling (trumping may have already handled this)
     # ─────────────────────────────────────────────────────────────────────
     if is_dup:
-        if duplicate_policy == "skip":
-            return ImportResult(
-                staging_path=staging_folder,
-                target_path=None,
-                asin=asin,
-                status="duplicate",
-                error=f"Already exists at {existing_path}",
-                parsed=parsed,
-            )
-        elif duplicate_policy == "warn":
-            logger.warning("Duplicate ASIN %s exists at %s, skipping", asin, existing_path)
-            return ImportResult(
-                staging_path=staging_folder,
-                target_path=None,
-                asin=asin,
-                status="duplicate",
-                error=f"Already exists at {existing_path}",
-                parsed=parsed,
-            )
-        elif duplicate_policy == "overwrite":
-            # For overwrite, we proceed but note the existing path
-            logger.info("Duplicate ASIN %s, will overwrite at %s", asin, existing_path)
+        result = _handle_duplicate(staging_folder, asin, existing_path, duplicate_policy, parsed)
+        if result is not None:
+            return result
 
     # Phase 5: Enrich parsed data from Audnex when we have ASIN
     # This fills in author/series/position for poorly-named folders
     # Done after duplicate check to avoid network calls for skipped books
-    parsed = enrich_from_audnex(parsed, asin)
+    parsed, audnex_region = enrich_from_audnex(parsed, asin)
+
+    # Phase 6: ASIN region normalization - convert non-preferred region ASINs
+    # to preferred region ASINs using ABS search (requires ABS client)
+    if (
+        preferred_asin_region
+        and audnex_region
+        and audnex_region.lower() != preferred_asin_region.lower()
+        and abs_client is not None
+    ):
+        # Attempt to normalize ASIN to preferred region
+        norm_result = normalize_asin_to_preferred_region(
+            abs_client,
+            asin,
+            audnex_region,
+            preferred_asin_region,
+            title=parsed.title or folder_name,
+            author=parsed.author,
+            confidence_threshold=0.85,  # Higher threshold for ASIN replacement
+        )
+        if norm_result.was_normalized:
+            # Update ASIN to the normalized (preferred region) version
+            old_asin = asin
+            asin = norm_result.normalized_asin
+            parsed.asin = asin
+            logger.info(
+                "Using normalized ASIN %s (was %s from %s region)",
+                asin,
+                old_asin,
+                audnex_region,
+            )
+
+            # Re-check for duplicates with the normalized ASIN
+            # The original duplicate check used the pre-normalization ASIN
+            is_dup_normalized, existing_path_normalized = asin_exists(asin_index, asin)
+            if is_dup_normalized:
+                result = _handle_duplicate(
+                    staging_folder,
+                    asin,
+                    existing_path_normalized,
+                    duplicate_policy,
+                    parsed,
+                    context="Normalized ",
+                )
+                if result is not None:
+                    return result
 
     # Build target path (preserves nested structure if present)
     target_path = build_target_path(library_root, parsed, staging_folder, staging_root)
@@ -1711,6 +1823,7 @@ def import_batch(
     cleanup_prefs: CleanupPrefs | None = None,
     source_paths: dict[Path, Path] | None = None,
     seed_root: Path | None = None,
+    preferred_asin_region: str | None = None,
     progress_callback: Callable[[int, int, Path], None] | None = None,
     dry_run: bool = False,
 ) -> BatchImportResult:
@@ -1732,6 +1845,8 @@ def import_batch(
         cleanup_prefs: Post-import cleanup preferences (None = disabled)
         source_paths: Mapping of staging_folder → original source path (for cleanup)
         seed_root: Seed/staging root path (for cleanup hardlink verification)
+        preferred_asin_region: Preferred ASIN region code (e.g., "us"). If set and
+            audnex returns a different region, normalizes to preferred region via ABS search.
         progress_callback: Optional callback(current, total, folder) for progress updates
         dry_run: If True, don't actually move files
 
@@ -1765,6 +1880,7 @@ def import_batch(
             cleanup_prefs=cleanup_prefs,
             source_path=source_path,
             seed_root=seed_root,
+            preferred_asin_region=preferred_asin_region,
             dry_run=dry_run,
         )
         batch_result.add(result)
