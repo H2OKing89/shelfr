@@ -23,6 +23,8 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
 from mamfast.abs.asin import (
     AsinEntry,
     asin_exists,
@@ -48,6 +50,7 @@ from mamfast.abs.trumping import (
     extract_trumpable_meta,
     is_multi_file_layout,
 )
+from mamfast.config import ConfigurationError
 from mamfast.metadata import fetch_audnex_book
 from mamfast.utils.naming import build_mam_file_name, build_mam_folder_name, clean_series_name
 
@@ -1774,10 +1777,15 @@ def import_single(
 
         if audnex_data:
             # Full metadata from Audnex
+            # fetch_audnex_chapters returns None on HTTP errors internally,
+            # but we catch config/network exceptions that may propagate
             try:
                 audnex_chapters = fetch_audnex_chapters(asin)
-            except Exception as e:
-                logger.debug("Failed to fetch chapters for %s: %s", asin, e)
+            except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+                logger.debug("Network error fetching chapters for %s: %s", asin, e)
+                audnex_chapters = None
+            except ConfigurationError as e:
+                logger.warning("Config error fetching chapters for %s: %s", asin, e)
                 audnex_chapters = None
 
             abs_metadata = build_abs_metadata_from_audnex(audnex_data, audnex_chapters)
