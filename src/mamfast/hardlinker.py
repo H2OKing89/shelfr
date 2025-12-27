@@ -98,6 +98,54 @@ def compute_staging_path(release: AudiobookRelease) -> MamPath:
     return mam_path
 
 
+def preview_staging(release: AudiobookRelease) -> list[tuple[str, str]]:
+    """
+    Preview what file renames would occur during staging (dry-run helper).
+
+    Returns a list of (source_name, dest_name) tuples showing how each
+    file would be renamed. Does NOT perform any file operations.
+
+    Args:
+        release: AudiobookRelease to preview staging for
+
+    Returns:
+        List of (source_filename, destination_filename) tuples
+
+    Raises:
+        ValueError: If release has no source_dir or ASIN
+    """
+    settings = get_settings()
+
+    if release.source_dir is None:
+        raise ValueError("Release has no source_dir set")
+
+    mam_path = compute_staging_path(release)
+    renames: list[tuple[str, str]] = []
+
+    for src_file in find_allowed_files(release.source_dir):
+        # Same logic as stage_release for computing destination names
+        if src_file.suffix.lower() == ".m4b":
+            dst_name = mam_path.filename
+        else:
+            base_without_ext = mam_path.filename.removesuffix(".m4b")
+            dst_name = f"{base_without_ext}{src_file.suffix}"
+
+            # Handle truncation for ancillary files
+            max_path_len = settings.mam.max_filename_length
+            full_ancillary_path = f"{mam_path.folder}/{dst_name}"
+            if len(full_ancillary_path) > max_path_len:
+                truncated_base = base_without_ext
+                while len(f"{mam_path.folder}/{truncated_base}{src_file.suffix}") > max_path_len:
+                    if len(truncated_base) <= 1:
+                        break
+                    truncated_base = truncated_base[:-1]
+                dst_name = f"{truncated_base}{src_file.suffix}"
+
+        renames.append((src_file.name, dst_name))
+
+    return renames
+
+
 def stage_release(release: AudiobookRelease) -> Path:
     """
     Create staging directory and hardlink files for a release.
