@@ -1,3 +1,6 @@
+
+
+
 """MAMFast CLI - Command-line interface for audiobook upload automation."""
 
 from __future__ import annotations
@@ -40,6 +43,8 @@ from mamfast.commands import (
     cmd_upload,
     cmd_validate,
     cmd_validate_config,
+    # Libation integration
+    add_libation_parser,
 )
 
 
@@ -59,6 +64,13 @@ Examples:
   mamfast upload            # Upload torrents to qBittorrent
   mamfast run               # Full pipeline: scan → upload
   mamfast run --skip-scan   # Full pipeline without Libation scan
+
+Libation Management:
+  mamfast libation          # Show library status dashboard
+  mamfast libation scan     # Check Audible for new purchases
+  mamfast libation liberate # Download all pending audiobooks
+  mamfast libation search   # Search your audiobook library
+  mamfast libation help     # Detailed Libation integration guide
         """,
     )
 
@@ -780,6 +792,11 @@ Examples:
         help="Write resolved ASINs to sidecar JSON files",
     )
     abs_resolve_parser.set_defaults(func=cmd_abs_resolve_asins)
+
+    # -------------------------------------------------------------------------
+    # libation: Enhanced Libation CLI wrapper
+    # -------------------------------------------------------------------------
+    add_libation_parser(subparsers)
 
     return parser
 

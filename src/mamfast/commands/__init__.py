@@ -6,6 +6,7 @@ This package organizes CLI commands into logical modules:
 - diagnostics: Analysis commands (check_duplicates, check_suspicious, dry_run)
 - state: State management commands (list, prune, retry, clear)
 - abs: Audiobookshelf integration commands
+- libation: Libation audiobook manager wrapper commands
 """
 
 from __future__ import annotations
@@ -34,6 +35,10 @@ from mamfast.commands.diagnostics import (
     cmd_check_duplicates,
     cmd_check_suspicious,
     cmd_dry_run,
+)
+from mamfast.commands.libation import (
+    add_libation_parser,
+    cmd_libation,
 )
 from mamfast.commands.state import cmd_state
 from mamfast.commands.utility import (
@@ -65,6 +70,9 @@ __all__ = [
     "cmd_check_suspicious",
     # State management
     "cmd_state",
+    # Libation
+    "cmd_libation",
+    "add_libation_parser",
     # ABS
     "cmd_abs_init",
     "cmd_abs_import",
