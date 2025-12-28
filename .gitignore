@@ -64,3 +64,5 @@ config/.env
 
 # Sample data (contains personal library info)
 samples/
+# Reference documentation (do NOT ignore - these are tracked)
+# See docs/mam/SUPPORTED_BBCODE.md for MAM BBCode reference
