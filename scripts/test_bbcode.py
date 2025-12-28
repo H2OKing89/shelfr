@@ -18,12 +18,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from rich.markup import escape
 
+from mamfast.console import console
 from mamfast.metadata import (
     _html_to_bbcode,
-    render_bbcode_description,
     fetch_audnex_book,
+    render_bbcode_description,
 )
-from mamfast.console import console
 
 
 def test_html_to_bbcode(html: str) -> None:
@@ -32,7 +32,7 @@ def test_html_to_bbcode(html: str) -> None:
     console.print("\n[dim]Input HTML:[/dim]")
     # Escape BBCode-like brackets for Rich display
     console.print(escape(html[:500] + "..." if len(html) > 500 else html))
-    
+
     result = _html_to_bbcode(html)
     console.print("\n[dim]Output BBCode:[/dim]")
     # Escape BBCode brackets so they display literally instead of being interpreted as Rich markup
@@ -42,27 +42,27 @@ def test_html_to_bbcode(html: str) -> None:
 def test_full_render(asin: str, audnex_data: dict | None = None) -> None:
     """Test full BBCode description rendering."""
     console.print(f"\n[bold cyan]═══ Full BBCode Render for {asin} ═══[/bold cyan]")
-    
+
     if audnex_data is None:
         console.print(f"\n[dim]Fetching Audnex data for {asin}...[/dim]")
-        audnex_data = fetch_audnex_book(asin)
+        audnex_data, _region = fetch_audnex_book(asin)
         if not audnex_data:
             console.print(f"[red]Failed to fetch Audnex data for {asin}[/red]")
             return
-    
+
     console.print(f"\n[dim]Title:[/dim] {audnex_data.get('title', 'Unknown')}")
     console.print(f"[dim]Summary HTML length:[/dim] {len(audnex_data.get('summary', ''))}")
-    
+
     # Test synopsis conversion
     summary = audnex_data.get("summary", "")
     if summary:
         console.print("\n[bold yellow]── Synopsis HTML ──[/bold yellow]")
         console.print(escape(summary[:300] + "..." if len(summary) > 300 else summary))
-        
+
         console.print("\n[bold yellow]── Synopsis BBCode ──[/bold yellow]")
         bbcode_synopsis = _html_to_bbcode(summary)
         console.print(escape(bbcode_synopsis))
-    
+
     # Test full render
     console.print("\n[bold green]── Full BBCode Description ──[/bold green]")
     result = render_bbcode_description(
@@ -85,7 +85,7 @@ Examples:
     python scripts/test_bbcode.py --html "<p><b>Bold</b> and <i>italic</i></p>"
         """,
     )
-    
+
     parser.add_argument(
         "asin",
         nargs="?",
@@ -101,13 +101,13 @@ Examples:
         type=str,
         help="Test HTML to BBCode conversion directly",
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.html:
         test_html_to_bbcode(args.html)
         return 0
-    
+
     if args.json:
         if not args.json.exists():
             console.print(f"[red]File not found: {args.json}[/red]")
@@ -117,11 +117,11 @@ Examples:
         asin = audnex_data.get("asin", "UNKNOWN")
         test_full_render(asin, audnex_data)
         return 0
-    
+
     if args.asin:
         test_full_render(args.asin)
         return 0
-    
+
     parser.print_help()
     return 1
 

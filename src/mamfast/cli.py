@@ -1639,7 +1639,12 @@ def tools_bbcode(
     ctx: typer.Context,
     asin: Annotated[
         str | None,
-        typer.Option("--asin", "-a", help="ASIN to fetch and convert."),
+        typer.Option(
+            "--asin",
+            "-a",
+            callback=validate_asin_callback,
+            help="ASIN to fetch and convert.",
+        ),
     ] = None,
     html: Annotated[
         str | None,

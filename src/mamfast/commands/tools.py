@@ -9,19 +9,14 @@ This module provides CLI tools for debugging and testing MAM upload functionalit
 from __future__ import annotations
 
 import argparse
-import html
 import logging
-import re
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from rich.markup import escape
 from rich.panel import Panel
 
 from mamfast.console import console, print_error, print_info, print_success
-
-if TYPE_CHECKING:
-    pass
+from mamfast.metadata import _html_to_bbcode
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +33,7 @@ def _find_audio_file(path: Path) -> Path | None:
 
     # Search folder for audio files (prefer m4b)
     for ext in [".m4b", ".mp3", ".m4a", ".flac", ".ogg"]:
-        files = list(path.glob(f"*{ext}"))
+        files = sorted(path.glob(f"*{ext}"))
         if files:
             return files[0]
 
@@ -178,66 +173,15 @@ def cmd_tools_mamff(args: argparse.Namespace) -> int:
     # Show BBCode description preview
     description = mam_data.get("description", "")
     if description:
-        console.print(Panel(
-            escape(description),
-            title="[bold]BBCode Description Preview[/]",
-            border_style="cyan",
-        ))
+        console.print(
+            Panel(
+                escape(description),
+                title="[bold]BBCode Description Preview[/]",
+                border_style="cyan",
+            )
+        )
 
     return 0
-
-
-def _html_to_bbcode_standalone(text: str) -> str:
-    """
-    Convert HTML tags to BBCode for MAM description.
-
-    Standalone version for testing - duplicates logic from metadata.py
-    to allow testing without fetching real data.
-
-    MAM requires explicit [br] tags for line breaks - plain newlines
-    in the JSON are ignored by their BBCode renderer.
-    """
-    # Convert bold tags to BBCode
-    text = re.sub(r"<b\b[^>]*>", "[b]", text, flags=re.IGNORECASE)
-    text = re.sub(r"</b>", "[/b]", text, flags=re.IGNORECASE)
-    text = re.sub(r"<strong\b[^>]*>", "[b]", text, flags=re.IGNORECASE)
-    text = re.sub(r"</strong>", "[/b]", text, flags=re.IGNORECASE)
-
-    # Convert italic tags to BBCode
-    text = re.sub(r"<i\b[^>]*>", "[i]", text, flags=re.IGNORECASE)
-    text = re.sub(r"</i>", "[/i]", text, flags=re.IGNORECASE)
-    text = re.sub(r"<em\b[^>]*>", "[i]", text, flags=re.IGNORECASE)
-    text = re.sub(r"</em>", "[/i]", text, flags=re.IGNORECASE)
-
-    # Convert underline tags to BBCode
-    text = re.sub(r"<u\b[^>]*>", "[u]", text, flags=re.IGNORECASE)
-    text = re.sub(r"</u>", "[/u]", text, flags=re.IGNORECASE)
-
-    # Convert strikethrough tags to BBCode
-    text = re.sub(r"<s\b[^>]*>", "[s]", text, flags=re.IGNORECASE)
-    text = re.sub(r"</s>", "[/s]", text, flags=re.IGNORECASE)
-    text = re.sub(r"<strike\b[^>]*>", "[s]", text, flags=re.IGNORECASE)
-    text = re.sub(r"</strike>", "[/s]", text, flags=re.IGNORECASE)
-
-    # Convert paragraph breaks to [br][br] for MAM
-    text = re.sub(r"</p>\s*", "[br][br]", text, flags=re.IGNORECASE)
-    text = re.sub(r"<p[^>]*>", "", text, flags=re.IGNORECASE)
-
-    # Convert <br> tags to [br]
-    text = re.sub(r"<br\s*/?>", "[br]", text, flags=re.IGNORECASE)
-
-    # Remove any remaining HTML tags
-    text = re.sub(r"<[^>]+>", "", text)
-
-    # Decode HTML entities
-    text = html.unescape(text)
-
-    # Clean up excessive whitespace
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"(\[br\]){3,}", "[br][br]", text)  # Max 2 [br] tags
-    text = text.strip()
-
-    return text
 
 
 def cmd_tools_bbcode(args: argparse.Namespace) -> int:
@@ -290,21 +234,25 @@ def cmd_tools_bbcode(args: argparse.Namespace) -> int:
         original_html = html_input
 
     # Show original HTML
-    console.print(Panel(
-        escape(original_html),
-        title="[bold]Original HTML[/]",
-        border_style="yellow",
-    ))
+    console.print(
+        Panel(
+            escape(original_html),
+            title="[bold]Original HTML[/]",
+            border_style="yellow",
+        )
+    )
     console.print()
 
     # Convert to BBCode
-    bbcode = _html_to_bbcode_standalone(original_html)
+    bbcode = _html_to_bbcode(original_html)
 
     # Show BBCode output (escaped so Rich doesn't interpret it)
-    console.print(Panel(
-        escape(bbcode),
-        title="[bold]BBCode Output[/]",
-        border_style="green",
-    ))
+    console.print(
+        Panel(
+            escape(bbcode),
+            title="[bold]BBCode Output[/]",
+            border_style="green",
+        )
+    )
 
     return 0
