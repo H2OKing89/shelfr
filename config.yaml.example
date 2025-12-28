@@ -142,6 +142,21 @@ mediainfo:
   binary: "mediainfo"                 # or full path: /usr/bin/mediainfo
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Libation Settings
+# ─────────────────────────────────────────────────────────────────────────────
+libation:
+  # Discovery settings (rarely need to change)
+  # folder_pattern: "^(.*?)(?: vol_(\\d+))?(?: \\((\\d{4})\\))?$"
+  # metadata_file_suffix: ".metadata.json"
+  # asin_pattern: "^[A-Z0-9]{10}$"
+
+  # CLI command timeouts (in seconds)
+  # Adjust these if you have a large library or slow connection
+  scan_timeout: 600                   # 10 minutes - for 'libation scan'
+  liberate_timeout: 14400             # 4 hours - for 'libation liberate' and 'convert'
+  command_timeout: 300                # 5 minutes - for other commands (set-status, etc.)
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Audiobookshelf Integration (optional)
 # ─────────────────────────────────────────────────────────────────────────────
 # Note: Host and API token are read from .env file:

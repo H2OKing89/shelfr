@@ -1327,7 +1327,7 @@ def cmd_libation_set_status(args: argparse.Namespace) -> int:
 
     console.print("[bold]Updating status...[/]")
     with console.status("  Processing library...", spinner="dots"):
-        result = _run_libation_cmd(container, *cmd_args, timeout=300)
+        result = _run_libation_cmd(container, *cmd_args, timeout=settings.libation.command_timeout)
 
     if result.success:
         console.print("  [green]✓[/] Status updated")
@@ -1382,7 +1382,7 @@ def cmd_libation_convert(args: argparse.Namespace) -> int:
 
     console.print("[bold]Converting audiobooks...[/]")
     with console.status("  Converting (this may take a while)...", spinner="dots"):
-        result = _run_libation_cmd(container, *cmd_args, timeout=14400)  # 4 hours
+        result = _run_libation_cmd(container, *cmd_args, timeout=settings.libation.liberate_timeout)
 
     if result.returncode == 0:
         console.print("  [green]✓[/] Conversion complete")

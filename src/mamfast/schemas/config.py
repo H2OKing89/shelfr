@@ -521,11 +521,32 @@ class FiltersSchema(BaseModel):
 
 
 class LibationSchema(BaseModel):
-    """Libation library discovery settings."""
+    """Libation library discovery and CLI wrapper settings."""
 
+    # Discovery settings
     folder_pattern: str = r"^(.*?)(?: vol_(\d+))?(?: \((\d{4})\))?$"
     metadata_file_suffix: str = ".metadata.json"
     asin_pattern: str = r"^[A-Z0-9]{10}$"
+
+    # CLI timeouts (seconds)
+    scan_timeout: int = Field(
+        default=600,
+        ge=60,
+        le=3600,
+        description="Timeout for 'scan' command (default: 10 minutes)",
+    )
+    liberate_timeout: int = Field(
+        default=14400,
+        ge=300,
+        le=86400,
+        description="Timeout for 'liberate' command (default: 4 hours)",
+    )
+    command_timeout: int = Field(
+        default=300,
+        ge=30,
+        le=3600,
+        description="Default timeout for other commands (default: 5 minutes)",
+    )
 
     @field_validator("folder_pattern", "asin_pattern")
     @classmethod
