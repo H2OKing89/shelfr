@@ -64,3 +64,8 @@ config/.env
 
 # Sample data (contains personal library info)
 samples/
+
+# Local-only docs
+docs/mam/SUPPORTED_BBCODE.md
+docs/mam/*
+docs/mam/

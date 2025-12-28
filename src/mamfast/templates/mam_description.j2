@@ -9,12 +9,15 @@
 {% endif %}
 • [b]Publisher:[/b] {{ publisher }}[br]
 • [b]Release Date:[/b] {{ release_date }}[br]
-• [b]Genre:[/b] {{ genres | join(', ') }} • [b]Language:[/b] {{ language }}[br]
+• [b]Genre:[/b] {{ genres | join(', ') }}[br]
+• [b]Language:[/b] {{ language }}[br]
 • [b]Audible:[/b] [url=https://www.audible.com/pd/{{ asin }}]https://www.audible.com/pd/{{ asin }}[/url][br]
 • [b]ASIN:[/b] {{ asin }}[br][br]
 [b][color=#3aa6ff]Audio / File[/color][/b][br]
-• [b]Container:[/b] {{ container }} • [b]Codec:[/b] {{ codec }}[br]
-• [b]Sample Rate:[/b] {{ sample_rate }} • [b]Channels:[/b] {{ channels }}[br]
+• [b]Container:[/b] {{ container }}[br]
+• [b]Codec:[/b] {{ codec }}[br]
+• [b]Sample Rate:[/b] {{ sample_rate }}[br]
+• [b]Channels:[/b] {{ channels }}[br]
 • [b]Duration:[/b] {{ duration_human }}[br]
 • [b]Chapters:[/b] {{ 'Yes' if chapters else 'No' }}[br][br]
 {% if chapters %}

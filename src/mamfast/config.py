@@ -152,14 +152,20 @@ class MediaInfoConfig:
 
 @dataclass
 class LibationConfig:
-    """Libation library discovery settings (from config.yaml libation section)."""
+    """Libation library discovery and CLI wrapper settings (from config.yaml libation section)."""
 
+    # Discovery settings
     # Regex pattern for parsing folder names: "Title vol_N (YEAR)"
     folder_pattern: str = r"^(.*?)(?: vol_(\d+))?(?: \((\d{4})\))?$"
     # Suffix for Libation metadata files
     metadata_file_suffix: str = ".metadata.json"
     # Valid ASIN pattern (10 alphanumeric characters)
     asin_pattern: str = r"^[A-Z0-9]{10}$"
+
+    # CLI timeouts (seconds)
+    scan_timeout: int = 600  # 10 minutes
+    liberate_timeout: int = 14400  # 4 hours
+    command_timeout: int = 300  # 5 minutes
 
 
 @dataclass
@@ -1122,6 +1128,10 @@ def load_settings(
         folder_pattern=libation_data.get("folder_pattern", default_folder_pattern),
         metadata_file_suffix=libation_data.get("metadata_file_suffix", ".metadata.json"),
         asin_pattern=libation_data.get("asin_pattern", r"^[A-Z0-9]{10}$"),
+        # CLI timeouts (seconds)
+        scan_timeout=libation_data.get("scan_timeout", 600),
+        liberate_timeout=libation_data.get("liberate_timeout", 14400),
+        command_timeout=libation_data.get("command_timeout", 300),
     )
 
     # Load naming config from config/naming.json

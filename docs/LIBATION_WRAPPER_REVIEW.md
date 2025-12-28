@@ -3,6 +3,7 @@
 **Date:** December 27, 2025
 **Reviewer:** Claude (GitHub Copilot)
 **Files Reviewed:**
+
 - `src/mamfast/libation.py` (496 lines)
 - `src/mamfast/commands/libation.py` (1725 lines)
 - `tests/test_libation.py` (785 lines)
@@ -24,18 +25,21 @@ The Libation CLI wrapper is well-designed with excellent Rich UI components and 
 ## ✅ Strengths
 
 ### Design
+
 1. **Two-module separation** - Clean separation between `libation.py` (core functions) and `commands/libation.py` (CLI interface)
 2. **Rich UI components** - Excellent use of Rich library for formatted output, status dashboards, and progress spinners
 3. **Comprehensive help system** - `cmd_libation_help()` provides excellent onboarding for novices
 4. **Hint system** - `print_hint_box()` provides contextual tips throughout
 
 ### User Experience
+
 1. **Default to status** - Running `mamfast libation` with no subcommand shows dashboard (novice-friendly)
 2. **Dry-run support** - Every command supports `--dry-run` for safe exploration
 3. **Combined workflows** - `--liberate` flag on scan for convenience
 4. **Detailed epilogs** - Every subcommand has examples in help text
 
 ### Code Quality
+
 1. **Type annotations** - Consistent use of type hints throughout
 2. **Logging** - Proper logger setup with `logging.getLogger(__name__)`
 3. **Dataclasses** - Clean data structures for results
@@ -71,6 +75,7 @@ raise LibationError(f"Failed to parse export JSON: {e}", exit_code=1) from e
 **Location:** `src/mamfast/libation.py`
 
 **Problem:** Two different result types for similar operations:
+
 - `ScanResult` - used for both `run_scan()` AND `run_liberate()`
 - `LiberateProgressResult` - used for `run_liberate_with_progress()`
 
@@ -121,6 +126,7 @@ print_status_dashboard(status)
 | `commands/libation.py:270` | 300s | Default |
 
 **Fix:** Add to config schema:
+
 ```yaml
 libation:
   scan_timeout: 600
@@ -135,6 +141,7 @@ libation:
 **Location:** `src/mamfast/libation.py` lines 285-287
 
 **Problem:** Container check silently returns `False` on any exception:
+
 ```python
 except Exception:
     return False
@@ -143,6 +150,7 @@ except Exception:
 Novice users won't know WHY the check failed (Docker not installed? Container name wrong? Permission denied?)
 
 **Fix:** Log the exception at debug level:
+
 ```python
 except Exception as e:
     logger.debug(f"Container check failed: {e}")
@@ -163,6 +171,7 @@ liberate_parser.add_argument("--asin", type=str, ...)
 ```
 
 **Fix:** Add validation function:
+
 ```python
 def validate_asin(value: str) -> str:
     """Validate Audible ASIN format."""
@@ -185,6 +194,7 @@ liberate_parser.add_argument("--asin", type=validate_asin, ...)
 **Location:** `src/mamfast/commands/libation.py` - multiple commands
 
 **Problem:** Many places use `getattr(args, "attr", default)` pattern:
+
 ```python
 asin = getattr(args, "asin", None)
 force = getattr(args, "force", False)
@@ -194,6 +204,7 @@ limit = getattr(args, "limit", 50)
 This masks potential attribute errors and makes refactoring risky.
 
 **Fix:** Use `set_defaults()` in parser setup to ensure attributes always exist:
+
 ```python
 liberate_parser.set_defaults(asin=None, force=False)
 ```
@@ -207,6 +218,7 @@ Then access directly: `args.asin`, `args.force`
 **Location:** `src/mamfast/commands/libation.py` line 261
 
 **Problem:**
+
 ```python
 @dataclass
 class LibationCommandResult:
@@ -214,6 +226,7 @@ class LibationCommandResult:
 ```
 
 **Fix:** Type properly:
+
 ```python
 parsed_data: list[dict[str, Any]] | dict[str, Any] | None = None
 ```
@@ -227,10 +240,12 @@ parsed_data: list[dict[str, Any]] | dict[str, Any] | None = None
 **Location:** `cmd_libation_redownload()`, `cmd_libation_set_status()`
 
 **Problem:** These commands modify state without confirmation:
+
 - `redownload` marks books as not-downloaded then re-downloads
 - `set-status` can mark all books in library
 
 **Fix:** Add confirmation prompt:
+
 ```python
 from rich.prompt import Confirm
 
@@ -249,6 +264,7 @@ Add `--yes` / `-y` flag to skip prompt for automation.
 **Problem:** All output is Rich-formatted text. Advanced users running scripts need JSON output.
 
 **Fix:** Add `--json` flag that outputs structured data:
+
 ```python
 if args.json:
     import json
@@ -261,12 +277,14 @@ if args.json:
 ### Issue 11: Ambiguous Exit Codes
 
 **Problem:** Commands return only 0 or 1, but partial success scenarios exist:
+
 - Some books downloaded, some failed
 - Scan succeeded but liberate failed
 
 **Current:** `run_liberate_with_progress` tracks `has_book_errors` but CLI doesn't expose this.
 
 **Fix:** Document exit codes:
+
 - 0 = Complete success
 - 1 = Complete failure
 - 2 = Partial success (some operations failed)
@@ -322,6 +340,7 @@ if args.json:
 ## Implementation Plan
 
 ### Phase 1: Critical Fixes (P0-P1) ✅ COMPLETED
+
 1. ✅ Use `LibationError` throughout (libation.py, commands/libation.py)
 2. ✅ Add ASIN validation (validate_asin function, applied to all ASIN args)
 3. ✅ Add confirmation prompts with `--yes` flag (redownload, set-status)
@@ -329,28 +348,34 @@ if args.json:
 5. ✅ Log container check failures (debug level logging)
 6. ✅ Update tests to expect LibationError instead of RuntimeError
 
-### Phase 2: Medium Priority (P2)
-5. Rename `ScanResult` to `LibationResult`
-6. Make timeouts configurable
-7. ~~Log container check failures~~ (done in Phase 1)
+### Phase 2: Medium Priority (P2) ✅ COMPLETED
+
+5. ✅ Rename `ScanResult` to `LibationResult` (with backwards-compat alias)
+6. ✅ Make timeouts configurable via `config.yaml` libation section
+   - `scan_timeout` (default: 600s / 10 min)
+   - `liberate_timeout` (default: 14400s / 4 hours)
+   - `command_timeout` (default: 300s / 5 min)
 
 ### Phase 3: Enhancements (P3-P4)
+
 8. Add `--json` output mode
-9. Refactor getattr usage
-10. Document exit codes
-11. Optimize duplicate exports
+2. Refactor getattr usage
+3. Document exit codes
+4. Optimize duplicate exports
 
 ---
 
 ## Appendix: Code Locations
 
 ### Main Files
+
 - Core module: `src/mamfast/libation.py`
 - CLI commands: `src/mamfast/commands/libation.py`
 - Exception: `src/mamfast/exceptions.py` (line 388)
 - Tests: `tests/test_libation.py`, `tests/test_cli_libation.py`
 
 ### Key Functions
+
 - `get_libation_status()` - Get book counts from Libation
 - `run_scan()` - Execute scan command
 - `run_liberate()` - Execute liberate command

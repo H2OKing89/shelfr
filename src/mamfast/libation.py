@@ -41,8 +41,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ScanResult:
-    """Result of a Libation scan."""
+class LibationResult:
+    """Result of a Libation command (scan, liberate, etc.)."""
 
     returncode: int
     stdout: str = ""
@@ -51,6 +51,10 @@ class ScanResult:
     @property
     def success(self) -> bool:
         return self.returncode == 0
+
+
+# Backwards compatibility alias
+ScanResult = LibationResult
 
 
 @dataclass
@@ -191,7 +195,7 @@ def get_libation_status() -> LibationStatus:
             docker("exec", settings.libation_container, "rm", "-f", container_export_path)
 
 
-def run_scan(interactive: bool = False) -> ScanResult:
+def run_scan(interactive: bool = False) -> LibationResult:
     """
     Run libationcli scan inside the Libation Docker container.
 
@@ -199,7 +203,7 @@ def run_scan(interactive: bool = False) -> ScanResult:
         interactive: If True, use -it flags for interactive output.
 
     Returns:
-        ScanResult with return code and output.
+        LibationResult with return code and output.
     """
     settings = get_settings()
 
@@ -224,7 +228,7 @@ def run_scan(interactive: bool = False) -> ScanResult:
             ok_codes=(0, 1),  # Allow non-zero for partial success
             _tty=interactive,  # Allocate TTY for interactive mode
         )
-        return ScanResult(
+        return LibationResult(
             returncode=result.exit_code,
             stdout=result.stdout,
             stderr=result.stderr,
@@ -232,14 +236,14 @@ def run_scan(interactive: bool = False) -> ScanResult:
 
     except CmdError as e:
         logger.error(f"Libation scan failed: {e}")
-        return ScanResult(returncode=e.exit_code, stderr=e.stderr)
+        return LibationResult(returncode=e.exit_code, stderr=e.stderr)
 
     except Exception as e:
         logger.exception(f"Error running Libation scan: {e}")
-        return ScanResult(returncode=-1, stderr=str(e))
+        return LibationResult(returncode=-1, stderr=str(e))
 
 
-def run_liberate(asin: str | None = None) -> ScanResult:
+def run_liberate(asin: str | None = None) -> LibationResult:
     """
     Run liberate command to download and decrypt books.
 
@@ -247,7 +251,7 @@ def run_liberate(asin: str | None = None) -> ScanResult:
         asin: Optional specific ASIN to liberate. If None, liberates all.
 
     Returns:
-        ScanResult with return code and output.
+        LibationResult with return code and output.
     """
     settings = get_settings()
 
@@ -259,7 +263,7 @@ def run_liberate(asin: str | None = None) -> ScanResult:
             args.append(asin)
 
         result = docker(*args, ok_codes=(0, 1))  # Allow non-zero for partial success
-        return ScanResult(
+        return LibationResult(
             returncode=result.exit_code,
             stdout=result.stdout,
             stderr=result.stderr,
@@ -267,11 +271,11 @@ def run_liberate(asin: str | None = None) -> ScanResult:
 
     except CmdError as e:
         logger.error(f"Libation liberate failed: {e}")
-        return ScanResult(returncode=e.exit_code, stderr=e.stderr)
+        return LibationResult(returncode=e.exit_code, stderr=e.stderr)
 
     except Exception as e:
         logger.exception(f"Error running Libation liberate: {e}")
-        return ScanResult(returncode=-1, stderr=str(e))
+        return LibationResult(returncode=-1, stderr=str(e))
 
 
 def check_container_running() -> bool:
@@ -377,6 +381,7 @@ def run_liberate_with_progress(
     *,
     verbose: bool = False,
     asin: str | None = None,
+    extra_args: list[str] | None = None,
 ) -> LiberateProgressResult:
     """Run liberate with smart progress display.
 
@@ -394,6 +399,7 @@ def run_liberate_with_progress(
         console: Rich console instance
         verbose: If True and on TTY, passthrough Libation's progress bar
         asin: Optional specific ASIN to liberate
+        extra_args: Optional additional args to pass to liberate (e.g., ["-p", "-f"])
 
     Returns:
         LiberateProgressResult with success status and log path
@@ -410,6 +416,11 @@ def run_liberate_with_progress(
         cmd.append("-t")  # Allocate TTY for Libation's progress bar
 
     cmd.extend([settings.libation_container, "/libation/LibationCli", "liberate"])
+
+    # Add extra args before ASIN (flags like -p, -f, -o)
+    if extra_args:
+        cmd.extend(extra_args)
+
     if asin:
         cmd.append(asin)
 

@@ -14,6 +14,7 @@ from mamfast.metadata import (
     _format_chapter_time,
     _format_duration,
     _get_mediainfo_string,
+    _html_to_bbcode,
     _map_genres_to_categories,
     _parse_chapters_from_mediainfo,
     build_mam_json,
@@ -605,6 +606,108 @@ class TestCleanHtml:
         """Test empty string handling."""
 
         assert _clean_html("") == ""
+
+
+class TestHtmlToBbcode:
+    """Tests for HTML to BBCode conversion."""
+
+    def test_converts_bold_tags(self):
+        """Test bold tag conversion to BBCode."""
+        text = "<p><b>Bold text</b></p>"
+        result = _html_to_bbcode(text)
+        assert "[b]Bold text[/b]" in result
+
+    def test_converts_strong_tags(self):
+        """Test strong tag conversion to BBCode."""
+        text = "<strong>Strong text</strong>"
+        result = _html_to_bbcode(text)
+        assert "[b]Strong text[/b]" in result
+
+    def test_converts_italic_tags(self):
+        """Test italic tag conversion to BBCode."""
+        text = "<p>Read <i>New York Times</i> bestseller</p>"
+        result = _html_to_bbcode(text)
+        assert "Read [i]New York Times[/i] bestseller" in result
+
+    def test_converts_em_tags(self):
+        """Test em tag conversion to BBCode."""
+        text = "<em>Emphasized text</em>"
+        result = _html_to_bbcode(text)
+        assert "[i]Emphasized text[/i]" in result
+
+    def test_converts_underline_tags(self):
+        """Test underline tag conversion to BBCode."""
+        text = "<u>Underlined text</u>"
+        result = _html_to_bbcode(text)
+        assert "[u]Underlined text[/u]" in result
+
+    def test_converts_strikethrough_tags(self):
+        """Test strikethrough tag conversion to BBCode."""
+        text = "<s>Struck text</s>"
+        result = _html_to_bbcode(text)
+        assert "[s]Struck text[/s]" in result
+
+    def test_converts_strike_tags(self):
+        """Test strike tag conversion to BBCode."""
+        text = "<strike>Old text</strike>"
+        result = _html_to_bbcode(text)
+        assert "[s]Old text[/s]" in result
+
+    def test_converts_br_to_bbcode_br(self):
+        """Test br tag conversion to [br] tag for MAM."""
+        text = "Line one<br>Line two<br/>Line three"
+        result = _html_to_bbcode(text)
+        assert "Line one[br]Line two[br]Line three" in result
+
+    def test_converts_paragraphs_to_br_tags(self):
+        """Test paragraph conversion to [br][br] for MAM."""
+        text = "<p>First paragraph.</p><p>Second paragraph.</p>"
+        result = _html_to_bbcode(text)
+        assert "First paragraph." in result
+        assert "Second paragraph." in result
+        # Should have [br][br] between paragraphs
+        assert "[br][br]" in result
+
+    def test_nested_formatting(self):
+        """Test nested bold and italic."""
+        text = "<p><b><i>New York Times</i></b> bestseller</p>"
+        result = _html_to_bbcode(text)
+        assert "[b][i]New York Times[/i][/b] bestseller" in result
+
+    def test_complex_html_like_audnex(self):
+        """Test complex HTML like from Audnex API."""
+        text = (
+            "<p><b>A teenager becomes a romantic hero in an "
+            "artificial-reality school full of supernatural secrets.</b></p> "
+            "<p>Leonard Dunning wakes up in a home he doesn't remember.</p> "
+            "<p>Now, two girls have set their romantic sights on <i>him</i>.</p>"
+        )
+        result = _html_to_bbcode(text)
+        # Bold should be preserved
+        assert "[b]A teenager becomes a romantic hero" in result
+        # Italic should be preserved
+        assert "[i]him[/i]" in result
+        # Paragraphs should create newlines
+        assert "Leonard Dunning" in result
+
+    def test_decodes_html_entities(self):
+        """Test HTML entity decoding."""
+        text = "<p>Tom &amp; Jerry &lt;3 &quot;Fun&quot;</p>"
+        result = _html_to_bbcode(text)
+        assert 'Tom & Jerry <3 "Fun"' in result
+
+    def test_empty_string(self):
+        """Test empty string handling."""
+        assert _html_to_bbcode("") == ""
+
+    def test_removes_unsupported_tags(self):
+        """Test that unsupported tags are stripped."""
+        text = "<p><span class='test'>Text</span> with <div>nested</div> tags</p>"
+        result = _html_to_bbcode(text)
+        assert "<span" not in result
+        assert "<div" not in result
+        assert "Text" in result
+        assert "nested" in result
 
 
 class TestBuildSeriesList:

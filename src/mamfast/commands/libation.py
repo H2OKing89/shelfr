@@ -35,6 +35,7 @@ from rich.text import Text
 
 from mamfast.console import console
 from mamfast.exceptions import LibationError
+from mamfast.libation import run_liberate_with_progress
 from mamfast.paths import log_dir
 from mamfast.utils.cmd import CmdError, docker
 from mamfast.utils.validation import validate_asin
@@ -384,12 +385,20 @@ def cmd_libation_scan(args: argparse.Namespace) -> int:
         return 1
 
     container = settings.libation_container
+    overrides = getattr(args, "overrides", None)
+    override_str = " ".join(f"-o {o}" for o in (overrides or []))
 
     if args.dry_run:
         console.print("[yellow]Would execute:[/]")
-        console.print(f"  docker exec {container} /libation/LibationCli scan")
+        cmd = f"docker exec {container} /libation/LibationCli scan"
+        if override_str:
+            cmd += f" {override_str}"
+        console.print(f"  {cmd}")
         if args.liberate:
-            console.print(f"  docker exec {container} /libation/LibationCli liberate")
+            cmd = f"docker exec {container} /libation/LibationCli liberate"
+            if override_str:
+                cmd += f" {override_str}"
+            console.print(f"  {cmd}")
         return 0
 
     # Check container is running
@@ -404,14 +413,21 @@ def cmd_libation_scan(args: argparse.Namespace) -> int:
 
     # Run scan with progress
     console.print("\n[bold]Scanning Audible library...[/]")
+    overrides = getattr(args, "overrides", None)
+    override_args = _build_override_args(overrides)
+    if override_args:
+        console.print(f"  [dim]Using overrides: {', '.join(overrides or [])}[/]")
     with console.status("  Querying Audible API...", spinner="dots"):
-        result = _run_libation_cmd(container, "scan", timeout=600)
+        result = _run_libation_cmd(
+            container, "scan", *override_args, timeout=settings.libation.scan_timeout
+        )
 
     if result.success:
         console.print("  [green]✓[/] Scan complete")
 
         # Parse scan output for "New: X" count
         new_match = re.search(r"New:\s*(\d+)", result.stdout)
+        new_count = 0
         if new_match:
             new_count = int(new_match.group(1))
             if new_count > 0:
@@ -438,6 +454,20 @@ def cmd_libation_scan(args: argparse.Namespace) -> int:
         print_status_dashboard(status)
 
         pending = status.get("NotLiberated", 0)
+
+        # Explain "New: 0" confusion for novice users (common misconception)
+        if new_count == 0 and pending > 0:
+            console.print()
+            print_hint_box(
+                [
+                    "'New: 0' means no NEW purchases were found on Audible",
+                    f"But you have {pending} book(s) still waiting to download!",
+                    "These are from previous scans that weren't liberated yet",
+                    "Run 'mamfast libation liberate' to download them",
+                ],
+                title="💡 Understanding 'New: 0'",
+            )
+
         if pending > 0:
             console.print()
             if args.liberate:
@@ -465,28 +495,35 @@ def cmd_libation_liberate(args: argparse.Namespace) -> int:
 
     asin = getattr(args, "asin", None)
     skip_confirm = getattr(args, "yes", False)
+    pdf_only_flag = getattr(args, "pdf", False)
 
-    title = "Download Audiobooks"
+    title = "Download PDFs Only" if pdf_only_flag else "Download Audiobooks"
     if asin:
-        title = f"Download Book: {asin}"
+        title = f"Download {'PDF for' if pdf_only_flag else 'Book:'} {asin}"
 
+    subtitle = (
+        "Downloading PDFs from Audible"
+        if pdf_only_flag
+        else "Downloading and decrypting audiobooks from Audible"
+    )
     print_libation_header(
         title,
-        "Downloading and decrypting audiobooks from Audible",
+        subtitle,
         dry_run=args.dry_run,
         hint="Downloads go to your configured Libation output folder",
     )
 
     if not args.dry_run:
-        print_hint_box(
-            [
-                "This downloads ALL pending (NotLiberated) books by default",
-                "Use --asin XXXXXX to download a specific book",
-                "Use --force to re-download already liberated books",
-                "Downloads are saved to Libation's configured Books folder",
-                "Use --yes / -y to skip confirmation prompt",
-            ]
-        )
+        hints = [
+            "This downloads ALL pending (NotLiberated) books by default",
+            "Use --asin XXXXXX to download a specific book",
+            "Use --force to re-download already liberated books",
+            "Downloads are saved to Libation's configured Books folder",
+            "Use --yes / -y to skip confirmation prompt",
+        ]
+        if pdf_only_flag:
+            hints.insert(0, "PDF-only mode: Only downloading PDF companion files")
+        print_hint_box(hints)
 
     try:
         settings = reload_settings(config_file=args.config)
@@ -495,19 +532,35 @@ def cmd_libation_liberate(args: argparse.Namespace) -> int:
         return 1
 
     container = settings.libation_container
+    overrides = getattr(args, "overrides", None)
+    override_str = " ".join(f"-o {o}" for o in (overrides or []))
+    pdf_only = getattr(args, "pdf", False)
 
     if args.dry_run:
         cmd = f"docker exec {container} /libation/LibationCli liberate"
+        if pdf_only:
+            cmd += " -p"
         if asin:
             cmd += f" {asin}"
         if getattr(args, "force", False):
             cmd += " -f"
+        if override_str:
+            cmd += f" {override_str}"
         console.print("[yellow]Would execute:[/]")
         console.print(f"  {cmd}")
         return 0
 
+    # Pre-flight health check (catches stale mounts on UNRAID)
+    console.print("[bold]Checking Libation container...[/]")
+    is_healthy, health_error = _check_container_health(container)
+    if not is_healthy:
+        console.print(f"  [red]✗[/] {health_error}")
+        console.print(f"\n[dim]Hint: Try 'docker restart {container}' to fix stale mounts[/]")
+        return 1
+    console.print(f"  [green]✓[/] Container '{container}' is healthy")
+
     # Get current status first
-    console.print("[bold]Checking pending downloads...[/]")
+    console.print("\n[bold]Checking pending downloads...[/]")
     try:
         books = _export_library(container)
         status = _get_library_status(books)
@@ -549,44 +602,58 @@ def cmd_libation_liberate(args: argparse.Namespace) -> int:
             return 0
 
     # Run liberate with progress
-    console.print(f"\n[bold]Downloading {'book' if asin else 'audiobooks'}...[/]")
+    download_type = "PDFs" if pdf_only else ("book" if asin else "audiobooks")
+    console.print(f"\n[bold]Downloading {download_type}...[/]")
 
-    # Build command
-    cmd_args = ["liberate"]
-    if asin:
-        cmd_args.append(asin)
+    # Check for verbose mode
+    verbose = getattr(args, "verbose", False)
+
+    # Build extra args for liberate command (flags like -p, -f, -o)
+    extra_args: list[str] = []
+    if pdf_only:
+        extra_args.append("-p")
     if getattr(args, "force", False):
-        cmd_args.append("-f")
+        extra_args.append("-f")
+    # Add override args
+    override_args = _build_override_args(overrides)
+    if override_args:
+        console.print(f"  [dim]Using overrides: {', '.join(overrides or [])}[/]")
+        extra_args.extend(override_args)
 
-    # Use longer timeout for downloads (4 hours)
-    # Note: ok_codes=(0, 1) allows exit code 1 for partial success/warnings
-    with console.status(
-        f"  Downloading {pending if pending else 'audiobooks'}...",
-        spinner="dots",
-    ):
-        result = _run_libation_cmd(container, *cmd_args, timeout=14400, ok_codes=(0, 1))
+    # Use run_liberate_with_progress which supports verbose mode (-v)
+    # In verbose mode: TTY passthrough shows Libation's native progress bar
+    # In normal mode: Clean spinner output
+    liberate_result = run_liberate_with_progress(
+        pending_count=pending if pending else 1,
+        console=console,
+        verbose=verbose,
+        asin=asin,
+        extra_args=extra_args if extra_args else None,
+    )
 
-    if result.success:
+    if liberate_result.success:
         console.print("  [green]✓[/] Download complete")
 
-        # Parse output for completed books
-        completed = result.stdout.count("Completed:")
+        # Check log for completed count
+        completed = 0
+        if liberate_result.log_path:
+            try:
+                log_content = Path(liberate_result.log_path).read_text()
+                completed = log_content.count("Completed:")
+            except Exception:
+                pass
+
         if completed > 0:
             console.print(f"  [cyan]→[/] Downloaded {completed} book(s)")
 
-        # Log output for debugging
-        if result.stdout:
-            log_path = _save_libation_log("liberate", result.stdout, result.stderr)
-            console.print(f"  [dim]Log saved: {log_path}[/]")
+        if liberate_result.log_path:
+            console.print(f"  [dim]Log saved: {liberate_result.log_path}[/]")
 
     else:
-        console.print(f"  [red]✗[/] Download failed (exit code: {result.returncode})")
-        if result.stderr:
-            # Show last few lines of error
-            error_lines = result.stderr.strip().split("\n")[-5:]
-            for line in error_lines:
-                console.print(f"    [dim]{line}[/]")
-        return result.returncode
+        console.print(f"  [red]✗[/] Download failed (exit code: {liberate_result.returncode})")
+        if liberate_result.error_message:
+            console.print(f"    [dim]{liberate_result.error_message}[/]")
+        return liberate_result.returncode
 
     # Show updated status
     console.print("\n[bold]Updated Status:[/]")
@@ -1217,7 +1284,9 @@ def cmd_libation_redownload(args: argparse.Namespace) -> int:
     # Step 1: Mark as Not Downloaded
     console.print("\n[bold]Step 1: Marking as 'Not Downloaded'...[/]")
     for asin in asins:
-        result = _run_libation_cmd(container, "set-status", "-n", "-f", asin, timeout=60)
+        result = _run_libation_cmd(
+            container, "set-status", "-n", "-f", asin, timeout=settings.libation.command_timeout
+        )
         if result.success:
             console.print(f"  [green]✓[/] Marked {asin}")
         else:
@@ -1225,24 +1294,34 @@ def cmd_libation_redownload(args: argparse.Namespace) -> int:
             return 1
 
     # Step 2: Liberate
+    # Use run_liberate_with_progress which supports verbose mode (-v)
+    # In verbose mode: TTY passthrough shows Libation's native progress bar
+    # In normal mode: Clean spinner output
+    verbose = getattr(args, "verbose", False)
     console.print("\n[bold]Step 2: Downloading...[/]")
     for asin in asins:
-        with console.status(f"  Downloading {asin}...", spinner="dots"):
-            result = _run_libation_cmd(
-                container,
-                "liberate",
-                asin,
-                timeout=7200,  # 2 hour timeout per book
-            )
+        liberate_result = run_liberate_with_progress(
+            pending_count=1,
+            console=console,
+            verbose=verbose,
+            asin=asin,
+        )
 
-        if result.returncode == 0:
+        if liberate_result.success:
             console.print(f"  [green]✓[/] Downloaded {asin}")
-            if result.stdout and "Completed:" in result.stdout:
-                console.print(f"    [dim]{result.stdout.split('Completed:')[-1].strip()[:60]}[/]")
+            if liberate_result.log_path:
+                # Extract completion info from log if available
+                try:
+                    log_content = Path(liberate_result.log_path).read_text()
+                    if "Completed:" in log_content:
+                        completed_line = log_content.split("Completed:")[-1].split("\n")[0].strip()
+                        console.print(f"    [dim]{completed_line[:60]}[/]")
+                except Exception:
+                    pass
         else:
             console.print(f"  [red]✗[/] Failed to download {asin}")
-            if result.stderr:
-                console.print(f"    [dim]{result.stderr[:100]}[/]")
+            if liberate_result.error_message:
+                console.print(f"    [dim]{liberate_result.error_message[:100]}[/]")
 
     console.print("\n[green]✓[/] Re-download complete!")
 
@@ -1327,7 +1406,7 @@ def cmd_libation_set_status(args: argparse.Namespace) -> int:
 
     console.print("[bold]Updating status...[/]")
     with console.status("  Processing library...", spinner="dots"):
-        result = _run_libation_cmd(container, *cmd_args, timeout=300)
+        result = _run_libation_cmd(container, *cmd_args, timeout=settings.libation.command_timeout)
 
     if result.success:
         console.print("  [green]✓[/] Status updated")
@@ -1382,7 +1461,7 @@ def cmd_libation_convert(args: argparse.Namespace) -> int:
 
     console.print("[bold]Converting audiobooks...[/]")
     with console.status("  Converting (this may take a while)...", spinner="dots"):
-        result = _run_libation_cmd(container, *cmd_args, timeout=14400)  # 4 hours
+        result = _run_libation_cmd(container, *cmd_args, timeout=settings.libation.liberate_timeout)
 
     if result.returncode == 0:
         console.print("  [green]✓[/] Conversion complete")
@@ -1402,6 +1481,82 @@ def cmd_libation_convert(args: argparse.Namespace) -> int:
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+
+def _validate_override(value: str) -> str:
+    """Validate and normalize a Libation setting override (KEY=VALUE format).
+
+    Args:
+        value: Override string in KEY=VALUE format (e.g., FileDownloadQuality=Normal)
+
+    Returns:
+        The validated override string.
+
+    Raises:
+        argparse.ArgumentTypeError: If format is invalid.
+    """
+    if "=" not in value:
+        raise argparse.ArgumentTypeError(
+            f"Invalid override format: '{value}'. Use KEY=VALUE (e.g., FileDownloadQuality=Normal)"
+        )
+    key, _, val = value.partition("=")
+    if not key.strip():
+        raise argparse.ArgumentTypeError(f"Override key cannot be empty: '{value}'")
+    return value
+
+
+def _build_override_args(overrides: list[str] | None) -> list[str]:
+    """Build Libation CLI override arguments from a list of KEY=VALUE strings.
+
+    Args:
+        overrides: List of override strings like ["FileDownloadQuality=Normal", "UseWidevine=true"]
+
+    Returns:
+        List of CLI arguments like ["-o", "FileDownloadQuality=Normal", "-o", "UseWidevine=true"]
+    """
+    if not overrides:
+        return []
+    result: list[str] = []
+    for override in overrides:
+        result.extend(["-o", override])
+    return result
+
+
+def _check_container_health(container: str) -> tuple[bool, str | None]:
+    """Check if Libation container is running and mounts are healthy.
+
+    This detects common issues like stale file handles on UNRAID after array restarts.
+
+    Args:
+        container: Name of the Docker container
+
+    Returns:
+        Tuple of (is_healthy, error_message). error_message is None if healthy.
+    """
+    # Check if container is running
+    try:
+        result = docker("container", "inspect", "-f", "{{.State.Running}}", container, timeout=10)
+        if result.stdout.strip().lower() != "true":
+            return False, f"Container '{container}' exists but is not running"
+    except CmdError as e:
+        err_msg = e.stderr[:100] if e.stderr else "unknown error"
+        return False, f"Container '{container}' not found: {err_msg}"
+
+    # Check if /data mount is accessible (common Libation mount point)
+    # This catches stale file handles that occur on UNRAID after array restarts
+    try:
+        docker("exec", container, "ls", "/data", timeout=10)
+    except CmdError as e:
+        error_msg = e.stderr or ""
+        if "stale" in error_msg.lower() or "cannot access" in error_msg.lower():
+            return False, (
+                "Container mounts appear stale (common after UNRAID array restart). "
+                f"Try: docker restart {container}"
+            )
+        # If /data doesn't exist, that's a config issue but not a health issue
+        logger.debug(f"Could not list /data in container (may not exist): {e}")
+
+    return True, None
 
 
 def _save_libation_log(command: str, stdout: str, stderr: str) -> Path:
@@ -1485,6 +1640,16 @@ Examples:
         action="store_true",
         help="Also download new books after scanning",
     )
+    scan_parser.add_argument(
+        "-o",
+        "--override",
+        action="append",
+        type=_validate_override,
+        metavar="KEY=VALUE",
+        dest="overrides",
+        help="Override Libation setting (can be used multiple times). "
+        "Example: -o FileDownloadQuality=Normal -o UseWidevine=true",
+    )
     scan_parser.set_defaults(libation_func=cmd_libation_scan)
 
     # -------------------------------------------------------------------------
@@ -1518,6 +1683,28 @@ Examples:
         "-f",
         action="store_true",
         help="Force re-download even if already liberated",
+    )
+    liberate_parser.add_argument(
+        "--pdf",
+        "-p",
+        action="store_true",
+        help="Only download PDFs (skip audiobook files)",
+    )
+    liberate_parser.add_argument(
+        "-o",
+        "--override",
+        action="append",
+        type=_validate_override,
+        metavar="KEY=VALUE",
+        dest="overrides",
+        help="Override Libation setting (can be used multiple times). "
+        "Example: -o FileDownloadQuality=Normal -o UseWidevine=true",
+    )
+    liberate_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip confirmation prompt",
     )
     liberate_parser.set_defaults(libation_func=cmd_libation_liberate)
 

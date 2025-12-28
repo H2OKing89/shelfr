@@ -10,8 +10,9 @@ import pytest
 
 from mamfast.exceptions import LibationError
 from mamfast.libation import (
+    LibationResult,
     LibationStatus,
-    ScanResult,
+    ScanResult,  # Backwards compatibility alias
     check_container_running,
     get_libation_status,
     run_liberate,
@@ -24,18 +25,24 @@ from tests.conftest import make_cmd_result
 _make_cmd_result = make_cmd_result
 
 
-class TestScanResult:
-    """Tests for ScanResult dataclass."""
+class TestLibationResult:
+    """Tests for LibationResult dataclass."""
 
     def test_success_when_returncode_zero(self) -> None:
         """Test success property is True when returncode is 0."""
-        result = ScanResult(returncode=0, stdout="OK")
+        result = LibationResult(returncode=0, stdout="OK")
         assert result.success is True
 
     def test_failure_when_returncode_nonzero(self) -> None:
         """Test success property is False when returncode is non-zero."""
-        result = ScanResult(returncode=1, stderr="Error")
+        result = LibationResult(returncode=1, stderr="Error")
         assert result.success is False
+
+    def test_backwards_compat_alias(self) -> None:
+        """Test ScanResult alias works for backwards compatibility."""
+        result = ScanResult(returncode=0, stdout="OK")
+        assert isinstance(result, LibationResult)
+        assert result.success is True
 
 
 class TestCheckContainerRunning:
