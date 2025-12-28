@@ -12,6 +12,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+logger = logging.getLogger(__name__)
+
 
 class AbsChapter(BaseModel):
     """Chapter entry for Audiobookshelf metadata.json."""
@@ -87,7 +89,6 @@ class AbsMetadataJson(BaseModel):
             Original ASIN value (unchanged)
         """
         if v is not None and v != "" and not re.match(r"^[A-Z0-9]{10}$", v):
-            logger = logging.getLogger(__name__)
             logger.warning(
                 "Invalid ASIN format: %r (expected 10 uppercase alphanumeric characters)", v
             )

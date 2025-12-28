@@ -24,7 +24,7 @@ import logging
 import re
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -162,14 +162,14 @@ def print_book_table(
         author_name = author_name[:25]  # Truncate for display
 
         # Build full title (Title + Subtitle if present)
-        title = str(book.get("Title", "Unknown")).strip()
+        book_title = str(book.get("Title", "Unknown")).strip()
         subtitle = str(book.get("Subtitle", "")).strip()
-        if subtitle and subtitle not in title:
-            title = f"{title}: {subtitle}"
+        if subtitle and subtitle not in book_title:
+            book_title = f"{book_title}: {subtitle}"
 
         row: list[str] = [
             str(i),
-            title[:40],
+            book_title[:40],
             author_name,
             str(book.get("AudibleProductId", "-")),  # Libation uses AudibleProductId, not Asin
         ]
@@ -433,18 +433,14 @@ def cmd_libation_scan(args: argparse.Namespace) -> int:
         if pending > 0:
             console.print()
             if args.liberate:
-                console.print(
-                    f"[cyan]→[/] Proceeding to download {pending} pending book(s)..."
-                )
+                console.print(f"[cyan]→[/] Proceeding to download {pending} pending book(s)...")
                 # Recursively call liberate
                 args_copy = argparse.Namespace(**vars(args))
                 args_copy.asin = None
                 args_copy.force = False
                 return cmd_libation_liberate(args_copy)
             else:
-                console.print(
-                    f"[yellow]![/] {pending} book(s) waiting for download"
-                )
+                console.print(f"[yellow]![/] {pending} book(s) waiting for download")
                 console.print(
                     "[dim]Hint: Run 'mamfast libation liberate' or use '--liberate' flag[/]"
                 )
@@ -509,7 +505,7 @@ def cmd_libation_liberate(args: argparse.Namespace) -> int:
 
         if asin:
             # Check if specific ASIN exists
-            book = next((b for b in books if b.get("Asin") == asin), None)
+            book = next((b for b in books if b.get("AudibleProductId") == asin), None)
             if not book:
                 console.print(f"  [red]✗[/] Book with ASIN '{asin}' not found")
                 return 1
@@ -628,9 +624,7 @@ def cmd_libation_status(args: argparse.Namespace) -> int:
             show_status=False,
             limit=10,
         )
-        console.print(
-            "\n[dim]Hint: Run 'mamfast libation liberate' to download these books[/]"
-        )
+        console.print("\n[dim]Hint: Run 'mamfast libation liberate' to download these books[/]")
 
     # Show error books if any
     error_books = [b for b in books if b.get("BookStatus") == "Error"]
@@ -1012,12 +1006,11 @@ def cmd_libation_books(args: argparse.Namespace) -> int:
     if author_filter:
         author_lower = author_filter.lower()
         filtered_books = [
-            b for b in filtered_books
-            if author_lower in str(b.get("AuthorNames", "")).lower()
+            b for b in filtered_books if author_lower in str(b.get("AuthorNames", "")).lower()
         ]
 
     # Sort by series name, then by series order number
-    def sort_key(book: dict) -> tuple[str, int, str]:
+    def sort_key(book: dict[str, Any]) -> tuple[str, int, str]:
         series = str(book.get("SeriesNames", "") or "").strip()
         # Extract numeric position from SeriesOrder (format: "17 : Series Name")
         series_order_raw = str(book.get("SeriesOrder", "") or "").strip()
@@ -1109,8 +1102,7 @@ def cmd_libation_books(args: argparse.Namespace) -> int:
 
     if len(filtered_books) > limit:
         console.print(
-            f"\n[dim]Showing {limit} of {len(filtered_books)} books. "
-            "Use --limit to see more.[/]"
+            f"\n[dim]Showing {limit} of {len(filtered_books)} books. " "Use --limit to see more.[/]"
         )
 
     # Show summary stats
@@ -1192,9 +1184,7 @@ def cmd_libation_redownload(args: argparse.Namespace) -> int:
     # Step 1: Mark as Not Downloaded
     console.print("\n[bold]Step 1: Marking as 'Not Downloaded'...[/]")
     for asin in asins:
-        result = _run_libation_cmd(
-            container, "set-status", "-n", "-f", asin, timeout=60
-        )
+        result = _run_libation_cmd(container, "set-status", "-n", "-f", asin, timeout=60)
         if result.success:
             console.print(f"  [green]✓[/] Marked {asin}")
         else:
@@ -1206,7 +1196,10 @@ def cmd_libation_redownload(args: argparse.Namespace) -> int:
     for asin in asins:
         with console.status(f"  Downloading {asin}...", spinner="dots"):
             result = _run_libation_cmd(
-                container, "liberate", asin, timeout=7200  # 2 hour timeout per book
+                container,
+                "liberate",
+                asin,
+                timeout=7200,  # 2 hour timeout per book
             )
 
         if result.returncode == 0:
@@ -1369,11 +1362,11 @@ def _save_libation_log(command: str, stdout: str, stderr: str) -> Path:
     libation_log_dir = log_dir() / "libation"
     libation_log_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     log_path = libation_log_dir / f"{command}_{timestamp}.log"
 
     content = f"Command: {command}\n"
-    content += f"Timestamp: {datetime.now().isoformat()}\n"
+    content += f"Timestamp: {datetime.now(UTC).isoformat()}\n"
     content += "\n--- STDOUT ---\n"
     content += stdout or "(empty)"
     content += "\n\n--- STDERR ---\n"

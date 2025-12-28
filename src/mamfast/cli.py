@@ -1,6 +1,3 @@
-
-
-
 """MAMFast CLI - Command-line interface for audiobook upload automation."""
 
 from __future__ import annotations
