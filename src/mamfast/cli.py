@@ -283,6 +283,10 @@ def discover(
 def prepare(
     ctx: typer.Context,
     asin: AsinArg = None,
+    dry_run_hint: Annotated[
+        bool,
+        typer.Option("--dry-run", hidden=True),
+    ] = False,
 ) -> None:
     """📦 Stage audiobooks for upload.
 
@@ -295,6 +299,16 @@ def prepare(
 
     [dim]Tip: Stages release for upload by hardlinking files and validating structure.[/]
     """
+    from mamfast.console import console
+
+    if dry_run_hint:
+        console.print(
+            "[yellow]⚠️  --dry-run must come BEFORE the subcommand:[/]\n\n"
+            "    [green]mamfast --dry-run prepare[/]  ✓\n"
+            "    [red]mamfast prepare --dry-run[/]  ✗\n"
+        )
+        raise typer.Exit(2)
+
     from mamfast.commands import cmd_prepare
 
     args = get_args(ctx, asin=asin, command="prepare")
@@ -368,6 +382,10 @@ def upload(
         bool,
         typer.Option(help="Add torrents in paused state."),
     ] = False,
+    dry_run_hint: Annotated[
+        bool,
+        typer.Option("--dry-run", hidden=True),
+    ] = False,
 ) -> None:
     """⬆️  Upload .torrent files to qBittorrent.
 
@@ -379,6 +397,16 @@ def upload(
 
     [dim]Tip: Submits torrent and metadata to MAM tracker.[/]
     """
+    from mamfast.console import console
+
+    if dry_run_hint:
+        console.print(
+            "[yellow]⚠️  --dry-run must come BEFORE the subcommand:[/]\n\n"
+            "    [green]mamfast --dry-run upload[/]  ✓\n"
+            "    [red]mamfast upload --dry-run[/]  ✗\n"
+        )
+        raise typer.Exit(2)
+
     from mamfast.commands import cmd_upload
 
     args = get_args(ctx, paused=paused, command="upload")
@@ -404,6 +432,14 @@ def run(
             help="[red]DANGEROUS:[/] Bypass run lock (can cause data corruption).",
         ),
     ] = False,
+    dry_run_hint: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            hidden=True,
+            help="(Use 'mamfast --dry-run run' instead)",
+        ),
+    ] = False,
 ) -> None:
     """🚀 Run the full upload pipeline.
 
@@ -414,6 +450,17 @@ def run(
       mamfast --dry-run run     # Preview without changes
       mamfast run --skip-scan   # Skip Libation scan
     """
+    from mamfast.console import console
+
+    # Handle misplaced --dry-run flag
+    if dry_run_hint:
+        console.print(
+            "[yellow]⚠️  --dry-run must come BEFORE the subcommand:[/]\n\n"
+            "    [green]mamfast --dry-run run[/]  ✓\n"
+            "    [red]mamfast run --dry-run[/]  ✗\n"
+        )
+        raise typer.Exit(2)
+
     from mamfast.commands import cmd_run
 
     args = get_args(
@@ -1508,6 +1555,17 @@ def libation_guide(
     args = get_args(ctx, section=section, command="libation")
     result = cmd_libation_guide(args)
     raise typer.Exit(result)
+
+
+# =============================================================================
+# Command Aliases (Shortcuts)
+# =============================================================================
+
+# Hidden aliases for common commands - show up in completion but not main help
+app.command("dupes", hidden=True)(check_duplicates)
+app.command("suspicious", hidden=True)(check_suspicious)
+app.command("abs-dup", hidden=True)(abs_check_duplicate)
+app.command("lint", hidden=True)(validate_config)
 
 
 # =============================================================================

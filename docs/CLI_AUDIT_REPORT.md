@@ -2,7 +2,7 @@
 
 **Date**: December 2025
 **Scope**: Comprehensive audit of `mamfast` CLI structure, consistency, and usability
-**Status**: ✅ P0-P2 Complete | ⏳ P3 Future enhancements
+**Status**: ✅ P0-P3 Complete — Full Typer/Rich migration with all enhancements
 
 ---
 
@@ -139,7 +139,7 @@ prepare --asin ASIN             # uppercase ✓
 
 ---
 
-### P3 - Low Priority (Nice to Have) — ⏳ FUTURE
+### P3 - Low Priority (Nice to Have) — ✅ FIXED
 
 #### 9. ~~No Bash/Zsh Completion Support~~ — ✅ FIXED
 
@@ -150,27 +150,30 @@ mamfast --install-completion  # Install for current shell
 mamfast --show-completion     # Show completion script
 ```
 
-#### 10. No Command Aliases — ⏳ NOT IMPLEMENTED
+#### 10. Command Aliases — ✅ DONE
 
-**Status**: Deferred to future release. Current command names are clear and self-documenting.
+**Solution**: Added hidden aliases for common commands. They work in shell completion and execution but don't clutter the main help.
 
-| Command | Potential Alias |
-|---------|----------------|
-| `check-duplicates` | `dupes` |
-| `check-suspicious` | `suspicious` |
-| `abs-check-duplicate` | `abs-dup` |
-| `abs-import` | `import` |
-| `validate-config` | `lint` |
+| Command | Alias | Status |
+|---------|-------|--------|
+| `check-duplicates` | `dupes` | ✅ |
+| `check-suspicious` | `suspicious` | ✅ |
+| `abs-check-duplicate` | `abs-dup` | ✅ |
+| `validate-config` | `lint` | ✅ |
 
-#### 11. Global --dry-run Placement — ⏳ NOT IMPLEMENTED
+#### 11. Global --dry-run Placement — ✅ DONE
 
-**Status**: Deferred. Current behavior is documented and has helpful tip in epilog.
+**Solution**: Commands now accept `--dry-run` after subcommand and show a helpful redirect message.
 
-**Current Behavior**: Global `--dry-run` must go BEFORE subcommand.
+```bash
+$ mamfast run --dry-run
+⚠️  --dry-run must come BEFORE the subcommand:
 
-**Mitigation**: Epilog on `run` command says "Tip: Use 'mamfast --dry-run run' to preview without making changes."
+    mamfast --dry-run run  ✓
+    mamfast run --dry-run  ✗
+```
 
-**Future Enhancement**: Accept `--dry-run` after subcommand with helpful redirect message.
+**Commands with redirect hint**: `run`, `prepare`, `upload`
 
 ---
 
