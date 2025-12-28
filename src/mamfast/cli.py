@@ -1472,7 +1472,8 @@ def libation_redownload(
     """
     from mamfast.commands.libation import cmd_libation_redownload
 
-    args = get_args(ctx, asin=asin, yes=yes, command="libation")
+    # Handler expects asins as a list
+    args = get_args(ctx, asins=[asin], yes=yes, command="libation")
     result = cmd_libation_redownload(args)
     raise typer.Exit(result)
 
