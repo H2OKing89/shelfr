@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from typer.testing import CliRunner
 
 from mamfast.cli import app
@@ -27,18 +26,14 @@ class TestToolsBBCode:
 
     def test_bbcode_html_simple(self) -> None:
         """Test bbcode command with simple HTML."""
-        result = runner.invoke(
-            app, ["tools", "bbcode", "--html", "<b>bold</b> and <i>italic</i>"]
-        )
+        result = runner.invoke(app, ["tools", "bbcode", "--html", "<b>bold</b> and <i>italic</i>"])
         assert result.exit_code == 0
         assert "[b]bold[/b]" in result.stdout
         assert "[i]italic[/i]" in result.stdout
 
     def test_bbcode_html_paragraphs(self) -> None:
         """Test bbcode command with paragraph HTML."""
-        result = runner.invoke(
-            app, ["tools", "bbcode", "--html", "<p>Para 1</p><p>Para 2</p>"]
-        )
+        result = runner.invoke(app, ["tools", "bbcode", "--html", "<p>Para 1</p><p>Para 2</p>"])
         assert result.exit_code == 0
         # Paragraphs converted to double newlines
         assert "Para 1" in result.stdout
@@ -58,10 +53,8 @@ class TestToolsMamff:
         """Test mamff command with missing path shows error."""
         result = runner.invoke(app, ["tools", "mamff"])
         assert result.exit_code != 0
-        # Typer outputs errors to output when mixed_stderr is False (default in runner)
-        output = result.output or result.stdout or ""
-        # Just check that it failed - message may be in stderr
-        assert result.exit_code == 2  # Typer uses exit code 2 for usage errors
+        # Typer uses exit code 2 for usage errors
+        assert result.exit_code == 2
 
     def test_mamff_nonexistent_path(self) -> None:
         """Test mamff command with non-existent path shows error."""
