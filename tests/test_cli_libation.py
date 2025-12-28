@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -20,7 +19,6 @@ from mamfast.commands.libation import (
     cmd_libation_scan,
     cmd_libation_search,
     cmd_libation_settings,
-    cmd_libation_status,
     print_hint_box,
     print_libation_header,
     print_status_dashboard,
@@ -319,7 +317,7 @@ class TestCmdLibation:
         args = argparse.Namespace()
         # Simulate no libation_func set
 
-        result = cmd_libation(args)
+        cmd_libation(args)
 
         mock_status.assert_called_once()
 
