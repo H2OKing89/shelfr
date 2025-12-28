@@ -10,7 +10,7 @@ import argparse
 import json as json_module
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mamfast.console import (
     console,
@@ -37,6 +37,7 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
     from mamfast.logging_setup import set_console_quiet
     from mamfast.utils.naming import filter_title, transliterate_text
 
+    output_json = getattr(args, "json", False)
     set_console_quiet(True)
 
     try:
@@ -64,19 +65,29 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
     set_console_quiet(False)
 
     if not releases:
-        console.print("[dim]No new releases to preview[/]")
+        if output_json:
+            console.print(
+                json_module.dumps(
+                    {"releases": [], "summary": {"total": 0, "would_change": 0, "no_change": 0}}
+                )
+            )
+        else:
+            console.print("[dim]No new releases to preview[/]")
         return 0
 
-    # Print header
-    print_dry_run_header(len(releases))
+    # Print header (only if not JSON)
+    if not output_json:
+        print_dry_run_header(len(releases))
 
-    # Track stats
+    # Track stats and JSON data
     would_change = 0
     no_change = 0
+    json_releases: list[dict[str, Any]] = []
 
     # Process each release
     for release in releases:
         transforms: list[DryRunTransform] = []
+        json_transforms: list[dict[str, Any]] = []
 
         # Original folder name from source
         original_name = release.source_dir.name if release.source_dir else release.title
@@ -90,8 +101,6 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
         )
 
         if original_name != filtered_name:
-            # Determine which rule caused the change by re-running with verbose
-            # For now, detect the rule type heuristically
             rule = _detect_rule(original_name, filtered_name, naming_config)
             transforms.append(
                 DryRunTransform(
@@ -100,6 +109,14 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
                     after=filtered_name,
                     rule=rule,
                 )
+            )
+            json_transforms.append(
+                {
+                    "field": "title",
+                    "before": original_name,
+                    "after": filtered_name,
+                    "rule": rule,
+                }
             )
             final_name = filtered_name
 
@@ -114,6 +131,14 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
                     rule="transliteration",
                 )
             )
+            json_transforms.append(
+                {
+                    "field": "title",
+                    "before": filtered_name,
+                    "after": transliterated,
+                    "rule": "transliteration",
+                }
+            )
             final_name = transliterated
 
         # Track stats
@@ -122,20 +147,45 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
         else:
             no_change += 1
 
-        # Always print release info (show what we're checking)
-        release_label = f"{release.title}" if release.title else original_name
-        if release.asin:
-            release_label += f" [dim]({release.asin})[/dim]"
-
-        print_dry_run_release(
-            transforms,
-            release_title=release_label,
-            source_path=original_name,
-            target_path=final_name,
+        # Build JSON release entry
+        json_releases.append(
+            {
+                "asin": release.asin,
+                "title": release.title,
+                "original_name": original_name,
+                "final_name": final_name,
+                "transforms": json_transforms,
+                "changed": bool(transforms),
+            }
         )
 
-    # Print summary
-    print_dry_run_summary(len(releases), would_change, no_change)
+        if not output_json:
+            # Always print release info (show what we're checking)
+            release_label = f"{release.title}" if release.title else original_name
+            if release.asin:
+                release_label += f" [dim]({release.asin})[/dim]"
+
+            print_dry_run_release(
+                transforms,
+                release_title=release_label,
+                source_path=original_name,
+                target_path=final_name,
+            )
+
+    # Output results
+    if output_json:
+        output = {
+            "releases": json_releases,
+            "summary": {
+                "total": len(releases),
+                "would_change": would_change,
+                "no_change": no_change,
+            },
+        }
+        console.print(json_module.dumps(output, indent=2))
+    else:
+        print_dry_run_summary(len(releases), would_change, no_change)
+
     return 0
 
 
@@ -182,6 +232,7 @@ def cmd_check_duplicates(args: argparse.Namespace) -> int:
     from mamfast.logging_setup import set_console_quiet
     from mamfast.utils.fuzzy import find_duplicates
 
+    output_json = getattr(args, "json", False)
     set_console_quiet(True)
 
     try:
@@ -197,65 +248,115 @@ def cmd_check_duplicates(args: argparse.Namespace) -> int:
     set_console_quiet(False)
 
     if not releases:
-        console.print("[dim]No releases found to check[/]")
+        if output_json:
+            console.print(
+                json_module.dumps(
+                    {"duplicates": [], "summary": {"total": 0, "threshold": args.threshold}}
+                )
+            )
+        else:
+            console.print("[dim]No releases found to check[/]")
         return 0
 
     # Extract titles for duplicate detection
     titles = [r.title for r in releases if r.title]
     threshold = args.threshold
 
-    console.print(
-        f"[bold]Checking {len(releases)} releases for duplicates[/] "
-        f"[dim](threshold: {threshold}%)[/]\n"
-    )
+    if not output_json:
+        console.print(
+            f"[bold]Checking {len(releases)} releases for duplicates[/] "
+            f"[dim](threshold: {threshold}%)[/]\n"
+        )
 
     # Find duplicates
     duplicates = find_duplicates(titles, threshold=threshold)
 
     if not duplicates:
-        console.print("[success]✓ No potential duplicates found[/]")
+        if output_json:
+            console.print(
+                json_module.dumps(
+                    {
+                        "duplicates": [],
+                        "summary": {
+                            "total": 0,
+                            "releases_checked": len(releases),
+                            "threshold": threshold,
+                        },
+                    }
+                )
+            )
+        else:
+            console.print("[success]✓ No potential duplicates found[/]")
         return 0
 
     # Limit results
     limit = args.limit
     shown_duplicates = duplicates[:limit]
 
-    # Build Rich table
-    table = Table(
-        title=f"[warning]Found {len(duplicates)} Potential Duplicate Pair(s)[/]",
-        show_header=True,
-        header_style="bold",
-    )
-    table.add_column("Release 1", style="cyan", overflow="fold")
-    table.add_column("Release 2", style="cyan", overflow="fold")
-    table.add_column("Similarity", style="yellow", justify="right")
-    table.add_column("ASINs", style="dim")
+    # Build JSON or table output
+    json_duplicates: list[dict[str, Any]] = []
 
     for dup in shown_duplicates:
         # Find the actual releases to get ASINs
         r1 = next((r for r in releases if r.title == dup.item1), None)
         r2 = next((r for r in releases if r.title == dup.item2), None)
 
-        asin_info = ""
-        if r1 and r2:
-            if r1.asin == r2.asin:
-                asin_info = f"Same: {r1.asin}"
-            else:
-                asin_info = f"{r1.asin or '?'} / {r2.asin or '?'}"
+        asin1 = r1.asin if r1 else None
+        asin2 = r2.asin if r2 else None
 
-        table.add_row(
-            dup.item1[:50] + "..." if len(dup.item1) > 50 else dup.item1,
-            dup.item2[:50] + "..." if len(dup.item2) > 50 else dup.item2,
-            f"{dup.similarity:.0f}%",
-            asin_info,
+        json_duplicates.append(
+            {
+                "release1": {"title": dup.item1, "asin": asin1},
+                "release2": {"title": dup.item2, "asin": asin2},
+                "similarity": round(dup.similarity, 1),
+                "same_asin": asin1 == asin2 if asin1 and asin2 else None,
+            }
         )
 
-    console.print(table)
-
-    if len(duplicates) > limit:
-        console.print(
-            f"\n[dim]Showing {limit} of {len(duplicates)} pairs. Use --limit to show more.[/]"
+    if output_json:
+        output = {
+            "duplicates": json_duplicates,
+            "summary": {
+                "total": len(duplicates),
+                "shown": len(shown_duplicates),
+                "releases_checked": len(releases),
+                "threshold": threshold,
+            },
+        }
+        console.print(json_module.dumps(output, indent=2))
+    else:
+        # Build Rich table
+        table = Table(
+            title=f"[warning]Found {len(duplicates)} Potential Duplicate Pair(s)[/]",
+            show_header=True,
+            header_style="bold",
         )
+        table.add_column("Release 1", style="cyan", overflow="fold")
+        table.add_column("Release 2", style="cyan", overflow="fold")
+        table.add_column("Similarity", style="yellow", justify="right")
+        table.add_column("ASINs", style="dim")
+
+        for dup_data, dup in zip(json_duplicates, shown_duplicates, strict=False):
+            asin_info = ""
+            if dup_data["release1"]["asin"] and dup_data["release2"]["asin"]:
+                if dup_data["same_asin"]:
+                    asin_info = f"Same: {dup_data['release1']['asin']}"
+                else:
+                    asin_info = f"{dup_data['release1']['asin']} / {dup_data['release2']['asin']}"
+
+            table.add_row(
+                dup.item1[:50] + "..." if len(dup.item1) > 50 else dup.item1,
+                dup.item2[:50] + "..." if len(dup.item2) > 50 else dup.item2,
+                f"{dup.similarity:.0f}%",
+                asin_info,
+            )
+
+        console.print(table)
+
+        if len(duplicates) > limit:
+            console.print(
+                f"\n[dim]Showing {limit} of {len(duplicates)} pairs. Use --limit to show more.[/]"
+            )
 
     return 0
 

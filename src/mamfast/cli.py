@@ -269,6 +269,8 @@ def discover(
     [bold]Examples:[/]
       mamfast discover       # Show unprocessed books
       mamfast discover --all # Show all books
+
+    [dim]Tip: Scans Libation output directory for new audiobooks.[/]
     """
     from mamfast.commands import cmd_discover
 
@@ -290,6 +292,8 @@ def prepare(
     [bold]Examples:[/]
       mamfast prepare              # Prepare all discovered books
       mamfast prepare -a B0DK9T5P28  # Prepare specific book
+
+    [dim]Tip: Stages release for upload by hardlinking files and validating structure.[/]
     """
     from mamfast.commands import cmd_prepare
 
@@ -316,6 +320,8 @@ def metadata(
       mamfast metadata                    # All staged releases
       mamfast metadata -a B0DK9T5P28      # Specific ASIN
       mamfast metadata /path/to/audiobook # Specific path
+
+    [dim]Tip: Fetches from Audnex API and extracts MediaInfo from audio files.[/]
     """
     from mamfast.commands import cmd_metadata
 
@@ -345,6 +351,8 @@ def torrent(
       mamfast torrent                     # All staged releases
       mamfast torrent -a B0DK9T5P28       # Specific ASIN
       mamfast torrent --preset custom     # Use custom preset
+
+    [dim]Tip: Creates .torrent file using mkbrr in Docker container.[/]
     """
     from mamfast.commands import cmd_torrent
 
@@ -368,6 +376,8 @@ def upload(
     [bold]Examples:[/]
       mamfast upload           # Upload all ready torrents
       mamfast upload --paused  # Upload but don't start seeding
+
+    [dim]Tip: Submits torrent and metadata to MAM tracker.[/]
     """
     from mamfast.commands import cmd_upload
 
@@ -532,6 +542,10 @@ def dry_run_cmd(
         typer.Option("--limit", "-n", help="Maximum releases to preview."),
     ] = 20,
     asin: AsinArg = None,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", "-j", help="Output results as JSON."),
+    ] = False,
 ) -> None:
     """👀 Preview naming transformations.
 
@@ -542,10 +556,11 @@ def dry_run_cmd(
       mamfast dry-run              # Preview first 20 releases
       mamfast dry-run -n 50        # Preview 50 releases
       mamfast dry-run -a B0DK9T5P28 # Preview specific ASIN
+      mamfast dry-run --json       # JSON output
     """
     from mamfast.commands import cmd_dry_run
 
-    args = get_args(ctx, limit=limit, asin=asin, command="dry-run")
+    args = get_args(ctx, limit=limit, asin=asin, json=json_output, command="dry-run")
     result = cmd_dry_run(args)
     raise typer.Exit(result)
 
@@ -565,6 +580,10 @@ def check_duplicates(
         bool,
         typer.Option("--include-processed", help="Include already processed releases."),
     ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", "-j", help="Output results as JSON."),
+    ] = False,
 ) -> None:
     """🔎 Find potential duplicate releases.
 
@@ -573,6 +592,7 @@ def check_duplicates(
     [bold]Examples:[/]
       mamfast check-duplicates         # Default 85% threshold
       mamfast check-duplicates -t 90   # Stricter matching
+      mamfast check-duplicates --json  # JSON output
     """
     from mamfast.commands import cmd_check_duplicates
 
@@ -581,6 +601,7 @@ def check_duplicates(
         threshold=threshold,
         limit=limit,
         include_processed=include_processed,
+        json=json_output,
         command="check-duplicates",
     )
     result = cmd_check_duplicates(args)
@@ -693,7 +714,7 @@ def state_prune(ctx: typer.Context) -> None:
 @state_app.command("retry")
 def state_retry(
     ctx: typer.Context,
-    asin: Annotated[str, typer.Argument(help="ASIN to clear from failed state.")],
+    asin: Annotated[str, typer.Argument(metavar="ASIN", help="ASIN to clear from failed state.")],
 ) -> None:
     """🔄 Clear a failed entry to allow re-processing.
 
@@ -712,7 +733,9 @@ def state_retry(
 @state_app.command("clear")
 def state_clear(
     ctx: typer.Context,
-    asin: Annotated[str, typer.Argument(help="ASIN to clear from processed state.")],
+    asin: Annotated[
+        str, typer.Argument(metavar="ASIN", help="ASIN to clear from processed state.")
+    ],
 ) -> None:
     """🗑️  Clear a processed entry to force re-run.
 
@@ -875,7 +898,7 @@ def abs_import(
 @app.command("abs-check-duplicate", rich_help_panel=ABS_COMMANDS)
 def abs_check_duplicate(
     ctx: typer.Context,
-    asin: Annotated[str, typer.Argument(help="ASIN to check (e.g., B0DK27WWT8).")],
+    asin: Annotated[str, typer.Argument(metavar="ASIN", help="ASIN to check (e.g., B0DK27WWT8).")],
 ) -> None:
     """🔍 Check if ASIN exists in library.
 
@@ -1377,7 +1400,9 @@ def libation_redownload(
     ctx: typer.Context,
     asin: Annotated[
         str,
-        typer.Argument(callback=validate_asin_callback, help="ASIN of book to redownload."),
+        typer.Argument(
+            metavar="ASIN", callback=validate_asin_callback, help="ASIN of book to redownload."
+        ),
     ],
     yes: Annotated[
         bool,
@@ -1410,7 +1435,7 @@ def libation_set_status(
     ctx: typer.Context,
     asin: Annotated[
         str,
-        typer.Argument(callback=validate_asin_callback, help="ASIN of book."),
+        typer.Argument(metavar="ASIN", callback=validate_asin_callback, help="ASIN of book."),
     ],
     status: Annotated[SetStatusValue, typer.Argument(help="New status.")],
     yes: Annotated[

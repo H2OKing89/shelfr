@@ -2,7 +2,7 @@
 
 **Date**: December 2025
 **Scope**: Comprehensive audit of `mamfast` CLI structure, consistency, and usability
-**Status**: ✅ Typer/Rich migration complete, P0-P1 fixes implemented
+**Status**: ✅ P0-P2 Complete | ⏳ P3 Future enhancements
 
 ---
 
@@ -31,12 +31,14 @@ The MAMFast CLI has been **migrated from argparse to Typer** with full Rich inte
 **Problem**: The `validate_asin` function existed in `commands/libation.py` but was only applied to libation subcommands.
 
 **Solution Implemented**:
+
 - Created `src/mamfast/utils/validation.py` with shared ASIN validation
 - Typer CLI uses `validate_asin_callback()` for all `--asin` options
 - argparse CLI (preserved for tests) uses `type=validate_asin`
 - Updated `commands/libation.py` to import from shared module
 
 **Commands Now Validated**:
+
 | Command | ASIN Arg | Status |
 |---------|----------|--------|
 | `prepare` | `-a/--asin` | ✅ Typer callback |
@@ -73,92 +75,84 @@ The MAMFast CLI has been **migrated from argparse to Typer** with full Rich inte
 | `--json` | `-j` |
 | `--threshold` | `-t` |
 
-#### 4. --json Output Coverage
+#### 4. --json Output Coverage — ✅ DONE
 
-**Status**: Available on validate, check-suspicious, state list. Other commands remain as future enhancement.
+**Status**: Available on validate, check-suspicious, state list, check-duplicates, dry-run.
 
 ---
 
-### P2 - Medium Priority (Polish)
+### P2 - Medium Priority (Polish) — ✅ FIXED
 
-#### 5. Epilog Inconsistency
+#### 5. Epilog Inconsistency — ✅ DONE
 
-**Problem**: Some commands have helpful epilogs, others don't:
+**Solution**: Added epilogs to all core pipeline commands.
 
 | Command | Has Epilog | Content |
-|---------|-----------|---------|
+|---------|-----------|--------|
 | `validate` | ✓ | "Runs validation checks without processing releases." |
 | `validate-config` | ✓ | "Validates JSON structure, regex patterns, and required fields." |
 | `dry-run` | ✓ | "Shows before/after for title filtering and folder renaming." |
 | `check-duplicates` | ✓ | "Uses RapidFuzz to find near-duplicate titles." |
-| `prepare` | ✗ | — |
-| `metadata` | ✗ | — |
-| `torrent` | ✗ | — |
-| `upload` | ✗ | — |
-| `discover` | ✗ | — |
+| `prepare` | ✓ | "Stages release for upload: hardlinks files and validates structure." |
+| `metadata` | ✓ | "Fetches from Audnex API and extracts MediaInfo from audio files." |
+| `torrent` | ✓ | "Creates .torrent file using mkbrr in Docker container." |
+| `upload` | ✓ | "Submits torrent and metadata to MAM tracker." |
+| `discover` | ✓ | "Scans Libation output directory for new audiobooks." |
 
-**Recommendation**: Add brief, useful epilogs to all commands explaining what they do in more detail.
+#### 6. Help Text Quality — ✅ DONE
 
-#### 6. Help Text Quality Varies
+**Solution**: Improved help text descriptions for clarity.
 
-**Examples of Good Help**:
-```
-abs-orphans:
-  --cleanup             Remove orphaned folders (only those with matching audio folder)
-  --cleanup-all         Remove ALL orphaned folders (even without matches - DANGEROUS)
-```
-
-**Examples Needing Improvement**:
+**Before**:
 ```
 prepare:
   --asin ASIN  Process specific release by ASIN only
-
-# Better:
-  --asin ASIN  Process only the release with this ASIN (format: B0XXXXXXXXX)
 ```
 
-#### 7. Positional vs Optional Arg Inconsistency
+**After**:
+```
+prepare:
+  -a, --asin ASIN  Process only the release with this ASIN (format: B0XXXXXXXXX)
+```
 
-**Problem**: Some commands use positional args, others use `--asin` for the same concept:
+#### 7. Positional vs Optional Arg Consistency — ✅ DOCUMENTED
 
-| Command | ASIN Specification |
-|---------|-------------------|
-| `abs-check-duplicate` | positional `asin` |
-| `state retry` | positional `asin` |
-| `state clear` | positional `asin` |
-| `prepare` | optional `--asin` |
-| `validate` | optional `--asin` |
+**Design Decision**: Positional args are used when ASIN is **required**, optional `--asin` when filtering is optional.
 
-**Observation**: This makes sense contextually (required vs optional), but should be documented.
+| Command | ASIN Specification | Rationale |
+|---------|-------------------|----------|
+| `abs-check-duplicate` | positional `ASIN` | Required: must specify which to check |
+| `state retry` | positional `ASIN` | Required: must specify which to retry |
+| `state clear` | positional `ASIN` | Required: must specify which to clear |
+| `prepare` | optional `-a/--asin` | Optional: filter to single release |
+| `validate` | optional `-a/--asin` | Optional: filter to single release |
 
-#### 8. Missing Metavar for Clearer Help
+#### 8. Metavar Consistency — ✅ DONE
 
-**Problem**: Some arguments show `ASIN` but others show `asin`:
+**Solution**: All ASIN arguments now use uppercase `ASIN` metavar.
 
 ```
-# Shows as:
-abs-check-duplicate asin        # lowercase
-state retry asin                # lowercase
-prepare --asin ASIN             # uppercase
-
-# Better consistency: always uppercase for metavar
+abs-check-duplicate ASIN        # uppercase ✓
+state retry ASIN                # uppercase ✓
+prepare --asin ASIN             # uppercase ✓
 ```
 
 ---
 
-### P3 - Low Priority (Nice to Have)
+### P3 - Low Priority (Nice to Have) — ⏳ FUTURE
 
 #### 9. ~~No Bash/Zsh Completion Support~~ — ✅ FIXED
 
 **Solution**: Typer provides built-in shell completion:
+
 ```bash
 mamfast --install-completion  # Install for current shell
 mamfast --show-completion     # Show completion script
 ```
 
-#### 10. No Command Aliases
+#### 10. No Command Aliases — ⏳ NOT IMPLEMENTED
 
-**Observation**: Some commands have long names that could benefit from aliases:
+**Status**: Deferred to future release. Current command names are clear and self-documenting.
 
 | Command | Potential Alias |
 |---------|----------------|
@@ -168,15 +162,15 @@ mamfast --show-completion     # Show completion script
 | `abs-import` | `import` |
 | `validate-config` | `lint` |
 
-#### 11. Global --dry-run Placement
+#### 11. Global --dry-run Placement — ⏳ NOT IMPLEMENTED
 
-**Good**: Global `--dry-run` is documented to go BEFORE subcommand.
+**Status**: Deferred. Current behavior is documented and has helpful tip in epilog.
 
-**Concern**: New users may try `mamfast run --dry-run` (wrong) instead of `mamfast --dry-run run` (correct).
+**Current Behavior**: Global `--dry-run` must go BEFORE subcommand.
 
-**Current Mitigation**: Epilog on `run` command says "Tip: Use 'mamfast --dry-run run' to preview without making changes."
+**Mitigation**: Epilog on `run` command says "Tip: Use 'mamfast --dry-run run' to preview without making changes."
 
-**Enhancement**: Consider also accepting `--dry-run` as a subcommand arg that prints a warning and suggests correct syntax.
+**Future Enhancement**: Accept `--dry-run` after subcommand with helpful redirect message.
 
 ---
 
@@ -185,6 +179,7 @@ mamfast --show-completion     # Show completion script
 ### Command Organization ✓
 
 The CLI is well-organized into logical groups:
+
 - **Core Pipeline**: scan, discover, prepare, metadata, torrent, upload, run
 - **State Management**: state {list, prune, retry, clear, export}
 - **ABS Integration**: abs-init, abs-import, abs-check-duplicate, abs-trump-check, etc.
@@ -194,6 +189,7 @@ The CLI is well-organized into logical groups:
 ### Exit Code Handling ✓
 
 Commands consistently return:
+
 - `0` for success
 - `1` for errors/failures
 - argparse returns `2` for invalid arguments
@@ -210,21 +206,25 @@ Commands consistently return:
 ## Recommended Implementation Order
 
 ### Phase 1 - ASIN Validation (P0)
+
 1. Create `src/mamfast/utils/validation.py` with shared `validate_asin()`
 2. Apply to all `--asin` arguments in `cli.py`
 3. Apply to positional `asin` arguments where format matters
 
 ### Phase 2 - Consistency Fixes (P1)
+
 1. Standardize `--limit` defaults to 20
 2. Add short flags: `-a/--asin`, `-n/--limit`, `-j/--json`
 3. Add `--json` to missing commands
 
 ### Phase 3 - Polish (P2)
+
 1. Add epilogs to commands missing them
 2. Improve help text descriptions
 3. Add metavar consistency
 
 ### Phase 4 - Enhancements (P3)
+
 1. Consider argcomplete for shell completion
 2. Document command organization in README
 
