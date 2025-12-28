@@ -1629,7 +1629,7 @@ def tools_mamff(
     """
     from mamfast.commands.tools import cmd_tools_mamff
 
-    args = get_args(ctx, path=path, output=output)
+    args = get_args(ctx, path=path, output=output, command="tools-mamff")
     result = cmd_tools_mamff(args)
     raise typer.Exit(result)
 
