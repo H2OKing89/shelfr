@@ -14,7 +14,7 @@ from mamfast.commands.libation import (
     _run_libation_cmd,
     add_libation_parser,
     cmd_libation,
-    cmd_libation_help,
+    cmd_libation_guide,
     cmd_libation_liberate,
     cmd_libation_scan,
     cmd_libation_search,
@@ -188,13 +188,13 @@ class TestRunLibationCmd:
         assert "timed out" in result.error_message
 
 
-class TestCmdLibationHelp:
-    """Tests for help command."""
+class TestCmdLibationGuide:
+    """Tests for guide command."""
 
-    def test_help_returns_zero(self) -> None:
-        """Test help command returns success."""
+    def test_guide_returns_zero(self) -> None:
+        """Test guide command returns success."""
         args = argparse.Namespace()
-        result = cmd_libation_help(args)
+        result = cmd_libation_guide(args)
         assert result == 0
 
 
@@ -341,3 +341,148 @@ class TestCmdLibation:
 
         assert result == 42
         mock_func.assert_called_once_with(args)
+
+
+class TestAsinValidation:
+    """Tests for ASIN validation function."""
+
+    def test_valid_asin(self) -> None:
+        """Test valid ASIN formats are accepted."""
+        from mamfast.commands.libation import validate_asin
+
+        # Standard format
+        assert validate_asin("B0DK9T5P28") == "B0DK9T5P28"
+        # Lowercase should be uppercased
+        assert validate_asin("b0dk9t5p28") == "B0DK9T5P28"
+        # With whitespace
+        assert validate_asin(" B0DK9T5P28 ") == "B0DK9T5P28"
+
+    def test_invalid_asin_format(self) -> None:
+        """Test invalid ASIN formats are rejected."""
+        from mamfast.commands.libation import validate_asin
+
+        # Too short
+        with pytest.raises(argparse.ArgumentTypeError, match="Invalid ASIN format"):
+            validate_asin("B0DK9T5P2")
+
+        # Too long
+        with pytest.raises(argparse.ArgumentTypeError, match="Invalid ASIN format"):
+            validate_asin("B0DK9T5P28X")
+
+        # Doesn't start with B
+        with pytest.raises(argparse.ArgumentTypeError, match="Invalid ASIN format"):
+            validate_asin("A0DK9T5P28")
+
+        # Invalid characters
+        with pytest.raises(argparse.ArgumentTypeError, match="Invalid ASIN format"):
+            validate_asin("B0DK9T5P2!")
+
+
+class TestRedownloadParser:
+    """Tests for redownload subcommand parsing."""
+
+    def test_redownload_with_yes_flag(self) -> None:
+        """Test redownload accepts --yes flag."""
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest="command")
+        add_libation_parser(subparsers)
+
+        args = parser.parse_args(["libation", "redownload", "B0DK9T5P28", "-y"])
+        assert args.libation_cmd == "redownload"
+        assert args.asins == ["B0DK9T5P28"]
+        assert args.yes is True
+
+    def test_redownload_multiple_asins(self) -> None:
+        """Test redownload with multiple ASINs."""
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest="command")
+        add_libation_parser(subparsers)
+
+        args = parser.parse_args(["libation", "redownload", "B0DK9T5P28", "B017V4IM1G"])
+        assert args.asins == ["B0DK9T5P28", "B017V4IM1G"]
+
+    def test_redownload_invalid_asin_rejected(self) -> None:
+        """Test redownload rejects invalid ASINs."""
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest="command")
+        add_libation_parser(subparsers)
+
+        with pytest.raises(SystemExit):
+            parser.parse_args(["libation", "redownload", "INVALID"])
+
+
+class TestSetStatusParser:
+    """Tests for set-status subcommand parsing."""
+
+    def test_set_status_with_yes_flag(self) -> None:
+        """Test set-status accepts --yes flag."""
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest="command")
+        add_libation_parser(subparsers)
+
+        args = parser.parse_args(["libation", "set-status", "-d", "-y"])
+        assert args.libation_cmd == "set-status"
+        assert args.downloaded is True
+        assert args.yes is True
+
+    def test_set_status_with_asins(self) -> None:
+        """Test set-status with specific ASINs."""
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest="command")
+        add_libation_parser(subparsers)
+
+        args = parser.parse_args(["libation", "set-status", "-n", "B0DK9T5P28"])
+        assert args.not_downloaded is True
+        assert args.asins == ["B0DK9T5P28"]
+
+
+class TestBooksParser:
+    """Tests for books subcommand parsing."""
+
+    def test_books_with_filters(self) -> None:
+        """Test books accepts filter arguments."""
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest="command")
+        add_libation_parser(subparsers)
+
+        args = parser.parse_args(
+            [
+                "libation",
+                "books",
+                "--status",
+                "pending",
+                "--author",
+                "Sanderson",
+                "--limit",
+                "100",
+                "--show-asin",
+            ]
+        )
+        assert args.libation_cmd == "books"
+        assert args.status == "pending"
+        assert args.author == "Sanderson"
+        assert args.limit == 100
+        assert args.show_asin is True
+
+
+class TestConvertParser:
+    """Tests for convert subcommand parsing."""
+
+    def test_convert_with_asins(self) -> None:
+        """Test convert accepts ASINs."""
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest="command")
+        add_libation_parser(subparsers)
+
+        args = parser.parse_args(["libation", "convert", "B0DK9T5P28"])
+        assert args.libation_cmd == "convert"
+        assert args.asins == ["B0DK9T5P28"]
+
+    def test_convert_no_asins(self) -> None:
+        """Test convert without ASINs (all books)."""
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest="command")
+        add_libation_parser(subparsers)
+
+        args = parser.parse_args(["libation", "convert"])
+        assert args.asins == []

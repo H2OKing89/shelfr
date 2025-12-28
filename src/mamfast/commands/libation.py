@@ -29,12 +29,15 @@ from typing import Any
 
 from rich.columns import Columns
 from rich.panel import Panel
+from rich.prompt import Confirm
 from rich.table import Table
 from rich.text import Text
 
 from mamfast.console import console
+from mamfast.exceptions import LibationError
 from mamfast.paths import log_dir
 from mamfast.utils.cmd import CmdError, docker
+from mamfast.utils.validation import validate_asin
 
 logger = logging.getLogger(__name__)
 
@@ -312,7 +315,10 @@ def _export_library(container: str) -> list[dict[str, Any]]:
     # Run export command
     result = _run_libation_cmd(container, "export", "-p", export_path, "-j")
     if not result.success:
-        raise RuntimeError(f"Export failed: {result.error_message or result.stderr}")
+        raise LibationError(
+            f"Export failed: {result.error_message or result.stderr}",
+            return_code=result.returncode,
+        )
 
     # Read the exported JSON
     try:
@@ -855,10 +861,10 @@ def cmd_libation_settings(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_libation_help(args: argparse.Namespace) -> int:
-    """Show detailed help for Libation commands."""
+def cmd_libation_guide(args: argparse.Namespace) -> int:
+    """Show detailed guide for Libation integration."""
     print_libation_header(
-        "Libation Help",
+        "Libation Guide",
         "Comprehensive guide to Libation CLI integration",
     )
 
@@ -1131,6 +1137,7 @@ def cmd_libation_redownload(args: argparse.Namespace) -> int:
     from mamfast.config import reload_settings
 
     asins = args.asins
+    skip_confirm = getattr(args, "yes", False)
 
     print_libation_header(
         "🔄 Re-download Audiobooks",
@@ -1145,6 +1152,7 @@ def cmd_libation_redownload(args: argparse.Namespace) -> int:
                 "This will mark the book(s) as 'Not Downloaded' then liberate them",
                 "Useful when files are corrupted or you want a fresh copy",
                 "Original files may be overwritten based on Libation settings",
+                "Use --yes / -y to skip confirmation prompt",
             ]
         )
 
@@ -1165,6 +1173,7 @@ def cmd_libation_redownload(args: argparse.Namespace) -> int:
 
     # Verify ASINs exist
     console.print("[bold]Verifying books...[/]")
+    book_info: list[str] = []
     try:
         books = _export_library(container)
         asin_to_book = {str(b.get("AudibleProductId", "")): b for b in books}
@@ -1178,11 +1187,21 @@ def cmd_libation_redownload(args: argparse.Namespace) -> int:
             subtitle = book.get("Subtitle", "")
             author = book.get("AuthorNames", "Unknown")
             full_title = f"{title}: {subtitle}" if subtitle and subtitle not in title else title
+            book_info.append(f"{full_title} by {author}")
             console.print(f"  [green]✓[/] Found: {full_title} by {author}")
 
     except Exception as e:
         console.print(f"  [yellow]![/] Could not verify ASINs: {e}")
         console.print("  [dim]Proceeding anyway...[/]")
+
+    # Confirmation prompt (unless --yes or dry-run)
+    if not skip_confirm:
+        console.print()
+        if not Confirm.ask(
+            f"[yellow]Re-download {len(asins)} book(s)?[/] This will overwrite existing files"
+        ):
+            console.print("[dim]Cancelled.[/]")
+            return 0
 
     # Step 1: Mark as Not Downloaded
     console.print("\n[bold]Step 1: Marking as 'Not Downloaded'...[/]")
@@ -1231,6 +1250,7 @@ def cmd_libation_set_status(args: argparse.Namespace) -> int:
     mark_not_downloaded = getattr(args, "not_downloaded", False)
     force = getattr(args, "force", False)
     asins = getattr(args, "asins", [])
+    skip_confirm = getattr(args, "yes", False)
 
     if not mark_downloaded and not mark_not_downloaded:
         console.print("[red]✗[/] Must specify --downloaded (-d) or --not-downloaded (-n)")
@@ -1241,6 +1261,9 @@ def cmd_libation_set_status(args: argparse.Namespace) -> int:
         action_desc.append("mark existing as 'Downloaded'")
     if mark_not_downloaded:
         action_desc.append("mark missing as 'Not Downloaded'")
+
+    # Determine scope description for confirmation
+    scope = f"{len(asins)} book(s)" if asins else "ALL books in library"
 
     print_libation_header(
         "📋 Set Book Status",
@@ -1254,7 +1277,7 @@ def cmd_libation_set_status(args: argparse.Namespace) -> int:
                 "-d/--downloaded: Mark books WITH audio files as 'Downloaded'",
                 "-n/--not-downloaded: Mark books WITHOUT files as 'Not Downloaded'",
                 "--force: Set status regardless of file existence",
-                "Useful for syncing status with actual file state",
+                "Use --yes / -y to skip confirmation prompt",
             ]
         )
 
@@ -1280,6 +1303,16 @@ def cmd_libation_set_status(args: argparse.Namespace) -> int:
         console.print("[yellow]Would execute:[/]")
         console.print(f"  docker exec {container} /libation/LibationCli {' '.join(cmd_args)}")
         return 0
+
+    # Confirmation prompt for potentially destructive operation
+    if not skip_confirm and not asins:
+        # Only prompt when affecting ALL books (no specific ASINs)
+        console.print()
+        if not Confirm.ask(
+            f"[yellow]Update status for {scope}?[/] This modifies Libation's database"
+        ):
+            console.print("[dim]Cancelled.[/]")
+            return 0
 
     console.print("[bold]Updating status...[/]")
     with console.status("  Processing library...", spinner="dots"):
@@ -1399,7 +1432,7 @@ Examples:
   mamfast libation liberate           Download all pending audiobooks
   mamfast libation search "Sanderson" Search your library
   mamfast libation export -o lib.json Export library to JSON
-  mamfast libation help               Show detailed help
+  mamfast libation guide              Show detailed integration guide
 
 Tip: Use 'mamfast --dry-run libation <cmd>' to preview without changes.
 """,
@@ -1465,9 +1498,9 @@ Examples:
     )
     liberate_parser.add_argument(
         "--asin",
-        type=str,
+        type=validate_asin,
         metavar="ASIN",
-        help="Download only this specific book (Audible ASIN)",
+        help="Download only this specific book (Audible ASIN, e.g., B0DK9T5P28)",
     )
     liberate_parser.add_argument(
         "--force",
@@ -1640,8 +1673,15 @@ Examples:
     redownload_parser.add_argument(
         "asins",
         nargs="+",
+        type=validate_asin,
         metavar="ASIN",
-        help="One or more book ASINs to re-download",
+        help="One or more book ASINs to re-download (e.g., B0DK9T5P28)",
+    )
+    redownload_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip confirmation prompt",
     )
     redownload_parser.set_defaults(libation_func=cmd_libation_redownload)
 
@@ -1684,8 +1724,15 @@ Examples:
     set_status_parser.add_argument(
         "asins",
         nargs="*",
+        type=validate_asin,
         metavar="ASIN",
         help="Specific book ASINs (optional, default: all books)",
+    )
+    set_status_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip confirmation prompt",
     )
     set_status_parser.set_defaults(libation_func=cmd_libation_set_status)
 
@@ -1708,17 +1755,18 @@ Examples:
     convert_parser.add_argument(
         "asins",
         nargs="*",
+        type=validate_asin,
         metavar="ASIN",
         help="Specific book ASINs to convert (optional, default: all)",
     )
     convert_parser.set_defaults(libation_func=cmd_libation_convert)
 
     # -------------------------------------------------------------------------
-    # help: Detailed help
+    # guide: Detailed tutorial/guide
     # -------------------------------------------------------------------------
-    help_parser = libation_sub.add_parser(
-        "help",
-        help="Show detailed help and examples",
+    guide_parser = libation_sub.add_parser(
+        "guide",
+        help="Show detailed tutorial and integration guide",
         description="Comprehensive guide to using Libation with MAMFast.",
     )
-    help_parser.set_defaults(libation_func=cmd_libation_help)
+    guide_parser.set_defaults(libation_func=cmd_libation_guide)

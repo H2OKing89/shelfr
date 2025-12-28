@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from mamfast.exceptions import LibationError
 from mamfast.libation import (
     LibationStatus,
     ScanResult,
@@ -480,7 +481,7 @@ class TestGetLibationStatus:
         with (
             patch("mamfast.libation.docker", side_effect=side_effect),
             patch("mamfast.libation.get_settings", return_value=mock_settings),
-            pytest.raises(RuntimeError, match="Docker command failed"),
+            pytest.raises(LibationError, match="Docker command failed"),
         ):
             get_libation_status()
 
@@ -505,7 +506,7 @@ class TestGetLibationStatus:
         with (
             patch("mamfast.libation.docker", side_effect=side_effect),
             patch("mamfast.libation.get_settings", return_value=mock_settings),
-            pytest.raises(RuntimeError, match="Docker command failed"),
+            pytest.raises(LibationError, match="Docker command failed"),
         ):
             get_libation_status()
 
@@ -523,7 +524,7 @@ class TestGetLibationStatus:
         with (
             patch("mamfast.libation.docker", side_effect=side_effect),
             patch("mamfast.libation.get_settings", return_value=mock_settings),
-            pytest.raises(RuntimeError, match="Failed to parse Libation export JSON"),
+            pytest.raises(LibationError, match="Failed to parse Libation export JSON"),
         ):
             get_libation_status()
 
@@ -541,7 +542,7 @@ class TestGetLibationStatus:
         with (
             patch("mamfast.libation.docker", side_effect=side_effect),
             patch("mamfast.libation.get_settings", return_value=mock_settings),
-            pytest.raises(RuntimeError, match="Expected list from export"),
+            pytest.raises(LibationError, match="Expected list from export"),
         ):
             get_libation_status()
 
@@ -560,7 +561,7 @@ class TestGetLibationStatus:
         with (
             patch("mamfast.libation.docker", side_effect=side_effect),
             patch("mamfast.libation.get_settings", return_value=mock_settings),
-            pytest.raises(RuntimeError, match="Docker command failed"),
+            pytest.raises(LibationError, match="Docker command failed"),
         ):
             get_libation_status()
 
@@ -586,7 +587,7 @@ class TestGetLibationStatus:
             patch("mamfast.libation.docker", side_effect=side_effect),
             patch("mamfast.libation.get_settings", return_value=mock_settings),
         ):
-            with pytest.raises(RuntimeError):
+            with pytest.raises(LibationError):
                 get_libation_status()
             # Cleanup should have been called
             assert len(cleanup_called) == 1

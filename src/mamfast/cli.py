@@ -1478,12 +1478,10 @@ def libation_guide(
     [bold]Sections:[/]
       overview, scanning, liberating, statuses, tips, troubleshooting
     """
-    # NOTE: `cmd_libation_guide` is introduced in a follow-up commit.
-    # Keep compatibility with the currently-committed Libation command surface.
-    from mamfast.commands.libation import cmd_libation_help
+    from mamfast.commands.libation import cmd_libation_guide
 
     args = get_args(ctx, section=section, command="libation")
-    result = cmd_libation_help(args)
+    result = cmd_libation_guide(args)
     raise typer.Exit(result)
 
 

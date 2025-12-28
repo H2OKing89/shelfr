@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mamfast.config import get_settings
+from mamfast.exceptions import LibationError
 from mamfast.paths import log_dir
 from mamfast.utils.cmd import CmdError, docker, run
 
@@ -128,7 +129,10 @@ def get_libation_status() -> LibationStatus:
         # Step 3: Parse JSON and count statuses
         parsed = json.loads(read_result.stdout)
         if not isinstance(parsed, list):
-            raise RuntimeError(f"Expected list from export, got {type(parsed).__name__}")
+            raise LibationError(
+                f"Expected list from export, got {type(parsed).__name__}",
+                return_code=1,
+            )
         books: list[dict[str, Any]] = parsed
 
         # Count BookStatus values
@@ -162,15 +166,24 @@ def get_libation_status() -> LibationStatus:
         return result
 
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse Libation export JSON: {e}") from e
+        raise LibationError(
+            f"Failed to parse Libation export JSON: {e}",
+            return_code=1,
+        ) from e
 
     except CmdError as e:
-        raise RuntimeError(f"Docker command failed: {e}") from e
+        raise LibationError(
+            f"Docker command failed: {e}",
+            return_code=e.exit_code,
+        ) from e
 
     except Exception as e:
-        if isinstance(e, RuntimeError):
+        if isinstance(e, LibationError):
             raise
-        raise RuntimeError(f"Error getting Libation status: {e}") from e
+        raise LibationError(
+            f"Error getting Libation status: {e}",
+            return_code=1,
+        ) from e
 
     finally:
         # Cleanup: remove temp file from container (best effort)
@@ -262,8 +275,17 @@ def run_liberate(asin: str | None = None) -> ScanResult:
 
 
 def check_container_running() -> bool:
-    """Check if the Libation container is running."""
+    """Check if the Libation container is running.
+
+    Returns:
+        True if the container is running, False otherwise.
+
+    Note:
+        Failures are logged at debug level to help diagnose issues
+        without cluttering normal output.
+    """
     settings = get_settings()
+    container_name = settings.libation_container
 
     try:
         result = docker(
@@ -271,13 +293,21 @@ def check_container_running() -> bool:
             "inspect",
             "-f",
             "{{.State.Running}}",
-            settings.libation_container,
+            container_name,
         )
-        return result.stdout.strip().lower() == "true"
+        is_running = result.stdout.strip().lower() == "true"
+        if not is_running:
+            logger.debug(f"Container '{container_name}' exists but is not running")
+        return is_running
 
-    except CmdError:
+    except CmdError as e:
+        logger.debug(
+            f"Container check failed for '{container_name}': "
+            f"exit_code={e.exit_code}, stderr={e.stderr[:100] if e.stderr else 'none'}"
+        )
         return False
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Unexpected error checking container '{container_name}': {e}")
         return False
 
 
