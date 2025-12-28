@@ -98,6 +98,44 @@ def compute_staging_path(release: AudiobookRelease) -> MamPath:
     return mam_path
 
 
+def compute_dest_name(mam_path: MamPath, src_file: Path, max_path_len: int) -> str:
+    """
+    Compute the destination filename for a staged file with truncation if needed.
+
+    For .m4b files, uses mam_path.filename directly.
+    For ancillary files (.jpg, .pdf, .cue), replaces the .m4b extension
+    and truncates if the full path exceeds max_path_len.
+
+    Args:
+        mam_path: The MAM path containing folder and base filename
+        src_file: Source file to compute destination name for
+        max_path_len: Maximum allowed full path length (folder/filename)
+
+    Returns:
+        Destination filename (not full path)
+    """
+    # For .m4b files, use the MAM filename directly
+    if src_file.suffix.lower() == ".m4b":
+        return mam_path.filename
+
+    # For ancillary files, replace .m4b extension with actual extension
+    base_without_ext = mam_path.filename.removesuffix(".m4b")
+    dst_name = f"{base_without_ext}{src_file.suffix}"
+
+    # Check if full path exceeds budget and truncate if needed
+    full_path = f"{mam_path.folder}/{dst_name}"
+    if len(full_path) > max_path_len:
+        # Iteratively truncate base until path fits
+        truncated_base = base_without_ext
+        while len(f"{mam_path.folder}/{truncated_base}{src_file.suffix}") > max_path_len:
+            if len(truncated_base) <= 1:
+                break  # Safety: don't truncate to empty
+            truncated_base = truncated_base[:-1]
+        dst_name = f"{truncated_base}{src_file.suffix}"
+
+    return dst_name
+
+
 def preview_staging(release: AudiobookRelease) -> list[tuple[str, str]]:
     """
     Preview what file renames would occur during staging (dry-run helper).
@@ -122,25 +160,9 @@ def preview_staging(release: AudiobookRelease) -> list[tuple[str, str]]:
     mam_path = compute_staging_path(release)
     renames: list[tuple[str, str]] = []
 
+    max_path_len = settings.mam.max_filename_length
     for src_file in find_allowed_files(release.source_dir):
-        # Same logic as stage_release for computing destination names
-        if src_file.suffix.lower() == ".m4b":
-            dst_name = mam_path.filename
-        else:
-            base_without_ext = mam_path.filename.removesuffix(".m4b")
-            dst_name = f"{base_without_ext}{src_file.suffix}"
-
-            # Handle truncation for ancillary files
-            max_path_len = settings.mam.max_filename_length
-            full_ancillary_path = f"{mam_path.folder}/{dst_name}"
-            if len(full_ancillary_path) > max_path_len:
-                truncated_base = base_without_ext
-                while len(f"{mam_path.folder}/{truncated_base}{src_file.suffix}") > max_path_len:
-                    if len(truncated_base) <= 1:
-                        break
-                    truncated_base = truncated_base[:-1]
-                dst_name = f"{truncated_base}{src_file.suffix}"
-
+        dst_name = compute_dest_name(mam_path, src_file, max_path_len)
         renames.append((src_file.name, dst_name))
 
     return renames
@@ -195,33 +217,20 @@ def stage_release(release: AudiobookRelease) -> Path:
 
     # Find and hardlink allowed files (not recursive - just files in this folder)
     staged_files = []
+    max_path_len = settings.mam.max_filename_length
     for src_file in find_allowed_files(release.source_dir):
-        # Use the base filename from mam_path, but with this file's extension
-        # For the main .m4b, use the computed filename directly
-        # For other extensions, replace the extension
-        if src_file.suffix.lower() == ".m4b":
-            dst_name = mam_path.filename
-        else:
-            # Strip .m4b and add this file's extension
-            base_without_ext = mam_path.filename.removesuffix(".m4b")
-            dst_name = f"{base_without_ext}{src_file.suffix}"
+        dst_name = compute_dest_name(mam_path, src_file, max_path_len)
 
-            # Check if non-.m4b extension exceeds budget (e.g., .jpeg > .m4b)
-            max_path_len = settings.mam.max_filename_length
-            full_ancillary_path = f"{mam_path.folder}/{dst_name}"
-            original_len = len(full_ancillary_path)
-            if original_len > max_path_len:
-                # Truncate base and verify the full path fits; loop if needed
-                truncated_base = base_without_ext
-                while len(f"{mam_path.folder}/{truncated_base}{src_file.suffix}") > max_path_len:
-                    if len(truncated_base) <= 1:
-                        break  # Safety: don't truncate to empty
-                    truncated_base = truncated_base[:-1]
-                dst_name = f"{truncated_base}{src_file.suffix}"
-                new_len = len(f"{mam_path.folder}/{dst_name}")
+        # Log truncation for ancillary files
+        if src_file.suffix.lower() != ".m4b":
+            full_path = f"{mam_path.folder}/{dst_name}"
+            base_without_ext = mam_path.filename.removesuffix(".m4b")
+            untruncated_name = f"{base_without_ext}{src_file.suffix}"
+            untruncated_path = f"{mam_path.folder}/{untruncated_name}"
+            if len(untruncated_path) > max_path_len:
                 logger.debug(
                     f"  Truncated ancillary filename for {src_file.suffix}: "
-                    f"{original_len} -> {new_len} chars"
+                    f"{len(untruncated_path)} -> {len(full_path)} chars"
                 )
 
         dst_file = staging_dir / dst_name
