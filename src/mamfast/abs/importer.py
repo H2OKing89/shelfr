@@ -21,7 +21,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+import httpx
 
 from mamfast.abs.asin import (
     AsinEntry,
@@ -48,6 +50,7 @@ from mamfast.abs.trumping import (
     extract_trumpable_meta,
     is_multi_file_layout,
 )
+from mamfast.config import ConfigurationError
 from mamfast.metadata import fetch_audnex_book
 from mamfast.utils.naming import build_mam_file_name, build_mam_folder_name, clean_series_name
 
@@ -411,7 +414,9 @@ def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
     )
 
 
-def enrich_from_audnex(parsed: ParsedFolderName, asin: str) -> tuple[ParsedFolderName, str | None]:
+def enrich_from_audnex(
+    parsed: ParsedFolderName, asin: str
+) -> tuple[ParsedFolderName, dict[str, Any] | None, str | None]:
     """Enrich parsed folder data with Audnex metadata.
 
     When we resolve an ASIN (from mediainfo or folder), fetch Audnex metadata
@@ -430,20 +435,20 @@ def enrich_from_audnex(parsed: ParsedFolderName, asin: str) -> tuple[ParsedFolde
         asin: Resolved ASIN to look up
 
     Returns:
-        Tuple of (ParsedFolderName with enriched data, region where ASIN was found).
-        Region is None if Audnex lookup failed.
+        Tuple of (ParsedFolderName with enriched data, Audnex data dict, region).
+        Audnex data and region are None if Audnex lookup failed.
     """
     from mamfast.utils.naming import normalize_audnex_book
 
     try:
         audnex_data, audnex_region = fetch_audnex_book(asin)
     except Exception as e:
-        logger.debug(f"Failed to fetch Audnex data for {asin}: {e}")
-        return parsed, None  # Return None for region on error
+        logger.debug("Failed to fetch Audnex data for %s: %s", asin, e)
+        return parsed, None, None  # Return None for audnex_data and region on error
 
     if not audnex_data:
-        logger.debug(f"No Audnex data found for ASIN {asin}")
-        return parsed, None  # Return None for region when not found
+        logger.debug("No Audnex data found for ASIN %s", asin)
+        return parsed, None, None  # Return None for audnex_data and region when not found
 
     # Use the naming module's normalizer for consistent series extraction
     normalized = normalize_audnex_book(audnex_data)
@@ -512,7 +517,7 @@ def enrich_from_audnex(parsed: ParsedFolderName, asin: str) -> tuple[ParsedFolde
             parsed.year = year
             logger.info("Enriched year from Audnex: %s", year)
 
-    return parsed, audnex_region
+    return parsed, audnex_data, audnex_region
 
 
 # No path length limit for ABS imports (only applies to MAM uploads)
@@ -1414,6 +1419,8 @@ def import_single(
     source_path: Path | None = None,
     seed_root: Path | None = None,
     preferred_asin_region: str | None = None,
+    generate_metadata_json: bool = True,
+    metadata_json_fallback: bool = True,
     dry_run: bool = False,
 ) -> ImportResult:
     """Import a single audiobook from staging to library.
@@ -1436,6 +1443,8 @@ def import_single(
         seed_root: Seed/staging root path (for cleanup hardlink verification)
         preferred_asin_region: Preferred ASIN region code (e.g., "us"). If set and
             audnex returns a different region, normalizes to preferred region via ABS search.
+        generate_metadata_json: If True, generate metadata.json for ABS (default True)
+        metadata_json_fallback: If True, generate metadata.json even without ASIN (default True)
         dry_run: If True, don't actually move files
 
     Returns:
@@ -1615,7 +1624,8 @@ def import_single(
     # Phase 5: Enrich parsed data from Audnex when we have ASIN
     # This fills in author/series/position for poorly-named folders
     # Done after duplicate check to avoid network calls for skipped books
-    parsed, audnex_region = enrich_from_audnex(parsed, asin)
+    # Also captures audnex_data for metadata.json generation
+    parsed, audnex_data, audnex_region = enrich_from_audnex(parsed, asin)
 
     # Phase 6: ASIN region normalization - convert non-preferred region ASINs
     # to preferred region ASINs using ABS search (requires ABS client)
@@ -1754,6 +1764,41 @@ def import_single(
     # Rename files to match clean MAM naming convention
     rename_files_in_folder(target_path, parsed)
 
+    # ─────────────────────────────────────────────────────────────────────
+    # Generate metadata.json for Audiobookshelf
+    # ─────────────────────────────────────────────────────────────────────
+    if generate_metadata_json:
+        from mamfast.abs.metadata_builder import (
+            build_abs_metadata_fallback,
+            build_abs_metadata_from_audnex,
+            write_abs_metadata_json,
+        )
+        from mamfast.metadata import fetch_audnex_chapters
+
+        if audnex_data:
+            # Full metadata from Audnex
+            # fetch_audnex_chapters returns None on HTTP errors internally,
+            # but we catch config/network exceptions that may propagate
+            try:
+                audnex_chapters = fetch_audnex_chapters(asin)
+            except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+                logger.debug("Network error fetching chapters for %s: %s", asin, e)
+                audnex_chapters = None
+            except ConfigurationError as e:
+                logger.warning("Config error fetching chapters for %s: %s", asin, e)
+                audnex_chapters = None
+
+            abs_metadata = build_abs_metadata_from_audnex(audnex_data, audnex_chapters)
+            metadata_path = write_abs_metadata_json(target_path, abs_metadata, dry_run=dry_run)
+            if metadata_path:
+                logger.info("Generated metadata.json: %s", metadata_path.name)
+        elif metadata_json_fallback:
+            # Fallback: generate minimal metadata from parsed folder name
+            abs_metadata = build_abs_metadata_fallback(parsed)
+            metadata_path = write_abs_metadata_json(target_path, abs_metadata, dry_run=dry_run)
+            if metadata_path:
+                logger.info("Generated metadata.json (fallback): %s", metadata_path.name)
+
     # Determine status based on whether trumping was involved
     if trump_decision == TrumpDecision.REPLACE_WITH_NEW:
         final_status = "trump_replaced"
@@ -1824,6 +1869,8 @@ def import_batch(
     source_paths: dict[Path, Path] | None = None,
     seed_root: Path | None = None,
     preferred_asin_region: str | None = None,
+    generate_metadata_json: bool = True,
+    metadata_json_fallback: bool = True,
     progress_callback: Callable[[int, int, Path], None] | None = None,
     dry_run: bool = False,
 ) -> BatchImportResult:
@@ -1847,6 +1894,8 @@ def import_batch(
         seed_root: Seed/staging root path (for cleanup hardlink verification)
         preferred_asin_region: Preferred ASIN region code (e.g., "us"). If set and
             audnex returns a different region, normalizes to preferred region via ABS search.
+        generate_metadata_json: If True, generate metadata.json for ABS (default True)
+        metadata_json_fallback: If True, generate metadata.json even without ASIN (default True)
         progress_callback: Optional callback(current, total, folder) for progress updates
         dry_run: If True, don't actually move files
 
@@ -1881,6 +1930,8 @@ def import_batch(
             source_path=source_path,
             seed_root=seed_root,
             preferred_asin_region=preferred_asin_region,
+            generate_metadata_json=generate_metadata_json,
+            metadata_json_fallback=metadata_json_fallback,
             dry_run=dry_run,
         )
         batch_result.add(result)

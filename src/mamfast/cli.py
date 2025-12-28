@@ -7,10 +7,8 @@ import sys
 from pathlib import Path
 
 from mamfast import __version__
-
-# Import all command handlers from the commands subpackage
-from mamfast.commands import (
-    # ABS commands
+from mamfast.commands import (  # Import all command handlers from the commands subpackage
+    add_libation_parser,
     cmd_abs_check_duplicate,
     cmd_abs_cleanup,
     cmd_abs_import,
@@ -20,20 +18,16 @@ from mamfast.commands import (
     cmd_abs_resolve_asins,
     cmd_abs_restore,
     cmd_abs_trump_check,
-    # Utility commands
     cmd_check,
-    # Diagnostics commands
     cmd_check_duplicates,
     cmd_check_suspicious,
     cmd_config,
-    # Core workflow commands
     cmd_discover,
     cmd_dry_run,
     cmd_metadata,
     cmd_prepare,
     cmd_run,
     cmd_scan,
-    # State management
     cmd_state,
     cmd_status,
     cmd_torrent,
@@ -59,6 +53,13 @@ Examples:
   mamfast upload            # Upload torrents to qBittorrent
   mamfast run               # Full pipeline: scan → upload
   mamfast run --skip-scan   # Full pipeline without Libation scan
+
+Libation Management:
+  mamfast libation          # Show library status dashboard
+  mamfast libation scan     # Check Audible for new purchases
+  mamfast libation liberate # Download all pending audiobooks
+  mamfast libation search   # Search your audiobook library
+  mamfast libation help     # Detailed Libation integration guide
         """,
     )
 
@@ -535,6 +536,11 @@ Examples:
         action="store_true",
         help="Disable post-import cleanup (ignore config setting)",
     )
+    abs_import_parser.add_argument(
+        "--no-metadata",
+        action="store_true",
+        help="Disable metadata.json generation (ignore config setting)",
+    )
     abs_import_parser.set_defaults(func=cmd_abs_import)
 
     # -------------------------------------------------------------------------
@@ -775,6 +781,11 @@ Examples:
         help="Write resolved ASINs to sidecar JSON files",
     )
     abs_resolve_parser.set_defaults(func=cmd_abs_resolve_asins)
+
+    # -------------------------------------------------------------------------
+    # libation: Enhanced Libation CLI wrapper
+    # -------------------------------------------------------------------------
+    add_libation_parser(subparsers)
 
     return parser
 

@@ -221,6 +221,41 @@ class TestParseSeriesFromLibationPath:
         result = parse_series_from_libation_path(None)
         assert result is None
 
+    def test_mnt_user_path_no_series_folder(self) -> None:
+        """Test that /mnt/user/... mount paths don't get picked up as series.
+
+        This is a regression test for an issue where books directly under an
+        import folder (no series folder) would incorrectly pick up 'user' from
+        the mount path /mnt/user/data/... as the series name.
+        """
+        path = Path(
+            "/mnt/user/data/audio/audiobook-import"
+            "/The Beginning After the End vol_11 Providence (2025) (TurtleMe) {ASIN.B0DJPYFJ2K}"
+        )
+        result = parse_series_from_libation_path(path)
+        # Should return None because:
+        # - "audiobook-import" contains "audiobook" -> skipped
+        # - "audio" is in common_roots -> skipped
+        # - "data" is in common_roots -> skipped
+        # - "user" is in common_roots -> skipped
+        # - "mnt" is in common_roots -> skipped
+        assert result is None
+
+    def test_common_mount_paths_skipped(self) -> None:
+        """Test that common mount paths are skipped as potential series."""
+        # Various mount patterns that should all return None
+        test_paths = [
+            "/mnt/cache/audiobooks/BookFolder (2024) {ASIN.XXX}",
+            "/home/user/audiobooks/BookFolder (2024) {ASIN.XXX}",
+            "/share/media/audiobooks/BookFolder (2024) {ASIN.XXX}",
+            "/volume/data/audiobooks/BookFolder (2024) {ASIN.XXX}",
+        ]
+        for path_str in test_paths:
+            path = Path(path_str)
+            result = parse_series_from_libation_path(path)
+            # All should return None - no false series from mount paths
+            assert result is None, f"Unexpected series detected for {path_str}"
+
 
 class TestResolveSeries:
     """Tests for resolve_series function."""

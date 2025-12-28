@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from mamfast.schemas.abs_metadata import (
+    AbsChapter,
+    AbsMetadataJson,
+    validate_abs_metadata,
+)
 from mamfast.schemas.audnex import (
     AudnexAuthor,
     AudnexAuthorProfile,
@@ -37,6 +42,10 @@ from mamfast.schemas.state import (
 )
 
 __all__ = [
+    # ABS Metadata
+    "AbsChapter",
+    "AbsMetadataJson",
+    "validate_abs_metadata",
     # Config
     "AudnexSchema",
     "ConfigSchema",

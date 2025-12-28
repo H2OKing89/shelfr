@@ -42,7 +42,7 @@ from mamfast.exceptions import (
     TorrentError,
     UploadError,
 )
-from mamfast.hardlinker import compute_staging_path, stage_release
+from mamfast.hardlinker import compute_staging_path, preview_staging, stage_release
 from mamfast.libation import (
     get_libation_status,
     run_liberate,
@@ -771,6 +771,17 @@ def full_run(
                     print_dry_run(f"STAGE → {staging_dir}")
                     if mam_path.truncated:
                         print_dry_run(f"  (truncated: dropped {mam_path.dropped_components})")
+
+                    # Show file renames
+                    try:
+                        renames = preview_staging(release)
+                        for src_name, dst_name in renames:
+                            if src_name != dst_name:
+                                print_dry_run(f"  RENAME: {src_name} → {dst_name}")
+                            else:
+                                print_dry_run(f"  HARDLINK: {src_name}")
+                    except ValueError:
+                        pass  # Already handled above
                 except ValueError as e:
                     # Missing ASIN or source_dir
                     print_dry_run(f"STAGE → Error: {e}")
