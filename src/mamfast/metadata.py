@@ -1383,42 +1383,52 @@ def _build_series_list(
     Build series list for MAM JSON from Audnex data.
 
     Applies filter_series to clean series names (removes format indicators,
-    series suffixes like " Series", " Trilogy", etc.)
+    series suffixes like " Series", " Trilogy", "[publication order]", etc.)
+
+    Deduplicates series that become identical after cleaning (e.g., when
+    seriesPrimary="Ascend Online [publication order]" and
+    seriesSecondary="Ascend Online [chronological order]" both clean to
+    "Ascend Online"). Primary series takes precedence.
 
     Args:
         audnex_data: Audnex book metadata
         naming_config: NamingConfig for cleaning rules (optional)
 
     Returns:
-        List of series dicts with 'name' and 'number' keys
+        List of series dicts with 'name' and 'number' keys (deduplicated)
     """
-    series_list = []
+    series_list: list[dict[str, Any]] = []
+    seen_names: set[str] = set()
 
-    # Primary series
+    # Primary series (takes precedence)
     primary = audnex_data.get("seriesPrimary")
     if primary:
         name = primary.get("name", "")
         if name:
             cleaned_name = filter_series(name, naming_config=naming_config)
-            series_list.append(
-                {
-                    "name": cleaned_name,
-                    "number": primary.get("position", ""),
-                }
-            )
+            if cleaned_name:
+                seen_names.add(cleaned_name.lower())
+                series_list.append(
+                    {
+                        "name": cleaned_name,
+                        "number": primary.get("position", ""),
+                    }
+                )
 
-    # Secondary series (if any)
+    # Secondary series (if any, skip if duplicate of primary after cleaning)
     secondary = audnex_data.get("seriesSecondary")
     if secondary:
         name = secondary.get("name", "")
         if name:
             cleaned_name = filter_series(name, naming_config=naming_config)
-            series_list.append(
-                {
-                    "name": cleaned_name,
-                    "number": secondary.get("position", ""),
-                }
-            )
+            # Only add if distinct from primary (case-insensitive)
+            if cleaned_name and cleaned_name.lower() not in seen_names:
+                series_list.append(
+                    {
+                        "name": cleaned_name,
+                        "number": secondary.get("position", ""),
+                    }
+                )
 
     return series_list
 

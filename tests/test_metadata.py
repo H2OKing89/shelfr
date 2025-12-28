@@ -746,6 +746,53 @@ class TestBuildSeriesList:
         series = _build_series_list({})
         assert series == []
 
+    def test_deduplicates_order_variants(self):
+        """Test that order variants become one entry after cleaning.
+
+        Audnex often provides both seriesPrimary and seriesSecondary with
+        order suffixes like [publication order] vs [chronological order].
+        After cleaning, these become identical and should be deduplicated.
+        """
+        from mamfast.config import NamingConfig
+
+        config = NamingConfig(
+            series_suffixes=[r"\s*\[[^\]]*[Oo]rder\]$"],  # Pattern from naming.json
+        )
+
+        audnex = {
+            "seriesPrimary": {"name": "Ascend Online [publication order]", "position": "1"},
+            "seriesSecondary": {"name": "Ascend Online [chronological order]", "position": "1"},
+        }
+
+        series = _build_series_list(audnex, naming_config=config)
+
+        # Should deduplicate: both clean to "Ascend Online"
+        assert len(series) == 1
+        assert series[0]["name"] == "Ascend Online"
+        assert series[0]["number"] == "1"
+
+    def test_keeps_distinct_series(self):
+        """Test that genuinely different series are preserved."""
+        from mamfast.config import NamingConfig
+
+        config = NamingConfig(
+            series_suffixes=[r"\s*\[[^\]]*[Oo]rder\]$"],
+        )
+
+        audnex = {
+            "seriesPrimary": {"name": "Ascend Online [publication order]", "position": "1"},
+            "seriesSecondary": {"name": "Epic LitRPG Universe", "position": "5"},
+        }
+
+        series = _build_series_list(audnex, naming_config=config)
+
+        # Both should be kept: they're genuinely different
+        assert len(series) == 2
+        assert series[0]["name"] == "Ascend Online"
+        assert series[0]["number"] == "1"
+        assert series[1]["name"] == "Epic LitRPG Universe"
+        assert series[1]["number"] == "5"
+
 
 class TestBuildMamJson:
     """Tests for MAM JSON building."""
