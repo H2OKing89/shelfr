@@ -133,10 +133,17 @@ class TestAddLibationParser:
 class TestRunLibationCmd:
     """Tests for _run_libation_cmd helper."""
 
-    @patch("mamfast.commands.libation.subprocess.run")
-    def test_successful_command(self, mock_run: MagicMock) -> None:
+    @patch("mamfast.commands.libation.docker")
+    def test_successful_command(self, mock_docker: MagicMock) -> None:
         """Test successful command execution."""
-        mock_run.return_value = MagicMock(returncode=0, stdout="output", stderr="")
+        from mamfast.utils.cmd import CmdResult
+
+        mock_docker.return_value = CmdResult(
+            argv=("docker", "exec", "TestContainer", "/libation/LibationCli", "scan"),
+            stdout="output",
+            stderr="",
+            exit_code=0,
+        )
 
         result = _run_libation_cmd("TestContainer", "scan")
 
@@ -144,22 +151,35 @@ class TestRunLibationCmd:
         assert result.returncode == 0
         assert result.stdout == "output"
 
-    @patch("mamfast.commands.libation.subprocess.run")
-    def test_failed_command(self, mock_run: MagicMock) -> None:
+    @patch("mamfast.commands.libation.docker")
+    def test_failed_command(self, mock_docker: MagicMock) -> None:
         """Test failed command execution."""
-        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
+        from mamfast.utils.cmd import CmdError
+
+        mock_docker.side_effect = CmdError(
+            argv=["docker", "exec", "TestContainer", "/libation/LibationCli", "scan"],
+            exit_code=1,
+            stdout="",
+            stderr="error",
+        )
 
         result = _run_libation_cmd("TestContainer", "scan")
 
         assert result.success is False
         assert result.returncode == 1
 
-    @patch("mamfast.commands.libation.subprocess.run")
-    def test_timeout(self, mock_run: MagicMock) -> None:
+    @patch("mamfast.commands.libation.docker")
+    def test_timeout(self, mock_docker: MagicMock) -> None:
         """Test command timeout."""
-        import subprocess
+        from mamfast.utils.cmd import CmdError
 
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="test", timeout=10)
+        mock_docker.side_effect = CmdError(
+            argv=["docker", "exec", "TestContainer", "/libation/LibationCli", "scan"],
+            exit_code=-1,
+            stdout="",
+            stderr="Command timed out after 10s",
+            timed_out=True,
+        )
 
         result = _run_libation_cmd("TestContainer", "scan", timeout=10)
 
@@ -219,9 +239,7 @@ class TestCmdLibationLiberate:
     def test_dry_run_mode(self, mock_settings: MagicMock) -> None:
         """Test liberate in dry-run mode."""
         mock_settings.return_value = MagicMock(libation_container="Libation")
-        args = argparse.Namespace(
-            dry_run=True, asin=None, force=False, config=Path("config.yaml")
-        )
+        args = argparse.Namespace(dry_run=True, asin=None, force=False, config=Path("config.yaml"))
 
         result = cmd_libation_liberate(args)
 
@@ -245,17 +263,13 @@ class TestCmdLibationSearch:
 
     @patch("mamfast.commands.libation._run_libation_cmd")
     @patch("mamfast.config.reload_settings")
-    def test_search_success(
-        self, mock_settings: MagicMock, mock_run_cmd: MagicMock
-    ) -> None:
+    def test_search_success(self, mock_settings: MagicMock, mock_run_cmd: MagicMock) -> None:
         """Test successful search."""
         mock_settings.return_value = MagicMock(libation_container="Libation")
         mock_run_cmd.return_value = LibationCommandResult(
             success=True, returncode=0, stdout="Search results..."
         )
-        args = argparse.Namespace(
-            query="Brandon Sanderson", limit=20, config=Path("config.yaml")
-        )
+        args = argparse.Namespace(query="Brandon Sanderson", limit=20, config=Path("config.yaml"))
 
         result = cmd_libation_search(args)
 
@@ -268,17 +282,13 @@ class TestCmdLibationSettings:
 
     @patch("mamfast.commands.libation._run_libation_cmd")
     @patch("mamfast.config.reload_settings")
-    def test_settings_success(
-        self, mock_settings: MagicMock, mock_run_cmd: MagicMock
-    ) -> None:
+    def test_settings_success(self, mock_settings: MagicMock, mock_run_cmd: MagicMock) -> None:
         """Test successful settings retrieval."""
         mock_settings.return_value = MagicMock(libation_container="Libation")
         mock_run_cmd.return_value = LibationCommandResult(
             success=True, returncode=0, stdout="| Setting | Value |"
         )
-        args = argparse.Namespace(
-            setting=None, list_enum=False, config=Path("config.yaml")
-        )
+        args = argparse.Namespace(setting=None, list_enum=False, config=Path("config.yaml"))
 
         result = cmd_libation_settings(args)
 

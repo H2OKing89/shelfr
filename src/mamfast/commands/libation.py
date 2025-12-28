@@ -22,7 +22,6 @@ import contextlib
 import json
 import logging
 import re
-import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -270,32 +269,35 @@ def _run_libation_cmd(
     ok_codes: tuple[int, ...] = (0,),
 ) -> LibationCommandResult:
     """Run a LibationCli command in the container."""
-    cmd = ["docker", "exec", container, "/libation/LibationCli", *args]
-
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
+        result = docker(
+            "exec",
+            container,
+            "/libation/LibationCli",
+            *args,
             timeout=timeout,
-            check=False,
+            ok_codes=ok_codes,
         )
 
-        success = result.returncode in ok_codes
+        # If we get here, exit code was in ok_codes
         return LibationCommandResult(
-            success=success,
-            returncode=result.returncode,
+            success=True,
+            returncode=result.exit_code,
             stdout=result.stdout,
             stderr=result.stderr,
         )
 
-    except subprocess.TimeoutExpired:
+    except CmdError as e:
+        # docker() raises CmdError when exit code not in ok_codes or on timeout
         return LibationCommandResult(
             success=False,
-            returncode=-1,
-            error_message=f"Command timed out after {timeout}s",
+            returncode=e.exit_code,
+            stdout=e.stdout,
+            stderr=e.stderr,
+            error_message=str(e) if not e.timed_out else f"Command timed out after {timeout}s",
         )
     except Exception as e:
+        # Catch any other unexpected errors
         return LibationCommandResult(
             success=False,
             returncode=-1,
