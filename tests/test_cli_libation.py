@@ -327,9 +327,10 @@ class TestCmdLibation:
         args = argparse.Namespace()
         # Simulate no libation_func set
 
-        cmd_libation(args)
+        result = cmd_libation(args)
 
         mock_status.assert_called_once()
+        assert result == 0
 
     def test_with_subcommand_func(self) -> None:
         """Test that subcommand func is called when set."""
