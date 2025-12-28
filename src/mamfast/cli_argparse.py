@@ -587,7 +587,8 @@ Libation Management:
     )
     abs_check_parser.add_argument(
         "asin",
-        type=str,
+        type=validate_asin,
+        metavar="ASIN",
         help="ASIN to check (e.g., B0DK27WWT8)",
     )
     abs_check_parser.set_defaults(func=cmd_abs_check_duplicate)
