@@ -10,10 +10,8 @@ import sys
 from pathlib import Path
 
 from mamfast import __version__
-
-# Import all command handlers from the commands subpackage
-from mamfast.commands import (
-    # ABS commands
+from mamfast.commands import (  # Import all command handlers from the commands subpackage
+    add_libation_parser,
     cmd_abs_check_duplicate,
     cmd_abs_cleanup,
     cmd_abs_import,
@@ -23,28 +21,22 @@ from mamfast.commands import (
     cmd_abs_resolve_asins,
     cmd_abs_restore,
     cmd_abs_trump_check,
-    # Utility commands
     cmd_check,
-    # Diagnostics commands
     cmd_check_duplicates,
     cmd_check_suspicious,
     cmd_config,
-    # Core workflow commands
     cmd_discover,
     cmd_dry_run,
     cmd_metadata,
     cmd_prepare,
     cmd_run,
     cmd_scan,
-    # State management
     cmd_state,
     cmd_status,
     cmd_torrent,
     cmd_upload,
     cmd_validate,
     cmd_validate_config,
-    # Libation integration
-    add_libation_parser,
 )
 
 
