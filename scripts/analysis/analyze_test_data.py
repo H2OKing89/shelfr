@@ -23,7 +23,21 @@ def load_data() -> list[dict]:
         print(f"❌ Test data not found: {data_file}")
         print("Run: python scripts/fetch_test_data.py")
         sys.exit(1)
-    return json.loads(data_file.read_text())
+
+    data = json.loads(data_file.read_text())
+
+    # Handle new schema format with header
+    if isinstance(data, dict) and "_schema" in data:
+        # Print schema info
+        schema = data["_schema"]
+        version = schema["version"]
+        date = schema["generated_at"][:10]
+        count = schema["record_count"]
+        print(f"\n[Schema] v{version} | {date} | {count} records\n")
+        return data.get("items", [])
+
+    # Legacy format (flat array)
+    return data if isinstance(data, list) else []
 
 
 def find_duplicates() -> None:

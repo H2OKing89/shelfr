@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -23,6 +24,9 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from mamfast.console import console
+
+# Schema version for tracking format changes
+SCHEMA_VERSION = "1.0.0"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -157,6 +161,26 @@ class TestDataFetcher:
 
         return audnex_map
 
+    def _build_schema_header(
+        self,
+        data_type: str,
+        record_count: int,
+        source: str,
+        description: str,
+    ) -> dict:
+        """Build standardized JSON schema header with metadata."""
+        return {
+            "_schema": {
+                "version": SCHEMA_VERSION,
+                "generated_at": datetime.now(UTC).isoformat(),
+                "data_type": data_type,
+                "record_count": record_count,
+                "source": source,
+                "description": description,
+                "tool": "mamfast/fetch_test_data.py",
+            }
+        }
+
     async def run(self) -> None:
         """Main execution flow."""
         # 1. Fetch ABS library
@@ -167,19 +191,35 @@ class TestDataFetcher:
         # 2. Extract metadata
         extracted = self.extract_abs_metadata(abs_items)
 
-        # 3. Save ABS data
+        # 3. Save ABS data with schema header
         abs_file = self.output_dir / "abs_library.json"
+        abs_data = self._build_schema_header(
+            data_type="abs_library",
+            record_count=len(extracted),
+            source=f"{self.abs_url}/api/libraries",
+            description="Audiobookshelf library items with extracted metadata fields",
+        )
+        abs_data["items"] = extracted
+
         with open(abs_file, "w", encoding="utf-8") as f:
-            json.dump(extracted, f, indent=2, ensure_ascii=False)
+            json.dump(abs_data, f, indent=2, ensure_ascii=False)
         console.print(f"\n[green]✓[/green] Saved ABS data: {abs_file}")
 
         # 4. Fetch Audnex metadata
         audnex_map = await self.fetch_all_audnex(extracted)
 
-        # 5. Save Audnex data
+        # 5. Save Audnex data with schema header
         audnex_file = self.output_dir / "audnex_metadata.json"
+        audnex_data = self._build_schema_header(
+            data_type="audnex_metadata",
+            record_count=len(audnex_map),
+            source="https://api.audnex.us/books",
+            description="Audnex API responses mapped by ASIN",
+        )
+        audnex_data["metadata"] = audnex_map
+
         with open(audnex_file, "w", encoding="utf-8") as f:
-            json.dump(audnex_map, f, indent=2, ensure_ascii=False)
+            json.dump(audnex_data, f, indent=2, ensure_ascii=False)
         console.print(f"[green]✓[/green] Saved Audnex data: {audnex_file}")
 
         # 6. Create combined view (for easy lookup)
@@ -193,8 +233,16 @@ class TestDataFetcher:
             combined.append(combined_item)
 
         combined_file = self.output_dir / "combined_metadata.json"
+        combined_data = self._build_schema_header(
+            data_type="combined_metadata",
+            record_count=len(combined),
+            source="Audiobookshelf + Audnex",
+            description="Combined ABS and Audnex metadata for each book",
+        )
+        combined_data["items"] = combined
+
         with open(combined_file, "w", encoding="utf-8") as f:
-            json.dump(combined, f, indent=2, ensure_ascii=False)
+            json.dump(combined_data, f, indent=2, ensure_ascii=False)
         console.print(f"[green]✓[/green] Saved combined data: {combined_file}")
 
         # Summary
