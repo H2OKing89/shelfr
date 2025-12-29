@@ -649,10 +649,10 @@ def print_error(title: str, error: Exception, context: dict | None = None) -> No
     console.print(Traceback.from_exception(type(error), error, error.__traceback__))
 ```
 
-#### 3.4 Dry-run command
+#### 3.4 Preview Naming command
 
 ```bash
-mamfast dry-run --limit 5 --verbose
+mamfast preview-naming --limit 5 --verbose
 ```
 
 Output:
