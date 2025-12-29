@@ -1,0 +1,151 @@
+{
+  "abs": {
+    "_authors.md": {
+      "hash": "6f07061e22f44f420f1fc9a8fab356d8dd5667458d1f56a80e86d18c89e70cd6",
+      "etag": "W/\"ba4ba229ff7ef033d9cda0fa262d49b31bd7b137bfdef0421a9e5214c3d65a04",
+      "size": 14246,
+      "fetched_at": "2025-12-28T18:29:37.818033"
+    },
+    "_backups.md": {
+      "hash": "11c42020de447cd5ced46f16a4e1f546efb17bf91bbb29b26a8a09a41fa0dc11",
+      "etag": "W/\"b6a3e9b23f88895af2fe4082cee94de5f2d91a3b185445309aff282129720546",
+      "size": 6761,
+      "fetched_at": "2025-12-28T18:29:37.904631"
+    },
+    "_cache.md": {
+      "hash": "d1773e81fc8b57967adc3f76a45faec805008e9a71ad4bd8c5711337d115968e",
+      "etag": "W/\"e3b6ee794ca9d3839ffd6724ec127d0d102b364d68d7fe2e4710362af8fd4105",
+      "size": 1051,
+      "fetched_at": "2025-12-28T18:29:38.082488"
+    },
+    "_collections.md": {
+      "hash": "2c9fb0d83994a113e445111561c59f079e60d9ddba489f113e72c8cedb70f75b",
+      "etag": "W/\"39869b4e787f588632bc84ca0f94896773761c36dc4e9833f78b10508b2fb2f4",
+      "size": 32678,
+      "fetched_at": "2025-12-28T18:29:38.194587"
+    },
+    "_filesystem.md": {
+      "hash": "efeaa271a3425e1ea7399935072f9e13b47fe765161636aa56d0d17a0dab9ccb",
+      "etag": "W/\"944465c3a7b3887b47f0d33766cc0094d35d00a90322762dc80af5194c44bd7e",
+      "size": 2586,
+      "fetched_at": "2025-12-28T18:29:38.368814"
+    },
+    "_filtering.md": {
+      "hash": "7c201ba35dd4e0f59d7bb8736354e8a42642b3705b9b9e4c6be9ef714e2e3fd9",
+      "etag": "W/\"b9e38284310fc19764cde2d2e4a882765ab8901b05b94d8fa172806812228e0a",
+      "size": 1929,
+      "fetched_at": "2025-12-28T18:29:38.464523"
+    },
+    "_items.md": {
+      "hash": "9f00b16b36e11750f9757369a0b3a43939bb452f60f8cce05593ad23767ce485",
+      "etag": "W/\"4051b4aaa509e74a1120237ebe96d263613b66dfcad935b22f3848a72e56dae0",
+      "size": 92160,
+      "fetched_at": "2025-12-28T18:29:38.569836"
+    },
+    "_libraries.md": {
+      "hash": "d072102be7fc54f003d8c3e63436366dbab0009b33f17341620d5f97161f7986",
+      "etag": "W/\"d7b8a205e5dc48d3e018ffd97f34eba909864be150ea3577ff8e000087085c51",
+      "size": 139125,
+      "fetched_at": "2025-12-28T18:29:38.730180"
+    },
+    "_me.md": {
+      "hash": "a59606d7721d756e23c9b6e62110bba44dd84703a5d4dbba6cfbd83c2e4f2205",
+      "etag": "W/\"37389a918ee9044bc7eca854701e1ac61b32c4a036b64a178b60c3f7fdb01f91",
+      "size": 33462,
+      "fetched_at": "2025-12-28T18:29:38.925558"
+    },
+    "_metadata_providers.md": {
+      "hash": "f27cd406a3725e6b7332fe186e455c96ca0890a69cae6eb061262b7100805d08",
+      "etag": "W/\"932ed6986a12ee2cc67cef6178440e9283746ac7f8514a3adc5d9dfe079a350a",
+      "size": 513,
+      "fetched_at": "2025-12-28T18:29:39.015776"
+    },
+    "_misc.md": {
+      "hash": "e81ab1d92aea08e48ba79410e500815be3f56345fbb0c5f4319026e8b9ffc33f",
+      "etag": "W/\"6b2d531aa37275698fd541dcbf717844c744ff6e5c89294b5120aad6f979f5ad",
+      "size": 13325,
+      "fetched_at": "2025-12-28T18:29:39.116140"
+    },
+    "_notifications.md": {
+      "hash": "b3112006011e8cd46b9f75cdbfb3d1a9a3fab8defba97d9ff3a92e1ef785c421",
+      "etag": "W/\"a4dd8e7618f3fb614de2f6945fa50b2c980fcae5a8bbec80982f959270582cdb",
+      "size": 13943,
+      "fetched_at": "2025-12-28T18:29:39.205174"
+    },
+    "_playlists.md": {
+      "hash": "8162dc2570de51ebe12eab9e7a31e353cf5086634ada7259a43711d4ebbeb0f0",
+      "etag": "W/\"bb159483ae74b971e8fc0c3336244c05a4353c6aafbeda2475304137e97c220c",
+      "size": 92439,
+      "fetched_at": "2025-12-28T18:29:39.401945"
+    },
+    "_podcasts.md": {
+      "hash": "d3527d769f01c0762f6752b72ec1764c1a3949d77d63f3b302b603859d91b10c",
+      "etag": "W/\"e303209ee06de32d490076d5c00d841f3ebb17e42ca3d2d74e7a099fe00bbd5e",
+      "size": 45029,
+      "fetched_at": "2025-12-28T18:29:39.505693"
+    },
+    "_rss_feeds.md": {
+      "hash": "b7310e83649fce3954c27a2f9a1e9f29edac5e3298270357c2987e394e1c1a70",
+      "etag": "W/\"06ca2b49344a3eb1215cb7dbc170a0adcc5c37266a4ca66db0ed0158a62d98a0",
+      "size": 6371,
+      "fetched_at": "2025-12-28T18:29:39.695423"
+    },
+    "_schemas.md": {
+      "hash": "86770fea032d70386e5a042b9fb942db56ca6aa2359f9e1c3d78fa7e79455a2f",
+      "etag": "W/\"92ed5681ae6fa9acb5acc7a3dfd0b152cb6d3b8564e9d92df8d185967ab93bfc",
+      "size": 86490,
+      "fetched_at": "2025-12-28T18:29:39.822110"
+    },
+    "_search.md": {
+      "hash": "963af6df2bb374741dceda9764b39120a558550cb20536d8585a51481cff00b5",
+      "etag": "W/\"8ec29d75bf4d665e710ff29170210e3922308a464f37ae261ca834d4441e2908",
+      "size": 26596,
+      "fetched_at": "2025-12-28T18:29:39.948120"
+    },
+    "_series.md": {
+      "hash": "4b71fdd8d8b4dc35a556062e07c15f44acbc1cc46de406e7c1a331a044724fc3",
+      "etag": "W/\"b47ee8d69d97e2ca398f9f62c5a6f31c053d10b8b398a987bfe3c8f75d0595be",
+      "size": 3091,
+      "fetched_at": "2025-12-28T18:29:40.046720"
+    },
+    "_server.md": {
+      "hash": "76148563b9e239a230f77c671b756f4f5cd8ef58340aeb8c2e1d2da38b0b0d28",
+      "etag": "W/\"91226e4098c9f411350fac5f097cbf62a0410409e07f19a6e6f195b084c89262",
+      "size": 14432,
+      "fetched_at": "2025-12-28T18:29:40.138150"
+    },
+    "_sessions.md": {
+      "hash": "8ff68bfcf81584a04f27343a1294bd3867364084b1d745ece85396b6113ed86f",
+      "etag": "W/\"73401db44d751347752ffc98e6136aa9dd876abde444c79062db7f9fdac5812b",
+      "size": 23538,
+      "fetched_at": "2025-12-28T18:29:40.228410"
+    },
+    "_socket.md": {
+      "hash": "527e3f6a1dec40c4e6ee17bace272b6c0f810049530fba354e5e76985b753307",
+      "etag": "W/\"72a908da4731f40048d3f5d09723cd7b4b113bdbdcda6151abd66afa306c2bb1",
+      "size": 15386,
+      "fetched_at": "2025-12-28T18:29:40.366840"
+    },
+    "_tools.md": {
+      "hash": "4a811653d5f26178de6022bd867f8ec4232ce56f80ef1b0adee4aea03fd82462",
+      "etag": "W/\"1bc51bfcc1e1d5d090798232cfdf6e87e11ab0c9174cee9c3544aa68663924ff",
+      "size": 3469,
+      "fetched_at": "2025-12-28T18:29:40.473241"
+    },
+    "_users.md": {
+      "hash": "aed475aae75d86e59fec1e74418458f6bb45a0f31479f966d694e859608a89f5",
+      "etag": "W/\"bf8ed2504301e042dbed6c8d0f7dd24be286d481ba8c707b289542d2b23988aa",
+      "size": 24684,
+      "fetched_at": "2025-12-28T18:29:40.582670"
+    }
+  },
+  "audnex": {
+    "AUDNEX_README.md": {
+      "hash": "6f0a99fd62d72a7b4e15af5b5ac35c1225d4d7d8df705c51d79baf511fd42eb7",
+      "size": 6557,
+      "url": "https://raw.githubusercontent.com/laxamentumtech/audnexus/master/README.md",
+      "fetched_at": "2025-12-28T18:30:25.063355"
+    }
+  },
+  "last_updated": "2025-12-28T18:30:25.323904"
+}

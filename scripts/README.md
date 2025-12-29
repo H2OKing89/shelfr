@@ -155,6 +155,55 @@ python scripts/dev_tools/test_bbcode.py
 
 ---
 
+### `fetch_api_docs.py`
+
+**Purpose:** Automatically pull and sync API documentation from external sources.
+
+**Features:**
+
+- Fetches Audiobookshelf API docs from GitHub repository
+- Fetches Audnex API OpenAPI specification
+- Smart update detection using SHA256 hashes
+- HTTP/2 with SSL verification for secure downloads
+- Beautiful over-the-top rich terminal output with progress bars
+- Metadata tracking (last updated, file hashes, sizes)
+- Selective fetching (ABS only, Audnex only, or both)
+
+**Sources:**
+
+- **Audiobookshelf:** Official API documentation files from GitHub
+  - `books.md`, `libraries.md`, `podcasts.md`, `series.md`, `authors.md`, etc.
+- **Audnex:** OpenAPI 3.0 specification and API spec JSON
+
+**Output:** `docs/audiobookshelf/api/` and `docs/audnex/api/`
+
+**Usage:**
+
+```bash
+# Fetch with smart update checks (only downloads if changed)
+python scripts/dev_tools/fetch_api_docs.py
+
+# Force fetch everything (skip hash checks)
+python scripts/dev_tools/fetch_api_docs.py --force
+
+# Only fetch Audiobookshelf docs
+python scripts/dev_tools/fetch_api_docs.py --abs-only
+
+# Only fetch Audnex docs
+python scripts/dev_tools/fetch_api_docs.py --audnex-only
+```
+
+**Output:**
+
+- Saves docs to `docs/audiobookshelf/api/` and `docs/audnex/api/`
+- Creates `.api_docs_metadata.json` with:
+  - Last fetch timestamps
+  - SHA256 hashes for change detection
+  - File sizes and descriptions
+  - ETag values for HTTP caching
+
+---
+
 ## Schema Format
 
 All data gathering scripts now use standardized JSON schema headers:
