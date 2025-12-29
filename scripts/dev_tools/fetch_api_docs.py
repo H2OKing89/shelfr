@@ -63,19 +63,15 @@ AUDNEX_API_REPO_URL = "https://raw.githubusercontent.com/laxamentumtech/audnexus
 AUDNEX_ENDPOINTS = [
     (
         "AUDNEX_README.md",
-        "https://raw.githubusercontent.com/laxamentumtech/audnexus/master/README.md",
+        "https://raw.githubusercontent.com/laxamentumtech/audnexus/main/README.md",
     ),
     (
-        "AUDNEX_API_DOCS.md",
-        "https://raw.githubusercontent.com/laxamentumtech/audnexus/master/docs/api.md",
+        "AUDNEXUS_SPEC.yaml",
+        "https://raw.githubusercontent.com/laxamentumtech/audnexus/main/docs/spec/audnexus.yaml",
     ),
     (
         "AUDNEX_ARCHITECTURE.md",
-        "https://raw.githubusercontent.com/laxamentumtech/audnexus/master/docs/architecture.md",
-    ),
-    (
-        "AUDNEX_OPENAPI.json",
-        "https://raw.githubusercontent.com/laxamentumtech/audnexus/master/openapi.json",
+        "https://raw.githubusercontent.com/laxamentumtech/audnexus/main/docs/architecture.md",
     ),
 ]
 
