@@ -1,0 +1,182 @@
+{
+  "abs": {
+    "_authors.md": {
+      "etag": "W/\"ba4ba229ff7ef033d9cda0fa262d49b31bd7b137bfdef0421a9e5214c3d65a04",
+      "fetched_at": "2025-12-28T19:07:05.605901",
+      "hash": "6f07061e22f44f42",
+      "size": 14246,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_authors.md"
+    },
+    "_backups.md": {
+      "etag": "W/\"b6a3e9b23f88895af2fe4082cee94de5f2d91a3b185445309aff282129720546",
+      "fetched_at": "2025-12-28T19:07:05.695039",
+      "hash": "11c42020de447cd5",
+      "size": 6761,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_backups.md"
+    },
+    "_cache.md": {
+      "etag": "W/\"e3b6ee794ca9d3839ffd6724ec127d0d102b364d68d7fe2e4710362af8fd4105",
+      "fetched_at": "2025-12-28T19:07:05.780508",
+      "hash": "d1773e81fc8b5796",
+      "size": 1051,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_cache.md"
+    },
+    "_collections.md": {
+      "etag": "W/\"39869b4e787f588632bc84ca0f94896773761c36dc4e9833f78b10508b2fb2f4",
+      "fetched_at": "2025-12-28T19:07:05.877618",
+      "hash": "2c9fb0d83994a113",
+      "size": 32678,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_collections.md"
+    },
+    "_filesystem.md": {
+      "etag": "W/\"944465c3a7b3887b47f0d33766cc0094d35d00a90322762dc80af5194c44bd7e",
+      "fetched_at": "2025-12-28T19:07:05.998460",
+      "hash": "efeaa271a3425e1e",
+      "size": 2586,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_filesystem.md"
+    },
+    "_filtering.md": {
+      "etag": "W/\"b9e38284310fc19764cde2d2e4a882765ab8901b05b94d8fa172806812228e0a",
+      "fetched_at": "2025-12-28T19:07:06.082225",
+      "hash": "7c201ba35dd4e0f5",
+      "size": 1929,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_filtering.md"
+    },
+    "_items.md": {
+      "etag": "W/\"4051b4aaa509e74a1120237ebe96d263613b66dfcad935b22f3848a72e56dae0",
+      "fetched_at": "2025-12-28T19:07:06.179209",
+      "hash": "9f00b16b36e11750",
+      "size": 92160,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_items.md"
+    },
+    "_libraries.md": {
+      "etag": "W/\"d7b8a205e5dc48d3e018ffd97f34eba909864be150ea3577ff8e000087085c51",
+      "fetched_at": "2025-12-28T19:07:06.266268",
+      "hash": "d072102be7fc54f0",
+      "size": 139125,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_libraries.md"
+    },
+    "_me.md": {
+      "etag": "W/\"37389a918ee9044bc7eca854701e1ac61b32c4a036b64a178b60c3f7fdb01f91",
+      "fetched_at": "2025-12-28T19:07:06.350831",
+      "hash": "a59606d7721d756e",
+      "size": 33462,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_me.md"
+    },
+    "_metadata_providers.md": {
+      "etag": "W/\"932ed6986a12ee2cc67cef6178440e9283746ac7f8514a3adc5d9dfe079a350a",
+      "fetched_at": "2025-12-28T19:07:06.431661",
+      "hash": "f27cd406a3725e6b",
+      "size": 513,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_metadata_providers.md"
+    },
+    "_misc.md": {
+      "etag": "W/\"6b2d531aa37275698fd541dcbf717844c744ff6e5c89294b5120aad6f979f5ad",
+      "fetched_at": "2025-12-28T19:07:06.539190",
+      "hash": "e81ab1d92aea08e4",
+      "size": 13325,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_misc.md"
+    },
+    "_notifications.md": {
+      "etag": "W/\"a4dd8e7618f3fb614de2f6945fa50b2c980fcae5a8bbec80982f959270582cdb",
+      "fetched_at": "2025-12-28T19:07:06.622670",
+      "hash": "b3112006011e8cd4",
+      "size": 13943,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_notifications.md"
+    },
+    "_playlists.md": {
+      "etag": "W/\"bb159483ae74b971e8fc0c3336244c05a4353c6aafbeda2475304137e97c220c",
+      "fetched_at": "2025-12-28T19:07:06.699311",
+      "hash": "8162dc2570de51eb",
+      "size": 92439,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_playlists.md"
+    },
+    "_podcasts.md": {
+      "etag": "W/\"e303209ee06de32d490076d5c00d841f3ebb17e42ca3d2d74e7a099fe00bbd5e",
+      "fetched_at": "2025-12-28T19:07:06.781631",
+      "hash": "d3527d769f01c076",
+      "size": 45029,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_podcasts.md"
+    },
+    "_rss_feeds.md": {
+      "etag": "W/\"06ca2b49344a3eb1215cb7dbc170a0adcc5c37266a4ca66db0ed0158a62d98a0",
+      "fetched_at": "2025-12-28T19:07:06.875487",
+      "hash": "b7310e83649fce39",
+      "size": 6371,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_rss_feeds.md"
+    },
+    "_schemas.md": {
+      "etag": "W/\"92ed5681ae6fa9acb5acc7a3dfd0b152cb6d3b8564e9d92df8d185967ab93bfc",
+      "fetched_at": "2025-12-28T19:07:06.961370",
+      "hash": "86770fea032d7038",
+      "size": 86490,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_schemas.md"
+    },
+    "_search.md": {
+      "etag": "W/\"8ec29d75bf4d665e710ff29170210e3922308a464f37ae261ca834d4441e2908",
+      "fetched_at": "2025-12-28T19:07:07.053355",
+      "hash": "963af6df2bb37474",
+      "size": 26596,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_search.md"
+    },
+    "_series.md": {
+      "etag": "W/\"b47ee8d69d97e2ca398f9f62c5a6f31c053d10b8b398a987bfe3c8f75d0595be",
+      "fetched_at": "2025-12-28T19:07:07.141507",
+      "hash": "4b71fdd8d8b4dc35",
+      "size": 3091,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_series.md"
+    },
+    "_server.md": {
+      "etag": "W/\"91226e4098c9f411350fac5f097cbf62a0410409e07f19a6e6f195b084c89262",
+      "fetched_at": "2025-12-28T19:07:07.226420",
+      "hash": "76148563b9e239a2",
+      "size": 14432,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_server.md"
+    },
+    "_sessions.md": {
+      "etag": "W/\"73401db44d751347752ffc98e6136aa9dd876abde444c79062db7f9fdac5812b",
+      "fetched_at": "2025-12-28T19:07:07.314794",
+      "hash": "8ff68bfcf81584a0",
+      "size": 23538,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_sessions.md"
+    },
+    "_socket.md": {
+      "etag": "W/\"72a908da4731f40048d3f5d09723cd7b4b113bdbdcda6151abd66afa306c2bb1",
+      "fetched_at": "2025-12-28T19:07:07.401211",
+      "hash": "527e3f6a1dec40c4",
+      "size": 15386,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_socket.md"
+    },
+    "_tools.md": {
+      "etag": "W/\"1bc51bfcc1e1d5d090798232cfdf6e87e11ab0c9174cee9c3544aa68663924ff",
+      "fetched_at": "2025-12-28T19:07:07.482703",
+      "hash": "4a811653d5f26178",
+      "size": 3469,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_tools.md"
+    },
+    "_users.md": {
+      "etag": "W/\"bf8ed2504301e042dbed6c8d0f7dd24be286d481ba8c707b289542d2b23988aa",
+      "fetched_at": "2025-12-28T19:07:07.565893",
+      "hash": "aed475aae75d86e5",
+      "size": 24684,
+      "url": "https://raw.githubusercontent.com/audiobookshelf/audiobookshelf-api-docs/main/source/includes/_users.md"
+    }
+  },
+  "audnex": {
+    "AUDNEXUS_SPEC.yaml": {
+      "etag": "W/\"ef92023462d205951819e6997ba3d222899357d8fd4c4d7d2159a513c5bd7014",
+      "fetched_at": "2025-12-28T19:03:47.512070",
+      "hash": "83a0bf6c983096aa",
+      "size": 32659,
+      "url": "https://raw.githubusercontent.com/laxamentumtech/audnexus/refs/heads/main/docs/spec/audnexus.yaml"
+    },
+    "AUDNEX_README.md": {
+      "etag": "W/\"f1db08e16135d234788b3b23dce4162b0d5f6ca85fba0a3dd4e898ad1001e6c7",
+      "fetched_at": "2025-12-28T19:03:47.439102",
+      "hash": "6f0a99fd62d72a7b",
+      "size": 6557,
+      "url": "https://raw.githubusercontent.com/laxamentumtech/audnexus/main/README.md"
+    }
+  },
+  "last_updated": "2025-12-28T19:07:07.697373"
+}

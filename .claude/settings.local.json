@@ -9,7 +9,9 @@
       "Bash(ruff check:*)",
       "Bash(ls:*)",
       "Bash(wc:*)",
-      "Bash(python -m pytest:*)"
+      "Bash(python -m pytest:*)",
+      "Bash(python scripts/dev_tools/fetch_api_docs.py:*)",
+      "Bash(python /mnt/cache/scripts/mam_tool/scripts/dev_tools/fetch_api_docs.py:*)"
     ]
   }
 }
