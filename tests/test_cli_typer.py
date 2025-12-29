@@ -164,7 +164,7 @@ class TestAllCommandsHaveHelp:
             ["check", "--help"],
             ["validate", "--help"],
             ["validate-config", "--help"],
-            ["dry-run", "--help"],
+            ["preview-naming", "--help"],
             ["check-duplicates", "--help"],
             ["check-suspicious", "--help"],
             # Audiobookshelf
