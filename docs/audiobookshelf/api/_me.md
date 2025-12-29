@@ -725,7 +725,7 @@ curl -X POST "https://abs.example.com/api/me/sync-local-progress" \
     "lastUpdate": 1668120246620,
     "startedAt": 1668120083771,
     "finishedAt": null
-  },
+  }
 }
 ```
 

@@ -2021,9 +2021,9 @@ Attribute | Type | Description
 
 ```shell
 curl -X POST "https://abs.example.com/api/items/batch/delete" \
-  -H "Authorization: Bearer exJhbGciOiJI6IkpXVCJ9.eyJ1c2Vyi5NDEyODc4fQ.ZraBFohS4Tg39NszY" \
+  -H "Authorization: Bearer <YOUR_API_TOKEN_HERE>" \
   -H "Content-Type: application/json" \
-  -d '{"libraryItemIds: ["li_bufnnmp4y5o2gbbxfm"]}'
+  -d '{"libraryItemIds": ["li_bufnnmp4y5o2gbbxfm"]}'
 ```
 
 This endpoint batch deletes library items from the database. No files are deleted.
@@ -2052,9 +2052,9 @@ Status | Meaning | Description
 
 ```shell
 curl -X POST "https://abs.example.com/api/items/batch/update" \
-  -H "Authorization: Bearer exJhbGciOiJI6IkpXVCJ9.eyJ1c2Vyi5NDEyODc4fQ.ZraBFohS4Tg39NszY" \
+  -H "Authorization: Bearer <YOUR_API_TOKEN_HERE>" \
   -H "Content-Type: application/json" \
-  -d '["id": "li_8gch9ve09orgn4fdz8", "mediaPayload": {"metadata": {"title": "Wizards First Rule"}}]'
+  -d '[{"id": "li_8gch9ve09orgn4fdz8", "mediaPayload": {"metadata": {"title": "Wizards First Rule"}}}]'
 ```
 
 > The above command returns JSON structured like this:
@@ -2401,9 +2401,9 @@ Attribute | Type | Description
 
 ```shell
 curl -X POST "https://abs.example.com/api/items/batch/quickmatch" \
-  -H "Authorization: Bearer exJhbGciOiJI6IkpXVCJ9.eyJ1c2Vyi5NDEyODc4fQ.ZraBFohS4Tg39NszY" \
+  -H "Authorization: Bearer <YOUR_API_TOKEN_HERE>" \
   -H "Content-Type: application/json" \
-  -d '{"options": {"provider": "openlibrary"}, "libraryItemIds: ["li_8gch9ve09orgn4fdz8"]}'
+  -d '{"options": {"provider": "openlibrary"}, "libraryItemIds": ["li_8gch9ve09orgn4fdz8"]}'
 ```
 
 This endpoint batch matches library items using quick match. Quick match populates empty book details and the cover with the first book result. Does not overwrite existing details unless the "Prefer matched metadata" server setting is enabled or the `overrideDefaults` parameter is `true`.

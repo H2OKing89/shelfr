@@ -117,43 +117,47 @@ class TestDataFetcher:
 
         return extracted
 
-    async def fetch_audnex_metadata(self, asin: str) -> dict | None:
-        """Fetch full metadata from Audnex API."""
+    async def fetch_audnex_metadata(self, client: httpx.AsyncClient, asin: str) -> dict | None:
+        """Fetch full metadata from Audnex API using shared client."""
         async with self.audnex_semaphore:
             await asyncio.sleep(self.audnex_delay)  # Rate limit
 
-            async with httpx.AsyncClient(
-                http2=True, verify=True, timeout=httpx.Timeout(10.0)
-            ) as client:
-                try:
-                    resp = await client.get(f"https://api.audnex.us/books/{asin}")
-                    resp.raise_for_status()
-                    return resp.json()
-                except httpx.HTTPStatusError as e:
-                    if e.response.status_code == 404:
-                        logger.debug(f"ASIN not found in Audnex: {asin}")
-                        return None
-                    logger.warning(f"Audnex error for {asin}: {e}")
+            try:
+                resp = await client.get(f"https://api.audnex.us/books/{asin}")
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    logger.debug(f"ASIN not found in Audnex: {asin}")
                     return None
-                except Exception as e:
-                    logger.warning(f"Failed to fetch Audnex for {asin}: {e}")
-                    return None
+                logger.warning(f"Audnex error for {asin}: {e}")
+                return None
+            except Exception as e:
+                logger.warning(f"Failed to fetch Audnex for {asin}: {e}")
+                return None
 
     async def fetch_all_audnex(self, abs_items: list[dict]) -> dict[str, dict]:
-        """Fetch Audnex metadata for all ASINs."""
+        """Fetch Audnex metadata for all ASINs using shared AsyncClient."""
         console.print("\n[bold cyan]🌐 Fetching Audnex Metadata[/bold cyan]")
 
         # Get unique ASINs
         asins = {item["asin"] for item in abs_items if item.get("asin")}
         console.print(f"[dim]Fetching {len(asins)} unique ASINs...[/dim]")
 
-        # Fetch in parallel with rate limiting
-        tasks = [self.fetch_audnex_metadata(asin) for asin in asins]
-        results = await asyncio.gather(*tasks)
+        # Create shared client for all requests
+        async with httpx.AsyncClient(
+            http2=True,
+            verify=True,
+            timeout=httpx.Timeout(10.0),
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+        ) as client:
+            # Fetch in parallel with rate limiting
+            tasks = [self.fetch_audnex_metadata(client, asin) for asin in asins]
+            results = await asyncio.gather(*tasks)
 
         # Build ASIN -> metadata map
         audnex_map = {}
-        for asin, result in zip(asins, results, strict=False):
+        for asin, result in zip(asins, results, strict=True):
             if result:
                 audnex_map[asin] = result
 

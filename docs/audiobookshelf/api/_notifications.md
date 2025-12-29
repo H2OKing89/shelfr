@@ -54,7 +54,7 @@ curl "https://abs.example.com/api/notifications" \
         ],
         "defaults": {
           "title": "Test Notification on Abs {{version}}",
-          "body": "Test notificataion body for abs {{version}}."
+          "body": "Test notification body for abs {{version}}."
         },
         "testData": {
           "version": "v2.2.5"
