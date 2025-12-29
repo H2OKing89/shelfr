@@ -1526,6 +1526,23 @@ def import_single(
     # to avoid unnecessary network calls for books we'll skip anyway
     is_dup, existing_path = asin_exists(asin_index, asin)
 
+    # Guard against stale ABS index entries pointing to missing folders
+    existing_folder_for_index: Path | None = None
+    if is_dup and existing_path:
+        existing_folder_for_index = (
+            path_mapper.to_host(existing_path) if path_mapper else Path(existing_path)
+        )
+
+        if not existing_folder_for_index.exists():
+            logger.warning(
+                "ABS index has ASIN %s at %s but folder is missing; "
+                "skipping duplicate/trump checks. Trigger an ABS rescan to clear stale entries.",
+                asin,
+                existing_folder_for_index,
+            )
+            is_dup = False
+            existing_folder_for_index = None
+
     # ─────────────────────────────────────────────────────────────────────
     # Trumping: Quality-based replacement check (runs BEFORE duplicate_policy)
     # ─────────────────────────────────────────────────────────────────────
@@ -1536,7 +1553,13 @@ def import_single(
         existing_entry = asin_index[asin]
         # Convert container path to host path if path_mapper provided
         existing_folder = (
-            path_mapper.to_host(existing_entry.path) if path_mapper else Path(existing_entry.path)
+            existing_folder_for_index
+            if existing_folder_for_index is not None
+            else (
+                path_mapper.to_host(existing_entry.path)
+                if path_mapper
+                else Path(existing_entry.path)
+            )
         )
 
         # v1: Skip trumping entirely for multi-file layouts
