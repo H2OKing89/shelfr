@@ -359,21 +359,24 @@ def _format_duration(seconds: float) -> str:
 
 def _format_chapter_time(seconds: float) -> str:
     """
-    Format chapter timestamp (e.g., '1:30:45' or '00:27').
+    Format chapter timestamp to HH:MM:SS format.
+
+    Always uses leading zeros for professional appearance:
+    - 0 seconds -> 00:00:00
+    - 65 seconds -> 00:01:05
+    - 5465 seconds -> 01:31:05
 
     Args:
         seconds: Time in seconds
 
     Returns:
-        Formatted time string
+        Formatted time string in HH:MM:SS format
     """
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
 
-    if hours > 0:
-        return f"{hours}:{minutes:02d}:{secs:02d}"
-    return f"{minutes:02d}:{secs:02d}"
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
 def _parse_chapters_from_mediainfo(mediainfo_data: dict[str, Any]) -> list[Chapter]:

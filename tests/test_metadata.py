@@ -394,11 +394,11 @@ class TestFetchAudnexChapters:
         result = _parse_chapters_from_audnex(chapters_data)
 
         assert len(result) == 3
-        assert result[0].start == "00:00"
+        assert result[0].start == "00:00:00"
         assert result[0].title == "Opening Credits"
-        assert result[1].start == "12:06"
+        assert result[1].start == "00:12:06"
         assert result[1].title == "Chapter 1"
-        assert result[2].start == "1:31:19"
+        assert result[2].start == "01:31:19"
         assert result[2].title == "Chapter 2"
 
     def test_parse_empty_chapters(self):
@@ -472,29 +472,29 @@ class TestFormatDuration:
 
 
 class TestFormatChapterTime:
-    """Tests for chapter time formatting."""
+    """Tests for chapter time formatting - always HH:MM:SS format."""
 
     def test_with_hours(self):
         """Test formatting time with hours."""
 
-        assert _format_chapter_time(5445) == "1:30:45"
+        assert _format_chapter_time(5445) == "01:30:45"
 
     def test_without_hours(self):
-        """Test formatting time without hours."""
+        """Test formatting time without hours - still uses HH:MM:SS."""
 
-        assert _format_chapter_time(1647) == "27:27"
+        assert _format_chapter_time(1647) == "00:27:27"
 
     def test_zero(self):
         """Test zero seconds."""
 
-        assert _format_chapter_time(0) == "00:00"
+        assert _format_chapter_time(0) == "00:00:00"
 
 
 class TestParseChaptersFromMediainfo:
     """Tests for chapter parsing."""
 
     def test_parses_chapters(self):
-        """Test parsing chapters from mediainfo."""
+        """Test parsing chapters from mediainfo - HH:MM:SS format."""
 
         mediainfo = {
             "media": {
@@ -514,11 +514,11 @@ class TestParseChaptersFromMediainfo:
         chapters = _parse_chapters_from_mediainfo(mediainfo)
 
         assert len(chapters) == 3
-        assert chapters[0].start == "07:35"
+        assert chapters[0].start == "00:07:35"
         assert chapters[0].title == "Chapter 1"
-        assert chapters[1].start == "55:52"
+        assert chapters[1].start == "00:55:52"
         assert chapters[1].title == "Chapter 2: Battle"
-        assert chapters[2].start == "1:30:45"
+        assert chapters[2].start == "01:30:45"
         assert chapters[2].title == "Chapter 3: End"
 
     def test_no_menu_track(self):
