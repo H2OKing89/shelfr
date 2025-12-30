@@ -110,7 +110,7 @@ graph LR
 | **Metadata** | Fetch Audnex data + extract MediaInfo | `mamfast metadata` |
 | **Torrent** | Create .torrent files via mkbrr | `mamfast torrent` |
 | **Upload** | Add to qBittorrent with tags | `mamfast upload` |
-| **Import** | Import to Audiobookshelf (optional) | `mamfast abs-import` |
+| **Import** | Import to Audiobookshelf (optional) | `mamfast abs import` |
 
 </details>
 
@@ -194,7 +194,7 @@ QB_HOST=http://192.168.1.100:8080
 QB_USERNAME=admin
 QB_PASSWORD=secret
 
-# Audiobookshelf (only needed for abs-import command)
+# Audiobookshelf (only needed for abs import command)
 AUDIOBOOKSHELF_HOST=https://abs.example.com
 AUDIOBOOKSHELF_API_KEY=your-api-token-here
 
@@ -368,8 +368,8 @@ mamfast check-duplicates  # Find potential duplicate releases
 > ⚠️ **Important**: Global options like `--dry-run` must come **before** the subcommand:
 >
 > ```bash
-> mamfast --dry-run abs-import  # ✅ Correct
-> mamfast abs-import --dry-run  # ❌ Won't work
+> mamfast --dry-run abs import  # ✅ Correct
+> mamfast abs import --dry-run  # ❌ Won't work
 > ```
 
 ---
@@ -381,12 +381,12 @@ MAMFast supports importing audiobooks directly to Audiobookshelf libraries with 
 ### Basic Commands
 
 ```bash
-mamfast abs-init              # Initialize ABS connection
-mamfast abs-import            # Import staged books to ABS library
-mamfast abs-check-duplicate B0ASIN123  # Check if ASIN exists
-mamfast abs-trump-check       # Preview trumping decisions
-mamfast abs-cleanup           # Clean orphaned files
-mamfast abs-restore           # List/restore archived books
+mamfast abs init              # Initialize ABS connection
+mamfast abs import            # Import staged books to ABS library
+mamfast abs check-asin B0ASIN123  # Check if ASIN exists
+mamfast abs trump-preview     # Preview trumping decisions
+mamfast abs cleanup           # Clean orphaned files
+mamfast abs restore           # List/restore archived books
 ```
 
 ### Trumping (Quality-Based Replacement)

@@ -362,10 +362,10 @@ def abs_import_deprecated(ctx: typer.Context, ...) -> None:
 - [x] Old `abs-*` commands still work (hidden, with warning) ✅ (Dec 2025)
 - [x] `mamfast abs --help` shows all ABS subcommands ✅ (Dec 2025)
 - [x] Global flags remain BEFORE subcommand (e.g., `mamfast --dry-run abs import`) ✅
-- [ ] Tests updated to use new syntax and verify flag ordering
-- [ ] Documentation and examples updated with correct flag placement
+- [x] Tests updated to use new syntax and verify flag ordering ✅ (Dec 2025)
+- [x] Documentation and examples updated with correct flag placement ✅ (Dec 2025)
 
-**Status**: 🔄 IN PROGRESS (Dec 29, 2025)
+**Status**: ✅ COMPLETE (Dec 29, 2025)
 
 **Changes Made**:
 
@@ -379,7 +379,9 @@ def abs_import_deprecated(ctx: typer.Context, ...) -> None:
 - Command renames applied:
   - `abs-check-duplicate` → `abs check-asin`
   - `abs-trump-check` → `abs trump-preview`
-- All 2,125 tests pass
+- `tests/test_cli_typer.py`: Updated to use new syntax, added deprecated alias tests, flag ordering test
+- `README.md`: Updated examples to use new `abs <verb>` syntax
+- All 2,132 tests pass
 
 ---
 

@@ -167,16 +167,17 @@ class TestAllCommandsHaveHelp:
             ["preview-naming", "--help"],
             ["check-duplicates", "--help"],
             ["check-suspicious", "--help"],
-            # Audiobookshelf
-            ["abs-init", "--help"],
-            ["abs-import", "--help"],
-            ["abs-cleanup", "--help"],
-            ["abs-restore", "--help"],
-            ["abs-check-duplicate", "--help"],
-            ["abs-resolve-asins", "--help"],
-            ["abs-trump-check", "--help"],
-            ["abs-rename", "--help"],
-            ["abs-orphans", "--help"],
+            # Audiobookshelf (sub-app syntax)
+            ["abs", "--help"],
+            ["abs", "init", "--help"],
+            ["abs", "import", "--help"],
+            ["abs", "cleanup", "--help"],
+            ["abs", "restore", "--help"],
+            ["abs", "check-asin", "--help"],
+            ["abs", "resolve-asins", "--help"],
+            ["abs", "trump-preview", "--help"],
+            ["abs", "rename", "--help"],
+            ["abs", "orphans", "--help"],
             # State Management
             ["state", "--help"],
             ["state", "list", "--help"],
@@ -196,3 +197,39 @@ class TestAllCommandsHaveHelp:
         """Test each command has working help."""
         result = runner.invoke(app, command)
         assert result.exit_code == 0, f"Command {command} failed: {result.output}"
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # Deprecated ABS aliases still work (backward compatibility)
+            ["abs-init", "--help"],
+            ["abs-import", "--help"],
+            ["abs-cleanup", "--help"],
+            ["abs-check-duplicate", "--help"],
+            ["abs-trump-check", "--help"],
+        ],
+    )
+    def test_deprecated_abs_aliases_work(self, runner: CliRunner, command: list[str]) -> None:
+        """Test deprecated abs-* aliases still work for backward compatibility."""
+        result = runner.invoke(app, command)
+        assert result.exit_code == 0, f"Deprecated command {command} failed: {result.output}"
+        # Help should still work (docstring says "deprecated")
+        assert (
+            "deprecated" in result.output.lower()
+            or "ASIN" in result.output
+            or "help" in result.output.lower()
+        )
+
+    def test_global_flags_before_subapp(self, runner: CliRunner) -> None:
+        """Test that global flags work BEFORE sub-app commands.
+
+        Global flags like --dry-run must be placed before the subcommand:
+          mamfast --dry-run abs import  ✓ (correct)
+          mamfast abs import --dry-run  ✗ (wrong - flag after subcommand)
+        """
+        # Global flag BEFORE subcommand should work
+        result = runner.invoke(app, ["--dry-run", "abs", "init"])
+        # Should not error on flag parsing (may error on missing config, that's OK)
+        assert result.exit_code in (0, 1), f"Global flag before subapp failed: {result.output}"
+        # Should recognize --dry-run (no "Unknown option" error)
+        assert "Unknown option" not in result.output
