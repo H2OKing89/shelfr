@@ -18,6 +18,7 @@ from rich.panel import Panel
 
 from mamfast import __version__
 from mamfast.console import console as mamfast_console
+from mamfast.utils.validation import validate_asin
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +129,6 @@ def validate_asin_callback(value: str | None) -> str | None:
     """Validate ASIN format for Typer."""
     if value is None:
         return None
-
-    from mamfast.utils.validation import validate_asin
 
     try:
         return validate_asin(value)
