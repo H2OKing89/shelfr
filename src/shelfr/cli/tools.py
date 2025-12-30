@@ -11,7 +11,7 @@ from typing import Annotated
 
 import typer
 
-from shelfr.cli._app import AsinArg, validate_asin_callback
+from shelfr.cli._app import AsinArg
 from shelfr.cli._helpers import get_args
 
 logger = logging.getLogger(__name__)
@@ -25,11 +25,12 @@ def register_tools_commands(tools_app: typer.Typer) -> None:
         """🔧 Utility tools.
 
         [bold]Commands:[/]
-          mamfast tools prepare  Stage audiobooks for upload
-          mamfast tools mamff    Generate MAM fast-fill JSON
-          mamfast tools bbcode   Test HTML to BBCode conversion
+          shelfr tools prepare  Stage audiobooks for upload
+          shelfr tools mamff    Generate MAM fast-fill JSON
 
-        Running [cyan]mamfast tools[/] without a command shows this help.
+        [dim]For BBCode tools, see 'shelfr mam --help'.[/]
+
+        Running [cyan]shelfr tools[/] without a command shows this help.
         """
         if ctx.invoked_subcommand is None:
             from shelfr.console import console
@@ -117,35 +118,4 @@ def register_tools_commands(tools_app: typer.Typer) -> None:
 
         args = get_args(ctx, path=path, output=output, command="tools-mamff")
         result = cmd_tools_mamff(args)
-        raise typer.Exit(result)
-
-    @tools_app.command("bbcode")
-    def tools_bbcode(
-        ctx: typer.Context,
-        asin: Annotated[
-            str | None,
-            typer.Option(
-                "--asin",
-                "-a",
-                callback=validate_asin_callback,
-                help="ASIN to fetch and convert.",
-            ),
-        ] = None,
-        html: Annotated[
-            str | None,
-            typer.Option("--html", help="Raw HTML to convert to BBCode."),
-        ] = None,
-    ) -> None:
-        """🔤 Test HTML to BBCode conversion.
-
-        Debug tool for testing synopsis HTML to BBCode conversion.
-
-        [bold]Examples:[/]
-          mamfast tools bbcode --asin B073PG4DX8
-          mamfast tools bbcode --html "<p><b>Bold</b> and <i>italic</i></p>"
-        """
-        from shelfr.commands.tools import cmd_tools_bbcode
-
-        args = get_args(ctx, asin=asin, html=html)
-        result = cmd_tools_bbcode(args)
         raise typer.Exit(result)

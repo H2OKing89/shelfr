@@ -3,7 +3,7 @@ Tool commands for troubleshooting and testing.
 
 This module provides CLI tools for debugging and testing MAM upload functionality:
 - mamff: Generate MAM fast-fill JSON for a release
-- bbcode: Test HTML to BBCode conversion
+- bbcode: Generate BBCode description for a release
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ from rich.markup import escape
 from rich.panel import Panel
 
 from shelfr.console import console, print_error, print_info, print_success
-from shelfr.metadata import _html_to_bbcode
 
 logger = logging.getLogger(__name__)
 
@@ -181,79 +180,5 @@ def cmd_tools_mamff(args: argparse.Namespace) -> int:
                 border_style="cyan",
             )
         )
-
-    return 0
-
-
-def cmd_tools_bbcode(args: argparse.Namespace) -> int:
-    """Test HTML to BBCode conversion.
-
-    Debug tool for testing synopsis conversion.
-
-    Args:
-        args: Namespace with optional 'asin' or 'html'
-
-    Returns:
-        Exit code (0 for success)
-    """
-    asin: str | None = args.asin
-    html_input: str | None = args.html
-
-    console.print(Panel.fit("🔤 HTML → BBCode Converter", style="bold blue"))
-    console.print()
-
-    if not asin and not html_input:
-        print_error("Provide --asin or --html")
-        print_info("Example: shelfr tools bbcode --asin B073PG4DX8")
-        print_info("Example: shelfr tools bbcode --html '<p><b>Bold</b></p>'")
-        return 1
-
-    original_html: str = ""
-
-    if asin:
-        # Fetch from Audnex
-        console.print(f"[bold]ASIN:[/] {asin}")
-        console.print("[dim]Fetching from Audnex...[/]")
-
-        from shelfr.metadata import fetch_audnex_book
-
-        audnex_result = fetch_audnex_book(asin)
-        audnex_data, _region = audnex_result
-        if not audnex_data:
-            print_error(f"No data found for ASIN: {asin}")
-            return 1
-
-        original_html = audnex_data.get("summary", "")
-        if not original_html:
-            print_error("No summary field in Audnex data")
-            return 1
-
-        print_success(f"Fetched: {audnex_data.get('title', 'Unknown')}")
-        console.print()
-
-    elif html_input:
-        original_html = html_input
-
-    # Show original HTML
-    console.print(
-        Panel(
-            escape(original_html),
-            title="[bold]Original HTML[/]",
-            border_style="yellow",
-        )
-    )
-    console.print()
-
-    # Convert to BBCode
-    bbcode = _html_to_bbcode(original_html)
-
-    # Show BBCode output (escaped so Rich doesn't interpret it)
-    console.print(
-        Panel(
-            escape(bbcode),
-            title="[bold]BBCode Output[/]",
-            border_style="green",
-        )
-    )
 
     return 0

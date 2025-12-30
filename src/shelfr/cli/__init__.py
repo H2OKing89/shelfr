@@ -5,10 +5,11 @@ Built with Typer for clean command structure and Rich for beautiful output.
 
 The CLI is organized into sub-apps:
 - Core pipeline commands (run, status, config)
+- MAM commands (mam bbcode, mam render)
 - Audiobookshelf commands (abs init, abs import, abs cleanup, etc.)
 - State management (state list, state prune, state retry, etc.)
 - Libation integration (libation scan, libation liberate, etc.)
-- Tools (tools prepare, tools mamff, tools bbcode)
+- Tools (tools prepare, tools mamff)
 
 Individual step commands (scan, discover, torrent, upload) have been moved
 to internal workflow - use `mamfast run` for full pipeline.
@@ -38,6 +39,7 @@ from shelfr.cli._app import (
     make_abs_app,
     make_app,
     make_libation_app,
+    make_mam_app,
     make_state_app,
     make_tools_app,
     validate_asin_callback,
@@ -51,12 +53,14 @@ state_app = make_state_app()
 libation_app = make_libation_app()
 tools_app = make_tools_app()
 abs_app = make_abs_app()
+mam_app = make_mam_app()
 
 # Register sub-apps
 app.add_typer(state_app, name="state", rich_help_panel=STATE_COMMANDS)
 app.add_typer(libation_app, name="libation")
 app.add_typer(tools_app, name="tools", rich_help_panel=TOOLS_COMMANDS)
 app.add_typer(abs_app, name="abs", rich_help_panel=ABS_COMMANDS)
+app.add_typer(mam_app, name="mam")
 
 # Register main callback (handles --version, --verbose, --config, --dry-run)
 create_main_callback(app)
@@ -76,6 +80,7 @@ from shelfr.cli.abs import (  # noqa: E402
 from shelfr.cli.core import register_core_commands  # noqa: E402
 from shelfr.cli.diagnostics import register_diagnostics_commands  # noqa: E402
 from shelfr.cli.libation import register_libation_commands  # noqa: E402
+from shelfr.cli.mam import register_mam_commands  # noqa: E402
 from shelfr.cli.state import register_state_commands  # noqa: E402
 from shelfr.cli.tools import register_tools_commands  # noqa: E402
 
@@ -86,6 +91,7 @@ register_abs_commands(abs_app)  # Register on sub-app now
 register_abs_deprecated_aliases(app)  # Deprecated aliases on main app
 register_libation_commands(libation_app)
 register_tools_commands(tools_app)
+register_mam_commands(mam_app)
 
 
 # =============================================================================

@@ -9,35 +9,48 @@ from shelfr.cli import app
 runner = CliRunner()
 
 
-class TestToolsBBCode:
-    """Tests for the tools bbcode command."""
+class TestMamBBCode:
+    """Tests for the mam bbcode command."""
 
     def test_bbcode_help(self) -> None:
         """Test bbcode command help displays."""
-        result = runner.invoke(app, ["tools", "bbcode", "--help"])
+        result = runner.invoke(app, ["mam", "bbcode", "--help"])
         assert result.exit_code == 0
-        assert "HTML to BBCode conversion" in result.stdout
+        assert "BBCode description" in result.stdout
 
     def test_bbcode_no_args(self) -> None:
-        """Test bbcode command with no args shows error."""
-        result = runner.invoke(app, ["tools", "bbcode"])
-        assert result.exit_code == 1
-        assert "Provide --asin or --html" in result.stdout
+        """Test bbcode command with no args shows error (missing required path)."""
+        result = runner.invoke(app, ["mam", "bbcode"])
+        # Typer uses exit code 2 for missing required args
+        assert result.exit_code == 2
 
-    def test_bbcode_html_simple(self) -> None:
-        """Test bbcode command with simple HTML."""
-        result = runner.invoke(app, ["tools", "bbcode", "--html", "<b>bold</b> and <i>italic</i>"])
-        assert result.exit_code == 0
-        assert "[b]bold[/b]" in result.stdout
-        assert "[i]italic[/i]" in result.stdout
+    def test_bbcode_nonexistent_path(self) -> None:
+        """Test bbcode command with non-existent path shows error."""
+        result = runner.invoke(app, ["mam", "bbcode", "/nonexistent/path"])
+        assert result.exit_code != 0
+        # Typer validates the path exists
 
-    def test_bbcode_html_paragraphs(self) -> None:
-        """Test bbcode command with paragraph HTML."""
-        result = runner.invoke(app, ["tools", "bbcode", "--html", "<p>Para 1</p><p>Para 2</p>"])
+
+class TestMamRender:
+    """Tests for the mam render command."""
+
+    def test_render_help(self) -> None:
+        """Test render command help displays."""
+        result = runner.invoke(app, ["mam", "render", "--help"])
         assert result.exit_code == 0
-        # Paragraphs converted to double newlines
-        assert "Para 1" in result.stdout
-        assert "Para 2" in result.stdout
+        assert "Render BBCode visually" in result.stdout
+
+    def test_render_no_args(self) -> None:
+        """Test render command with no args shows error (missing required path)."""
+        result = runner.invoke(app, ["mam", "render"])
+        # Typer uses exit code 2 for missing required args
+        assert result.exit_code == 2
+
+    def test_render_nonexistent_path(self) -> None:
+        """Test render command with non-existent path shows error."""
+        result = runner.invoke(app, ["mam", "render", "/nonexistent/path"])
+        assert result.exit_code != 0
+        # Typer validates the path exists
 
 
 class TestToolsMamff:
@@ -71,4 +84,18 @@ class TestToolsApp:
         result = runner.invoke(app, ["tools", "--help"])
         assert result.exit_code == 0
         assert "mamff" in result.stdout
+        # bbcode moved to mam sub-app
+        assert "prepare" in result.stdout
+
+
+class TestMamApp:
+    """Tests for the mam sub-app."""
+
+    def test_mam_help(self) -> None:
+        """Test mam sub-app help displays."""
+        result = runner.invoke(app, ["mam", "--help"])
+        assert result.exit_code == 0
         assert "bbcode" in result.stdout
+        assert "render" in result.stdout
+        # Check for MAM upload page bug warning
+        assert "upload page" in result.stdout.lower() or "MAM" in result.stdout

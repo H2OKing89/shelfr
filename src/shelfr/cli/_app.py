@@ -226,9 +226,9 @@ TOOLS_EPILOG = """
 [bold cyan]Available Tools:[/]
   shelfr tools prepare       [dim]# Stage releases for upload[/]
   shelfr tools mkbrr         [dim]# Create torrent files[/]
-  shelfr tools bbcode        [dim]# Generate description BBCode[/]
 
 [dim]💡 These tools are for advanced troubleshooting and manual operations.[/]
+[dim]   For BBCode tools, see 'shelfr mam --help'.[/]
 """
 
 
@@ -238,6 +238,27 @@ def make_tools_app() -> typer.Typer:
         name="tools",
         help="🔧 Troubleshooting and utility tools",
         epilog=TOOLS_EPILOG,
+        rich_markup_mode="rich",
+        no_args_is_help=True,
+    )
+
+
+MAM_EPILOG = """
+[bold cyan]BBCode Tools:[/]
+  shelfr mam bbcode <path>   [dim]# Output raw BBCode (copyable)[/]
+  shelfr mam render <path>   [dim]# Preview BBCode visually[/]
+
+[dim]⚠️  Note: MAM's upload page preview has a rendering bug for ASCII art.[/]
+[dim]   The actual torrent page will display correctly.[/]
+"""
+
+
+def make_mam_app() -> typer.Typer:
+    """Create the MAM sub-app."""
+    return typer.Typer(
+        name="mam",
+        help="📤 MAM tracker workflows and BBCode tools",
+        epilog=MAM_EPILOG,
         rich_markup_mode="rich",
         no_args_is_help=True,
     )
