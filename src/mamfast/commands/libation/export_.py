@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import logging
+import os
 from pathlib import Path
 
 from mamfast.console import console
@@ -55,8 +56,6 @@ def cmd_libation_export(args: argparse.Namespace) -> int:
     flag = format_flags.get(format_type, "-j")
 
     # Export to container temp path first (use PID for uniqueness)
-    import os
-
     container_path = f"/tmp/mamfast_export_{os.getpid()}.{format_type}"
     result = _run_libation_cmd(container, "export", "-p", container_path, flag)
 
@@ -67,6 +66,11 @@ def cmd_libation_export(args: argparse.Namespace) -> int:
     # Copy from container to host
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        console.print(f"  [red]✗[/] Cannot create output directory: {output_path.parent} - {e}")
+        return 1
+
+    try:
         docker("cp", f"{container}:{container_path}", str(output_path), timeout=30)
         console.print(f"  [green]✓[/] Exported to: {output_path}")
 
