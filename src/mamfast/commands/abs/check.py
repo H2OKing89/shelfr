@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 
+from mamfast.abs import AbsClient, asin_exists, build_asin_index, is_valid_asin
 from mamfast.abs.client import AbsApiError, AbsAuthError, AbsConnectionError
 from mamfast.commands.abs._common import (
     fatal_error,
@@ -15,16 +16,53 @@ from mamfast.commands.abs._common import (
     print_success,
     print_warning,
 )
+from mamfast.config import reload_settings
 
 
 def cmd_abs_check_duplicate(args: argparse.Namespace) -> int:
     """Check if an ASIN already exists in the ABS library.
 
     Quick lookup for duplicate detection using in-memory index from ABS API.
-    """
-    from mamfast.abs import AbsClient, asin_exists, build_asin_index, is_valid_asin
-    from mamfast.config import reload_settings
+    This command makes a network call to ABS to retrieve the library metadata,
+    builds an in-memory ASIN index, and checks if the specified ASIN exists.
 
+    Args:
+        args: Parsed command-line arguments with the following attributes:
+            - asin (str): The ASIN to check (will be normalized to uppercase)
+            - config (Path): Path to the configuration file
+            - dry_run (bool, optional): Dry-run mode (not used in this command)
+
+    Returns:
+        int: Exit code indicating result:
+            - 0: ASIN not found (safe to import)
+            - 1: ASIN exists in library OR error occurred
+
+    Raises:
+        This function handles all exceptions internally and returns appropriate
+        exit codes. Does not propagate exceptions to caller.
+
+        Internally catches and handles:
+            - FileNotFoundError: When config file doesn't exist
+            - AbsApiError: ABS API errors during library query
+            - AbsAuthError: ABS authentication/authorization failures
+            - AbsConnectionError: Network/connection issues with ABS
+            - Exception: Any other unexpected errors
+
+    Side Effects:
+        - Prints status messages to console using Rich formatting
+        - Makes network call to ABS API to retrieve library metadata
+        - Builds in-memory ASIN index from library items
+
+    Examples:
+        >>> # Typical usage via argparse namespace
+        >>> args = argparse.Namespace(
+        ...     asin="B09GHD1R2R",
+        ...     config=Path("config/config.yaml"),
+        ...     dry_run=False
+        ... )
+        >>> exit_code = cmd_abs_check_duplicate(args)
+        >>> # Returns 0 if ASIN not found, 1 if exists or error
+    """
     asin = args.asin.upper().strip()
 
     # Validate ASIN format
