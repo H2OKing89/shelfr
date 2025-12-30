@@ -37,8 +37,10 @@ logger = logging.getLogger(__name__)
 def cmd_status(args: argparse.Namespace) -> int:
     """Show status."""
     from shelfr.config import reload_settings
+    from shelfr.ui.banner import print_banner
     from shelfr.utils.state import get_stats, load_state
 
+    print_banner(console)
     print_header("Status")
 
     try:
@@ -92,6 +94,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 def cmd_check(args: argparse.Namespace) -> int:
     """Run health checks to verify environment setup."""
     from shelfr.config import reload_settings
+    from shelfr.ui.banner import print_banner
     from shelfr.validation import (
         CheckCategory,
         ValidationResult,
@@ -101,7 +104,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         check_services,
     )
 
-    print_header("MAMFast Health Check")
+    print_banner(console)
+    print_header("shelfr Health Check")
 
     try:
         settings = reload_settings(config_file=args.config)

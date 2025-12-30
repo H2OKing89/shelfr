@@ -387,12 +387,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     from shelfr.config import reload_settings
     from shelfr.exceptions import StateLockError
     from shelfr.logging_setup import set_console_quiet
+    from shelfr.ui.banner import print_banner
     from shelfr.utils.state import run_lock
     from shelfr.workflow import full_run
 
     # Quiet mode for clean Rich UI (suppress INFO logs on console)
     set_console_quiet(True)
 
+    print_banner(console)
     print_header("Full Pipeline", dry_run=args.dry_run)
 
     try:
