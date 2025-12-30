@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from mamfast.schemas.naming import (
+from shelfr.schemas.naming import (
     validate_naming_json,
 )
 

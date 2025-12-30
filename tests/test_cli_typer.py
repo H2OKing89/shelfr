@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from mamfast.cli import app
+from shelfr.cli import app
 
 
 @pytest.fixture
@@ -26,25 +26,21 @@ class TestCliHelp:
         assert result.exit_code == 0
         # Check for command groups
         assert "Core Pipeline" in result.output or "prepare" in result.output
-        assert "mamfast" in result.output.lower() or "MAMFast" in result.output
+        assert "shelfr" in result.output.lower()
 
     def test_version_option(self, runner: CliRunner) -> None:
         """Test --version displays version info."""
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
-        assert "MAMFast" in result.output or "mamfast" in result.output.lower()
+        assert "shelfr" in result.output.lower()
 
-    def test_prepare_help(self, runner: CliRunner) -> None:
-        """Test prepare command help."""
-        result = runner.invoke(app, ["prepare", "--help"])
+    def test_tools_prepare_help(self, runner: CliRunner) -> None:
+        """Test tools prepare command help."""
+        result = runner.invoke(app, ["tools", "prepare", "--help"])
         assert result.exit_code == 0
         assert "--asin" in result.output or "ASIN" in result.output
 
-    def test_metadata_help(self, runner: CliRunner) -> None:
-        """Test metadata command help."""
-        result = runner.invoke(app, ["metadata", "--help"])
-        assert result.exit_code == 0
-        assert "metadata" in result.output.lower()
+    # NOTE: metadata command removed - use `shelfr tools mkbrr` instead
 
     def test_state_help(self, runner: CliRunner) -> None:
         """Test state subcommand help."""
@@ -62,31 +58,27 @@ class TestCliHelp:
 class TestAsinValidation:
     """Test ASIN validation in Typer CLI."""
 
-    def test_prepare_invalid_asin_rejected(self, runner: CliRunner) -> None:
-        """Test prepare command rejects invalid ASIN."""
-        result = runner.invoke(app, ["prepare", "--asin", "invalid", "/tmp/test"])
+    def test_tools_prepare_invalid_asin_rejected(self, runner: CliRunner) -> None:
+        """Test tools prepare command rejects invalid ASIN."""
+        result = runner.invoke(app, ["tools", "prepare", "--asin", "invalid"])
         assert result.exit_code != 0
         assert "ASIN" in result.output or "Invalid" in result.output
 
-    def test_prepare_valid_asin_format_accepted(self, runner: CliRunner) -> None:
-        """Test prepare command accepts valid ASIN format.
+    def test_tools_prepare_valid_asin_format_accepted(self, runner: CliRunner) -> None:
+        """Test tools prepare command accepts valid ASIN format.
 
         Note: The command will fail for other reasons (missing config, etc.)
         but ASIN validation should pass.
         """
-        result = runner.invoke(app, ["prepare", "--asin", "B0DK9T5P28", "/tmp/nonexistent"])
+        result = runner.invoke(app, ["tools", "prepare", "--asin", "B0DK9T5P28"])
         # Should not fail due to ASIN validation
         assert "Invalid ASIN" not in result.output
 
-    def test_metadata_invalid_asin_rejected(self, runner: CliRunner) -> None:
-        """Test metadata command rejects invalid ASIN."""
-        result = runner.invoke(app, ["metadata", "--asin", "toolong123456"])
-        assert result.exit_code != 0
-        assert "ASIN" in result.output or "Invalid" in result.output
+    # NOTE: metadata ASIN test removed - metadata command removed
 
     def test_asin_lowercase_normalized(self, runner: CliRunner) -> None:
         """Test lowercase ASIN is accepted (normalized internally)."""
-        result = runner.invoke(app, ["prepare", "--asin", "b0dk9t5p28", "/tmp/test"])
+        result = runner.invoke(app, ["tools", "prepare", "--asin", "b0dk9t5p28"])
         # Should not fail due to ASIN validation (lowercase is valid)
         assert "Invalid ASIN" not in result.output
 
@@ -150,13 +142,7 @@ class TestAllCommandsHaveHelp:
     @pytest.mark.parametrize(
         "command",
         [
-            # Core Pipeline
-            ["scan", "--help"],
-            ["discover", "--help"],
-            ["prepare", "--help"],
-            ["metadata", "--help"],
-            ["torrent", "--help"],
-            ["upload", "--help"],
+            # Core Pipeline (individual step commands removed, use run or libation subcommands)
             ["run", "--help"],
             ["status", "--help"],
             ["config", "--help"],
@@ -191,6 +177,10 @@ class TestAllCommandsHaveHelp:
             ["libation", "search", "--help"],
             ["libation", "status", "--help"],
             ["libation", "books", "--help"],
+            # Tools
+            ["tools", "--help"],
+            ["tools", "mamff", "--help"],
+            ["tools", "prepare", "--help"],
         ],
     )
     def test_command_help_works(self, runner: CliRunner, command: list[str]) -> None:

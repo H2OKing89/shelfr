@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from mamfast.mkbrr import (
+from shelfr.mkbrr import (
     MkbrrResult,
     _cleanup_stale_torrents,
     _docker_base_command,
@@ -18,7 +18,7 @@ from mamfast.mkbrr import (
     inspect_torrent,
     load_presets,
 )
-from mamfast.utils.cmd import CmdError
+from shelfr.utils.cmd import CmdError
 from tests.conftest import make_cmd_result
 
 
@@ -61,8 +61,8 @@ class TestCheckDockerAvailable:
         mock_settings.docker_bin = "/usr/bin/docker"
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.run", return_value=mock_result),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
         ):
             assert check_docker_available() is True
 
@@ -73,7 +73,7 @@ class TestCheckDockerAvailable:
 
         with (
             patch(
-                "mamfast.mkbrr.run",
+                "shelfr.mkbrr.run",
                 side_effect=CmdError(
                     argv=["docker", "--version"],
                     exit_code=127,
@@ -81,7 +81,7 @@ class TestCheckDockerAvailable:
                     stderr="Command not found",
                 ),
             ),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
         ):
             assert check_docker_available() is False
 
@@ -106,7 +106,7 @@ presets:
         mock_settings.mkbrr.host_config_dir = str(tmp_path)
         mock_settings.mkbrr.preset = "mam"
 
-        with patch("mamfast.mkbrr.get_settings", return_value=mock_settings):
+        with patch("shelfr.mkbrr.get_settings", return_value=mock_settings):
             presets = load_presets()
 
         assert "mam" in presets
@@ -120,7 +120,7 @@ presets:
         mock_settings.mkbrr.host_config_dir = str(tmp_path)
         mock_settings.mkbrr.preset = "default"
 
-        with patch("mamfast.mkbrr.get_settings", return_value=mock_settings):
+        with patch("shelfr.mkbrr.get_settings", return_value=mock_settings):
             presets = load_presets()
 
         assert presets == ["default"]
@@ -272,10 +272,10 @@ class TestCreateTorrent:
             return make_cmd_result(stdout="Torrent created", exit_code=0)
 
         with (
-            patch("mamfast.mkbrr.run", side_effect=mock_run),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
-            patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
         ):
             result = create_torrent(content_dir, output_dir)
 
@@ -301,12 +301,12 @@ class TestCreateTorrent:
 
         with (
             patch(
-                "mamfast.mkbrr.run",
+                "shelfr.mkbrr.run",
                 return_value=make_cmd_result(exit_code=1, stderr="Error creating torrent"),
             ),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
-            patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
         ):
             result = create_torrent(content_dir)
 
@@ -331,10 +331,10 @@ class TestCreateTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("mamfast.mkbrr.run", side_effect=Exception("Unexpected error")),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
-            patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+            patch("shelfr.mkbrr.run", side_effect=Exception("Unexpected error")),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
         ):
             result = create_torrent(content_dir)
 
@@ -358,7 +358,7 @@ class TestDockerBaseCommand:
         mock_settings.mkbrr.container_config_dir = "/root/.config/mkbrr"
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
-        with patch("mamfast.mkbrr.get_settings", return_value=mock_settings):
+        with patch("shelfr.mkbrr.get_settings", return_value=mock_settings):
             cmd = _docker_base_command()
 
         assert "/usr/bin/docker" in cmd
@@ -380,7 +380,7 @@ class TestLoadPresetsEdgeCases:
         mock_settings.mkbrr.host_config_dir = str(tmp_path)
         mock_settings.mkbrr.preset = "fallback"
 
-        with patch("mamfast.mkbrr.get_settings", return_value=mock_settings):
+        with patch("shelfr.mkbrr.get_settings", return_value=mock_settings):
             presets = load_presets()
 
         assert presets == ["fallback"]
@@ -394,7 +394,7 @@ class TestLoadPresetsEdgeCases:
         mock_settings.mkbrr.host_config_dir = str(tmp_path)
         mock_settings.mkbrr.preset = "fallback"
 
-        with patch("mamfast.mkbrr.get_settings", return_value=mock_settings):
+        with patch("shelfr.mkbrr.get_settings", return_value=mock_settings):
             presets = load_presets()
 
         assert presets == ["fallback"]
@@ -408,7 +408,7 @@ class TestLoadPresetsEdgeCases:
         mock_settings.mkbrr.host_config_dir = str(tmp_path)
         mock_settings.mkbrr.preset = "fallback"
 
-        with patch("mamfast.mkbrr.get_settings", return_value=mock_settings):
+        with patch("shelfr.mkbrr.get_settings", return_value=mock_settings):
             presets = load_presets()
 
         assert presets == ["fallback"]
@@ -430,7 +430,7 @@ class TestFixTorrentPermissions:
         mock_settings.mkbrr.host_output_dir = str(tmp_path)
 
         with (
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch("os.chown"),
         ):
             count = fix_torrent_permissions(tmp_path)
@@ -446,7 +446,7 @@ class TestFixTorrentPermissions:
         mock_settings.target_gid = 100
         mock_settings.mkbrr.host_output_dir = str(tmp_path / "nonexistent")
 
-        with patch("mamfast.mkbrr.get_settings", return_value=mock_settings):
+        with patch("shelfr.mkbrr.get_settings", return_value=mock_settings):
             count = fix_torrent_permissions(tmp_path / "nonexistent")
 
         assert count == 0
@@ -461,7 +461,7 @@ class TestFixTorrentPermissions:
         mock_settings.mkbrr.host_output_dir = str(tmp_path)
 
         with (
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch("os.chown"),
         ):
             count = fix_torrent_permissions()  # No arg - uses default
@@ -488,10 +488,10 @@ class TestInspectTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.run", return_value=mock_result),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch(
-                "mamfast.mkbrr.host_to_container_torrent_path",
+                "shelfr.mkbrr.host_to_container_torrent_path",
                 return_value="/torrents/test.torrent",
             ),
         ):
@@ -516,10 +516,10 @@ class TestInspectTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result) as mock_run,
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.run", return_value=mock_result) as mock_run,
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch(
-                "mamfast.mkbrr.host_to_container_torrent_path",
+                "shelfr.mkbrr.host_to_container_torrent_path",
                 return_value="/torrents/test.torrent",
             ),
         ):
@@ -545,10 +545,10 @@ class TestInspectTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.run", return_value=mock_result),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch(
-                "mamfast.mkbrr.host_to_container_torrent_path",
+                "shelfr.mkbrr.host_to_container_torrent_path",
                 return_value="/torrents/test.torrent",
             ),
         ):
@@ -570,10 +570,10 @@ class TestInspectTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("mamfast.mkbrr.run", side_effect=Exception("Docker error")),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.run", side_effect=Exception("Docker error")),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch(
-                "mamfast.mkbrr.host_to_container_torrent_path",
+                "shelfr.mkbrr.host_to_container_torrent_path",
                 return_value="/torrents/test.torrent",
             ),
         ):
@@ -602,13 +602,13 @@ class TestCheckTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.run", return_value=mock_result),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch(
-                "mamfast.mkbrr.host_to_container_torrent_path",
+                "shelfr.mkbrr.host_to_container_torrent_path",
                 return_value="/torrents/test.torrent",
             ),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
         ):
             result = check_torrent(tmp_path / "test.torrent", tmp_path / "content")
 
@@ -630,13 +630,13 @@ class TestCheckTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result) as mock_run,
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.run", return_value=mock_result) as mock_run,
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch(
-                "mamfast.mkbrr.host_to_container_torrent_path",
+                "shelfr.mkbrr.host_to_container_torrent_path",
                 return_value="/torrents/test.torrent",
             ),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
         ):
             result = check_torrent(
                 tmp_path / "test.torrent",
@@ -666,13 +666,13 @@ class TestCheckTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result) as mock_run,
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.run", return_value=mock_result) as mock_run,
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch(
-                "mamfast.mkbrr.host_to_container_torrent_path",
+                "shelfr.mkbrr.host_to_container_torrent_path",
                 return_value="/torrents/test.torrent",
             ),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
         ):
             result = check_torrent(
                 tmp_path / "test.torrent",
@@ -701,13 +701,13 @@ class TestCheckTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.run", return_value=mock_result),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch(
-                "mamfast.mkbrr.host_to_container_torrent_path",
+                "shelfr.mkbrr.host_to_container_torrent_path",
                 return_value="/torrents/test.torrent",
             ),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
         ):
             result = check_torrent(tmp_path / "test.torrent", tmp_path / "content")
 
@@ -727,13 +727,13 @@ class TestCheckTorrent:
         mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
 
         with (
-            patch("mamfast.mkbrr.run", side_effect=Exception("Check failed")),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.run", side_effect=Exception("Check failed")),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
             patch(
-                "mamfast.mkbrr.host_to_container_torrent_path",
+                "shelfr.mkbrr.host_to_container_torrent_path",
                 return_value="/torrents/test.torrent",
             ),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
         ):
             result = check_torrent(tmp_path / "test.torrent", tmp_path / "content")
 
@@ -772,10 +772,10 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         prefixed_torrent.touch()
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
-            patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+            patch("shelfr.mkbrr.run", return_value=mock_result),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
         ):
             result = create_torrent(content_dir, output_dir)
 
@@ -809,10 +809,10 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         unprefixed_torrent.touch()
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
-            patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+            patch("shelfr.mkbrr.run", return_value=mock_result),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
         ):
             result = create_torrent(content_dir, output_dir)
 
@@ -853,10 +853,10 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
         newer_torrent.touch()
 
         with (
-            patch("mamfast.mkbrr.run", return_value=mock_result),
-            patch("mamfast.mkbrr.get_settings", return_value=mock_settings),
-            patch("mamfast.mkbrr.host_to_container_data_path", return_value="/data/content"),
-            patch("mamfast.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+            patch("shelfr.mkbrr.run", return_value=mock_result),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
         ):
             result = create_torrent(content_dir, output_dir)
 

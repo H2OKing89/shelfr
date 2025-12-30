@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mamfast.exceptions import LibationError
-from mamfast.libation import (
+from shelfr.exceptions import LibationError
+from shelfr.libation import (
     LibationResult,
     LibationStatus,
     ScanResult,  # Backwards compatibility alias
@@ -18,7 +18,7 @@ from mamfast.libation import (
     run_liberate,
     run_scan,
 )
-from mamfast.utils.cmd import CmdError, CmdResult
+from shelfr.utils.cmd import CmdError, CmdResult
 from tests.conftest import make_cmd_result
 
 # Alias for backwards compatibility with existing tests
@@ -57,8 +57,8 @@ class TestCheckContainerRunning:
         mock_settings.libation_container = "Libation"
 
         with (
-            patch("mamfast.libation.docker", return_value=mock_result),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", return_value=mock_result),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             assert check_container_running() is True
 
@@ -71,8 +71,8 @@ class TestCheckContainerRunning:
         mock_settings.libation_container = "Libation"
 
         with (
-            patch("mamfast.libation.docker", return_value=mock_result),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", return_value=mock_result),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             assert check_container_running() is False
 
@@ -84,7 +84,7 @@ class TestCheckContainerRunning:
 
         with (
             patch(
-                "mamfast.libation.docker",
+                "shelfr.libation.docker",
                 side_effect=CmdError(
                     argv=["docker"],
                     exit_code=1,
@@ -92,7 +92,7 @@ class TestCheckContainerRunning:
                     stderr="Error",
                 ),
             ),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             assert check_container_running() is False
 
@@ -103,8 +103,8 @@ class TestCheckContainerRunning:
         mock_settings.libation_container = "Libation"
 
         with (
-            patch("mamfast.libation.docker", side_effect=OSError("Docker not found")),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=OSError("Docker not found")),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             assert check_container_running() is False
 
@@ -121,8 +121,8 @@ class TestRunScan:
         mock_settings.docker_bin = "/usr/bin/docker"
 
         with (
-            patch("mamfast.libation.run", return_value=mock_result),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.run", return_value=mock_result),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             result = run_scan()
             assert result.success is True
@@ -132,7 +132,7 @@ class TestRunScan:
         """Test failed scan."""
         with (
             patch(
-                "mamfast.libation.run",
+                "shelfr.libation.run",
                 side_effect=CmdError(
                     argv=["docker", "exec"],
                     exit_code=1,
@@ -140,7 +140,7 @@ class TestRunScan:
                     stderr="Error",
                 ),
             ),
-            patch("mamfast.libation.get_settings", return_value=MagicMock()),
+            patch("shelfr.libation.get_settings", return_value=MagicMock()),
         ):
             result = run_scan()
             assert result.success is False
@@ -153,7 +153,7 @@ class TestRunScan:
 
         with (
             patch(
-                "mamfast.libation.run",
+                "shelfr.libation.run",
                 side_effect=CmdError(
                     argv=["docker"],
                     exit_code=127,
@@ -161,7 +161,7 @@ class TestRunScan:
                     stderr="Command not found: docker",
                 ),
             ),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             result = run_scan()
             assert result.success is False
@@ -180,8 +180,8 @@ class TestRunLiberate:
         mock_settings.docker_bin = "/usr/bin/docker"
 
         with (
-            patch("mamfast.libation.docker", return_value=mock_result),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", return_value=mock_result),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             result = run_liberate()
             assert result.success is True
@@ -195,8 +195,8 @@ class TestRunLiberate:
         mock_settings.docker_bin = "/usr/bin/docker"
 
         with (
-            patch("mamfast.libation.docker", return_value=mock_result) as mock_docker,
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", return_value=mock_result) as mock_docker,
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             result = run_liberate(asin="B01234567X")
             assert result.success is True
@@ -212,7 +212,7 @@ class TestRunLiberate:
 
         with (
             patch(
-                "mamfast.libation.docker",
+                "shelfr.libation.docker",
                 side_effect=CmdError(
                     argv=["docker", "exec"],
                     exit_code=1,
@@ -220,7 +220,7 @@ class TestRunLiberate:
                     stderr="Error downloading",
                 ),
             ),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             result = run_liberate()
             assert result.success is False
@@ -233,10 +233,10 @@ class TestRunLiberate:
 
         with (
             patch(
-                "mamfast.libation.docker",
+                "shelfr.libation.docker",
                 side_effect=RuntimeError("Unexpected error"),
             ),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             result = run_liberate()
             assert result.success is False
@@ -256,8 +256,8 @@ class TestRunScanInteractive:
         mock_settings.docker_bin = "/usr/bin/docker"
 
         with (
-            patch("mamfast.libation.run", return_value=mock_result) as mock_run,
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.run", return_value=mock_result) as mock_run,
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             result = run_scan(interactive=True)
             assert result.success is True
@@ -269,7 +269,7 @@ class TestRunScanInteractive:
         """Test failed interactive scan."""
         with (
             patch(
-                "mamfast.libation.run",
+                "shelfr.libation.run",
                 side_effect=CmdError(
                     argv=["docker", "exec"],
                     exit_code=1,
@@ -277,7 +277,7 @@ class TestRunScanInteractive:
                     stderr="Error",
                 ),
             ),
-            patch("mamfast.libation.get_settings", return_value=MagicMock()),
+            patch("shelfr.libation.get_settings", return_value=MagicMock()),
         ):
             result = run_scan(interactive=True)
             assert result.success is False
@@ -289,8 +289,8 @@ class TestRunScanInteractive:
         mock_settings.docker_bin = "/usr/bin/docker"
 
         with (
-            patch("mamfast.libation.run", side_effect=RuntimeError("Docker crash")),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.run", side_effect=RuntimeError("Docker crash")),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             result = run_scan()
             assert result.success is False
@@ -389,8 +389,8 @@ class TestGetLibationStatus:
                 return _make_cmd_result()
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             status = get_libation_status()
             assert status.total == 100
@@ -412,8 +412,8 @@ class TestGetLibationStatus:
                 return _make_cmd_result()
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             status = get_libation_status()
             assert status.total == 100
@@ -435,8 +435,8 @@ class TestGetLibationStatus:
                 return _make_cmd_result()
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             status = get_libation_status()
             assert status.total == 100
@@ -462,8 +462,8 @@ class TestGetLibationStatus:
                 return _make_cmd_result()
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             status = get_libation_status()
             assert status.total == 100
@@ -486,8 +486,8 @@ class TestGetLibationStatus:
             return _make_cmd_result()
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
             pytest.raises(LibationError, match="Docker command failed"),
         ):
             get_libation_status()
@@ -511,8 +511,8 @@ class TestGetLibationStatus:
             return _make_cmd_result()
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
             pytest.raises(LibationError, match="Docker command failed"),
         ):
             get_libation_status()
@@ -529,8 +529,8 @@ class TestGetLibationStatus:
             return _make_cmd_result()
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
             pytest.raises(LibationError, match="Failed to parse Libation export JSON"),
         ):
             get_libation_status()
@@ -547,8 +547,8 @@ class TestGetLibationStatus:
             return _make_cmd_result()
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
             pytest.raises(LibationError, match="Expected list from export"),
         ):
             get_libation_status()
@@ -566,8 +566,8 @@ class TestGetLibationStatus:
             )
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
             pytest.raises(LibationError, match="Docker command failed"),
         ):
             get_libation_status()
@@ -591,8 +591,8 @@ class TestGetLibationStatus:
             return _make_cmd_result()
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             with pytest.raises(LibationError):
                 get_libation_status()
@@ -612,8 +612,8 @@ class TestGetLibationStatus:
             return _make_cmd_result()
 
         with (
-            patch("mamfast.libation.docker", side_effect=side_effect),
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation.docker", side_effect=side_effect),
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
         ):
             status = get_libation_status()
             assert status.total == 0
@@ -632,7 +632,7 @@ class TestParseLibationOutput:
 
     def test_parses_completed_books(self) -> None:
         """Should extract completed book entries from stdout."""
-        from mamfast.libation import _parse_libation_output
+        from shelfr.libation import _parse_libation_output
 
         stdout = """DownloadDecryptBook Begin: 12/21/2025 [B0FHHH1FVQ] Book Title
 DownloadDecryptBook Completed: 12/21/2025 [B0FHHH1FVQ] Book Title
@@ -647,7 +647,7 @@ Done. All books have been processed"""
 
     def test_detects_error_in_stderr(self) -> None:
         """Should detect error messages in stderr."""
-        from mamfast.libation import _parse_libation_output
+        from shelfr.libation import _parse_libation_output
 
         stdout = """DownloadDecryptBook Begin: 12/21/2025 [B0FHHH1FVQ] Book Title
 DownloadDecryptBook Completed: 12/21/2025 [B0FHHH1FVQ] Book Title
@@ -661,7 +661,7 @@ Done. All books have been processed"""
 
     def test_handles_empty_output(self) -> None:
         """Should handle empty stdout and stderr."""
-        from mamfast.libation import _parse_libation_output
+        from shelfr.libation import _parse_libation_output
 
         result = _parse_libation_output("", "")
         assert len(result["completed"]) == 0
@@ -670,7 +670,7 @@ Done. All books have been processed"""
 
     def test_multiple_completed_books(self) -> None:
         """Should track multiple completed books."""
-        from mamfast.libation import _parse_libation_output
+        from shelfr.libation import _parse_libation_output
 
         stdout = """DownloadDecryptBook Completed: 12/21/2025 [ASIN1] Book One
 DownloadDecryptBook Completed: 12/21/2025 [ASIN2] Book Two
@@ -682,7 +682,7 @@ DownloadDecryptBook Completed: 12/21/2025 [ASIN3] Book Three"""
 
     def test_detects_failed_keyword(self) -> None:
         """Should detect 'failed' keyword in stderr."""
-        from mamfast.libation import _parse_libation_output
+        from shelfr.libation import _parse_libation_output
 
         stdout = ""
         stderr = "Download failed for book ASIN123"
@@ -696,7 +696,7 @@ class TestLiberateProgressResult:
 
     def test_default_values(self) -> None:
         """Test default field values."""
-        from mamfast.libation import LiberateProgressResult
+        from shelfr.libation import LiberateProgressResult
 
         result = LiberateProgressResult(success=True, returncode=0)
         assert result.success is True
@@ -709,7 +709,7 @@ class TestLiberateProgressResult:
 
     def test_with_book_errors(self) -> None:
         """Test result with book-level errors."""
-        from mamfast.libation import LiberateProgressResult
+        from shelfr.libation import LiberateProgressResult
 
         result = LiberateProgressResult(
             success=True,
@@ -733,7 +733,7 @@ class TestRunLiberateWithProgressTimeout:
 
         from rich.console import Console
 
-        from mamfast.libation import LiberateProgressResult, run_liberate_with_progress
+        from shelfr.libation import LiberateProgressResult, run_liberate_with_progress
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -742,10 +742,10 @@ class TestRunLiberateWithProgressTimeout:
         mock_console = MagicMock(spec=Console)
 
         with (
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
-            patch("mamfast.libation._is_tty", return_value=True),  # Force TTY
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation._is_tty", return_value=True),  # Force TTY
             patch(
-                "mamfast.libation.subprocess.run",
+                "shelfr.libation.subprocess.run",
                 side_effect=subprocess.TimeoutExpired(cmd="docker", timeout=3600),
             ),
         ):
@@ -765,7 +765,7 @@ class TestRunLiberateWithProgressTimeout:
 
         from rich.console import Console
 
-        from mamfast.libation import LiberateProgressResult, run_liberate_with_progress
+        from shelfr.libation import LiberateProgressResult, run_liberate_with_progress
 
         mock_settings = MagicMock()
         mock_settings.docker_bin = "/usr/bin/docker"
@@ -774,10 +774,10 @@ class TestRunLiberateWithProgressTimeout:
         mock_console = MagicMock(spec=Console)
 
         with (
-            patch("mamfast.libation.get_settings", return_value=mock_settings),
-            patch("mamfast.libation._is_tty", return_value=False),  # Force non-TTY
+            patch("shelfr.libation.get_settings", return_value=mock_settings),
+            patch("shelfr.libation._is_tty", return_value=False),  # Force non-TTY
             patch(
-                "mamfast.libation.subprocess.run",
+                "shelfr.libation.subprocess.run",
                 side_effect=subprocess.TimeoutExpired(cmd="docker", timeout=3600),
             ),
         ):

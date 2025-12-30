@@ -20,8 +20,8 @@ from typing import Any, cast
 
 import pytest
 
-from mamfast.models import NormalizedBook
-from mamfast.utils.naming import normalize_audnex_book
+from shelfr.models import NormalizedBook
+from shelfr.utils.naming import normalize_audnex_book
 
 # Path to generated golden samples
 GOLDEN_SAMPLES_PATH = Path(__file__).parent / "fixtures" / "golden_samples_generated.json"

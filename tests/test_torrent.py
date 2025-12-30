@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mamfast.utils.torrent import (
+from shelfr.utils.torrent import (
     bdecode,
     bencode,
     extract_infohash,

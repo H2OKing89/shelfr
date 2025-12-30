@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from mamfast.metadata import (
+from shelfr.metadata import (
     AudioFormat,
     _build_series_list,
     _clean_html,
@@ -53,7 +53,7 @@ class TestFetchAudnexBook:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result, region = fetch_audnex_book("B09TEST123")
 
@@ -79,7 +79,7 @@ class TestFetchAudnexBook:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result, region = fetch_audnex_book("INVALID_ASIN")
 
@@ -120,7 +120,7 @@ class TestFetchAudnexBook:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result, region = fetch_audnex_book("B09TEST123")
 
@@ -146,7 +146,7 @@ class TestFetchAudnexBook:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result, region = fetch_audnex_book("B09TEST123", region="uk")
 
@@ -161,7 +161,7 @@ class TestFetchAudnexAuthor:
 
     def test_fetch_author_success(self):
         """Test successful author fetch."""
-        from mamfast.metadata import fetch_audnex_author
+        from shelfr.metadata import fetch_audnex_author
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -182,7 +182,7 @@ class TestFetchAudnexAuthor:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_author("B001H6KJPW")
 
@@ -191,7 +191,7 @@ class TestFetchAudnexAuthor:
 
     def test_fetch_author_not_found(self):
         """Test handling 404 response for author."""
-        from mamfast.metadata import fetch_audnex_author
+        from shelfr.metadata import fetch_audnex_author
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -208,7 +208,7 @@ class TestFetchAudnexAuthor:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_author("INVALID_ASIN")
 
@@ -218,7 +218,7 @@ class TestFetchAudnexAuthor:
         """Test that timeout returns None and logs warning."""
         import httpx
 
-        from mamfast.metadata import fetch_audnex_author
+        from shelfr.metadata import fetch_audnex_author
 
         mock_client = MagicMock()
         mock_client.get.side_effect = httpx.TimeoutException("Connection timed out")
@@ -232,7 +232,7 @@ class TestFetchAudnexAuthor:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_author("B001H6KJPW")
 
@@ -240,7 +240,7 @@ class TestFetchAudnexAuthor:
 
     def test_fetch_author_json_decode_error(self):
         """Test that JSON decode error returns None (catch-all exception)."""
-        from mamfast.metadata import fetch_audnex_author
+        from shelfr.metadata import fetch_audnex_author
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -258,7 +258,7 @@ class TestFetchAudnexAuthor:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_author("B001H6KJPW")
 
@@ -269,7 +269,7 @@ class TestFetchAudnexAuthor:
         """Test that 429 rate limit returns None."""
         import httpx
 
-        from mamfast.metadata import fetch_audnex_author
+        from shelfr.metadata import fetch_audnex_author
 
         mock_response = MagicMock()
         mock_response.status_code = 429
@@ -294,7 +294,7 @@ class TestFetchAudnexAuthor:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_author("B001H6KJPW")
 
@@ -306,7 +306,7 @@ class TestFetchAudnexChapters:
 
     def test_fetch_chapters_success(self):
         """Test successful chapters fetch."""
-        from mamfast.metadata import fetch_audnex_chapters
+        from shelfr.metadata import fetch_audnex_chapters
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -342,7 +342,7 @@ class TestFetchAudnexChapters:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_chapters("B09TEST123")
 
@@ -354,7 +354,7 @@ class TestFetchAudnexChapters:
 
     def test_fetch_chapters_not_found(self):
         """Test handling 404 response for chapters."""
-        from mamfast.metadata import fetch_audnex_chapters
+        from shelfr.metadata import fetch_audnex_chapters
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -371,7 +371,7 @@ class TestFetchAudnexChapters:
 
         with (
             patch("httpx.Client", return_value=mock_client),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_chapters("INVALID_ASIN")
 
@@ -381,7 +381,7 @@ class TestFetchAudnexChapters:
 
     def test_parse_chapters(self):
         """Test parsing chapters from Audnex response."""
-        from mamfast.metadata import _parse_chapters_from_audnex
+        from shelfr.metadata import _parse_chapters_from_audnex
 
         chapters_data = {
             "chapters": [
@@ -403,14 +403,14 @@ class TestFetchAudnexChapters:
 
     def test_parse_empty_chapters(self):
         """Test parsing empty chapters list."""
-        from mamfast.metadata import _parse_chapters_from_audnex
+        from shelfr.metadata import _parse_chapters_from_audnex
 
         result = _parse_chapters_from_audnex({"chapters": []})
         assert result == []
 
     def test_parse_no_chapters_key(self):
         """Test parsing response without chapters key."""
-        from mamfast.metadata import _parse_chapters_from_audnex
+        from shelfr.metadata import _parse_chapters_from_audnex
 
         result = _parse_chapters_from_audnex({})
         assert result == []
@@ -424,7 +424,7 @@ class TestRunMediainfo:
         mock_settings = MagicMock()
         mock_settings.mediainfo.binary = "mediainfo"
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             result = run_mediainfo(Path("/nonexistent/file.m4b"))
 
         assert result is None
@@ -444,7 +444,7 @@ class TestRunMediainfo:
 
         with (
             patch("subprocess.run", return_value=mock_result),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = run_mediainfo(temp_path)
 
@@ -753,7 +753,7 @@ class TestBuildSeriesList:
         order suffixes like [publication order] vs [chronological order].
         After cleaning, these become identical and should be deduplicated.
         """
-        from mamfast.config import NamingConfig
+        from shelfr.config import NamingConfig
 
         config = NamingConfig(
             series_suffixes=[r"\s*\[[^\]]*[Oo]rder\]$"],  # Pattern from naming.json
@@ -773,7 +773,7 @@ class TestBuildSeriesList:
 
     def test_keeps_distinct_series(self):
         """Test that genuinely different series are preserved."""
-        from mamfast.config import NamingConfig
+        from shelfr.config import NamingConfig
 
         config = NamingConfig(
             series_suffixes=[r"\s*\[[^\]]*[Oo]rder\]$"],
@@ -799,7 +799,7 @@ class TestBuildMamJson:
 
     def test_builds_basic_json(self):
         """Test building basic MAM JSON."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(
             title="Test Book",
@@ -814,7 +814,7 @@ class TestBuildMamJson:
             "language": "english",
         }
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value="Description"):
+        with patch("shelfr.metadata.render_bbcode_description", return_value="Description"):
             result = build_mam_json(release, audnex_data=audnex)
 
         assert result["title"] == "Test Book"
@@ -826,7 +826,7 @@ class TestBuildMamJson:
 
     def test_filters_translator_from_authors(self):
         """Test that translators are filtered from authors."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Test Book", asin="B09TEST123")
 
@@ -838,14 +838,14 @@ class TestBuildMamJson:
             ],
         }
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value="Description"):
+        with patch("shelfr.metadata.render_bbcode_description", return_value="Description"):
             result = build_mam_json(release, audnex_data=audnex)
 
         assert result["authors"] == ["Real Author"]
 
     def test_fallback_to_release_data(self):
         """Test fallback to release data when audnex is empty."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(
             title="Fallback Title",
@@ -856,7 +856,7 @@ class TestBuildMamJson:
             asin="B09TEST123",
         )
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result = build_mam_json(release, audnex_data={})
 
         assert result["title"] == "Fallback Title"
@@ -866,7 +866,7 @@ class TestBuildMamJson:
 
     def test_builds_tags_string(self):
         """Test building tags string from mediainfo."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Test Book", asin="B09TEST123")
 
@@ -894,7 +894,7 @@ class TestBuildMamJson:
             }
         }
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result = build_mam_json(release, audnex_data=audnex, mediainfo_data=mediainfo)
 
         tags = result.get("tags", "")
@@ -905,7 +905,7 @@ class TestBuildMamJson:
 
     def test_sets_flags(self):
         """Test setting flags for adult content and abridged."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Adult Book", asin="B09TEST123")
 
@@ -915,7 +915,7 @@ class TestBuildMamJson:
             "formatType": "Abridged",
         }
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result = build_mam_json(release, audnex_data=audnex)
 
         assert "eSex" in result.get("flags", [])
@@ -923,17 +923,17 @@ class TestBuildMamJson:
 
     def test_sets_main_category(self):
         """Test setting main category based on literature type."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         # Fiction
         release1 = AudiobookRelease(title="Fiction Book", asin="B09TEST123")
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result1 = build_mam_json(release1, audnex_data={"literatureType": "fiction"})
         assert result1.get("main_cat") == 1
 
         # Non-fiction
         release2 = AudiobookRelease(title="NonFiction Book", asin="B09TEST456")
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result2 = build_mam_json(release2, audnex_data={"literatureType": "non-fiction"})
         assert result2.get("main_cat") == 2
 
@@ -947,7 +947,7 @@ class TestBuildMamJsonCleaning:
 
     def _get_mock_settings(self):
         """Create mock settings with NamingConfig for testing cleaning."""
-        from mamfast.config import NamingConfig
+        from shelfr.config import NamingConfig
 
         mock_settings = MagicMock()
         mock_settings.filters = None
@@ -965,7 +965,7 @@ class TestBuildMamJsonCleaning:
 
     def test_title_removes_format_indicators(self):
         """Test that format indicators like (Light Novel) are removed from title."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Test", asin="B09TEST123")
         audnex = {
@@ -974,8 +974,8 @@ class TestBuildMamJsonCleaning:
         }
 
         with (
-            patch("mamfast.metadata.render_bbcode_description", return_value=""),
-            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch("shelfr.metadata.render_bbcode_description", return_value=""),
+            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -986,7 +986,7 @@ class TestBuildMamJsonCleaning:
 
     def test_title_keeps_volume_for_json(self):
         """Test that Vol. X is preserved in MAM JSON titles."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Test", asin="B09TEST123")
         audnex = {
@@ -995,8 +995,8 @@ class TestBuildMamJsonCleaning:
         }
 
         with (
-            patch("mamfast.metadata.render_bbcode_description", return_value=""),
-            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch("shelfr.metadata.render_bbcode_description", return_value=""),
+            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1005,7 +1005,7 @@ class TestBuildMamJsonCleaning:
 
     def test_title_removes_genre_tags(self):
         """Test that genre tags like 'A LitRPG Adventure' are removed."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Test", asin="B09TEST123")
         audnex = {
@@ -1014,8 +1014,8 @@ class TestBuildMamJsonCleaning:
         }
 
         with (
-            patch("mamfast.metadata.render_bbcode_description", return_value=""),
-            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch("shelfr.metadata.render_bbcode_description", return_value=""),
+            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1025,7 +1025,7 @@ class TestBuildMamJsonCleaning:
 
     def test_subtitle_removes_format_indicators(self):
         """Test that format indicators are removed from subtitle."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Test", asin="B09TEST123")
         audnex = {
@@ -1035,8 +1035,8 @@ class TestBuildMamJsonCleaning:
         }
 
         with (
-            patch("mamfast.metadata.render_bbcode_description", return_value=""),
-            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch("shelfr.metadata.render_bbcode_description", return_value=""),
+            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1045,7 +1045,7 @@ class TestBuildMamJsonCleaning:
 
     def test_subtitle_keeps_meaningful_content(self):
         """Test that meaningful subtitle content is preserved."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Test", asin="B09TEST123")
         audnex = {
@@ -1055,8 +1055,8 @@ class TestBuildMamJsonCleaning:
         }
 
         with (
-            patch("mamfast.metadata.render_bbcode_description", return_value=""),
-            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch("shelfr.metadata.render_bbcode_description", return_value=""),
+            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1065,7 +1065,7 @@ class TestBuildMamJsonCleaning:
 
     def test_series_removes_format_indicators(self):
         """Test that format indicators are removed from series names."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Test", asin="B09TEST123")
         audnex = {
@@ -1078,8 +1078,8 @@ class TestBuildMamJsonCleaning:
         }
 
         with (
-            patch("mamfast.metadata.render_bbcode_description", return_value=""),
-            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch("shelfr.metadata.render_bbcode_description", return_value=""),
+            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1090,7 +1090,7 @@ class TestBuildMamJsonCleaning:
 
     def test_series_removes_series_suffixes(self):
         """Test that series suffixes like ' Series', ' Trilogy' are removed."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Test", asin="B09TEST123")
         audnex = {
@@ -1103,8 +1103,8 @@ class TestBuildMamJsonCleaning:
         }
 
         with (
-            patch("mamfast.metadata.render_bbcode_description", return_value=""),
-            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch("shelfr.metadata.render_bbcode_description", return_value=""),
+            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1115,7 +1115,7 @@ class TestBuildMamJsonCleaning:
 
     def test_series_from_release_is_cleaned(self):
         """Test that series from release (not audnex) is also cleaned."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(
             title="Test Book",
@@ -1125,8 +1125,8 @@ class TestBuildMamJsonCleaning:
         )
 
         with (
-            patch("mamfast.metadata.render_bbcode_description", return_value=""),
-            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch("shelfr.metadata.render_bbcode_description", return_value=""),
+            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
         ):
             result = build_mam_json(release, audnex_data={})
 
@@ -1137,7 +1137,7 @@ class TestBuildMamJsonCleaning:
 
     def test_series_removes_volume_but_title_keeps(self):
         """Test that series removes Vol. X while title keeps it."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(title="Test", asin="B09TEST123")
         audnex = {
@@ -1150,8 +1150,8 @@ class TestBuildMamJsonCleaning:
         }
 
         with (
-            patch("mamfast.metadata.render_bbcode_description", return_value=""),
-            patch("mamfast.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch("shelfr.metadata.render_bbcode_description", return_value=""),
+            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1290,8 +1290,8 @@ class TestSaveJson:
             mock_settings.target_gid = 100
 
             with (
-                patch("mamfast.metadata.get_settings", return_value=mock_settings),
-                patch("mamfast.metadata.fix_ownership") as mock_fix,
+                patch("shelfr.metadata.get_settings", return_value=mock_settings),
+                patch("shelfr.metadata.fix_ownership") as mock_fix,
             ):
                 save_mam_json(data, output_path)
 
@@ -1339,7 +1339,7 @@ class TestFetchAudnexEdgeCases:
 
         with (
             patch("httpx.Client") as mock_client_class,
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
@@ -1363,7 +1363,7 @@ class TestFetchAudnexEdgeCases:
 
         with (
             patch("httpx.Client") as mock_client_class,
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
@@ -1396,7 +1396,7 @@ class TestRunMediainfoEdgeCases:
 
         with (
             patch("subprocess.run", side_effect=FileNotFoundError()),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = run_mediainfo(temp_file)
 
@@ -1417,7 +1417,7 @@ class TestRunMediainfoEdgeCases:
                 "subprocess.run",
                 side_effect=subprocess.CalledProcessError(1, "mediainfo", stderr="Error"),
             ),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = run_mediainfo(temp_file)
 
@@ -1437,7 +1437,7 @@ class TestRunMediainfoEdgeCases:
 
         with (
             patch("subprocess.run", return_value=mock_result),
-            patch("mamfast.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.get_settings", return_value=mock_settings),
         ):
             result = run_mediainfo(temp_file)
 
@@ -1449,14 +1449,14 @@ class TestInferFictionOrNonfiction:
 
     def test_fantasy_genre_returns_fiction(self):
         """Fantasy genre should return Fiction (1)."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         data = {"genres": [{"name": "Science Fiction & Fantasy"}, {"name": "Fantasy"}]}
         assert _infer_fiction_or_nonfiction(data) == 1
 
     def test_fantasy_overrides_wrong_literature_type(self):
         """Genre detection should override incorrect literatureType."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         data = {
             "literatureType": "nonfiction",  # Wrong!
@@ -1466,63 +1466,63 @@ class TestInferFictionOrNonfiction:
 
     def test_biography_returns_nonfiction(self):
         """Biography genre should return Non-Fiction (2)."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         data = {"genres": [{"name": "Biographies & Memoirs"}, {"name": "History"}]}
         assert _infer_fiction_or_nonfiction(data) == 2
 
     def test_self_help_returns_nonfiction(self):
         """Self-help genre should return Non-Fiction (2)."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         data = {"genres": [{"name": "Self-Help"}, {"name": "Personal Development"}]}
         assert _infer_fiction_or_nonfiction(data) == 2
 
     def test_historical_fiction_returns_fiction(self):
         """Historical fiction should be detected as Fiction."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         data = {"genres": [{"name": "Historical Fiction"}, {"name": "Romance"}]}
         assert _infer_fiction_or_nonfiction(data) == 1
 
     def test_fallback_to_literature_type_fiction(self):
         """Falls back to literatureType when genres don't match."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         data = {"literatureType": "fiction", "genres": [{"name": "Obscure Genre"}]}
         assert _infer_fiction_or_nonfiction(data) == 1
 
     def test_fallback_to_literature_type_nonfiction(self):
         """Falls back to literatureType when genres don't match."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         data = {"literatureType": "nonfiction", "genres": [{"name": "Obscure Genre"}]}
         assert _infer_fiction_or_nonfiction(data) == 2
 
     def test_empty_genres_defaults_to_fiction(self):
         """Defaults to Fiction when no genres or literatureType."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         data = {"genres": []}
         assert _infer_fiction_or_nonfiction(data) == 1
 
     def test_missing_genres_defaults_to_fiction(self):
         """Defaults to Fiction when genres key is missing."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         data = {}
         assert _infer_fiction_or_nonfiction(data) == 1
 
     def test_science_fiction_not_confused_with_science(self):
         """'Science fiction' should be detected as fiction, not non-fiction."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         data = {"genres": [{"name": "Science Fiction"}]}
         assert _infer_fiction_or_nonfiction(data) == 1
 
     def test_word_boundary_matching(self):
         """Word boundary matching should avoid false positives."""
-        from mamfast.metadata import _infer_fiction_or_nonfiction
+        from shelfr.metadata import _infer_fiction_or_nonfiction
 
         # "urban" shouldn't match in "Suburban Life"
         data = {"genres": [{"name": "Suburban Life"}]}
@@ -1535,7 +1535,7 @@ class TestGetAudiobookCategory:
 
     def test_fantasy_genre_returns_fantasy_category(self):
         """Fantasy genre should map to 'Audiobooks - Fantasy'."""
-        from mamfast.metadata import _get_audiobook_category
+        from shelfr.metadata import _get_audiobook_category
 
         mock_settings = MagicMock()
         mock_settings.categories.audiobook_fiction_map = {
@@ -1543,7 +1543,7 @@ class TestGetAudiobookCategory:
         }
         mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Fantasy"}]}
             result = _get_audiobook_category(data, is_fiction=True)
 
@@ -1551,7 +1551,7 @@ class TestGetAudiobookCategory:
 
     def test_biography_genre_returns_biographical_category(self):
         """Biography genre should map to 'Audiobooks - Biographical'."""
-        from mamfast.metadata import _get_audiobook_category
+        from shelfr.metadata import _get_audiobook_category
 
         mock_settings = MagicMock()
         mock_settings.categories.audiobook_nonfiction_map = {
@@ -1559,7 +1559,7 @@ class TestGetAudiobookCategory:
         }
         mock_settings.categories.audiobook_defaults = {"nonfiction": "Audiobooks - General Non-Fic"}
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Biography"}]}
             result = _get_audiobook_category(data, is_fiction=False)
 
@@ -1567,7 +1567,7 @@ class TestGetAudiobookCategory:
 
     def test_first_match_wins(self):
         """First matching keyword in the map should win."""
-        from mamfast.metadata import _get_audiobook_category
+        from shelfr.metadata import _get_audiobook_category
 
         mock_settings = MagicMock()
         mock_settings.categories.audiobook_fiction_map = {
@@ -1576,7 +1576,7 @@ class TestGetAudiobookCategory:
         }
         mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             # Horror should win because it comes first in the map
             data = {"genres": [{"name": "Horror"}, {"name": "Thriller"}]}
             result = _get_audiobook_category(data, is_fiction=True)
@@ -1585,7 +1585,7 @@ class TestGetAudiobookCategory:
 
     def test_fallback_to_default_fiction(self):
         """Falls back to default when no keywords match."""
-        from mamfast.metadata import _get_audiobook_category
+        from shelfr.metadata import _get_audiobook_category
 
         mock_settings = MagicMock()
         mock_settings.categories.audiobook_fiction_map = {
@@ -1593,7 +1593,7 @@ class TestGetAudiobookCategory:
         }
         mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Obscure Genre"}]}
             result = _get_audiobook_category(data, is_fiction=True)
 
@@ -1601,7 +1601,7 @@ class TestGetAudiobookCategory:
 
     def test_fallback_to_default_nonfiction(self):
         """Falls back to default when no keywords match."""
-        from mamfast.metadata import _get_audiobook_category
+        from shelfr.metadata import _get_audiobook_category
 
         mock_settings = MagicMock()
         mock_settings.categories.audiobook_nonfiction_map = {
@@ -1609,7 +1609,7 @@ class TestGetAudiobookCategory:
         }
         mock_settings.categories.audiobook_defaults = {"nonfiction": "Audiobooks - General Non-Fic"}
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Obscure Genre"}]}
             result = _get_audiobook_category(data, is_fiction=False)
 
@@ -1617,13 +1617,13 @@ class TestGetAudiobookCategory:
 
     def test_empty_map_returns_default(self):
         """Returns default when category map is empty."""
-        from mamfast.metadata import _get_audiobook_category
+        from shelfr.metadata import _get_audiobook_category
 
         mock_settings = MagicMock()
         mock_settings.categories.audiobook_fiction_map = {}
         mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Fantasy"}]}
             result = _get_audiobook_category(data, is_fiction=True)
 
@@ -1631,13 +1631,13 @@ class TestGetAudiobookCategory:
 
     def test_hardcoded_default_when_not_in_config(self):
         """Uses hardcoded default when not in config defaults."""
-        from mamfast.metadata import _get_audiobook_category
+        from shelfr.metadata import _get_audiobook_category
 
         mock_settings = MagicMock()
         mock_settings.categories.audiobook_fiction_map = {}
         mock_settings.categories.audiobook_defaults = {}  # Empty!
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Fantasy"}]}
             result = _get_audiobook_category(data, is_fiction=True)
 
@@ -1649,7 +1649,7 @@ class TestBuildMamJsonCategory:
 
     def test_category_field_included(self):
         """build_mam_json should include category field."""
-        from mamfast.models import AudiobookRelease
+        from shelfr.models import AudiobookRelease
 
         mock_settings = MagicMock()
         mock_settings.categories.genre_map = {}
@@ -1667,7 +1667,7 @@ class TestBuildMamJsonCategory:
             "genres": [{"name": "Fantasy"}],
         }
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             result = build_mam_json(release, audnex_data=audnex_data)
 
         assert "category" in result
@@ -2005,7 +2005,7 @@ class TestMapGenresToCategories:
             "science fiction": 45,
         }
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([{"name": "Fantasy"}])
 
         assert result == [13]
@@ -2018,7 +2018,7 @@ class TestMapGenresToCategories:
             "science fiction": 45,
         }
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([{"name": "Science Fiction & Fantasy"}])
 
         # Should map to both Science Fiction (45) and Fantasy (13)
@@ -2033,7 +2033,7 @@ class TestMapGenresToCategories:
             "fantasy": 13,
         }
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([{"name": "Literature & Fiction, Fantasy"}])
 
         # Should map to both Literary Fiction (57) and Fantasy (13)
@@ -2048,7 +2048,7 @@ class TestMapGenresToCategories:
             "high fantasy": 13,
         }
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories(
                 [
                     {"name": "Fantasy"},
@@ -2067,7 +2067,7 @@ class TestMapGenresToCategories:
             "thriller": 51,
         }
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([{"name": "Psychological Thriller"}])
 
         # Partial match should find "thriller"
@@ -2078,7 +2078,7 @@ class TestMapGenresToCategories:
         mock_settings = MagicMock()
         mock_settings.categories.genre_map = {"fantasy": 13}
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([])
 
         assert result == []
@@ -2088,7 +2088,7 @@ class TestMapGenresToCategories:
         mock_settings = MagicMock()
         mock_settings.categories.genre_map = {"fantasy": 13}
 
-        with patch("mamfast.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([{"name": "Audiobook"}])
 
         assert result == []

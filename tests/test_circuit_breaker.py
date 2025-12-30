@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from mamfast.utils.circuit_breaker import (
+from shelfr.utils.circuit_breaker import (
     CircuitBreaker,
     CircuitOpenError,
     CircuitState,

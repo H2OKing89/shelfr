@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from mamfast.models import AudiobookRelease, ReleaseStatus
-from mamfast.validation import ValidationResult
-from mamfast.workflow import PipelineResult, full_run, process_single_release
+from shelfr.models import AudiobookRelease, ReleaseStatus
+from shelfr.validation import ValidationResult
+from shelfr.workflow import PipelineResult, full_run, process_single_release
 
 
 def _create_passing_validation_result() -> ValidationResult:
@@ -22,19 +22,19 @@ def _create_passing_validation_result() -> ValidationResult:
 class TestProcessSingleRelease:
     """Integration tests for processing a single release through the pipeline."""
 
-    @patch("mamfast.workflow.get_processed_identifiers")
-    @patch("mamfast.workflow.mark_failed")
-    @patch("mamfast.workflow.checkpoint_stage")
-    @patch("mamfast.workflow.should_skip_stage", return_value=False)
-    @patch("mamfast.workflow.DiscoveryValidation")
-    @patch("mamfast.workflow.PreUploadValidation")
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.workflow.generate_mam_json_for_release")
-    @patch("mamfast.workflow.upload_torrent")
-    @patch("mamfast.workflow.create_torrent")
-    @patch("mamfast.workflow._fetch_metadata_with_retry")
-    @patch("mamfast.workflow.stage_release")
-    @patch("mamfast.workflow.mark_processed")
+    @patch("shelfr.workflow.get_processed_identifiers")
+    @patch("shelfr.workflow.mark_failed")
+    @patch("shelfr.workflow.checkpoint_stage")
+    @patch("shelfr.workflow.should_skip_stage", return_value=False)
+    @patch("shelfr.workflow.DiscoveryValidation")
+    @patch("shelfr.workflow.PreUploadValidation")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.workflow.generate_mam_json_for_release")
+    @patch("shelfr.workflow.upload_torrent")
+    @patch("shelfr.workflow.create_torrent")
+    @patch("shelfr.workflow._fetch_metadata_with_retry")
+    @patch("shelfr.workflow.stage_release")
+    @patch("shelfr.workflow.mark_processed")
     def test_full_pipeline_success(
         self,
         mock_mark_processed: Mock,
@@ -104,16 +104,16 @@ class TestProcessSingleRelease:
             mock_upload.assert_called_once()
             mock_mark_processed.assert_called_once_with(release, infohash="abc123def456")
 
-    @patch("mamfast.workflow.get_processed_identifiers")
-    @patch("mamfast.workflow.checkpoint_stage")
-    @patch("mamfast.workflow.should_skip_stage", return_value=False)
-    @patch("mamfast.workflow.DiscoveryValidation")
-    @patch("mamfast.workflow.PreUploadValidation")
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.workflow.upload_torrent")
-    @patch("mamfast.workflow.create_torrent")
-    @patch("mamfast.workflow.stage_release")
-    @patch("mamfast.workflow.mark_failed")
+    @patch("shelfr.workflow.get_processed_identifiers")
+    @patch("shelfr.workflow.checkpoint_stage")
+    @patch("shelfr.workflow.should_skip_stage", return_value=False)
+    @patch("shelfr.workflow.DiscoveryValidation")
+    @patch("shelfr.workflow.PreUploadValidation")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.workflow.upload_torrent")
+    @patch("shelfr.workflow.create_torrent")
+    @patch("shelfr.workflow.stage_release")
+    @patch("shelfr.workflow.mark_failed")
     def test_pipeline_failure_in_torrent_creation(
         self,
         mock_mark_failed: Mock,
@@ -172,16 +172,16 @@ class TestProcessSingleRelease:
             # Upload should not be called if torrent creation fails
             mock_upload.assert_not_called()
 
-    @patch("mamfast.workflow.get_processed_identifiers")
-    @patch("mamfast.workflow.checkpoint_stage")
-    @patch("mamfast.workflow.should_skip_stage", return_value=False)
-    @patch("mamfast.workflow.DiscoveryValidation")
-    @patch("mamfast.workflow.PreUploadValidation")
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.workflow.upload_torrent")
-    @patch("mamfast.workflow.create_torrent")
-    @patch("mamfast.workflow.stage_release")
-    @patch("mamfast.workflow.mark_failed")
+    @patch("shelfr.workflow.get_processed_identifiers")
+    @patch("shelfr.workflow.checkpoint_stage")
+    @patch("shelfr.workflow.should_skip_stage", return_value=False)
+    @patch("shelfr.workflow.DiscoveryValidation")
+    @patch("shelfr.workflow.PreUploadValidation")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.workflow.upload_torrent")
+    @patch("shelfr.workflow.create_torrent")
+    @patch("shelfr.workflow.stage_release")
+    @patch("shelfr.workflow.mark_failed")
     def test_pipeline_failure_in_upload(
         self,
         mock_mark_failed: Mock,
@@ -246,11 +246,11 @@ class TestProcessSingleRelease:
 class TestFullPipeline:
     """Integration tests for the full pipeline."""
 
-    @patch("mamfast.workflow.PreflightValidation")
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.discovery.get_new_releases")
-    @patch("mamfast.workflow.run_liberate")
-    @patch("mamfast.workflow.run_scan")
+    @patch("shelfr.workflow.PreflightValidation")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.discovery.get_new_releases")
+    @patch("shelfr.workflow.run_liberate")
+    @patch("shelfr.workflow.run_scan")
     def test_full_run_with_no_releases(
         self,
         mock_scan: Mock,
@@ -286,15 +286,15 @@ class TestFullPipeline:
         mock_scan.assert_called_once()
         mock_liberate.assert_called_once()
 
-    @patch("mamfast.workflow.PreflightValidation")
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.workflow.DiscoveryValidation")
-    @patch("mamfast.workflow.get_processed_identifiers")
-    @patch("mamfast.workflow.is_processed")
-    @patch("mamfast.workflow.process_single_release")
-    @patch("mamfast.discovery.get_new_releases")
-    @patch("mamfast.workflow.run_liberate")
-    @patch("mamfast.workflow.run_scan")
+    @patch("shelfr.workflow.PreflightValidation")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.workflow.DiscoveryValidation")
+    @patch("shelfr.workflow.get_processed_identifiers")
+    @patch("shelfr.workflow.is_processed")
+    @patch("shelfr.workflow.process_single_release")
+    @patch("shelfr.discovery.get_new_releases")
+    @patch("shelfr.workflow.run_liberate")
+    @patch("shelfr.workflow.run_scan")
     def test_full_run_skips_already_processed(
         self,
         mock_scan: Mock,
@@ -358,10 +358,10 @@ class TestFullPipeline:
         """Test that dry run mode shows what would happen without making changes."""
         # This is a smoke test - just ensure dry run doesn't crash
         with (
-            patch("mamfast.workflow.get_settings"),
-            patch("mamfast.workflow.run_scan") as mock_scan,
-            patch("mamfast.workflow.run_liberate") as mock_liberate,
-            patch("mamfast.discovery.get_new_releases") as mock_releases,
+            patch("shelfr.workflow.get_settings"),
+            patch("shelfr.workflow.run_scan") as mock_scan,
+            patch("shelfr.workflow.run_liberate") as mock_liberate,
+            patch("shelfr.discovery.get_new_releases") as mock_releases,
         ):
             mock_scan.return_value = MagicMock(success=True)
             mock_liberate.return_value = MagicMock(success=True)
@@ -380,8 +380,8 @@ class TestConfigurationValidation:
 
     def test_missing_required_env_vars(self) -> None:
         """Test that missing required environment variables are detected."""
-        from mamfast.config import ConfigurationError, validate_required_env_vars
-        from mamfast.env_settings import clear_env_settings_cache
+        from shelfr.config import ConfigurationError, validate_required_env_vars
+        from shelfr.env_settings import clear_env_settings_cache
 
         # Clear cache to ensure fresh settings are loaded
         clear_env_settings_cache()
@@ -397,7 +397,7 @@ class TestConfigurationValidation:
 
     def test_invalid_url_format(self) -> None:
         """Test that invalid URLs are rejected."""
-        from mamfast.config import ConfigurationError, validate_url
+        from shelfr.config import ConfigurationError, validate_url
 
         with pytest.raises(ConfigurationError) as exc_info:
             validate_url("not-a-url", "TEST_URL")
@@ -410,12 +410,12 @@ class TestAtomicStateWrites:
 
     def test_state_file_atomicity(self) -> None:
         """Test that state files are written atomically."""
-        from mamfast.utils.state import save_state
+        from shelfr.utils.state import save_state
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
 
-            with patch("mamfast.utils.state._get_state_file", return_value=tmppath / "state.json"):
+            with patch("shelfr.utils.state._get_state_file", return_value=tmppath / "state.json"):
                 # Save a state
                 state = {
                     "version": 1,
@@ -441,19 +441,19 @@ class TestAtomicStateWrites:
 class TestWorkflowSavePathLogic:
     """Tests for qb_save_path logic in workflow functions."""
 
-    @patch("mamfast.workflow.get_processed_identifiers")
-    @patch("mamfast.workflow.mark_failed")
-    @patch("mamfast.workflow.checkpoint_stage")
-    @patch("mamfast.workflow.should_skip_stage", return_value=False)
-    @patch("mamfast.workflow.DiscoveryValidation")
-    @patch("mamfast.workflow.PreUploadValidation")
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.workflow.generate_mam_json_for_release")
-    @patch("mamfast.workflow.upload_torrent")
-    @patch("mamfast.workflow.create_torrent")
-    @patch("mamfast.workflow._fetch_metadata_with_retry")
-    @patch("mamfast.workflow.stage_release")
-    @patch("mamfast.workflow.mark_processed")
+    @patch("shelfr.workflow.get_processed_identifiers")
+    @patch("shelfr.workflow.mark_failed")
+    @patch("shelfr.workflow.checkpoint_stage")
+    @patch("shelfr.workflow.should_skip_stage", return_value=False)
+    @patch("shelfr.workflow.DiscoveryValidation")
+    @patch("shelfr.workflow.PreUploadValidation")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.workflow.generate_mam_json_for_release")
+    @patch("shelfr.workflow.upload_torrent")
+    @patch("shelfr.workflow.create_torrent")
+    @patch("shelfr.workflow._fetch_metadata_with_retry")
+    @patch("shelfr.workflow.stage_release")
+    @patch("shelfr.workflow.mark_processed")
     def test_auto_tmm_enabled_no_save_path(
         self,
         mock_mark_processed: Mock,
@@ -518,19 +518,19 @@ class TestWorkflowSavePathLogic:
             call_kwargs = mock_upload.call_args[1]
             assert call_kwargs["save_path"] is None
 
-    @patch("mamfast.workflow.get_processed_identifiers")
-    @patch("mamfast.workflow.mark_failed")
-    @patch("mamfast.workflow.checkpoint_stage")
-    @patch("mamfast.workflow.should_skip_stage", return_value=False)
-    @patch("mamfast.workflow.DiscoveryValidation")
-    @patch("mamfast.workflow.PreUploadValidation")
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.workflow.generate_mam_json_for_release")
-    @patch("mamfast.workflow.upload_torrent")
-    @patch("mamfast.workflow.create_torrent")
-    @patch("mamfast.workflow._fetch_metadata_with_retry")
-    @patch("mamfast.workflow.stage_release")
-    @patch("mamfast.workflow.mark_processed")
+    @patch("shelfr.workflow.get_processed_identifiers")
+    @patch("shelfr.workflow.mark_failed")
+    @patch("shelfr.workflow.checkpoint_stage")
+    @patch("shelfr.workflow.should_skip_stage", return_value=False)
+    @patch("shelfr.workflow.DiscoveryValidation")
+    @patch("shelfr.workflow.PreUploadValidation")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.workflow.generate_mam_json_for_release")
+    @patch("shelfr.workflow.upload_torrent")
+    @patch("shelfr.workflow.create_torrent")
+    @patch("shelfr.workflow._fetch_metadata_with_retry")
+    @patch("shelfr.workflow.stage_release")
+    @patch("shelfr.workflow.mark_processed")
     def test_auto_tmm_disabled_with_save_path(
         self,
         mock_mark_processed: Mock,
@@ -596,19 +596,19 @@ class TestWorkflowSavePathLogic:
             expected_path = Path("/config/save/path") / staging_dir.name
             assert call_kwargs["save_path"] == expected_path
 
-    @patch("mamfast.workflow.get_processed_identifiers")
-    @patch("mamfast.workflow.mark_failed")
-    @patch("mamfast.workflow.checkpoint_stage")
-    @patch("mamfast.workflow.should_skip_stage", return_value=False)
-    @patch("mamfast.workflow.DiscoveryValidation")
-    @patch("mamfast.workflow.PreUploadValidation")
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.workflow.generate_mam_json_for_release")
-    @patch("mamfast.workflow.upload_torrent")
-    @patch("mamfast.workflow.create_torrent")
-    @patch("mamfast.workflow._fetch_metadata_with_retry")
-    @patch("mamfast.workflow.stage_release")
-    @patch("mamfast.workflow.mark_processed")
+    @patch("shelfr.workflow.get_processed_identifiers")
+    @patch("shelfr.workflow.mark_failed")
+    @patch("shelfr.workflow.checkpoint_stage")
+    @patch("shelfr.workflow.should_skip_stage", return_value=False)
+    @patch("shelfr.workflow.DiscoveryValidation")
+    @patch("shelfr.workflow.PreUploadValidation")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.workflow.generate_mam_json_for_release")
+    @patch("shelfr.workflow.upload_torrent")
+    @patch("shelfr.workflow.create_torrent")
+    @patch("shelfr.workflow._fetch_metadata_with_retry")
+    @patch("shelfr.workflow.stage_release")
+    @patch("shelfr.workflow.mark_processed")
     def test_auto_tmm_disabled_no_save_path_configured(
         self,
         mock_mark_processed: Mock,
@@ -677,15 +677,15 @@ class TestWorkflowSavePathLogic:
 class TestUploadOnlyPresetStripping:
     """Tests for preset prefix stripping in upload_only function."""
 
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.workflow.upload_torrent")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.workflow.upload_torrent")
     def test_strips_preset_prefix_from_torrent_name(
         self,
         mock_upload: Mock,
         mock_settings: Mock,
     ) -> None:
         """Test that mkbrr preset prefix is stripped from torrent name for save_path."""
-        from mamfast.workflow import upload_only
+        from shelfr.workflow import upload_only
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
@@ -707,15 +707,15 @@ class TestUploadOnlyPresetStripping:
             expected_path = Path("/data/audiobooks") / "My Audiobook [2024]"
             assert call_kwargs["save_path"] == expected_path
 
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.workflow.upload_torrent")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.workflow.upload_torrent")
     def test_no_stripping_when_no_prefix_match(
         self,
         mock_upload: Mock,
         mock_settings: Mock,
     ) -> None:
         """Test that name is used as-is when no preset prefix matches."""
-        from mamfast.workflow import upload_only
+        from shelfr.workflow import upload_only
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
@@ -737,15 +737,15 @@ class TestUploadOnlyPresetStripping:
             expected_path = Path("/data/audiobooks") / "My Audiobook [2024]"
             assert call_kwargs["save_path"] == expected_path
 
-    @patch("mamfast.workflow.get_settings")
-    @patch("mamfast.workflow.upload_torrent")
+    @patch("shelfr.workflow.get_settings")
+    @patch("shelfr.workflow.upload_torrent")
     def test_auto_tmm_enabled_no_save_path(
         self,
         mock_upload: Mock,
         mock_settings: Mock,
     ) -> None:
         """Test that save_path is None when auto_tmm is enabled in upload_only."""
-        from mamfast.workflow import upload_only
+        from shelfr.workflow import upload_only
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)

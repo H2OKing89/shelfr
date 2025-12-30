@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mamfast.utils.paths import safe_dirname, safe_filename, safe_filepath
+from shelfr.utils.paths import safe_dirname, safe_filename, safe_filepath
 
 
 class TestSafeFilename:
@@ -112,7 +112,7 @@ class TestIntegrationWithNaming:
 
     def test_build_mam_folder_name_safe(self):
         """Test that build_mam_folder_name produces safe names."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         # Test with potentially problematic inputs
         result = build_mam_folder_name(
@@ -129,7 +129,7 @@ class TestIntegrationWithNaming:
 
     def test_build_mam_file_name_safe(self):
         """Test that build_mam_file_name produces safe names."""
-        from mamfast.utils.naming import build_mam_file_name
+        from shelfr.utils.naming import build_mam_file_name
 
         result = build_mam_file_name(
             series="PRN",  # Reserved Windows name

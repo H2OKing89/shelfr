@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mamfast"
+name = "shelfr"
 version = "0.1.0"
-description = "Fast MAM audiobook upload automation tool"
+description = "Audiobook library automation - staging, metadata, uploads, and collection management"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -42,10 +42,11 @@ dev = [
 ]
 
 [project.scripts]
-mamfast = "mamfast.cli:main"
+shelfr = "shelfr.cli:main"
+mamfast = "shelfr.cli:main"  # Deprecated alias
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mamfast"]
+packages = ["src/shelfr"]
 
 [tool.ruff]
 line-length = 100

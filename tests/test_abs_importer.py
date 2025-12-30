@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from mamfast.abs.asin import AsinEntry
-from mamfast.abs.importer import (
+from shelfr.abs.asin import AsinEntry
+from shelfr.abs.importer import (
     BatchImportResult,
     ImportResult,
     ParsedFolderName,
@@ -191,7 +191,7 @@ class TestEnrichFromAudnex:
         """Audnex sometimes returns series_position as int - must be coerced to string."""
         from unittest.mock import patch
 
-        from mamfast.abs.importer import enrich_from_audnex
+        from shelfr.abs.importer import enrich_from_audnex
 
         parsed = ParsedFolderName(
             author="Unknown",
@@ -215,7 +215,7 @@ class TestEnrichFromAudnex:
             },
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+        with patch("shelfr.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
             result, _, region = enrich_from_audnex(parsed, "B0TEST1234")
 
         assert result.series == "Epic Adventure"
@@ -227,7 +227,7 @@ class TestEnrichFromAudnex:
         """Handle float position like 1.5 (sub-books)."""
         from unittest.mock import patch
 
-        from mamfast.abs.importer import enrich_from_audnex
+        from shelfr.abs.importer import enrich_from_audnex
 
         parsed = ParsedFolderName(
             author="Unknown",
@@ -248,7 +248,7 @@ class TestEnrichFromAudnex:
             },
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+        with patch("shelfr.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
             result, _, region = enrich_from_audnex(parsed, "B0TEST1234")
 
         assert result.series == "Epic Adventure"
@@ -260,7 +260,7 @@ class TestEnrichFromAudnex:
         """Handle None position gracefully."""
         from unittest.mock import patch
 
-        from mamfast.abs.importer import enrich_from_audnex
+        from shelfr.abs.importer import enrich_from_audnex
 
         parsed = ParsedFolderName(
             author="Unknown",
@@ -281,7 +281,7 @@ class TestEnrichFromAudnex:
             },
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+        with patch("shelfr.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
             result, _, region = enrich_from_audnex(parsed, "B0TEST1234")
 
         assert result.series == "Epic Adventure"
@@ -292,7 +292,7 @@ class TestEnrichFromAudnex:
         """Subtitle fallback also coerces position to string."""
         from unittest.mock import patch
 
-        from mamfast.abs.importer import enrich_from_audnex
+        from shelfr.abs.importer import enrich_from_audnex
 
         parsed = ParsedFolderName(
             author="Test Author",
@@ -312,7 +312,7 @@ class TestEnrichFromAudnex:
             "subtitle": "Epic Adventure, Book 3",
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+        with patch("shelfr.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
             result, _, region = enrich_from_audnex(parsed, "B0TEST1234")
 
         assert result.series == "Epic Adventure"
@@ -327,7 +327,7 @@ class TestEnrichFromAudnex:
         """
         from unittest.mock import patch
 
-        from mamfast.abs.importer import enrich_from_audnex
+        from shelfr.abs.importer import enrich_from_audnex
 
         parsed = ParsedFolderName(
             author="Unknown",
@@ -349,7 +349,7 @@ class TestEnrichFromAudnex:
             # No seriesPrimary, no parseable subtitle
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+        with patch("shelfr.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
             result, _, region = enrich_from_audnex(parsed, "B0FZLQ9LQD")
 
         assert result.author == "Brandon Varnell"
@@ -362,7 +362,7 @@ class TestEnrichFromAudnex:
         """Extract series from title with 'Vol.' notation."""
         from unittest.mock import patch
 
-        from mamfast.abs.importer import enrich_from_audnex
+        from shelfr.abs.importer import enrich_from_audnex
 
         parsed = ParsedFolderName(
             author="Unknown",
@@ -381,7 +381,7 @@ class TestEnrichFromAudnex:
             "authors": [{"name": "Author Name"}],
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+        with patch("shelfr.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
             result, _, region = enrich_from_audnex(parsed, "B012345678")
 
         assert result.series == "Epic Adventure"
@@ -392,7 +392,7 @@ class TestEnrichFromAudnex:
         """Don't extract from title if seriesPrimary already provided series."""
         from unittest.mock import patch
 
-        from mamfast.abs.importer import enrich_from_audnex
+        from shelfr.abs.importer import enrich_from_audnex
 
         parsed = ParsedFolderName(
             author="Unknown",
@@ -415,7 +415,7 @@ class TestEnrichFromAudnex:
             },
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+        with patch("shelfr.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
             result, _, region = enrich_from_audnex(parsed, "B012345678")
 
         # Should use seriesPrimary, NOT extract from title
@@ -432,7 +432,7 @@ class TestEnrichFromAudnex:
         """
         from unittest.mock import patch
 
-        from mamfast.abs.importer import enrich_from_audnex
+        from shelfr.abs.importer import enrich_from_audnex
 
         parsed = ParsedFolderName(
             author="Aneko Yusagi",
@@ -455,7 +455,7 @@ class TestEnrichFromAudnex:
             },
         }
 
-        with patch("mamfast.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
+        with patch("shelfr.abs.importer.fetch_audnex_book", return_value=(mock_audnex_data, "us")):
             result, _, region = enrich_from_audnex(parsed, "B0BN2GGTCK")
 
         # Audnex should override the incorrect parsed series
@@ -1009,7 +1009,7 @@ class TestErrorClasses:
 
     def test_duplicate_error(self) -> None:
         """Test DuplicateError has expected attributes."""
-        from mamfast.abs.importer import DuplicateError
+        from shelfr.abs.importer import DuplicateError
 
         err = DuplicateError("B0123456789", "/path/to/existing")
         assert err.asin == "B0123456789"
@@ -1019,7 +1019,7 @@ class TestErrorClasses:
 
     def test_filesystem_mismatch_error(self) -> None:
         """Test FilesystemMismatchError can be raised."""
-        from mamfast.abs.importer import FilesystemMismatchError
+        from shelfr.abs.importer import FilesystemMismatchError
 
         err = FilesystemMismatchError("Staging and library are on different filesystems")
         assert isinstance(err, Exception)
@@ -1101,7 +1101,7 @@ class TestMultiFileProtection:
 
     def test_multi_file_with_track_numbers_renames_safely(self, tmp_path: Path) -> None:
         """Multi-file book with track numbers gets renamed with track suffix preserved."""
-        from mamfast.abs.importer import parse_mam_folder_name, rename_files_in_folder
+        from shelfr.abs.importer import parse_mam_folder_name, rename_files_in_folder
 
         folder = tmp_path / "Unknown Multi-Part Book"
         folder.mkdir()
@@ -1126,7 +1126,7 @@ class TestMultiFileProtection:
 
     def test_single_file_no_asin_can_rename(self, tmp_path: Path) -> None:
         """Single-file book without ASIN can still be renamed safely."""
-        from mamfast.abs.importer import parse_mam_folder_name, rename_files_in_folder
+        from shelfr.abs.importer import parse_mam_folder_name, rename_files_in_folder
 
         folder = tmp_path / "Unknown Single Book (2024) (Author)"
         folder.mkdir()
@@ -1146,7 +1146,7 @@ class TestMultiFileProtection:
 
     def test_multi_file_with_track_numbers_renamed(self, tmp_path: Path) -> None:
         """Multi-file book with track numbers gets renamed with track suffix preserved."""
-        from mamfast.abs.importer import parse_mam_folder_name, rename_files_in_folder
+        from shelfr.abs.importer import parse_mam_folder_name, rename_files_in_folder
 
         folder = tmp_path / "Known Book (2024) (Author) {ASIN.B0ABCDEFGH}"
         folder.mkdir()
@@ -1171,7 +1171,7 @@ class TestMultiFileProtection:
 
     def test_multi_file_without_track_numbers_preserved(self, tmp_path: Path) -> None:
         """Multi-file book without track numbers preserves original filenames."""
-        from mamfast.abs.importer import parse_mam_folder_name, rename_files_in_folder
+        from shelfr.abs.importer import parse_mam_folder_name, rename_files_in_folder
 
         folder = tmp_path / "Known Book (2024) (Author) {ASIN.B0ABCDEFGH}"
         folder.mkdir()
@@ -1189,7 +1189,7 @@ class TestMultiFileProtection:
 
     def test_multi_file_dry_run_shows_renames(self, tmp_path: Path) -> None:
         """Dry-run mode shows planned renames for multi-file books with track numbers."""
-        from mamfast.abs.importer import parse_mam_folder_name, rename_files_in_folder
+        from shelfr.abs.importer import parse_mam_folder_name, rename_files_in_folder
 
         folder = tmp_path / "Unknown Multi-Part"
         folder.mkdir()
@@ -1779,7 +1779,7 @@ class TestImportSingleWithTrumping:
         self, temp_staging: Path, temp_library: Path, mock_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Trumping does not run when TrumpPrefs.enabled is False."""
-        from mamfast.abs.trumping import TrumpPrefs
+        from shelfr.abs.trumping import TrumpPrefs
 
         existing = temp_library / "Andy Weir" / "Project Hail Mary"
         existing.mkdir(parents=True)
@@ -1815,7 +1815,7 @@ class TestImportSingleWithTrumping:
         self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Trumping is not triggered for new books (no existing duplicate)."""
-        from mamfast.abs.trumping import TrumpPrefs
+        from shelfr.abs.trumping import TrumpPrefs
 
         folder = create_audiobook_folder(
             temp_staging,
@@ -1839,7 +1839,7 @@ class TestImportSingleWithTrumping:
         self, temp_staging: Path, temp_library: Path, tmp_path: Path
     ) -> None:
         """Multi-file layouts skip trumping and fall through to duplicate_policy."""
-        from mamfast.abs.trumping import TrumpPrefs
+        from shelfr.abs.trumping import TrumpPrefs
 
         # Create existing multi-file book
         existing_folder = tmp_path / "existing_audiobooks" / "Andy Weir" / "Project Hail Mary"
@@ -1883,7 +1883,7 @@ class TestImportSingleWithTrumping:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Stale ABS index entry should warn and proceed instead of crashing."""
-        from mamfast.abs.trumping import TrumpPrefs
+        from shelfr.abs.trumping import TrumpPrefs
 
         missing_path = temp_library / "Ghost Author" / "Missing Book"
 
@@ -2153,7 +2153,7 @@ class TestImportSingleWithCleanup:
         """Test that cleanup runs after successful import."""
         import os
 
-        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+        from shelfr.abs.cleanup import CleanupPrefs, CleanupStrategy
 
         staging = tmp_path / "staging"
         library = tmp_path / "library"
@@ -2198,7 +2198,7 @@ class TestImportSingleWithCleanup:
 
     def test_cleanup_not_run_when_source_path_not_provided(self, tmp_path: Path) -> None:
         """Test that cleanup does not run when source_path is None."""
-        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+        from shelfr.abs.cleanup import CleanupPrefs, CleanupStrategy
 
         staging = tmp_path / "staging"
         library = tmp_path / "library"
@@ -2230,7 +2230,7 @@ class TestImportSingleWithCleanup:
 
     def test_cleanup_skipped_on_duplicate(self, tmp_path: Path) -> None:
         """Test that cleanup does NOT run when book is duplicate."""
-        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+        from shelfr.abs.cleanup import CleanupPrefs, CleanupStrategy
 
         staging = tmp_path / "staging"
         library = tmp_path / "library"
@@ -2284,7 +2284,7 @@ class TestImportSingleWithCleanup:
 
     def test_cleanup_dry_run(self, tmp_path: Path) -> None:
         """Test cleanup respects dry_run flag."""
-        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+        from shelfr.abs.cleanup import CleanupPrefs, CleanupStrategy
 
         staging = tmp_path / "staging"
         library = tmp_path / "library"
@@ -2328,7 +2328,7 @@ class TestBatchImportWithCleanup:
 
     def test_batch_cleanup_counts(self, tmp_path: Path) -> None:
         """Test batch import tracks cleanup statistics."""
-        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+        from shelfr.abs.cleanup import CleanupPrefs, CleanupStrategy
 
         staging = tmp_path / "staging"
         library = tmp_path / "library"
@@ -2378,7 +2378,7 @@ class TestBatchImportWithCleanup:
 
     def test_batch_mixed_cleanup_results(self, tmp_path: Path) -> None:
         """Test batch with mixed cleanup results (some skipped)."""
-        from mamfast.abs.cleanup import CleanupPrefs, CleanupStrategy
+        from shelfr.abs.cleanup import CleanupPrefs, CleanupStrategy
 
         staging = tmp_path / "staging"
         library = tmp_path / "library"

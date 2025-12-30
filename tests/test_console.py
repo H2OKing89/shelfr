@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 from rich.console import Console
 
-from mamfast.console import (
+from shelfr.console import (
     MAMFAST_THEME,
     StepResult,
     confirm,
@@ -34,7 +34,7 @@ from mamfast.console import (
     render_libation_status,
     status,
 )
-from mamfast.libation import LibationStatus
+from shelfr.libation import LibationStatus
 
 # =============================================================================
 # Test fixtures
@@ -601,7 +601,7 @@ class TestRuleTrace:
 
     def test_rule_trace_dataclass(self) -> None:
         """RuleTrace should store transformation data."""
-        from mamfast.console import RuleTrace
+        from shelfr.console import RuleTrace
 
         trace = RuleTrace(
             field="title",
@@ -618,7 +618,7 @@ class TestRuleTrace:
 
     def test_rule_trace_defaults(self) -> None:
         """RuleTrace should have None defaults for optional fields."""
-        from mamfast.console import RuleTrace
+        from shelfr.console import RuleTrace
 
         trace = RuleTrace(field="title", before="Before", after="After")
         assert trace.rule_id is None
@@ -630,7 +630,7 @@ class TestLogTitleTransform:
 
     def test_no_output_when_not_verbose(self) -> None:
         """log_title_transform should not print when verbose=False."""
-        from mamfast.console import log_title_transform
+        from shelfr.console import log_title_transform
 
         with patch.object(console, "print") as mock_print:
             log_title_transform("title", "Before", "After", verbose=False)
@@ -638,7 +638,7 @@ class TestLogTitleTransform:
 
     def test_no_output_when_no_change(self) -> None:
         """log_title_transform should not print when before==after."""
-        from mamfast.console import log_title_transform
+        from shelfr.console import log_title_transform
 
         with patch.object(console, "print") as mock_print:
             log_title_transform("title", "Same", "Same", verbose=True)
@@ -646,7 +646,7 @@ class TestLogTitleTransform:
 
     def test_output_when_verbose_and_changed(self) -> None:
         """log_title_transform should print table when verbose and changed."""
-        from mamfast.console import log_title_transform
+        from shelfr.console import log_title_transform
 
         with patch.object(console, "print") as mock_print:
             log_title_transform("title", "Before", "After", verbose=True)
@@ -654,7 +654,7 @@ class TestLogTitleTransform:
 
     def test_output_includes_rule_id(self) -> None:
         """log_title_transform should show rule_id if provided."""
-        from mamfast.console import log_title_transform
+        from shelfr.console import log_title_transform
 
         with patch.object(console, "print") as mock_print:
             log_title_transform("title", "Before", "After", rule_id="test_rule", verbose=True)
@@ -667,7 +667,7 @@ class TestPrintRuleTrace:
 
     def test_empty_traces(self) -> None:
         """print_rule_trace should handle empty list."""
-        from mamfast.console import print_rule_trace
+        from shelfr.console import print_rule_trace
 
         with patch.object(console, "print") as mock_print:
             print_rule_trace([])
@@ -676,7 +676,7 @@ class TestPrintRuleTrace:
 
     def test_no_changes_message(self) -> None:
         """print_rule_trace should show message when no changes made."""
-        from mamfast.console import RuleTrace, print_rule_trace
+        from shelfr.console import RuleTrace, print_rule_trace
 
         traces = [
             RuleTrace(field="title", before="Same", after="Same", rule_id="rule1"),
@@ -689,7 +689,7 @@ class TestPrintRuleTrace:
 
     def test_shows_changes_only(self) -> None:
         """print_rule_trace should only show traces where before != after."""
-        from mamfast.console import RuleTrace, print_rule_trace
+        from shelfr.console import RuleTrace, print_rule_trace
 
         traces = [
             RuleTrace(field="title", before="Old", after="New", rule_id="rule1"),
@@ -711,8 +711,8 @@ class TestPrintValidationReport:
 
     def test_empty_result(self) -> None:
         """print_validation_report should handle empty result."""
-        from mamfast.console import print_validation_report
-        from mamfast.validation import ValidationResult
+        from shelfr.console import print_validation_report
+        from shelfr.validation import ValidationResult
 
         result = ValidationResult()
         with patch.object(console, "print") as mock_print:
@@ -721,8 +721,8 @@ class TestPrintValidationReport:
 
     def test_shows_all_checks(self) -> None:
         """print_validation_report should show all checks in table."""
-        from mamfast.console import print_validation_report
-        from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
+        from shelfr.console import print_validation_report
+        from shelfr.validation import CheckCategory, ValidationCheck, ValidationResult
 
         result = ValidationResult()
         result.add(
@@ -754,8 +754,8 @@ class TestPrintValidationSummary:
 
     def test_all_passed(self) -> None:
         """print_validation_summary should show checkmark when all passed."""
-        from mamfast.console import print_validation_summary
-        from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
+        from shelfr.console import print_validation_summary
+        from shelfr.validation import CheckCategory, ValidationCheck, ValidationResult
 
         result = ValidationResult()
         result.add(
@@ -773,8 +773,8 @@ class TestPrintValidationSummary:
 
     def test_with_errors(self) -> None:
         """print_validation_summary should show X when errors present."""
-        from mamfast.console import print_validation_summary
-        from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
+        from shelfr.console import print_validation_summary
+        from shelfr.validation import CheckCategory, ValidationCheck, ValidationResult
 
         result = ValidationResult()
         result.add(
@@ -798,8 +798,8 @@ class TestPrintValidationSummary:
 
     def test_pluralization_multiple_errors_and_warnings(self) -> None:
         """print_validation_summary should use plural form for multiple errors/warnings."""
-        from mamfast.console import print_validation_summary
-        from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
+        from shelfr.console import print_validation_summary
+        from shelfr.validation import CheckCategory, ValidationCheck, ValidationResult
 
         result = ValidationResult()
         # Add 2 errors
@@ -862,8 +862,8 @@ class TestPrintCheckCategory:
 
     def test_prints_category_checks(self) -> None:
         """print_check_category should print checks for given category."""
-        from mamfast.console import print_check_category
-        from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
+        from shelfr.console import print_check_category
+        from shelfr.validation import CheckCategory, ValidationCheck, ValidationResult
 
         result = ValidationResult()
         result.add(
@@ -882,8 +882,8 @@ class TestPrintCheckCategory:
 
     def test_skips_empty_category(self) -> None:
         """print_check_category should not print if category has no checks."""
-        from mamfast.console import print_check_category
-        from mamfast.validation import CheckCategory, ValidationCheck, ValidationResult
+        from shelfr.console import print_check_category
+        from shelfr.validation import CheckCategory, ValidationCheck, ValidationResult
 
         result = ValidationResult()
         result.add(
@@ -905,7 +905,7 @@ class TestPrintWorkflowSummary:
 
     def test_basic_stats(self) -> None:
         """print_workflow_summary should display stats table."""
-        from mamfast.console import print_workflow_summary
+        from shelfr.console import print_workflow_summary
 
         stats = {
             "discovered": 10,
@@ -922,7 +922,7 @@ class TestPrintWorkflowSummary:
 
     def test_with_duration(self) -> None:
         """print_workflow_summary should show duration if provided."""
-        from mamfast.console import print_workflow_summary
+        from shelfr.console import print_workflow_summary
 
         stats = {"discovered": 5, "errors": 0}
         with patch.object(console, "print") as mock_print:
@@ -938,7 +938,7 @@ class TestPrintReleaseDetails:
 
     def test_basic_release(self) -> None:
         """print_release_details should show release in panel."""
-        from mamfast.console import print_release_details
+        from shelfr.console import print_release_details
 
         @dataclass
         class MockRelease:
@@ -956,7 +956,7 @@ class TestPrintReleaseDetails:
         """print_release_details should show extra fields in verbose mode."""
         from pathlib import Path
 
-        from mamfast.console import print_release_details
+        from shelfr.console import print_release_details
 
         @dataclass
         class MockRelease:
@@ -976,7 +976,7 @@ class TestPrintPipelineProgress:
 
     def test_basic_progress(self) -> None:
         """print_pipeline_progress should show stage progress."""
-        from mamfast.console import print_pipeline_progress
+        from shelfr.console import print_pipeline_progress
 
         with patch.object(console, "print") as mock_print:
             print_pipeline_progress("Staging", 3, 10)
@@ -987,7 +987,7 @@ class TestPrintPipelineProgress:
 
     def test_with_release_name(self) -> None:
         """print_pipeline_progress should show release name."""
-        from mamfast.console import print_pipeline_progress
+        from shelfr.console import print_pipeline_progress
 
         with patch.object(console, "print") as mock_print:
             print_pipeline_progress("Metadata", 1, 5, "Test Book Title")
@@ -996,7 +996,7 @@ class TestPrintPipelineProgress:
 
     def test_truncates_long_name(self) -> None:
         """print_pipeline_progress should truncate very long names."""
-        from mamfast.console import print_pipeline_progress
+        from shelfr.console import print_pipeline_progress
 
         long_name = "A" * 100  # Very long name
         with patch.object(console, "print") as mock_print:
@@ -1015,7 +1015,7 @@ class TestPrintException:
 
     def test_basic_exception(self) -> None:
         """print_exception should show error message."""
-        from mamfast.console import err_console, print_exception
+        from shelfr.console import err_console, print_exception
 
         error = ValueError("Test error message")
         with patch.object(err_console, "print") as mock_print:
@@ -1027,7 +1027,7 @@ class TestPrintException:
 
     def test_with_context(self) -> None:
         """print_exception should show context dict."""
-        from mamfast.console import err_console, print_exception
+        from shelfr.console import err_console, print_exception
 
         error = RuntimeError("Failed")
         context = {"asin": "B001234567", "file": "/path/to/file"}
@@ -1039,7 +1039,7 @@ class TestPrintException:
 
     def test_without_traceback(self) -> None:
         """print_exception should skip traceback if requested."""
-        from mamfast.console import err_console, print_exception
+        from shelfr.console import err_console, print_exception
 
         error = ValueError("Test")
         with patch.object(err_console, "print") as mock_print:
@@ -1053,7 +1053,7 @@ class TestPrintErrorSummary:
 
     def test_empty_errors(self) -> None:
         """print_error_summary should handle empty list."""
-        from mamfast.console import err_console, print_error_summary
+        from shelfr.console import err_console, print_error_summary
 
         with patch.object(err_console, "print") as mock_print:
             print_error_summary([])
@@ -1061,7 +1061,7 @@ class TestPrintErrorSummary:
 
     def test_multiple_errors(self) -> None:
         """print_error_summary should show table of errors."""
-        from mamfast.console import err_console, print_error_summary
+        from shelfr.console import err_console, print_error_summary
 
         errors = [
             ("Book 1", ValueError("Error 1")),
@@ -1082,7 +1082,7 @@ class TestProgressContext:
 
     def test_progress_context_creates_progress(self) -> None:
         """progress_context should yield a Progress and TaskID."""
-        from mamfast.console import progress_context
+        from shelfr.console import progress_context
 
         with progress_context("Test task", total=5) as (progress, task):
             assert progress is not None
@@ -1092,7 +1092,7 @@ class TestProgressContext:
 
     def test_progress_context_with_none_total(self) -> None:
         """progress_context should work with indeterminate total."""
-        from mamfast.console import progress_context
+        from shelfr.console import progress_context
 
         with progress_context("Indeterminate task", total=None) as (progress, task):
             assert progress is not None
@@ -1107,14 +1107,14 @@ class TestCreatePipelineProgress:
         """create_pipeline_progress should return a Progress instance."""
         from rich.progress import Progress
 
-        from mamfast.console import create_pipeline_progress
+        from shelfr.console import create_pipeline_progress
 
         progress = create_pipeline_progress()
         assert isinstance(progress, Progress)
 
     def test_can_use_as_context_manager(self) -> None:
         """create_pipeline_progress result should work as context manager."""
-        from mamfast.console import create_pipeline_progress
+        from shelfr.console import create_pipeline_progress
 
         with create_pipeline_progress() as progress:
             task = progress.add_task("[cyan]Test", total=3)
@@ -1132,7 +1132,7 @@ class TestDryRunTransform:
 
     def test_create_transform(self) -> None:
         """DryRunTransform should store field transformation data."""
-        from mamfast.console import DryRunTransform
+        from shelfr.console import DryRunTransform
 
         t = DryRunTransform(
             field="title",
@@ -1147,7 +1147,7 @@ class TestDryRunTransform:
 
     def test_create_transform_without_rule(self) -> None:
         """DryRunTransform should work without rule specified."""
-        from mamfast.console import DryRunTransform
+        from shelfr.console import DryRunTransform
 
         t = DryRunTransform(field="author", before="John Smith", after="John Smith")
         assert t.rule is None
@@ -1158,7 +1158,7 @@ class TestPrintDryRunHeader:
 
     def test_single_release(self) -> None:
         """print_dry_run_header should use singular for 1 release."""
-        from mamfast.console import print_dry_run_header
+        from shelfr.console import print_dry_run_header
 
         with patch.object(console, "print") as mock_print:
             print_dry_run_header(1)
@@ -1170,7 +1170,7 @@ class TestPrintDryRunHeader:
 
     def test_multiple_releases(self) -> None:
         """print_dry_run_header should use plural for multiple releases."""
-        from mamfast.console import print_dry_run_header
+        from shelfr.console import print_dry_run_header
 
         with patch.object(console, "print") as mock_print:
             print_dry_run_header(5)
@@ -1183,7 +1183,7 @@ class TestPrintDryRunRelease:
 
     def test_with_transforms(self) -> None:
         """print_dry_run_release should display transforms table."""
-        from mamfast.console import DryRunTransform, print_dry_run_release
+        from shelfr.console import DryRunTransform, print_dry_run_release
 
         transforms = [
             DryRunTransform(
@@ -1200,7 +1200,7 @@ class TestPrintDryRunRelease:
 
     def test_with_no_changes(self) -> None:
         """print_dry_run_release should show source/target when paths provided."""
-        from mamfast.console import DryRunTransform, print_dry_run_release
+        from shelfr.console import DryRunTransform, print_dry_run_release
 
         transforms = [
             DryRunTransform(field="title", before="Same", after="Same"),
@@ -1214,7 +1214,7 @@ class TestPrintDryRunRelease:
 
     def test_shows_different_target(self) -> None:
         """print_dry_run_release should highlight different target path."""
-        from mamfast.console import DryRunTransform, print_dry_run_release
+        from shelfr.console import DryRunTransform, print_dry_run_release
 
         transforms = [
             DryRunTransform(field="title", before="Old", after="New"),
@@ -1232,7 +1232,7 @@ class TestPrintDryRunRelease:
 
     def test_filters_unchanged_fields(self) -> None:
         """print_dry_run_release should only show fields that changed."""
-        from mamfast.console import DryRunTransform, print_dry_run_release
+        from shelfr.console import DryRunTransform, print_dry_run_release
 
         transforms = [
             DryRunTransform(field="title", before="Same", after="Same"),
@@ -1250,7 +1250,7 @@ class TestPrintDryRunSummary:
 
     def test_summary_output(self) -> None:
         """print_dry_run_summary should display counts."""
-        from mamfast.console import print_dry_run_summary
+        from shelfr.console import print_dry_run_summary
 
         with patch.object(console, "print") as mock_print:
             print_dry_run_summary(processed=10, would_change=3, no_change=7)
@@ -1265,7 +1265,7 @@ class TestPrintDuplicatePairs:
 
     def test_empty_list_shows_success(self) -> None:
         """Should show success message when no duplicates."""
-        from mamfast.console import print_duplicate_pairs
+        from shelfr.console import print_duplicate_pairs
 
         with patch.object(console, "print") as mock_print:
             print_duplicate_pairs([])
@@ -1274,7 +1274,7 @@ class TestPrintDuplicatePairs:
 
     def test_displays_pairs(self) -> None:
         """Should display duplicate pairs in table."""
-        from mamfast.console import print_duplicate_pairs
+        from shelfr.console import print_duplicate_pairs
 
         duplicates = [
             ("Title One", "Title 1", 92.5),
@@ -1287,7 +1287,7 @@ class TestPrintDuplicatePairs:
 
     def test_limits_output(self) -> None:
         """Should respect limit parameter."""
-        from mamfast.console import print_duplicate_pairs
+        from shelfr.console import print_duplicate_pairs
 
         # Create 30 duplicates
         duplicates = [(f"Title {i}", f"Titl {i}", 90.0) for i in range(30)]
@@ -1299,7 +1299,7 @@ class TestPrintDuplicatePairs:
 
     def test_truncates_long_titles(self) -> None:
         """Should truncate very long titles for display."""
-        from mamfast.console import print_duplicate_pairs
+        from shelfr.console import print_duplicate_pairs
 
         long_title = "A" * 100
         duplicates = [(long_title, "Short", 80.0)]
@@ -1315,7 +1315,7 @@ class TestPrintSuspiciousChanges:
 
     def test_empty_list_shows_success(self) -> None:
         """Should show success message when no suspicious changes."""
-        from mamfast.console import print_suspicious_changes
+        from shelfr.console import print_suspicious_changes
 
         with patch.object(console, "print") as mock_print:
             print_suspicious_changes([])
@@ -1324,7 +1324,7 @@ class TestPrintSuspiciousChanges:
 
     def test_displays_changes(self) -> None:
         """Should display suspicious changes in table."""
-        from mamfast.console import print_suspicious_changes
+        from shelfr.console import print_suspicious_changes
 
         changes = [
             ("B001234567", "Original Title: Unabridged", "Title", 45.0),
@@ -1337,7 +1337,7 @@ class TestPrintSuspiciousChanges:
 
     def test_shows_tip(self) -> None:
         """Should show naming.json tip when suspicious changes exist."""
-        from mamfast.console import print_suspicious_changes
+        from shelfr.console import print_suspicious_changes
 
         changes = [("B001", "Original", "Changed", 50.0)]
 
@@ -1352,7 +1352,7 @@ class TestPrintChangeAnalysis:
 
     def test_ok_change(self) -> None:
         """Should display OK status for non-suspicious changes."""
-        from mamfast.console import print_change_analysis
+        from shelfr.console import print_change_analysis
 
         with patch.object(console, "print") as mock_print:
             print_change_analysis(
@@ -1368,7 +1368,7 @@ class TestPrintChangeAnalysis:
 
     def test_suspicious_change(self) -> None:
         """Should display warning for suspicious changes."""
-        from mamfast.console import print_change_analysis
+        from shelfr.console import print_change_analysis
 
         with patch.object(console, "print") as mock_print:
             print_change_analysis(
@@ -1384,7 +1384,7 @@ class TestPrintChangeAnalysis:
 
     def test_handles_none_asin(self) -> None:
         """Should handle None ASIN gracefully."""
-        from mamfast.console import print_change_analysis
+        from shelfr.console import print_change_analysis
 
         with patch.object(console, "print") as mock_print:
             print_change_analysis(
@@ -1408,7 +1408,7 @@ class TestFormatMediainfoStats:
 
     def test_valid_complete_data(self) -> None:
         """Should format complete MediaInfo data correctly."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         mediainfo_data = {
             "media": {
@@ -1432,31 +1432,31 @@ class TestFormatMediainfoStats:
 
     def test_none_data_returns_none(self) -> None:
         """Should return None for None input."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         assert format_mediainfo_stats(None) is None
 
     def test_empty_dict_returns_none(self) -> None:
         """Should return None for empty dict."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         assert format_mediainfo_stats({}) is None
 
     def test_missing_media_key_returns_none(self) -> None:
         """Should return None when media key is missing."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         assert format_mediainfo_stats({"other": "data"}) is None
 
     def test_empty_tracks_returns_none(self) -> None:
         """Should return None when tracks list is empty."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         assert format_mediainfo_stats({"media": {"track": []}}) is None
 
     def test_short_duration_under_one_hour(self) -> None:
         """Should format durations under 1 hour correctly."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         mediainfo_data = {
             "media": {
@@ -1470,7 +1470,7 @@ class TestFormatMediainfoStats:
 
     def test_multi_hour_duration(self) -> None:
         """Should format multi-hour durations correctly."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         mediainfo_data = {
             "media": {
@@ -1484,7 +1484,7 @@ class TestFormatMediainfoStats:
 
     def test_format_mapping_mpeg4_to_m4b(self) -> None:
         """Should map MPEG-4 format to M4B."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         mediainfo_data = {
             "media": {
@@ -1498,7 +1498,7 @@ class TestFormatMediainfoStats:
 
     def test_format_mapping_matroska_to_mka(self) -> None:
         """Should map MATROSKA format to MKA."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         mediainfo_data = {
             "media": {
@@ -1512,7 +1512,7 @@ class TestFormatMediainfoStats:
 
     def test_invalid_duration_handled_gracefully(self) -> None:
         """Should handle invalid duration values gracefully."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         mediainfo_data = {
             "media": {
@@ -1528,7 +1528,7 @@ class TestFormatMediainfoStats:
 
     def test_invalid_bitrate_handled_gracefully(self) -> None:
         """Should handle invalid bitrate values gracefully."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         mediainfo_data = {
             "media": {
@@ -1542,7 +1542,7 @@ class TestFormatMediainfoStats:
 
     def test_audio_only_no_general_track(self) -> None:
         """Should work with only audio track present."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         mediainfo_data = {
             "media": {
@@ -1561,7 +1561,7 @@ class TestFormatMediainfoStats:
 
     def test_mono_audio(self) -> None:
         """Should display mono channel correctly."""
-        from mamfast.console import format_mediainfo_stats
+        from shelfr.console import format_mediainfo_stats
 
         mediainfo_data = {
             "media": {
@@ -1584,21 +1584,21 @@ class TestTruncatePath:
 
     def test_short_path_unchanged(self) -> None:
         """Should not truncate paths shorter than max_length."""
-        from mamfast.console import truncate_path
+        from shelfr.console import truncate_path
 
         path = "/short/path"
         assert truncate_path(path, max_length=50) == path
 
     def test_exact_length_unchanged(self) -> None:
         """Should not truncate paths exactly at max_length."""
-        from mamfast.console import truncate_path
+        from shelfr.console import truncate_path
 
         path = "a" * 50
         assert truncate_path(path, max_length=50) == path
 
     def test_one_over_truncates(self) -> None:
         """Should truncate paths one character over max_length."""
-        from mamfast.console import truncate_path
+        from shelfr.console import truncate_path
 
         path = "a" * 51
         result = truncate_path(path, max_length=50)
@@ -1608,7 +1608,7 @@ class TestTruncatePath:
 
     def test_long_path_preserves_end(self) -> None:
         """Should keep the end visible for long paths."""
-        from mamfast.console import truncate_path
+        from shelfr.console import truncate_path
 
         path = "/very/long/path/to/Author - Title (2024)"
         result = truncate_path(path, max_length=30)
@@ -1618,7 +1618,7 @@ class TestTruncatePath:
 
     def test_result_never_exceeds_max_length(self) -> None:
         """Should never return a string longer than max_length."""
-        from mamfast.console import truncate_path
+        from shelfr.console import truncate_path
 
         for length in [10, 20, 50, 100]:
             path = "x" * 200
@@ -1627,7 +1627,7 @@ class TestTruncatePath:
 
     def test_default_max_length_is_50(self) -> None:
         """Should use default max_length of 50."""
-        from mamfast.console import truncate_path
+        from shelfr.console import truncate_path
 
         path = "a" * 100
         result = truncate_path(path)  # No max_length specified
@@ -1635,13 +1635,13 @@ class TestTruncatePath:
 
     def test_empty_path(self) -> None:
         """Should handle empty path."""
-        from mamfast.console import truncate_path
+        from shelfr.console import truncate_path
 
         assert truncate_path("", max_length=50) == ""
 
     def test_unicode_ellipsis(self) -> None:
         """Should use unicode ellipsis character."""
-        from mamfast.console import truncate_path
+        from shelfr.console import truncate_path
 
         path = "a" * 100
         result = truncate_path(path, max_length=10)

@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-from mamfast.env_settings import (
+from shelfr.env_settings import (
     AppEnvSettings,
     AudiobookshelfEnvSettings,
     DockerEnvSettings,

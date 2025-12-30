@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mamfast.utils.retry import (
+from shelfr.utils.retry import (
     NETWORK_EXCEPTIONS,
     RetryableError,
     retry_with_backoff,

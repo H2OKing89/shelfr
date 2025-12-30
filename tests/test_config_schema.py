@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from mamfast.schemas.config import (
+from shelfr.schemas.config import (
     AudnexSchema,
     EnvironmentSchema,
     FiltersSchema,
@@ -319,7 +319,7 @@ class TestAudiobookshelfSchema:
 
     def test_valid_defaults_disabled(self) -> None:
         """Test default values when disabled."""
-        from mamfast.schemas.config import AudiobookshelfSchema
+        from shelfr.schemas.config import AudiobookshelfSchema
 
         schema = AudiobookshelfSchema()
         assert schema.enabled is False
@@ -330,7 +330,7 @@ class TestAudiobookshelfSchema:
 
     def test_valid_full_config(self) -> None:
         """Test full valid audiobookshelf configuration."""
-        from mamfast.schemas.config import AudiobookshelfSchema
+        from shelfr.schemas.config import AudiobookshelfSchema
 
         # Build a data dict and validate via model_validate to avoid static ctor type issues
         data = {
@@ -353,7 +353,7 @@ class TestAudiobookshelfSchema:
 
     def test_import_alias_works(self) -> None:
         """Test 'import' key works as alias for import_settings."""
-        from mamfast.schemas.config import AudiobookshelfSchema
+        from shelfr.schemas.config import AudiobookshelfSchema
 
         # Using the 'import' key (as in YAML)
         data = {
@@ -366,7 +366,7 @@ class TestAudiobookshelfSchema:
 
     def test_docker_mode_requires_path_map(self) -> None:
         """Test that path_map is required when docker_mode is enabled."""
-        from mamfast.schemas.config import AudiobookshelfSchema
+        from shelfr.schemas.config import AudiobookshelfSchema
 
         with pytest.raises(ValidationError) as exc_info:
             AudiobookshelfSchema(enabled=True, docker_mode=True, path_map=[])
@@ -374,7 +374,7 @@ class TestAudiobookshelfSchema:
 
     def test_docker_mode_false_no_path_map_ok(self) -> None:
         """Test that path_map is not required when docker_mode is False."""
-        from mamfast.schemas.config import AudiobookshelfSchema
+        from shelfr.schemas.config import AudiobookshelfSchema
 
         schema = AudiobookshelfSchema(enabled=True, docker_mode=False, path_map=[])
         assert schema.docker_mode is False
@@ -382,7 +382,7 @@ class TestAudiobookshelfSchema:
 
     def test_path_map_validation(self) -> None:
         """Test path_map entries are validated."""
-        from mamfast.schemas.config import AudiobookshelfPathMapSchema
+        from shelfr.schemas.config import AudiobookshelfPathMapSchema
 
         # Valid
         schema = AudiobookshelfPathMapSchema(container="/audiobooks", host="/mnt/data")
@@ -401,7 +401,7 @@ class TestAudiobookshelfSchema:
 
     def test_path_map_trailing_slash_normalized(self) -> None:
         """Test trailing slashes are removed from path mappings."""
-        from mamfast.schemas.config import AudiobookshelfPathMapSchema
+        from shelfr.schemas.config import AudiobookshelfPathMapSchema
 
         schema = AudiobookshelfPathMapSchema(container="/audiobooks/", host="/mnt/data/audiobooks/")
         assert schema.container == "/audiobooks"
@@ -409,7 +409,7 @@ class TestAudiobookshelfSchema:
 
     def test_library_id_validation(self) -> None:
         """Test library ID format validation."""
-        from mamfast.schemas.config import AudiobookshelfLibrarySchema
+        from shelfr.schemas.config import AudiobookshelfLibrarySchema
 
         # Valid
         schema = AudiobookshelfLibrarySchema(id="lib_abc123", name="Test")
@@ -427,7 +427,7 @@ class TestAudiobookshelfSchema:
 
     def test_duplicate_policy_validation(self) -> None:
         """Test duplicate_policy must be valid value."""
-        from mamfast.schemas.config import AudiobookshelfImportSchema
+        from shelfr.schemas.config import AudiobookshelfImportSchema
 
         # Valid values
         for policy in ["skip", "warn", "overwrite"]:
@@ -441,7 +441,7 @@ class TestAudiobookshelfSchema:
 
     def test_trigger_scan_validation(self) -> None:
         """Test trigger_scan must be valid value."""
-        from mamfast.schemas.config import AudiobookshelfImportSchema
+        from shelfr.schemas.config import AudiobookshelfImportSchema
 
         # Valid values
         for scan in ["none", "each", "batch"]:
@@ -455,7 +455,7 @@ class TestAudiobookshelfSchema:
 
     def test_unknown_asin_policy_validation(self) -> None:
         """Test unknown_asin_policy must be valid value."""
-        from mamfast.schemas.config import AudiobookshelfImportSchema
+        from shelfr.schemas.config import AudiobookshelfImportSchema
 
         # Valid values (import and skip don't require quarantine_path)
         for policy in ["import", "skip"]:
@@ -479,7 +479,7 @@ class TestAudiobookshelfSchema:
 
     def test_unknown_asin_policy_case_insensitive(self) -> None:
         """Test unknown_asin_policy is normalized to lowercase."""
-        from mamfast.schemas.config import AudiobookshelfImportSchema
+        from shelfr.schemas.config import AudiobookshelfImportSchema
 
         schema = AudiobookshelfImportSchema(unknown_asin_policy="IMPORT")
         assert schema.unknown_asin_policy == "import"
@@ -495,7 +495,7 @@ class TestAudiobookshelfSchema:
 
     def test_quarantine_requires_path(self) -> None:
         """Test quarantine_path is required when policy is quarantine."""
-        from mamfast.schemas.config import AudiobookshelfImportSchema
+        from shelfr.schemas.config import AudiobookshelfImportSchema
 
         # Quarantine without path fails
         with pytest.raises(ValidationError) as exc_info:
@@ -516,7 +516,7 @@ class TestAudiobookshelfSchema:
 
     def test_import_policy_no_quarantine_path_ok(self) -> None:
         """Test quarantine_path is optional for import/skip policies."""
-        from mamfast.schemas.config import AudiobookshelfImportSchema
+        from shelfr.schemas.config import AudiobookshelfImportSchema
 
         # Import without quarantine_path is fine
         schema = AudiobookshelfImportSchema(unknown_asin_policy="import")
@@ -528,7 +528,7 @@ class TestAudiobookshelfSchema:
 
     def test_quarantine_path_must_be_absolute(self) -> None:
         """Test quarantine_path must be an absolute path."""
-        from mamfast.schemas.config import AudiobookshelfImportSchema
+        from shelfr.schemas.config import AudiobookshelfImportSchema
 
         # Relative path fails
         with pytest.raises(ValidationError) as exc_info:

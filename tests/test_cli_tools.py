@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typer.testing import CliRunner
 
-from mamfast.cli import app
+from shelfr.cli import app
 
 runner = CliRunner()
 

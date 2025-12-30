@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mamfast.utils.paths import (
+from shelfr.utils.paths import (
     container_to_host_data_path,
     container_to_host_torrent_path,
     ensure_dir,
@@ -34,38 +34,38 @@ class TestHostToContainerDataPath:
 
     def test_converts_host_path(self, mock_settings):
         """Test converting host path to container path."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = host_to_container_data_path("/mnt/user/data/audio/book.m4b")
             assert result == "/data/audio/book.m4b"
 
     def test_already_container_path(self, mock_settings):
         """Test path already in container format."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = host_to_container_data_path("/data/audio/book.m4b")
             assert result == "/data/audio/book.m4b"
 
     def test_exact_container_root(self, mock_settings):
         """Test exact container root path."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = host_to_container_data_path("/data")
             assert result == "/data"
 
     def test_not_under_data_root(self, mock_settings):
         """Test path not under data root returns as-is."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = host_to_container_data_path("/other/path/file.m4b")
             # Should normalize to absolute and return as-is
             assert "file.m4b" in result
 
     def test_handles_path_object(self, mock_settings):
         """Test Path object input."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = host_to_container_data_path(Path("/mnt/user/data/book.m4b"))
             assert result == "/data/book.m4b"
 
     def test_strips_whitespace(self, mock_settings):
         """Test whitespace is stripped."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = host_to_container_data_path("  /mnt/user/data/book.m4b  ")
             assert result == "/data/book.m4b"
 
@@ -75,7 +75,7 @@ class TestHostToContainerTorrentPath:
 
     def test_converts_host_torrent_path(self, mock_settings):
         """Test converting host torrent path to container path."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = host_to_container_torrent_path(
                 "/mnt/user/data/downloads/torrents/torrentfiles/book.torrent"
             )
@@ -83,13 +83,13 @@ class TestHostToContainerTorrentPath:
 
     def test_already_container_path(self, mock_settings):
         """Test path already in container format."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = host_to_container_torrent_path("/torrentfiles/book.torrent")
             assert result == "/torrentfiles/book.torrent"
 
     def test_exact_container_output(self, mock_settings):
         """Test exact container output path."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = host_to_container_torrent_path("/torrentfiles")
             assert result == "/torrentfiles"
 
@@ -99,31 +99,31 @@ class TestContainerToHostDataPath:
 
     def test_converts_container_path(self, mock_settings):
         """Test converting container path to host path."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = container_to_host_data_path("/data/audio/book.m4b")
             assert result == "/mnt/user/data/audio/book.m4b"
 
     def test_already_host_path(self, mock_settings):
         """Test path already in host format."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = container_to_host_data_path("/mnt/user/data/audio/book.m4b")
             assert result == "/mnt/user/data/audio/book.m4b"
 
     def test_exact_host_root(self, mock_settings):
         """Test exact host root path."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = container_to_host_data_path("/mnt/user/data")
             assert result == "/mnt/user/data"
 
     def test_exact_container_root(self, mock_settings):
         """Test exact container root."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = container_to_host_data_path("/data")
             assert result == "/mnt/user/data"
 
     def test_unrelated_path(self, mock_settings):
         """Test unrelated path returned as-is."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = container_to_host_data_path("/other/path")
             assert result == "/other/path"
 
@@ -133,13 +133,13 @@ class TestContainerToHostTorrentPath:
 
     def test_converts_container_torrent_path(self, mock_settings):
         """Test converting container torrent path to host path."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = container_to_host_torrent_path("/torrentfiles/book.torrent")
             assert result == "/mnt/user/data/downloads/torrents/torrentfiles/book.torrent"
 
     def test_already_host_path(self, mock_settings):
         """Test path already in host format."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = container_to_host_torrent_path(
                 "/mnt/user/data/downloads/torrents/torrentfiles/book.torrent"
             )
@@ -147,7 +147,7 @@ class TestContainerToHostTorrentPath:
 
     def test_exact_host_output(self, mock_settings):
         """Test exact host output path."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = container_to_host_torrent_path(
                 "/mnt/user/data/downloads/torrents/torrentfiles"
             )
@@ -155,7 +155,7 @@ class TestContainerToHostTorrentPath:
 
     def test_exact_container_output(self, mock_settings):
         """Test exact container output."""
-        with patch("mamfast.utils.paths.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.paths.get_settings", return_value=mock_settings):
             result = container_to_host_torrent_path("/torrentfiles")
             assert result == "/mnt/user/data/downloads/torrents/torrentfiles"
 

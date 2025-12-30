@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from mamfast.config import NamingConfig
-from mamfast.utils.naming import filter_series, filter_subtitle, filter_title
+from shelfr.config import NamingConfig
+from shelfr.utils.naming import filter_series, filter_subtitle, filter_title
 
 # Load golden test data
 GOLDEN_DIR = Path(__file__).parent / "golden"

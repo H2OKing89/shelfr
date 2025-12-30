@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from mamfast.config import FiltersConfig, NamingConfig
-from mamfast.utils.naming import (
+from shelfr.config import FiltersConfig, NamingConfig
+from shelfr.utils.naming import (
     build_release_dirname,
     ensure_unique_name,
     extract_translator,
@@ -651,49 +651,49 @@ class TestInheritThePrefix:
 
     def test_inherits_the_from_title(self) -> None:
         """Test 'The' is inherited when title starts with 'The {series}'."""
-        from mamfast.utils.naming import inherit_the_prefix
+        from shelfr.utils.naming import inherit_the_prefix
 
         result = inherit_the_prefix("Great Cleric", "The Great Cleric: Volume 1")
         assert result == "The Great Cleric"
 
     def test_already_has_the_prefix(self) -> None:
         """Test series with 'The' prefix is unchanged."""
-        from mamfast.utils.naming import inherit_the_prefix
+        from shelfr.utils.naming import inherit_the_prefix
 
         result = inherit_the_prefix("The Great Cleric", "The Great Cleric: Volume 1")
         assert result == "The Great Cleric"
 
     def test_no_the_in_title(self) -> None:
         """Test no inheritance when title doesn't start with 'The'."""
-        from mamfast.utils.naming import inherit_the_prefix
+        from shelfr.utils.naming import inherit_the_prefix
 
         result = inherit_the_prefix("Ascend Online", "Ascend Online")
         assert result == "Ascend Online"
 
     def test_title_does_not_match_series(self) -> None:
         """Test no inheritance when title doesn't match series."""
-        from mamfast.utils.naming import inherit_the_prefix
+        from shelfr.utils.naming import inherit_the_prefix
 
         result = inherit_the_prefix("Epic Fantasy", "Volume 1: Epic Fantasy")
         assert result == "Epic Fantasy"
 
     def test_none_series(self) -> None:
         """Test None series returns None."""
-        from mamfast.utils.naming import inherit_the_prefix
+        from shelfr.utils.naming import inherit_the_prefix
 
         result = inherit_the_prefix(None, "The Great Cleric")
         assert result is None
 
     def test_none_title(self) -> None:
         """Test None title returns series unchanged."""
-        from mamfast.utils.naming import inherit_the_prefix
+        from shelfr.utils.naming import inherit_the_prefix
 
         result = inherit_the_prefix("Great Cleric", None)
         assert result == "Great Cleric"
 
     def test_case_insensitive_match(self) -> None:
         """Test case-insensitive matching for 'The' inheritance."""
-        from mamfast.utils.naming import inherit_the_prefix
+        from shelfr.utils.naming import inherit_the_prefix
 
         result = inherit_the_prefix("great cleric", "The Great Cleric: Volume 1")
         assert result == "The great cleric"
@@ -1035,7 +1035,7 @@ class TestFilterSubtitle:
             subtitle_remove_patterns=[r"^[Uu]nabridged$"],
         )
         # Need to set the logger for mamfast.utils.naming specifically
-        with caplog.at_level(logging.DEBUG, logger="mamfast.utils.naming"):
+        with caplog.at_level(logging.DEBUG, logger="shelfr.utils.naming"):
             result = filter_subtitle("Unabridged", naming_config=config, verbose=True)
 
         # Should return None when matching remove pattern
@@ -1048,7 +1048,7 @@ class TestExtractVolumeNumber:
 
     def test_series_position_priority(self) -> None:
         """Test that series_position is used when provided."""
-        from mamfast.utils.naming import extract_volume_number
+        from shelfr.utils.naming import extract_volume_number
 
         assert extract_volume_number("Overlord, Vol. 5", series_position="3") == "3"
         assert extract_volume_number("Title", series_position="12") == "12"
@@ -1056,7 +1056,7 @@ class TestExtractVolumeNumber:
 
     def test_vol_pattern(self) -> None:
         """Test Vol. extraction from title."""
-        from mamfast.utils.naming import extract_volume_number
+        from shelfr.utils.naming import extract_volume_number
 
         assert extract_volume_number("Overlord, Vol. 3") == "3"
         assert extract_volume_number("Overlord Vol 12") == "12"
@@ -1064,27 +1064,27 @@ class TestExtractVolumeNumber:
 
     def test_volume_pattern(self) -> None:
         """Test Volume extraction from title."""
-        from mamfast.utils.naming import extract_volume_number
+        from shelfr.utils.naming import extract_volume_number
 
         assert extract_volume_number("Overlord, Volume 3") == "3"
         assert extract_volume_number("Title Volume 12") == "12"
 
     def test_book_pattern(self) -> None:
         """Test Book extraction from title."""
-        from mamfast.utils.naming import extract_volume_number
+        from shelfr.utils.naming import extract_volume_number
 
         assert extract_volume_number("The Wandering Inn, Book 1") == "1"
         assert extract_volume_number("Series Book 5") == "5"
 
     def test_trailing_number(self) -> None:
         """Test trailing number extraction."""
-        from mamfast.utils.naming import extract_volume_number
+        from shelfr.utils.naming import extract_volume_number
 
         assert extract_volume_number("He Who Fights with Monsters 11") == "11"
 
     def test_no_volume(self) -> None:
         """Test returns None when no volume found."""
-        from mamfast.utils.naming import extract_volume_number
+        from shelfr.utils.naming import extract_volume_number
 
         assert extract_volume_number("Project Hail Mary") is None
         assert extract_volume_number("The Martian") is None
@@ -1095,7 +1095,7 @@ class TestFormatVolumeNumber:
 
     def test_zero_padding(self) -> None:
         """Test zero padding."""
-        from mamfast.utils.naming import format_volume_number
+        from shelfr.utils.naming import format_volume_number
 
         assert format_volume_number("3") == "vol_03"
         assert format_volume_number("12") == "vol_12"
@@ -1103,27 +1103,27 @@ class TestFormatVolumeNumber:
 
     def test_no_padding(self) -> None:
         """Test without zero padding."""
-        from mamfast.utils.naming import format_volume_number
+        from shelfr.utils.naming import format_volume_number
 
         assert format_volume_number("3", zero_pad=False) == "vol_3"
 
     def test_decimal_volumes(self) -> None:
         """Test decimal volume numbers."""
-        from mamfast.utils.naming import format_volume_number
+        from shelfr.utils.naming import format_volume_number
 
         assert format_volume_number("1.5") == "vol_01.5"
         assert format_volume_number("10.5") == "vol_10.5"
 
     def test_none_returns_empty(self) -> None:
         """Test None returns empty string."""
-        from mamfast.utils.naming import format_volume_number
+        from shelfr.utils.naming import format_volume_number
 
         assert format_volume_number(None) == ""
         assert format_volume_number("") == ""
 
     def test_part_notation(self) -> None:
         """Test part notation for Graphic Audio splits."""
-        from mamfast.utils.naming import format_volume_number
+        from shelfr.utils.naming import format_volume_number
 
         assert format_volume_number("1p1") == "vol_01p1"
         assert format_volume_number("1p2") == "vol_01p2"
@@ -1131,7 +1131,7 @@ class TestFormatVolumeNumber:
 
     def test_range_notation(self) -> None:
         """Test range notation for Publisher Packs."""
-        from mamfast.utils.naming import format_volume_number
+        from shelfr.utils.naming import format_volume_number
 
         assert format_volume_number("1-3") == "vol_01-03"
         assert format_volume_number("4-6") == "vol_04-06"
@@ -1143,7 +1143,7 @@ class TestParseVolumeNotation:
 
     def test_simple_volume(self) -> None:
         """Test parsing simple volume numbers."""
-        from mamfast.utils.naming import parse_volume_notation
+        from shelfr.utils.naming import parse_volume_notation
 
         result = parse_volume_notation("vol_01")
         assert result["base"] == 1.0
@@ -1155,7 +1155,7 @@ class TestParseVolumeNotation:
 
     def test_novella_decimal(self) -> None:
         """Test parsing decimal volumes (novellas)."""
-        from mamfast.utils.naming import parse_volume_notation
+        from shelfr.utils.naming import parse_volume_notation
 
         result = parse_volume_notation("vol_01.5")
         assert result["base"] == 1.5
@@ -1164,7 +1164,7 @@ class TestParseVolumeNotation:
 
     def test_range_publisher_pack(self) -> None:
         """Test parsing range notation (Publisher Packs)."""
-        from mamfast.utils.naming import parse_volume_notation
+        from shelfr.utils.naming import parse_volume_notation
 
         result = parse_volume_notation("vol_01-03")
         assert result["base"] == 1.0
@@ -1177,7 +1177,7 @@ class TestParseVolumeNotation:
 
     def test_part_graphic_audio(self) -> None:
         """Test parsing part notation (Graphic Audio splits)."""
-        from mamfast.utils.naming import parse_volume_notation
+        from shelfr.utils.naming import parse_volume_notation
 
         result = parse_volume_notation("vol_01p1")
         assert result["base"] == 1.0
@@ -1190,7 +1190,7 @@ class TestParseVolumeNotation:
 
     def test_invalid_notation(self) -> None:
         """Test invalid notation returns None."""
-        from mamfast.utils.naming import parse_volume_notation
+        from shelfr.utils.naming import parse_volume_notation
 
         assert parse_volume_notation("invalid") is None
         assert parse_volume_notation("") is None
@@ -1202,7 +1202,7 @@ class TestNormalizePosition:
 
     def test_simple_number(self) -> None:
         """Test normalizing simple numbers."""
-        from mamfast.utils.naming import normalize_position
+        from shelfr.utils.naming import normalize_position
 
         assert normalize_position("1") == "vol_01"
         assert normalize_position("12") == "vol_12"
@@ -1210,14 +1210,14 @@ class TestNormalizePosition:
 
     def test_decimal_novella(self) -> None:
         """Test normalizing decimal numbers (novellas)."""
-        from mamfast.utils.naming import normalize_position
+        from shelfr.utils.naming import normalize_position
 
         assert normalize_position("1.5") == "vol_01.5"
         assert normalize_position("10.5") == "vol_10.5"
 
     def test_part_notation_variants(self) -> None:
         """Test normalizing various part notation formats."""
-        from mamfast.utils.naming import normalize_position
+        from shelfr.utils.naming import normalize_position
 
         # "1p1" style
         assert normalize_position("1p1") == "vol_01p1"
@@ -1231,7 +1231,7 @@ class TestNormalizePosition:
 
     def test_range_notation(self) -> None:
         """Test normalizing range notation (Publisher Packs)."""
-        from mamfast.utils.naming import normalize_position
+        from shelfr.utils.naming import normalize_position
 
         assert normalize_position("1-3") == "vol_01-03"
         assert normalize_position("4-6") == "vol_04-06"
@@ -1239,7 +1239,7 @@ class TestNormalizePosition:
 
     def test_aliases(self) -> None:
         """Test volume aliases (prequel, prologue, etc.)."""
-        from mamfast.utils.naming import normalize_position
+        from shelfr.utils.naming import normalize_position
 
         assert normalize_position("prequel") == "vol_00"
         assert normalize_position("Prequel") == "vol_00"
@@ -1248,14 +1248,14 @@ class TestNormalizePosition:
 
     def test_empty_or_none(self) -> None:
         """Test empty or None returns empty string."""
-        from mamfast.utils.naming import normalize_position
+        from shelfr.utils.naming import normalize_position
 
         assert normalize_position("") == ""
         assert normalize_position(None) == ""
 
     def test_omnibus(self) -> None:
         """Test omnibus returns empty (no volume)."""
-        from mamfast.utils.naming import normalize_position
+        from shelfr.utils.naming import normalize_position
 
         assert normalize_position("omnibus") == ""
 
@@ -1265,7 +1265,7 @@ class TestBuildMamFolderName:
 
     def test_series_book_full(self) -> None:
         """Test series book with all components."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         result = build_mam_folder_name(
             series="Sword Art Online",
@@ -1287,7 +1287,7 @@ class TestBuildMamFolderName:
 
     def test_series_book_no_arc(self) -> None:
         """Test series book without arc/subtitle."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         result = build_mam_folder_name(
             series="Skyward",
@@ -1306,7 +1306,7 @@ class TestBuildMamFolderName:
 
     def test_standalone_book(self) -> None:
         """Test standalone book (no series)."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         result = build_mam_folder_name(
             series=None,
@@ -1324,7 +1324,7 @@ class TestBuildMamFolderName:
 
     def test_truncation_drops_arc_first(self) -> None:
         """Test that arc is dropped first when truncating."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         # Very long series name + arc should truncate
         result = build_mam_folder_name(
@@ -1343,7 +1343,7 @@ class TestBuildMamFolderName:
 
     def test_truncation_preserves_identity(self) -> None:
         """Test that series + vol + ASIN are always preserved."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         result = build_mam_folder_name(
             series="Overlord",
@@ -1363,7 +1363,7 @@ class TestBuildMamFolderName:
 
     def test_no_asin(self) -> None:
         """Test folder name without ASIN."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         result = build_mam_folder_name(
             series="Test Series",
@@ -1377,7 +1377,7 @@ class TestBuildMamFolderName:
 
     def test_special_characters_sanitized(self) -> None:
         """Test that special characters are sanitized."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         result = build_mam_folder_name(
             series="Re:ZERO -Starting Life in Another World-",
@@ -1390,7 +1390,7 @@ class TestBuildMamFolderName:
 
     def test_inherits_the_prefix_from_title(self) -> None:
         """Test 'The' prefix is inherited from title to series."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         result = build_mam_folder_name(
             series="Great Cleric",
@@ -1405,7 +1405,7 @@ class TestBuildMamFolderName:
 
     def test_removes_series_suffix(self) -> None:
         """Test ' Series' suffix is removed from series name."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         config = NamingConfig(series_suffixes=[r"[\s—-]?[Ss]eries$"])
         result = build_mam_folder_name(
@@ -1422,7 +1422,7 @@ class TestBuildMamFolderName:
 
     def test_removes_order_tag_from_series(self) -> None:
         """Test '[publication order]' tag is removed from series name."""
-        from mamfast.utils.naming import build_mam_folder_name
+        from shelfr.utils.naming import build_mam_folder_name
 
         config = NamingConfig(series_suffixes=[r"\s*\[[^\]]*[Oo]rder\]$"])
         result = build_mam_folder_name(
@@ -1443,7 +1443,7 @@ class TestBuildMamFileName:
 
     def test_file_has_extension(self) -> None:
         """Test file name includes extension."""
-        from mamfast.utils.naming import build_mam_file_name
+        from shelfr.utils.naming import build_mam_file_name
 
         result = build_mam_file_name(
             series="Overlord",
@@ -1457,7 +1457,7 @@ class TestBuildMamFileName:
 
     def test_file_no_ripper_tag(self) -> None:
         """Test file name never has ripper tag."""
-        from mamfast.utils.naming import build_mam_file_name
+        from shelfr.utils.naming import build_mam_file_name
 
         result = build_mam_file_name(
             series="Test",
@@ -1471,7 +1471,7 @@ class TestBuildMamFileName:
 
     def test_custom_extension(self) -> None:
         """Test custom file extension."""
-        from mamfast.utils.naming import build_mam_file_name
+        from shelfr.utils.naming import build_mam_file_name
 
         result = build_mam_file_name(
             title="Test",
@@ -1482,7 +1482,7 @@ class TestBuildMamFileName:
 
     def test_extension_without_dot(self) -> None:
         """Test extension without leading dot."""
-        from mamfast.utils.naming import build_mam_file_name
+        from shelfr.utils.naming import build_mam_file_name
 
         result = build_mam_file_name(
             title="Test",
@@ -1493,7 +1493,7 @@ class TestBuildMamFileName:
 
     def test_truncation_reserves_extension_space(self) -> None:
         """Test that truncation reserves space for extension."""
-        from mamfast.utils.naming import build_mam_file_name
+        from shelfr.utils.naming import build_mam_file_name
 
         result = build_mam_file_name(
             series="A" * 200,
@@ -1521,7 +1521,7 @@ class TestBuildMamPath:
 
     def test_short_path_no_truncation(self) -> None:
         """Test short path that doesn't need truncation."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         result = build_mam_path(
             series="Overlord",
@@ -1553,7 +1553,7 @@ class TestBuildMamPath:
 
         Should drop arc to fit but keep author/year/tag.
         """
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         result = build_mam_path(
             series="Trapped in a Dating Sim",
@@ -1586,7 +1586,7 @@ class TestBuildMamPath:
 
         Must truncate to fit within 225 chars.
         """
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         result = build_mam_path(
             series="The Haunted Bookstore - Gateway to a Parallel Universe",
@@ -1610,7 +1610,7 @@ class TestBuildMamPath:
 
     def test_extreme_truncation_triggers_series_truncation(self) -> None:
         """Test extreme case that requires series name truncation."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         long_series = (
             "The Most Ridiculously Extraordinarily Impossibly Long Light Novel "
@@ -1638,7 +1638,7 @@ class TestBuildMamPath:
 
     def test_multifile_adjusts_budget(self) -> None:
         """Test that part_count > 1 adjusts budget for ' - Part XX.m4b'."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         # Same input, compare single vs multi-file
         kwargs: dict[str, Any] = {
@@ -1669,7 +1669,7 @@ class TestBuildMamPath:
 
     def test_no_tag_increases_budget(self) -> None:
         """Test that omitting ripper_tag increases available budget."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         # A case that might need truncation with tag but not without
         kwargs: dict[str, Any] = {
@@ -1694,7 +1694,7 @@ class TestBuildMamPath:
 
     def test_standalone_book_no_series(self) -> None:
         """Test standalone book (no series) truncation."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         result = build_mam_path(
             series=None,
@@ -1715,7 +1715,7 @@ class TestBuildMamPath:
 
     def test_minimum_series_floor(self) -> None:
         """Test that series is never truncated below MIN_SERIES_LENGTH."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         # Force extreme truncation with very tight length
         result = build_mam_path(
@@ -1733,7 +1733,7 @@ class TestBuildMamPath:
 
     def test_preserves_asin_always(self) -> None:
         """Test that ASIN is NEVER truncated or dropped."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         result = build_mam_path(
             series="A" * 200,  # Very long series
@@ -1753,7 +1753,7 @@ class TestBuildMamPath:
 
     def test_full_path_structure(self) -> None:
         """Test that full_path is correctly computed as folder/filename."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         result = build_mam_path(
             series="Test Series",
@@ -1768,7 +1768,7 @@ class TestBuildMamPath:
 
     def test_dropped_components_tracks_correctly(self) -> None:
         """Test that dropped_components accurately reflects what was dropped."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         # Case that needs to drop arc only
         result1 = build_mam_path(
@@ -1790,7 +1790,7 @@ class TestBuildMamPath:
 
     def test_custom_extension(self) -> None:
         """Test that custom extensions are handled correctly."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         result = build_mam_path(
             series="Test",
@@ -1805,7 +1805,7 @@ class TestBuildMamPath:
 
     def test_extension_without_dot(self) -> None:
         """Test that extension without leading dot is handled."""
-        from mamfast.utils.naming import build_mam_path
+        from shelfr.utils.naming import build_mam_path
 
         result = build_mam_path(
             series="Test",

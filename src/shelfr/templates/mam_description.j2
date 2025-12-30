@@ -1,0 +1,35 @@
+{% if show_signature %}
+{% include 'signature.j2' %}
+[center][color=#3aa6ff]───────────────────────────────────────────────[/color][br][size=6][b][color=#3aa6ff]{{ title }}[/color][/b][/size][/center][br][br]
+{% else %}
+[center][size=6][b][color=#3aa6ff]{{ title }}[/color][/b][/size][/center][br][br]
+{% endif %}
+[b][color=#3aa6ff]Synopsis[/color][/b][br][color=#3aa6ff]───────────────────────────────────────────────[/color][br]
+{{ synopsis }}[br][br]
+[b][color=#3aa6ff]Book Info[/color][/b][br][color=#3aa6ff]───────────────────────────────────────────────[/color][br]
+• [b]Author:[/b] {{ authors | join(', ') }}[br]
+• [b]Narrator:[/b] {{ narrators | join(', ') }}[br]
+{% if translator %}
+• [b]Translator:[/b] {{ translator }}[br]
+{% endif %}
+• [b]Publisher:[/b] {{ publisher }}[br]
+• [b]Release Date:[/b] {{ release_date }}[br]
+• [b]Genre:[/b] {{ genres | join(', ') }}[br]
+• [b]Language:[/b] {{ language }}[br]
+• [b]Audible:[/b] [url=https://www.audible.com/pd/{{ asin }}]https://www.audible.com/pd/{{ asin }}[/url][br]
+• [b]ASIN:[/b] {{ asin }}[br][br]
+[b][color=#3aa6ff]Audio / File[/color][/b][br][color=#3aa6ff]───────────────────────────────────────────────[/color][br]
+• [b]Container:[/b] {{ container }}[br]
+• [b]Codec:[/b] {{ codec }}[br]
+• [b]Sample Rate:[/b] {{ sample_rate }}[br]
+• [b]Channels:[/b] {{ channels }}[br]
+• [b]Duration:[/b] {{ duration_human }}[br]
+• [b]Chapters:[/b] {{ 'Yes' if chapters else 'No' }}[br][br]
+{% if chapters %}
+[b][color=#3aa6ff]Chapters[/color][/b][br][color=#3aa6ff]───────────────────────────────────────────────[/color][br]
+[hide=Chapters][font=Courier New]
+{%- for ch in chapters %}
+{{ ch.start }} - {{ ch.title }}[br]
+{%- endfor %}
+[/font][/hide]
+{% endif %}

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mamfast.exceptions import (
+from shelfr.exceptions import (
     AudiobookshelfError,
     AudnexError,
     ConfigurationError,

@@ -6,7 +6,7 @@ import argparse
 
 import pytest
 
-from mamfast.utils.validation import (
+from shelfr.utils.validation import (
     ASIN_PATTERN,
     is_valid_asin,
     validate_asin,
@@ -136,39 +136,12 @@ class TestCliIntegration:
     The main CLI has been migrated to Typer.
     """
 
-    def test_prepare_asin_validation(self) -> None:
-        """Test prepare command validates ASIN."""
-        from mamfast.cli_argparse import build_parser
-
-        parser = build_parser()
-
-        # Valid ASIN works
-        args = parser.parse_args(["prepare", "--asin", "B0DK9T5P28"])
-        assert args.asin == "B0DK9T5P28"
-
-        # Lowercase normalized
-        args = parser.parse_args(["prepare", "-a", "b0dk9t5p28"])
-        assert args.asin == "B0DK9T5P28"
-
-    def test_metadata_asin_validation(self) -> None:
-        """Test metadata command validates ASIN."""
-        from mamfast.cli_argparse import build_parser
-
-        parser = build_parser()
-        args = parser.parse_args(["metadata", "--asin", "B0DK9T5P28"])
-        assert args.asin == "B0DK9T5P28"
-
-    def test_torrent_asin_validation(self) -> None:
-        """Test torrent command validates ASIN."""
-        from mamfast.cli_argparse import build_parser
-
-        parser = build_parser()
-        args = parser.parse_args(["torrent", "--asin", "B0DK9T5P28"])
-        assert args.asin == "B0DK9T5P28"
+    # NOTE: test_prepare_asin_validation removed - prepare command removed from argparse CLI
+    # NOTE: test_torrent_asin_validation removed - torrent command removed from argparse CLI
 
     def test_validate_asin_validation(self) -> None:
         """Test validate command validates ASIN."""
-        from mamfast.cli_argparse import build_parser
+        from shelfr.cli_argparse import build_parser
 
         parser = build_parser()
         args = parser.parse_args(["validate", "--asin", "B0DK9T5P28"])
@@ -176,7 +149,7 @@ class TestCliIntegration:
 
     def test_preview_naming_asin_validation(self) -> None:
         """Test preview-naming command validates ASIN."""
-        from mamfast.cli_argparse import build_parser
+        from shelfr.cli_argparse import build_parser
 
         parser = build_parser()
         args = parser.parse_args(["preview-naming", "--asin", "B0DK9T5P28"])
@@ -184,7 +157,7 @@ class TestCliIntegration:
 
     def test_check_suspicious_asin_validation(self) -> None:
         """Test check-suspicious command validates ASIN."""
-        from mamfast.cli_argparse import build_parser
+        from shelfr.cli_argparse import build_parser
 
         parser = build_parser()
         args = parser.parse_args(["check-suspicious", "--asin", "B0DK9T5P28"])
@@ -192,7 +165,7 @@ class TestCliIntegration:
 
     def test_abs_restore_asin_validation(self) -> None:
         """Test abs-restore command validates ASIN."""
-        from mamfast.cli_argparse import build_parser
+        from shelfr.cli_argparse import build_parser
 
         parser = build_parser()
         args = parser.parse_args(["abs-restore", "--asin", "B0DK9T5P28"])
@@ -200,7 +173,7 @@ class TestCliIntegration:
 
     def test_invalid_asin_rejected_by_parser(self) -> None:
         """Test invalid ASIN causes parser to exit."""
-        from mamfast.cli_argparse import build_parser
+        from shelfr.cli_argparse import build_parser
 
         parser = build_parser()
 

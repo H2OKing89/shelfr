@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mamfast.discovery import (
+from shelfr.discovery import (
     ASIN_PATTERN,
     build_release_from_dir,
     extract_asin_from_name,
@@ -22,7 +22,7 @@ from mamfast.discovery import (
     print_release_summary,
     scan_library,
 )
-from mamfast.models import AudiobookRelease
+from shelfr.models import AudiobookRelease
 
 
 class TestIsValidAsin:
@@ -405,7 +405,7 @@ class TestBuildReleaseFromDir:
             (book_dir / "book.m4b").touch()
             (book_dir / "cover.jpg").touch()
 
-            with patch("mamfast.discovery.get_settings", return_value=mock_settings):
+            with patch("shelfr.discovery.get_settings", return_value=mock_settings):
                 release = build_release_from_dir(book_dir)
 
             assert release.asin == "B09TEST123"
@@ -434,7 +434,7 @@ class TestBuildReleaseFromDir:
             }
             (book_dir / "Book Title {ASIN.B09META123}.metadata.json").write_text(json.dumps(meta))
 
-            with patch("mamfast.discovery.get_settings", return_value=mock_settings):
+            with patch("shelfr.discovery.get_settings", return_value=mock_settings):
                 release = build_release_from_dir(book_dir)
 
             assert release.asin == "B09META123"
@@ -465,7 +465,7 @@ class TestScanLibrary:
             book2.mkdir(parents=True)
             (book2 / "book.m4b").touch()
 
-            with patch("mamfast.discovery.get_settings", return_value=mock_settings):
+            with patch("shelfr.discovery.get_settings", return_value=mock_settings):
                 releases = scan_library(root)
 
             assert len(releases) == 2
@@ -494,8 +494,8 @@ class TestGetNewReleases:
 
             # Mock processed identifiers (B001 already processed)
             with (
-                patch("mamfast.discovery.get_settings", return_value=mock_settings),
-                patch("mamfast.discovery.get_processed_identifiers", return_value={"B001"}),
+                patch("shelfr.discovery.get_settings", return_value=mock_settings),
+                patch("shelfr.discovery.get_processed_identifiers", return_value={"B001"}),
             ):
                 new_releases = get_new_releases(root)
 
@@ -518,7 +518,7 @@ class TestGetReleaseByAsin:
             book.mkdir(parents=True)
             (book / "book.m4b").touch()
 
-            with patch("mamfast.discovery.get_settings", return_value=mock_settings):
+            with patch("shelfr.discovery.get_settings", return_value=mock_settings):
                 release = get_release_by_asin("B09TARGET", root)
 
             assert release is not None
@@ -531,7 +531,7 @@ class TestGetReleaseByAsin:
             mock_settings.paths.library_root = Path(tmpdir)
             mock_settings.mam.allowed_extensions = [".m4b"]
 
-            with patch("mamfast.discovery.get_settings", return_value=mock_settings):
+            with patch("shelfr.discovery.get_settings", return_value=mock_settings):
                 release = get_release_by_asin("NOTFOUND", Path(tmpdir))
 
             assert release is None
@@ -582,7 +582,7 @@ class TestFindDuplicateReleases:
 
     def test_finds_similar_titles(self) -> None:
         """Should find releases with similar titles."""
-        from mamfast.discovery import find_duplicate_releases
+        from shelfr.discovery import find_duplicate_releases
 
         releases = [
             AudiobookRelease(
@@ -610,7 +610,7 @@ class TestFindDuplicateReleases:
 
     def test_no_duplicates_different_titles(self) -> None:
         """Should return empty for completely different titles."""
-        from mamfast.discovery import find_duplicate_releases
+        from shelfr.discovery import find_duplicate_releases
 
         releases = [
             AudiobookRelease(title="Sword Art Online", asin="B001"),
@@ -624,14 +624,14 @@ class TestFindDuplicateReleases:
 
     def test_empty_list_returns_empty(self) -> None:
         """Empty list should return empty."""
-        from mamfast.discovery import find_duplicate_releases
+        from shelfr.discovery import find_duplicate_releases
 
         assert find_duplicate_releases([]) == []
         assert find_duplicate_releases([AudiobookRelease(title="One")]) == []
 
     def test_marks_likely_duplicate_with_same_author(self) -> None:
         """Should mark as likely duplicate when same author."""
-        from mamfast.discovery import find_duplicate_releases
+        from shelfr.discovery import find_duplicate_releases
 
         releases = [
             AudiobookRelease(
@@ -653,7 +653,7 @@ class TestFindDuplicateReleases:
 
     def test_marks_likely_duplicate_with_same_series(self) -> None:
         """Should mark as likely duplicate when same series."""
-        from mamfast.discovery import find_duplicate_releases
+        from shelfr.discovery import find_duplicate_releases
 
         releases = [
             AudiobookRelease(

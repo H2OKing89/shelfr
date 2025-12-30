@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from mamfast.schemas.audnex import (
+from shelfr.schemas.audnex import (
     AudnexAuthor,
     AudnexChapter,
     AudnexSeries,

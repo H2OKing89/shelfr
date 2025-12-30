@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from mamfast.abs.client import (
+from shelfr.abs.client import (
     AbsApiError,
     AbsAuthError,
     AbsClient,

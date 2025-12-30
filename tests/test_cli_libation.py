@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mamfast.commands.libation import (
+from shelfr.commands.libation import (
     LibationCommandResult,
     add_libation_parser,
     cmd_libation,
@@ -133,10 +133,10 @@ class TestAddLibationParser:
 class TestRunLibationCmd:
     """Tests for run_libation_cmd helper."""
 
-    @patch("mamfast.commands.libation._common.docker")
+    @patch("shelfr.commands.libation._common.docker")
     def test_successful_command(self, mock_docker: MagicMock) -> None:
         """Test successful command execution."""
-        from mamfast.utils.cmd import CmdResult
+        from shelfr.utils.cmd import CmdResult
 
         mock_docker.return_value = CmdResult(
             argv=("docker", "exec", "TestContainer", "/libation/LibationCli", "scan"),
@@ -151,10 +151,10 @@ class TestRunLibationCmd:
         assert result.returncode == 0
         assert result.stdout == "output"
 
-    @patch("mamfast.commands.libation._common.docker")
+    @patch("shelfr.commands.libation._common.docker")
     def test_failed_command(self, mock_docker: MagicMock) -> None:
         """Test failed command execution."""
-        from mamfast.utils.cmd import CmdError
+        from shelfr.utils.cmd import CmdError
 
         mock_docker.side_effect = CmdError(
             argv=["docker", "exec", "TestContainer", "/libation/LibationCli", "scan"],
@@ -168,10 +168,10 @@ class TestRunLibationCmd:
         assert result.success is False
         assert result.returncode == 1
 
-    @patch("mamfast.commands.libation._common.docker")
+    @patch("shelfr.commands.libation._common.docker")
     def test_timeout(self, mock_docker: MagicMock) -> None:
         """Test command timeout."""
-        from mamfast.utils.cmd import CmdError
+        from shelfr.utils.cmd import CmdError
 
         mock_docker.side_effect = CmdError(
             argv=["docker", "exec", "TestContainer", "/libation/LibationCli", "scan"],
@@ -201,7 +201,7 @@ class TestCmdLibationGuide:
 class TestCmdLibationScan:
     """Tests for scan command."""
 
-    @patch("mamfast.config.reload_settings")
+    @patch("shelfr.config.reload_settings")
     def test_dry_run_mode(self, mock_settings: MagicMock) -> None:
         """Test scan in dry-run mode."""
         mock_settings.return_value = MagicMock(libation_container="Libation")
@@ -211,7 +211,7 @@ class TestCmdLibationScan:
 
         assert result == 0
 
-    @patch("mamfast.config.reload_settings")
+    @patch("shelfr.config.reload_settings")
     def test_dry_run_with_liberate(self, mock_settings: MagicMock) -> None:
         """Test scan --liberate in dry-run mode."""
         mock_settings.return_value = MagicMock(libation_container="Libation")
@@ -221,7 +221,7 @@ class TestCmdLibationScan:
 
         assert result == 0
 
-    @patch("mamfast.config.reload_settings")
+    @patch("shelfr.config.reload_settings")
     def test_config_not_found(self, mock_settings: MagicMock) -> None:
         """Test scan with missing config."""
         mock_settings.side_effect = FileNotFoundError("config not found")
@@ -235,7 +235,7 @@ class TestCmdLibationScan:
 class TestCmdLibationLiberate:
     """Tests for liberate command."""
 
-    @patch("mamfast.config.reload_settings")
+    @patch("shelfr.config.reload_settings")
     def test_dry_run_mode(self, mock_settings: MagicMock) -> None:
         """Test liberate in dry-run mode."""
         mock_settings.return_value = MagicMock(libation_container="Libation")
@@ -245,7 +245,7 @@ class TestCmdLibationLiberate:
 
         assert result == 0
 
-    @patch("mamfast.config.reload_settings")
+    @patch("shelfr.config.reload_settings")
     def test_dry_run_with_asin(self, mock_settings: MagicMock) -> None:
         """Test liberate with specific ASIN in dry-run mode."""
         mock_settings.return_value = MagicMock(libation_container="Libation")
@@ -261,8 +261,8 @@ class TestCmdLibationLiberate:
 class TestCmdLibationSearch:
     """Tests for search command."""
 
-    @patch("mamfast.commands.libation.search._run_libation_cmd")
-    @patch("mamfast.config.reload_settings")
+    @patch("shelfr.commands.libation.search._run_libation_cmd")
+    @patch("shelfr.config.reload_settings")
     def test_search_success(self, mock_settings: MagicMock, mock_run_cmd: MagicMock) -> None:
         """Test successful search."""
         mock_settings.return_value = MagicMock(libation_container="Libation")
@@ -280,8 +280,8 @@ class TestCmdLibationSearch:
 class TestCmdLibationSettings:
     """Tests for settings command."""
 
-    @patch("mamfast.commands.libation.settings._run_libation_cmd")
-    @patch("mamfast.config.reload_settings")
+    @patch("shelfr.commands.libation.settings._run_libation_cmd")
+    @patch("shelfr.config.reload_settings")
     def test_settings_success(self, mock_settings: MagicMock, mock_run_cmd: MagicMock) -> None:
         """Test successful settings retrieval."""
         mock_settings.return_value = MagicMock(libation_container="Libation")
@@ -320,7 +320,7 @@ class TestPrintFunctions:
 class TestCmdLibation:
     """Tests for main libation command entry point."""
 
-    @patch("mamfast.commands.libation._parser.cmd_libation_status")
+    @patch("shelfr.commands.libation._parser.cmd_libation_status")
     def test_no_subcommand_calls_status(self, mock_status: MagicMock) -> None:
         """Test that no subcommand defaults to status."""
         mock_status.return_value = 0
@@ -348,7 +348,7 @@ class TestAsinValidation:
 
     def test_valid_asin(self) -> None:
         """Test valid ASIN formats are accepted."""
-        from mamfast.utils.validation import validate_asin
+        from shelfr.utils.validation import validate_asin
 
         # Standard format
         assert validate_asin("B0DK9T5P28") == "B0DK9T5P28"
@@ -359,7 +359,7 @@ class TestAsinValidation:
 
     def test_invalid_asin_format(self) -> None:
         """Test invalid ASIN formats are rejected."""
-        from mamfast.utils.validation import validate_asin
+        from shelfr.utils.validation import validate_asin
 
         # Too short
         with pytest.raises(argparse.ArgumentTypeError, match="Invalid ASIN format"):

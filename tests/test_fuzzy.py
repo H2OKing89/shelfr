@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mamfast.utils.fuzzy import (
+from shelfr.utils.fuzzy import (
     ChangeAnalysis,
     analyze_change,
     find_best_match,

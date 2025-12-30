@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mamfast.models import AudiobookRelease, ReleaseStatus
-from mamfast.utils.state import (
+from shelfr.models import AudiobookRelease, ReleaseStatus
+from shelfr.utils.state import (
     ALLOWED_TRANSITIONS,
     InvalidStatusTransitionError,
     checkpoint_stage,
@@ -57,7 +57,7 @@ class TestLoadState:
         """Test loading when no state file exists."""
         # Use a valid temp directory but non-existent file
         mock_settings.paths.state_file = tmp_path / "nonexistent_state.json"
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         assert state["version"] == 2  # Current schema version
@@ -75,7 +75,7 @@ class TestLoadState:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         assert "B09TEST123" in state["processed"]
@@ -92,7 +92,7 @@ class TestSaveState:
             "failed": {},
         }
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             save_state(state)
 
         with open(temp_state_file) as f:
@@ -106,7 +106,7 @@ class TestIsProcessed:
 
     def test_not_processed(self, mock_settings, temp_state_file):
         """Test checking unprocessed release."""
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             assert is_processed("B09UNKNOWN") is False
 
     def test_is_processed(self, mock_settings, temp_state_file):
@@ -119,7 +119,7 @@ class TestIsProcessed:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             assert is_processed("B09DONE123") is True
 
 
@@ -134,7 +134,7 @@ class TestMarkProcessed:
             author="Test Author",
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             mark_processed(release)
             assert is_processed("B09MARK123") is True
 
@@ -145,7 +145,7 @@ class TestMarkProcessed:
             source_dir=Path("/tmp/audiobooks/test"),
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             mark_processed(release)
             assert is_processed("/tmp/audiobooks/test") is True
 
@@ -166,7 +166,7 @@ class TestGetProcessedIdentifiers:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             identifiers = get_processed_identifiers()
 
         assert "B09ONE123" in identifiers
@@ -179,7 +179,7 @@ class TestIsFailed:
 
     def test_not_failed(self, mock_settings, temp_state_file):
         """Test checking non-failed release."""
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             assert is_failed("B09UNKNOWN") is False
 
     def test_is_failed(self, mock_settings, temp_state_file):
@@ -192,7 +192,7 @@ class TestIsFailed:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             assert is_failed("B09FAIL123") is True
 
 
@@ -207,7 +207,7 @@ class TestMarkFailed:
             author="Test Author",
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             mark_failed(release, "Test error message")
             assert is_failed("B09FAIL123") is True
 
@@ -218,7 +218,7 @@ class TestMarkFailed:
             source_dir=Path("/tmp/audiobooks/failed"),
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             mark_failed(release, "Error occurred")
             assert is_failed("/tmp/audiobooks/failed") is True
 
@@ -226,7 +226,7 @@ class TestMarkFailed:
         """Test marking fails without identifier."""
         release = AudiobookRelease(title="No ID Book")
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             # Should not raise, just log warning
             mark_failed(release, "Error")
 
@@ -238,7 +238,7 @@ class TestMarkFailed:
             author="Test Author",
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             # First failure
             mark_failed(release, "First error")
             state = load_state()
@@ -267,7 +267,7 @@ class TestMarkFailed:
             title="Error Type Book",
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             mark_failed(release, "Network timeout", error_type="NetworkError")
             state = load_state()
 
@@ -298,7 +298,7 @@ class TestMarkFailed:
             title="Preserved Book",
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             mark_failed(release, "New error")
             state = load_state()
 
@@ -323,7 +323,7 @@ class TestMarkProcessedRemovesFailed:
 
         release = AudiobookRelease(asin="B09RETRY123", title="Retry Book")
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             mark_processed(release)
             assert is_processed("B09RETRY123") is True
             assert is_failed("B09RETRY123") is False
@@ -332,7 +332,7 @@ class TestMarkProcessedRemovesFailed:
         """Test marking processed fails without identifier."""
         release = AudiobookRelease(title="No ID Book")
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             # Should not raise, just log warning
             mark_processed(release)
 
@@ -350,14 +350,14 @@ class TestClearFailed:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = clear_failed("B09CLEAR123")
             assert result is True
             assert is_failed("B09CLEAR123") is False
 
     def test_clear_failed_not_found(self, mock_settings, temp_state_file):
         """Test clearing non-existent failed entry."""
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = clear_failed("B09NOTFOUND")
             assert result is False
 
@@ -378,7 +378,7 @@ class TestGetFailedIdentifiers:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             identifiers = get_failed_identifiers()
 
         assert "B09FAIL1" in identifiers
@@ -399,7 +399,7 @@ class TestGetStats:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             stats = get_stats()
 
         assert stats["processed"] == 3
@@ -425,7 +425,7 @@ class TestLoadStateCorruptedFile:
         with open(temp_state_file, "w") as f:
             f.write("not valid json {{{")
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         # Should recover from backup
@@ -434,7 +434,7 @@ class TestLoadStateCorruptedFile:
 
     def test_raises_when_both_corrupt(self, mock_settings, temp_state_file):
         """Test that StateCorruptionError is raised when both files corrupt."""
-        from mamfast.exceptions import StateCorruptionError
+        from shelfr.exceptions import StateCorruptionError
 
         # Corrupt main file
         with open(temp_state_file, "w") as f:
@@ -446,7 +446,7 @@ class TestLoadStateCorruptedFile:
             f.write("also not valid {{{")
 
         with (
-            patch("mamfast.utils.state.get_settings", return_value=mock_settings),
+            patch("shelfr.utils.state.get_settings", return_value=mock_settings),
             pytest.raises(StateCorruptionError) as exc_info,
         ):
             load_state()
@@ -457,7 +457,7 @@ class TestLoadStateCorruptedFile:
 
     def test_raises_when_main_corrupt_no_backup(self, mock_settings, temp_state_file):
         """Test that StateCorruptionError is raised when main corrupt and no backup."""
-        from mamfast.exceptions import StateCorruptionError
+        from shelfr.exceptions import StateCorruptionError
 
         # Corrupt main file
         with open(temp_state_file, "w") as f:
@@ -469,7 +469,7 @@ class TestLoadStateCorruptedFile:
             backup_file.unlink()
 
         with (
-            patch("mamfast.utils.state.get_settings", return_value=mock_settings),
+            patch("shelfr.utils.state.get_settings", return_value=mock_settings),
             pytest.raises(StateCorruptionError) as exc_info,
         ):
             load_state()
@@ -492,7 +492,7 @@ class TestLoadStateCorruptedFile:
         with open(backup_file, "w") as f:
             json.dump(backup_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         # Should recover from orphaned backup
@@ -519,7 +519,7 @@ class TestSaveStateBackup:
             "processed": {"B09NEW": {"title": "New Book"}},
             "failed": {},
         }
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             save_state(new_state)
 
         # Backup should contain old data
@@ -552,7 +552,7 @@ class TestCheckpointStage:
             status=ReleaseStatus.STAGED,
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             checkpoint_stage(release, "staged")
             state = load_state()
 
@@ -596,7 +596,7 @@ class TestCheckpointStage:
             status=ReleaseStatus.METADATA_FETCHED,
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             checkpoint_stage(release, "metadata")
             state = load_state()
 
@@ -612,7 +612,7 @@ class TestCheckpointStage:
         """Test that checkpoint_stage handles release without identifier gracefully."""
         release = AudiobookRelease(title="No ID Book")
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             # Should not raise, just log warning
             checkpoint_stage(release, "staged")
             state = load_state()
@@ -628,7 +628,7 @@ class TestCheckpointStage:
             status=ReleaseStatus.TORRENT_CREATED,
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             checkpoint_stage(release, "torrent", infohash="abc123def456")
             state = load_state()
 
@@ -651,7 +651,7 @@ class TestCheckpointStage:
             torrent_path=torrent_path,
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             checkpoint_stage(release, "torrent")
             state = load_state()
 
@@ -665,7 +665,7 @@ class TestGetCheckpoint:
 
     def test_returns_none_when_missing_entry(self, mock_settings, temp_state_file):
         """Test that get_checkpoint returns None for non-existent entry."""
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = get_checkpoint("B09NONEXIST", "staged")
         assert result is None
 
@@ -684,7 +684,7 @@ class TestGetCheckpoint:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = get_checkpoint("B09NOSTAGE", "metadata")
         assert result is None
 
@@ -704,7 +704,7 @@ class TestGetCheckpoint:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = get_checkpoint("B09HASSTAGE", "staged")
         assert result == timestamp
 
@@ -724,7 +724,7 @@ class TestGetCheckpoint:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = get_checkpoint("B09LEGACY", "staged")
         assert result is None
 
@@ -734,7 +734,7 @@ class TestGetInfohash:
 
     def test_returns_none_when_missing_entry(self, mock_settings, temp_state_file):
         """Test that get_infohash returns None for non-existent entry."""
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = get_infohash("B09NONEXIST")
         assert result is None
 
@@ -753,7 +753,7 @@ class TestGetInfohash:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = get_infohash("B09NOHASH")
         assert result is None
 
@@ -772,7 +772,7 @@ class TestGetInfohash:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = get_infohash("B09HASHPRES")
         assert result == "deadbeef12345678"
 
@@ -784,7 +784,7 @@ class TestShouldSkipStage:
         """Test that should_skip_stage returns False when no identifier."""
         release = AudiobookRelease(title="No ID Book")
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = should_skip_stage(release, "staged")
         assert result is False
 
@@ -792,7 +792,7 @@ class TestShouldSkipStage:
         """Test that should_skip_stage returns False when no checkpoint."""
         release = AudiobookRelease(asin="B09NOCHECK", title="No Checkpoint")
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = should_skip_stage(release, "staged")
         assert result is False
 
@@ -813,7 +813,7 @@ class TestShouldSkipStage:
 
         release = AudiobookRelease(asin="B09SKIPIT", title="Skip Me")
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = should_skip_stage(release, "staged")
         assert result is True
 
@@ -837,7 +837,7 @@ class TestShouldSkipStage:
 
         release = AudiobookRelease(asin="B09MISSDIR", title="Missing Dir", staging_dir=missing_dir)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = should_skip_stage(release, "staged")
         assert result is False
 
@@ -865,7 +865,7 @@ class TestShouldSkipStage:
             asin="B09MISSTORR", title="Missing Torrent", torrent_path=missing_torrent
         )
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = should_skip_stage(release, "torrent")
         assert result is False
 
@@ -889,7 +889,7 @@ class TestLegacyEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             # Should not crash
             assert is_processed("B09NOCP") is True
             assert get_checkpoint("B09NOCP", "staged") is None
@@ -912,7 +912,7 @@ class TestLegacyEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             release = AudiobookRelease(asin="B09NOTP", title="No Torrent Path")
             # Should not crash
             result = should_skip_stage(release, "torrent")
@@ -935,7 +935,7 @@ class TestLegacyEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             release = AudiobookRelease(asin="B09NOSD", title="No Staging Dir")
             # Should not crash
             result = should_skip_stage(release, "staged")
@@ -957,7 +957,7 @@ class TestLegacyEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             result = get_infohash("B09NOIH")
             assert result is None
 
@@ -988,7 +988,7 @@ class TestFindStaleEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             stale = find_stale_entries()
 
         # COMPLETE entries shouldn't be flagged even with missing paths
@@ -1011,7 +1011,7 @@ class TestFindStaleEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             stale = find_stale_entries()
 
         assert len(stale) == 1
@@ -1042,7 +1042,7 @@ class TestFindStaleEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             stale = find_stale_entries()
 
         assert len(stale) == 1
@@ -1072,7 +1072,7 @@ class TestFindStaleEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             stale = find_stale_entries()
 
         # UPLOADED with existing torrent_path should NOT be stale
@@ -1095,7 +1095,7 @@ class TestFindStaleEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             # Should not crash
             stale = find_stale_entries()
 
@@ -1123,7 +1123,7 @@ class TestPruneStaleEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             removed = prune_stale_entries(dry_run=True)
             assert len(removed) == 1
             assert removed[0][0] == "B09PRUNE01"
@@ -1148,7 +1148,7 @@ class TestPruneStaleEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             removed = prune_stale_entries(dry_run=False)
             assert len(removed) == 1
 
@@ -1182,7 +1182,7 @@ class TestPruneStaleEntries:
         with open(temp_state_file, "w") as f:
             json.dump(state_data, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             removed = prune_stale_entries(dry_run=False)
 
             # Only stale entry removed
@@ -1330,7 +1330,7 @@ class TestSchemaMigration:
         with open(temp_state_file, "w") as f:
             json.dump(v1_state, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         # Should have checkpoints added
@@ -1355,7 +1355,7 @@ class TestSchemaMigration:
         with open(temp_state_file, "w") as f:
             json.dump(v1_state, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         # Should have infohash added (as None)
@@ -1381,7 +1381,7 @@ class TestSchemaMigration:
         with open(temp_state_file, "w") as f:
             json.dump(v1_state, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         # Should copy failed_at to first_failed_at
@@ -1405,7 +1405,7 @@ class TestSchemaMigration:
         with open(temp_state_file, "w") as f:
             json.dump(v1_state, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         # Should have error_type added (as None since not available)
@@ -1430,7 +1430,7 @@ class TestSchemaMigration:
         with open(temp_state_file, "w") as f:
             json.dump(v1_state, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         # Should have author added (as None)
@@ -1457,7 +1457,7 @@ class TestSchemaMigration:
         with open(temp_state_file, "w") as f:
             json.dump(v1_state, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         entry = state["processed"]["B09PRESERVE"]
@@ -1486,7 +1486,7 @@ class TestSchemaMigration:
         with open(temp_state_file, "w") as f:
             json.dump(v2_state, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         # Should be unchanged
@@ -1510,7 +1510,7 @@ class TestSchemaMigration:
         with open(temp_state_file, "w") as f:
             json.dump(v1_state, f)
 
-        with patch("mamfast.utils.state.get_settings", return_value=mock_settings):
+        with patch("shelfr.utils.state.get_settings", return_value=mock_settings):
             state = load_state()
 
         # All processed entries should have new fields

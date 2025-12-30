@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
-from mamfast.models import NormalizedBook
-from mamfast.utils.naming import (
+from shelfr.models import NormalizedBook
+from shelfr.utils.naming import (
     clean_series_name,
     detect_swapped_title_subtitle,
     extract_arc_name,

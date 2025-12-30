@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mamfast.utils.validate_naming import (
+from shelfr.utils.validate_naming import (
     ValidationIssue,
     ValidationResult,
     validate_output,
@@ -250,7 +250,7 @@ class TestValidateLibrary:
 
     def test_validate_empty_library(self, tmp_path: Path) -> None:
         """Test validating empty library."""
-        from mamfast.utils.validate_naming import validate_library
+        from shelfr.utils.validate_naming import validate_library
 
         lib_file = tmp_path / "library.json"
         lib_file.write_text("[]")
@@ -262,7 +262,7 @@ class TestValidateLibrary:
         """Test validating library with clean entries."""
         import json
 
-        from mamfast.utils.validate_naming import validate_library
+        from shelfr.utils.validate_naming import validate_library
 
         library = [
             {
@@ -285,7 +285,7 @@ class TestPrintValidationReport:
 
     def test_print_empty_results(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test printing empty results."""
-        from mamfast.utils.validate_naming import print_validation_report
+        from shelfr.utils.validate_naming import print_validation_report
 
         print_validation_report([])
         captured = capsys.readouterr()
@@ -294,7 +294,7 @@ class TestPrintValidationReport:
 
     def test_print_with_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test printing results with errors."""
-        from mamfast.utils.validate_naming import print_validation_report
+        from shelfr.utils.validate_naming import print_validation_report
 
         result = ValidationResult(book_id="B12345", title="Test Book")
         result.issues.append(
@@ -315,7 +315,7 @@ class TestPrintValidationReport:
 
     def test_print_with_warnings(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test printing results with warnings."""
-        from mamfast.utils.validate_naming import print_validation_report
+        from shelfr.utils.validate_naming import print_validation_report
 
         result = ValidationResult(book_id="B12345", title="Test Book")
         result.issues.append(

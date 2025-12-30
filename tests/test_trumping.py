@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from mamfast.abs.trumping import (
+from shelfr.abs.trumping import (
     TrumpableMeta,
     TrumpAggressiveness,
     TrumpDecision,
@@ -30,7 +30,7 @@ from mamfast.abs.trumping import (
     decide_trump,
     is_multi_file_layout,
 )
-from mamfast.schemas.config import TrumpingSchema
+from shelfr.schemas.config import TrumpingSchema
 
 
 class TestTrumpDecision:
@@ -224,7 +224,7 @@ class TestTrumpPrefs:
 
     def test_from_config_basic(self) -> None:
         """from_config creates TrumpPrefs from TrumpingConfig dataclass."""
-        from mamfast.config import TrumpingConfig
+        from shelfr.config import TrumpingConfig
 
         config = TrumpingConfig(enabled=True, archive_root="/archive")
         prefs = TrumpPrefs.from_config(config)
@@ -235,7 +235,7 @@ class TestTrumpPrefs:
 
     def test_from_config_all_fields(self) -> None:
         """from_config maps all TrumpingConfig fields correctly."""
-        from mamfast.config import TrumpingConfig
+        from shelfr.config import TrumpingConfig
 
         config = TrumpingConfig(
             enabled=True,
@@ -797,14 +797,14 @@ class TestDiscoverArchives:
 
     def test_empty_archive_root(self, tmp_path: Path) -> None:
         """Returns empty list for empty archive root."""
-        from mamfast.abs.trumping import discover_archives
+        from shelfr.abs.trumping import discover_archives
 
         archives = discover_archives(tmp_path)
         assert archives == []
 
     def test_nonexistent_archive_root(self, tmp_path: Path) -> None:
         """Returns empty list for nonexistent archive root."""
-        from mamfast.abs.trumping import discover_archives
+        from shelfr.abs.trumping import discover_archives
 
         archives = discover_archives(tmp_path / "nonexistent")
         assert archives == []
@@ -813,7 +813,7 @@ class TestDiscoverArchives:
         """Finds a single archived book."""
         import json
 
-        from mamfast.abs.trumping import discover_archives
+        from shelfr.abs.trumping import discover_archives
 
         # Create archive structure
         archive_folder = tmp_path / "B0TEST12345" / "2024-01-01T12-00-00"
@@ -845,7 +845,7 @@ class TestDiscoverArchives:
         """Filters archives by ASIN."""
         import json
 
-        from mamfast.abs.trumping import discover_archives
+        from shelfr.abs.trumping import discover_archives
 
         # Create two archives
         for asin in ["B0AAAA11111", "B0BBBB22222"]:
@@ -872,7 +872,7 @@ class TestDiscoverArchives:
         """Archives are sorted newest first."""
         import json
 
-        from mamfast.abs.trumping import discover_archives
+        from shelfr.abs.trumping import discover_archives
 
         asin = "B0TEST12345"
         for timestamp, archived_at in [
@@ -906,7 +906,7 @@ class TestRestoreFromArchive:
 
     def test_restore_missing_sidecar_raises(self, tmp_path: Path) -> None:
         """Raises error if sidecar is missing."""
-        from mamfast.abs.trumping import TrumpingError, restore_from_archive
+        from shelfr.abs.trumping import TrumpingError, restore_from_archive
 
         archive = tmp_path / "fake_archive"
         archive.mkdir()
@@ -920,7 +920,7 @@ class TestRestoreFromArchive:
         """Dry run doesn't move files."""
         import json
 
-        from mamfast.abs.trumping import restore_from_archive
+        from shelfr.abs.trumping import restore_from_archive
 
         # Create archive with sidecar
         archive = tmp_path / "archive" / "B0TEST" / "2024-01-01T12-00-00"
@@ -944,7 +944,7 @@ class TestRestoreFromArchive:
         """Restoring moves the folder to library."""
         import json
 
-        from mamfast.abs.trumping import restore_from_archive
+        from shelfr.abs.trumping import restore_from_archive
 
         archive = tmp_path / "archive" / "MyBook"
         archive.mkdir(parents=True)
@@ -967,7 +967,7 @@ class TestRestoreFromArchive:
         """Restoring removes the trump sidecar from restored folder."""
         import json
 
-        from mamfast.abs.trumping import restore_from_archive
+        from shelfr.abs.trumping import restore_from_archive
 
         archive = tmp_path / "archive" / "MyBook"
         archive.mkdir(parents=True)
@@ -986,7 +986,7 @@ class TestRestoreFromArchive:
         """Raises error if destination already exists."""
         import json
 
-        from mamfast.abs.trumping import TrumpingError, restore_from_archive
+        from shelfr.abs.trumping import TrumpingError, restore_from_archive
 
         archive = tmp_path / "archive" / "MyBook"
         archive.mkdir(parents=True)

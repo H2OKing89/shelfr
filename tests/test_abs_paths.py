@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mamfast.abs.paths import PathMapper, abs_path_to_host, host_path_to_abs
+from shelfr.abs.paths import PathMapper, abs_path_to_host, host_path_to_abs
 
 
 class TestAbsPathToHost:

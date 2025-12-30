@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mamfast.abs.asin import (
+from shelfr.abs.asin import (
     AsinNormalizationResult,
     AsinResolution,
     SearchMatch,
@@ -473,7 +473,7 @@ class TestMediainfoAvailable:
             "Settings", (), {"mediainfo": type("MediaInfo", (), {"binary": "mediainfo"})()}
         )()
         with (
-            patch("mamfast.abs.asin.get_settings", return_value=mock_settings),
+            patch("shelfr.abs.asin.get_settings", return_value=mock_settings),
             patch.object(shutil, "which", return_value="/usr/bin/mediainfo"),
         ):
             assert _get_mediainfo_binary() == "/usr/bin/mediainfo"
@@ -484,7 +484,7 @@ class TestMediainfoAvailable:
             "Settings", (), {"mediainfo": type("MediaInfo", (), {"binary": "mediainfo"})()}
         )()
         with (
-            patch("mamfast.abs.asin.get_settings", return_value=mock_settings),
+            patch("shelfr.abs.asin.get_settings", return_value=mock_settings),
             patch.object(shutil, "which", return_value=None),
         ):
             assert _get_mediainfo_binary() is None
@@ -496,7 +496,7 @@ class TestMediainfoAvailable:
         mock_settings = type(
             "Settings", (), {"mediainfo": type("MediaInfo", (), {"binary": str(binary)})()}
         )()
-        with patch("mamfast.abs.asin.get_settings", return_value=mock_settings):
+        with patch("shelfr.abs.asin.get_settings", return_value=mock_settings):
             assert _get_mediainfo_binary() == str(binary)
 
     def test_mediainfo_absolute_path_not_exists(self, tmp_path: Path) -> None:
@@ -506,7 +506,7 @@ class TestMediainfoAvailable:
             (),
             {"mediainfo": type("MediaInfo", (), {"binary": "/nonexistent/mediainfo"})()},
         )()
-        with patch("mamfast.abs.asin.get_settings", return_value=mock_settings):
+        with patch("shelfr.abs.asin.get_settings", return_value=mock_settings):
             assert _get_mediainfo_binary() is None
 
 
@@ -838,8 +838,8 @@ class TestResolveAsinFromFolderWithMediainfo:
         mock_output = {"media": {"track": [{"@type": "General", "asin": "B0MEDIAINF"}]}}
 
         with (
-            patch("mamfast.abs.asin._get_mediainfo_binary", return_value="/usr/bin/mediainfo"),
-            patch("mamfast.abs.asin.subprocess.run") as mock_run,
+            patch("shelfr.abs.asin._get_mediainfo_binary", return_value="/usr/bin/mediainfo"),
+            patch("shelfr.abs.asin.subprocess.run") as mock_run,
         ):
             mock_run.return_value.stdout = json.dumps(mock_output)
             mock_run.return_value.returncode = 0
@@ -855,7 +855,7 @@ class TestResolveAsinFromFolderWithMediainfo:
         folder.mkdir()
         (folder / "book.m4b").touch()
 
-        with patch("mamfast.abs.asin._get_mediainfo_binary", return_value=None):
+        with patch("shelfr.abs.asin._get_mediainfo_binary", return_value=None):
             result = resolve_asin_from_folder_with_mediainfo(folder)
             assert result.found is False
             assert result.source == "unknown"
@@ -884,8 +884,8 @@ class TestResolveAsinFromFolderWithMediainfo:
             return mock_result
 
         with (
-            patch("mamfast.abs.asin._get_mediainfo_binary", return_value="/usr/bin/mediainfo"),
-            patch("mamfast.abs.asin.subprocess.run", side_effect=mock_mediainfo),
+            patch("shelfr.abs.asin._get_mediainfo_binary", return_value="/usr/bin/mediainfo"),
+            patch("shelfr.abs.asin.subprocess.run", side_effect=mock_mediainfo),
         ):
             result = resolve_asin_from_folder_with_mediainfo(folder)
             assert result.asin == "B0SECOND01"
@@ -904,8 +904,8 @@ class TestResolveAsinFromFolderWithMediainfo:
         mock_output = {"media": {"track": [{"@type": "General", "asin": "B0AUDIOFIL"}]}}
 
         with (
-            patch("mamfast.abs.asin._get_mediainfo_binary", return_value="/usr/bin/mediainfo"),
-            patch("mamfast.abs.asin.subprocess.run") as mock_run,
+            patch("shelfr.abs.asin._get_mediainfo_binary", return_value="/usr/bin/mediainfo"),
+            patch("shelfr.abs.asin.subprocess.run") as mock_run,
         ):
             mock_run.return_value.stdout = json.dumps(mock_output)
             mock_run.return_value.returncode = 0
@@ -927,7 +927,7 @@ class TestMatchSearchResults:
 
     def test_exact_title_match(self) -> None:
         """Exact title match returns high confidence."""
-        from mamfast.abs.asin import match_search_results
+        from shelfr.abs.asin import match_search_results
 
         results = [
             {
@@ -945,7 +945,7 @@ class TestMatchSearchResults:
 
     def test_fuzzy_title_match(self) -> None:
         """Fuzzy title match with minor differences."""
-        from mamfast.abs.asin import match_search_results
+        from shelfr.abs.asin import match_search_results
 
         results = [
             {
@@ -964,7 +964,7 @@ class TestMatchSearchResults:
 
     def test_no_match_below_threshold(self) -> None:
         """No match returned when below confidence threshold."""
-        from mamfast.abs.asin import match_search_results
+        from shelfr.abs.asin import match_search_results
 
         results = [
             {
@@ -982,7 +982,7 @@ class TestMatchSearchResults:
 
     def test_prefers_english_results(self) -> None:
         """English results preferred over translations."""
-        from mamfast.abs.asin import match_search_results
+        from shelfr.abs.asin import match_search_results
 
         results = [
             {
@@ -1005,14 +1005,14 @@ class TestMatchSearchResults:
 
     def test_empty_results_returns_none(self) -> None:
         """Empty results list returns None."""
-        from mamfast.abs.asin import match_search_results
+        from shelfr.abs.asin import match_search_results
 
         match = match_search_results([], "Any Title", "Any Author")
         assert match is None
 
     def test_skips_invalid_asin(self) -> None:
         """Results with invalid ASIN are skipped."""
-        from mamfast.abs.asin import match_search_results
+        from shelfr.abs.asin import match_search_results
 
         results = [
             {
@@ -1028,7 +1028,7 @@ class TestMatchSearchResults:
 
     def test_extracts_series_info(self) -> None:
         """Series info extracted from results."""
-        from mamfast.abs.asin import match_search_results
+        from shelfr.abs.asin import match_search_results
 
         results = [
             {
@@ -1047,7 +1047,7 @@ class TestMatchSearchResults:
 
     def test_handles_no_series(self) -> None:
         """Books without series info handled gracefully."""
-        from mamfast.abs.asin import match_search_results
+        from shelfr.abs.asin import match_search_results
 
         results = [
             {
@@ -1066,7 +1066,7 @@ class TestMatchSearchResults:
 
     def test_title_only_matching(self) -> None:
         """Matching works with title only (no author)."""
-        from mamfast.abs.asin import match_search_results
+        from shelfr.abs.asin import match_search_results
 
         results = [
             {
@@ -1089,7 +1089,7 @@ class TestResolveAsinViaAbsSearch:
         """Successful ASIN resolution via search."""
         from unittest.mock import MagicMock
 
-        from mamfast.abs.asin import resolve_asin_via_abs_search
+        from shelfr.abs.asin import resolve_asin_via_abs_search
 
         mock_client = MagicMock()
         mock_client.search_books.return_value = [
@@ -1114,7 +1114,7 @@ class TestResolveAsinViaAbsSearch:
         """No search results returns unknown."""
         from unittest.mock import MagicMock
 
-        from mamfast.abs.asin import resolve_asin_via_abs_search
+        from shelfr.abs.asin import resolve_asin_via_abs_search
 
         mock_client = MagicMock()
         mock_client.search_books.return_value = []
@@ -1130,8 +1130,8 @@ class TestResolveAsinViaAbsSearch:
         """Search API error returns unknown."""
         from unittest.mock import MagicMock
 
-        from mamfast.abs.asin import resolve_asin_via_abs_search
-        from mamfast.abs.client import AbsConnectionError
+        from shelfr.abs.asin import resolve_asin_via_abs_search
+        from shelfr.abs.client import AbsConnectionError
 
         mock_client = MagicMock()
         mock_client.search_books.side_effect = AbsConnectionError("Connection failed")
@@ -1145,7 +1145,7 @@ class TestResolveAsinViaAbsSearch:
         """Confidence threshold is respected."""
         from unittest.mock import MagicMock
 
-        from mamfast.abs.asin import resolve_asin_via_abs_search
+        from shelfr.abs.asin import resolve_asin_via_abs_search
 
         mock_client = MagicMock()
         mock_client.search_books.return_value = [
@@ -1173,7 +1173,7 @@ class TestSearchMatch:
 
     def test_search_match_fields(self) -> None:
         """SearchMatch has expected fields."""
-        from mamfast.abs.asin import SearchMatch
+        from shelfr.abs.asin import SearchMatch
 
         match = SearchMatch(
             asin="B002V0QK4C",
@@ -1199,7 +1199,7 @@ class TestExtractVolumeNumber:
 
     def test_vol_pattern(self) -> None:
         """Extract volume from 'Vol.' pattern."""
-        from mamfast.abs.asin import _extract_volume_number
+        from shelfr.abs.asin import _extract_volume_number
 
         assert _extract_volume_number("Adachi and Shimamura Vol. 7") == 7
         assert _extract_volume_number("Series Name Vol.12") == 12
@@ -1207,34 +1207,34 @@ class TestExtractVolumeNumber:
 
     def test_volume_pattern(self) -> None:
         """Extract volume from 'Volume' pattern."""
-        from mamfast.abs.asin import _extract_volume_number
+        from shelfr.abs.asin import _extract_volume_number
 
         assert _extract_volume_number("Series Volume 3") == 3
         assert _extract_volume_number("Title Volume 10") == 10
 
     def test_book_pattern(self) -> None:
         """Extract volume from 'Book' pattern."""
-        from mamfast.abs.asin import _extract_volume_number
+        from shelfr.abs.asin import _extract_volume_number
 
         assert _extract_volume_number("Harry Potter Book 4") == 4
         assert _extract_volume_number("Series Book 1") == 1
 
     def test_part_pattern(self) -> None:
         """Extract volume from 'Part' pattern."""
-        from mamfast.abs.asin import _extract_volume_number
+        from shelfr.abs.asin import _extract_volume_number
 
         assert _extract_volume_number("Story Part 2") == 2
 
     def test_trailing_number(self) -> None:
         """Extract trailing number like 'Title 7'."""
-        from mamfast.abs.asin import _extract_volume_number
+        from shelfr.abs.asin import _extract_volume_number
 
         assert _extract_volume_number("Series Name 7") == 7
         assert _extract_volume_number("Title 15") == 15
 
     def test_no_volume(self) -> None:
         """Returns None when no volume found."""
-        from mamfast.abs.asin import _extract_volume_number
+        from shelfr.abs.asin import _extract_volume_number
 
         assert _extract_volume_number("Simple Title") is None
         assert _extract_volume_number("") is None
@@ -1242,7 +1242,7 @@ class TestExtractVolumeNumber:
 
     def test_ignores_years(self) -> None:
         """Should not treat years as volume numbers (trailing number heuristic only)."""
-        from mamfast.abs.asin import _extract_volume_number
+        from shelfr.abs.asin import _extract_volume_number
 
         # Years in trailing position should NOT be treated as volumes
         # (the year guard only applies to the "Title 7" trailing number pattern)
@@ -1258,7 +1258,7 @@ class TestExtractVolumeNumber:
 
     def test_none_input(self) -> None:
         """Returns None for None input."""
-        from mamfast.abs.asin import _extract_volume_number
+        from shelfr.abs.asin import _extract_volume_number
 
         assert _extract_volume_number(None) is None  # type: ignore[arg-type]
 
@@ -1268,7 +1268,7 @@ class TestExtractCoreTitle:
 
     def test_remove_light_novel_marker(self) -> None:
         """Remove (Light Novel) from title."""
-        from mamfast.abs.asin import _extract_core_title
+        from shelfr.abs.asin import _extract_core_title
 
         result = _extract_core_title("Adachi and Shimamura (Light Novel) Vol. 7")
         assert "light novel" not in result.lower()
@@ -1276,7 +1276,7 @@ class TestExtractCoreTitle:
 
     def test_remove_manga_marker(self) -> None:
         """Remove (Manga) from title."""
-        from mamfast.abs.asin import _extract_core_title
+        from shelfr.abs.asin import _extract_core_title
 
         result = _extract_core_title("One Piece (Manga) Volume 100")
         assert "manga" not in result.lower()
@@ -1284,7 +1284,7 @@ class TestExtractCoreTitle:
 
     def test_remove_volume_indicators(self) -> None:
         """Remove volume/book/part indicators."""
-        from mamfast.abs.asin import _extract_core_title
+        from shelfr.abs.asin import _extract_core_title
 
         result = _extract_core_title("Series Name Vol. 5")
         assert "vol" not in result.lower()
@@ -1293,7 +1293,7 @@ class TestExtractCoreTitle:
 
     def test_remove_genre_suffix(self) -> None:
         """Remove genre descriptor suffix."""
-        from mamfast.abs.asin import _extract_core_title
+        from shelfr.abs.asin import _extract_core_title
 
         result = _extract_core_title("Hero Story A LitRPG Adventure")
         assert "litrpg" not in result.lower()
@@ -1302,7 +1302,7 @@ class TestExtractCoreTitle:
 
     def test_subtitle_handling(self) -> None:
         """Subtitle after colon is removed when main title is substantial."""
-        from mamfast.abs.asin import _extract_core_title
+        from shelfr.abs.asin import _extract_core_title
 
         result = _extract_core_title("Series Name: Long Subtitle Here")
         assert "subtitle" not in result.lower()
@@ -1310,7 +1310,7 @@ class TestExtractCoreTitle:
 
     def test_complex_title(self) -> None:
         """Handle complex title with multiple patterns."""
-        from mamfast.abs.asin import _extract_core_title
+        from shelfr.abs.asin import _extract_core_title
 
         result = _extract_core_title("Series Name: Long Subtitle - Vol. 5 A Fantasy LitRPG")
         # Should extract core "Series Name"
@@ -1321,13 +1321,13 @@ class TestExtractCoreTitle:
 
     def test_empty_input(self) -> None:
         """Handle empty string."""
-        from mamfast.abs.asin import _extract_core_title
+        from shelfr.abs.asin import _extract_core_title
 
         assert _extract_core_title("") == ""
 
     def test_preserves_meaningful_content(self) -> None:
         """Core title extraction preserves meaningful words."""
-        from mamfast.abs.asin import _extract_core_title
+        from shelfr.abs.asin import _extract_core_title
 
         result = _extract_core_title("Hero's Journey: The Beginning A LitRPG Adventure")
         # Should remove the genre suffix
@@ -1419,7 +1419,7 @@ class TestNormalizeAsinToPreferredRegion:
         mock_client = MagicMock()
 
         # Create a mock SearchMatch for the US ASIN
-        with patch("mamfast.abs.asin.match_search_results") as mock_match:
+        with patch("shelfr.abs.asin.match_search_results") as mock_match:
             mock_match.return_value = SearchMatch(
                 asin="B0FDCLSZ7G",  # US ASIN
                 title="Beware of Chicken 5",
@@ -1452,7 +1452,7 @@ class TestNormalizeAsinToPreferredRegion:
         mock_client = MagicMock()
         mock_client.search_books.return_value = []
 
-        with patch("mamfast.abs.asin.match_search_results") as mock_match:
+        with patch("shelfr.abs.asin.match_search_results") as mock_match:
             mock_match.return_value = None  # No match above threshold
 
             result = normalize_asin_to_preferred_region(
@@ -1471,7 +1471,7 @@ class TestNormalizeAsinToPreferredRegion:
         """Return original when search returns the same ASIN."""
         mock_client = MagicMock()
 
-        with patch("mamfast.abs.asin.match_search_results") as mock_match:
+        with patch("shelfr.abs.asin.match_search_results") as mock_match:
             # Search returns same ASIN (rare but possible)
             mock_match.return_value = SearchMatch(
                 asin="B0FDCW8SS7",  # Same as input
@@ -1496,7 +1496,7 @@ class TestNormalizeAsinToPreferredRegion:
 
     def test_search_exception(self) -> None:
         """Return original when search throws an exception."""
-        from mamfast.abs.client import AbsConnectionError
+        from shelfr.abs.client import AbsConnectionError
 
         mock_client = MagicMock()
         mock_client.search_books.side_effect = AbsConnectionError("Network error")
@@ -1532,7 +1532,7 @@ class TestNormalizeAsinToPreferredRegion:
         """Uses 0.85 as default confidence threshold."""
         mock_client = MagicMock()
 
-        with patch("mamfast.abs.asin.match_search_results") as mock_match:
+        with patch("shelfr.abs.asin.match_search_results") as mock_match:
             # Return None to simulate no match above threshold
             mock_match.return_value = None
 

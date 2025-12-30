@@ -7,13 +7,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mamfast.hardlinker import (
+from shelfr.hardlinker import (
     find_allowed_files,
     hardlink_file,
     should_include_file,
     stage_release,
 )
-from mamfast.models import AudiobookRelease
+from shelfr.models import AudiobookRelease
 
 
 @pytest.fixture
@@ -55,7 +55,7 @@ class TestFindAllowedFiles:
 
     def test_finds_allowed_extensions(self, temp_source_dir, mock_settings):
         """Test that allowed file types are found."""
-        with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+        with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
             files = find_allowed_files(temp_source_dir)
 
         extensions = {f.suffix.lower() for f in files}
@@ -65,7 +65,7 @@ class TestFindAllowedFiles:
 
     def test_excludes_disallowed_extensions(self, temp_source_dir, mock_settings):
         """Test that disallowed file types are excluded."""
-        with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+        with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
             files = find_allowed_files(temp_source_dir)
 
         extensions = {f.suffix.lower() for f in files}
@@ -81,7 +81,7 @@ class TestFindAllowedFiles:
             (source / "top.m4b").write_bytes(b"top level")
             (subdir / "nested.m4b").write_bytes(b"nested")
 
-            with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+            with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
                 files = find_allowed_files(source)
 
             names = {f.name for f in files}
@@ -151,18 +151,18 @@ class TestShouldIncludeFile:
 
     def test_includes_m4b(self, mock_settings):
         """Test that .m4b files are included."""
-        with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+        with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
             assert should_include_file(Path("book.m4b")) is True
             assert should_include_file(Path("book.M4B")) is True
 
     def test_includes_jpg(self, mock_settings):
         """Test that .jpg files are included."""
-        with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+        with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
             assert should_include_file(Path("cover.jpg")) is True
 
     def test_excludes_txt(self, mock_settings):
         """Test that .txt files are excluded."""
-        with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+        with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
             assert should_include_file(Path("readme.txt")) is False
 
 
@@ -174,7 +174,7 @@ class TestStageRelease:
         release = AudiobookRelease(title="Test Book")
 
         with (
-            patch("mamfast.hardlinker.get_settings", return_value=mock_settings),
+            patch("shelfr.hardlinker.get_settings", return_value=mock_settings),
             pytest.raises(ValueError, match="no source_dir"),
         ):
             stage_release(release)
@@ -188,7 +188,7 @@ class TestStageRelease:
             source_dir=temp_source_dir,
         )
 
-        with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+        with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
             staging_dir = stage_release(release)
 
         assert staging_dir.exists()
@@ -203,7 +203,7 @@ class TestStageRelease:
             source_dir=temp_source_dir,
         )
 
-        with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+        with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
             staging_dir = stage_release(release)
 
         staged_files = list(staging_dir.iterdir())
@@ -225,7 +225,7 @@ class TestStageRelease:
             source_dir=temp_source_dir,
         )
 
-        with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+        with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
             staging_dir = stage_release(release)
 
         assert release.staging_dir == staging_dir
@@ -239,7 +239,7 @@ class TestStageRelease:
             source_dir=temp_source_dir,
         )
 
-        with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+        with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
             stage_release(release)
 
         assert release.main_m4b is not None
@@ -264,7 +264,7 @@ class TestStageRelease:
                 source_dir=source,
             )
 
-            with patch("mamfast.hardlinker.get_settings", return_value=mock_settings):
+            with patch("shelfr.hardlinker.get_settings", return_value=mock_settings):
                 staging_dir = stage_release(release)
 
             staged_files = list(staging_dir.iterdir())

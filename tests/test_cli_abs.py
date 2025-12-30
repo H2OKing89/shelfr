@@ -19,8 +19,8 @@ import pytest
 # This import triggers a deprecation warning which is expected
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    from mamfast.cli_argparse import build_parser
-from mamfast.commands.abs import cmd_abs_init, should_ignore
+    from shelfr.cli_argparse import build_parser
+from shelfr.commands.abs import cmd_abs_init, should_ignore
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
@@ -150,7 +150,7 @@ class TestAbsInitCommand:
 
     def test_abs_init_config_not_found(self, args: argparse.Namespace) -> None:
         """Test abs-init handles missing config file."""
-        with patch("mamfast.config.reload_settings") as mock_reload:
+        with patch("shelfr.config.reload_settings") as mock_reload:
             mock_reload.side_effect = FileNotFoundError("config not found")
             result = cmd_abs_init(args)
             assert result == 1
@@ -160,7 +160,7 @@ class TestAbsInitCommand:
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = False
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_init(args)
             assert result == 1
 
@@ -192,8 +192,8 @@ class TestAbsInitCommand:
         mock_client.__exit__ = MagicMock(return_value=False)
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.client.AbsClient.from_config", return_value=mock_client),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.client.AbsClient.from_config", return_value=mock_client),
         ):
             result = cmd_abs_init(args)
 
@@ -209,7 +209,7 @@ class TestAbsInitCommand:
         mock_abs_config: MagicMock,
     ) -> None:
         """Test abs-init handles authentication failure."""
-        from mamfast.abs.client import AbsAuthError
+        from shelfr.abs.client import AbsAuthError
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
@@ -221,8 +221,8 @@ class TestAbsInitCommand:
         mock_client.__exit__ = MagicMock(return_value=False)
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.client.AbsClient.from_config", return_value=mock_client),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.client.AbsClient.from_config", return_value=mock_client),
         ):
             result = cmd_abs_init(args)
 
@@ -234,7 +234,7 @@ class TestAbsInitCommand:
         mock_abs_config: MagicMock,
     ) -> None:
         """Test abs-init handles connection failure."""
-        from mamfast.abs.client import AbsConnectionError
+        from shelfr.abs.client import AbsConnectionError
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
@@ -246,8 +246,8 @@ class TestAbsInitCommand:
         mock_client.__exit__ = MagicMock(return_value=False)
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.client.AbsClient.from_config", return_value=mock_client),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.client.AbsClient.from_config", return_value=mock_client),
         ):
             result = cmd_abs_init(args)
 
@@ -279,8 +279,8 @@ class TestAbsInitCommand:
         mock_client.__exit__ = MagicMock(return_value=False)
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.client.AbsClient.from_config", return_value=mock_client),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.client.AbsClient.from_config", return_value=mock_client),
         ):
             result = cmd_abs_init(args)
 
@@ -449,21 +449,21 @@ class TestAbsImportCommand:
 
     def test_abs_import_config_not_found(self, args: argparse.Namespace) -> None:
         """Test abs-import handles missing config file."""
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.commands.abs import cmd_abs_import
 
-        with patch("mamfast.config.reload_settings") as mock_reload:
+        with patch("shelfr.config.reload_settings") as mock_reload:
             mock_reload.side_effect = FileNotFoundError("config not found")
             result = cmd_abs_import(args)
             assert result == 1
 
     def test_abs_import_abs_disabled(self, args: argparse.Namespace) -> None:
         """Test abs-import warns when ABS is disabled."""
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.commands.abs import cmd_abs_import
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = False
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_import(args)
             assert result == 1
 
@@ -471,13 +471,13 @@ class TestAbsImportCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock
     ) -> None:
         """Test abs-import fails when no managed libraries configured."""
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.commands.abs import cmd_abs_import
 
         mock_abs_config.libraries = []  # No libraries
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_import(args)
             assert result == 1
 
@@ -485,13 +485,13 @@ class TestAbsImportCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock
     ) -> None:
         """Test abs-import fails when no path_map configured."""
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.commands.abs import cmd_abs_import
 
         mock_abs_config.path_map = []  # No path map
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_import(args)
             assert result == 1
 
@@ -499,7 +499,7 @@ class TestAbsImportCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-import with empty staging directory."""
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.commands.abs import cmd_abs_import
 
         # Create required directories
         staging = tmp_path / "staging"
@@ -516,7 +516,7 @@ class TestAbsImportCommand:
         mock_settings.audiobookshelf = mock_abs_config
         mock_settings.paths.library_root = staging
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_import(args)
             assert result == 0  # Success with nothing to do
 
@@ -524,8 +524,8 @@ class TestAbsImportCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-import dry run mode."""
-        from mamfast.abs.importer import BatchImportResult, ImportResult
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.abs.importer import BatchImportResult, ImportResult
+        from shelfr.commands.abs import cmd_abs_import
 
         args.dry_run = True
 
@@ -564,10 +564,10 @@ class TestAbsImportCommand:
         mock_client.authorize.return_value = mock_user
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.AbsClient", return_value=mock_client),
-            patch("mamfast.abs.build_asin_index", return_value={}),
-            patch("mamfast.abs.import_batch", return_value=mock_result),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
+            patch("shelfr.abs.import_batch", return_value=mock_result),
         ):
             result = cmd_abs_import(args)
             assert result == 0
@@ -576,8 +576,8 @@ class TestAbsImportCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test that --no-abs-search disables ABS search."""
-        from mamfast.abs.importer import BatchImportResult
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.abs.importer import BatchImportResult
+        from shelfr.commands.abs import cmd_abs_import
 
         # Explicitly disable ABS search
         args.no_abs_search = True
@@ -606,10 +606,10 @@ class TestAbsImportCommand:
         mock_client.authorize.return_value = mock_user
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.AbsClient", return_value=mock_client),
-            patch("mamfast.abs.build_asin_index", return_value={}),
-            patch("mamfast.abs.import_batch", return_value=BatchImportResult()) as mock_batch,
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
+            patch("shelfr.abs.import_batch", return_value=BatchImportResult()) as mock_batch,
         ):
             result = cmd_abs_import(args)
             assert result == 0
@@ -621,8 +621,8 @@ class TestAbsImportCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test that ABS search is enabled by default from config."""
-        from mamfast.abs.importer import BatchImportResult
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.abs.importer import BatchImportResult
+        from shelfr.commands.abs import cmd_abs_import
 
         # Default: no_abs_search=False means use config
         args.no_abs_search = False
@@ -650,10 +650,10 @@ class TestAbsImportCommand:
         mock_client.authorize.return_value = mock_user
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.AbsClient", return_value=mock_client),
-            patch("mamfast.abs.build_asin_index", return_value={}),
-            patch("mamfast.abs.import_batch", return_value=BatchImportResult()) as mock_batch,
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
+            patch("shelfr.abs.import_batch", return_value=BatchImportResult()) as mock_batch,
         ):
             result = cmd_abs_import(args)
             assert result == 0
@@ -665,8 +665,8 @@ class TestAbsImportCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test that --confidence value flows through to import_batch."""
-        from mamfast.abs.importer import BatchImportResult
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.abs.importer import BatchImportResult
+        from shelfr.commands.abs import cmd_abs_import
 
         args.no_abs_search = False  # Use config default (enabled)
         args.confidence = 0.6  # Custom confidence
@@ -694,10 +694,10 @@ class TestAbsImportCommand:
         mock_client.authorize.return_value = mock_user
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.AbsClient", return_value=mock_client),
-            patch("mamfast.abs.build_asin_index", return_value={}),
-            patch("mamfast.abs.import_batch", return_value=BatchImportResult()) as mock_batch,
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
+            patch("shelfr.abs.import_batch", return_value=BatchImportResult()) as mock_batch,
         ):
             result = cmd_abs_import(args)
             assert result == 0
@@ -708,7 +708,7 @@ class TestAbsImportCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test that confidence > 1.0 is rejected with error."""
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.commands.abs import cmd_abs_import
 
         args.confidence = 75  # Common mistake: 75 instead of 0.75
 
@@ -733,9 +733,9 @@ class TestAbsImportCommand:
         mock_client.authorize.return_value = mock_user
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.AbsClient", return_value=mock_client),
-            patch("mamfast.abs.build_asin_index", return_value={}),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
         ):
             result = cmd_abs_import(args)
             assert result == 1  # Should fail with invalid confidence
@@ -744,7 +744,7 @@ class TestAbsImportCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test that negative confidence is rejected with error."""
-        from mamfast.commands.abs import cmd_abs_import
+        from shelfr.commands.abs import cmd_abs_import
 
         args.confidence = -0.5
 
@@ -769,9 +769,9 @@ class TestAbsImportCommand:
         mock_client.authorize.return_value = mock_user
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.AbsClient", return_value=mock_client),
-            patch("mamfast.abs.build_asin_index", return_value={}),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
         ):
             result = cmd_abs_import(args)
             assert result == 1  # Should fail with invalid confidence
@@ -812,7 +812,7 @@ class TestAbsCheckDuplicateCommand:
 
     def test_abs_check_duplicate_invalid_asin(self, args: argparse.Namespace) -> None:
         """Test abs-check-duplicate rejects invalid ASIN."""
-        from mamfast.commands.abs import cmd_abs_check_duplicate
+        from shelfr.commands.abs import cmd_abs_check_duplicate
 
         args.asin = "invalid"
         result = cmd_abs_check_duplicate(args)
@@ -820,21 +820,21 @@ class TestAbsCheckDuplicateCommand:
 
     def test_abs_check_duplicate_config_not_found(self, args: argparse.Namespace) -> None:
         """Test abs-check-duplicate handles missing config file."""
-        from mamfast.commands.abs import cmd_abs_check_duplicate
+        from shelfr.commands.abs import cmd_abs_check_duplicate
 
-        with patch("mamfast.commands.abs.check.reload_settings") as mock_reload:
+        with patch("shelfr.commands.abs.check.reload_settings") as mock_reload:
             mock_reload.side_effect = FileNotFoundError("config not found")
             result = cmd_abs_check_duplicate(args)
             assert result == 1
 
     def test_abs_check_duplicate_abs_disabled(self, args: argparse.Namespace) -> None:
         """Test abs-check-duplicate warns when ABS is disabled."""
-        from mamfast.commands.abs import cmd_abs_check_duplicate
+        from shelfr.commands.abs import cmd_abs_check_duplicate
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = False
 
-        with patch("mamfast.commands.abs.check.reload_settings", return_value=mock_settings):
+        with patch("shelfr.commands.abs.check.reload_settings", return_value=mock_settings):
             result = cmd_abs_check_duplicate(args)
             assert result == 1
 
@@ -842,7 +842,7 @@ class TestAbsCheckDuplicateCommand:
         self, args: argparse.Namespace, tmp_path: Path
     ) -> None:
         """Test abs-check-duplicate handles ABS connection errors."""
-        from mamfast.commands.abs import cmd_abs_check_duplicate
+        from shelfr.commands.abs import cmd_abs_check_duplicate
 
         mock_lib_config = MagicMock()
         mock_lib_config.id = "lib_test"
@@ -856,10 +856,10 @@ class TestAbsCheckDuplicateCommand:
         mock_settings.audiobookshelf.libraries = [mock_lib_config]
 
         with (
-            patch("mamfast.commands.abs.check.reload_settings", return_value=mock_settings),
-            patch("mamfast.commands.abs.check.AbsClient"),
+            patch("shelfr.commands.abs.check.reload_settings", return_value=mock_settings),
+            patch("shelfr.commands.abs.check.AbsClient"),
             patch(
-                "mamfast.commands.abs.check.build_asin_index",
+                "shelfr.commands.abs.check.build_asin_index",
                 side_effect=Exception("Connection refused"),
             ),
         ):
@@ -868,7 +868,7 @@ class TestAbsCheckDuplicateCommand:
 
     def test_abs_check_duplicate_not_found(self, args: argparse.Namespace, tmp_path: Path) -> None:
         """Test abs-check-duplicate returns 0 when ASIN not found."""
-        from mamfast.commands.abs import cmd_abs_check_duplicate
+        from shelfr.commands.abs import cmd_abs_check_duplicate
 
         mock_lib_config = MagicMock()
         mock_lib_config.id = "lib_test"
@@ -887,17 +887,17 @@ class TestAbsCheckDuplicateCommand:
         empty_index: dict[str, MagicMock] = {}
 
         with (
-            patch("mamfast.commands.abs.check.reload_settings", return_value=mock_settings),
-            patch("mamfast.commands.abs.check.AbsClient", return_value=mock_client),
-            patch("mamfast.commands.abs.check.build_asin_index", return_value=empty_index),
+            patch("shelfr.commands.abs.check.reload_settings", return_value=mock_settings),
+            patch("shelfr.commands.abs.check.AbsClient", return_value=mock_client),
+            patch("shelfr.commands.abs.check.build_asin_index", return_value=empty_index),
         ):
             result = cmd_abs_check_duplicate(args)
             assert result == 0  # Not found = safe to import
 
     def test_abs_check_duplicate_found(self, args: argparse.Namespace, tmp_path: Path) -> None:
         """Test abs-check-duplicate returns 1 when ASIN exists."""
-        from mamfast.abs import AsinEntry
-        from mamfast.commands.abs import cmd_abs_check_duplicate
+        from shelfr.abs import AsinEntry
+        from shelfr.commands.abs import cmd_abs_check_duplicate
 
         mock_lib_config = MagicMock()
         mock_lib_config.id = "lib_test"
@@ -923,9 +923,9 @@ class TestAbsCheckDuplicateCommand:
         asin_index = {"B0ABCDEFGH": mock_entry}
 
         with (
-            patch("mamfast.commands.abs.check.reload_settings", return_value=mock_settings),
-            patch("mamfast.commands.abs.check.AbsClient", return_value=mock_client),
-            patch("mamfast.commands.abs.check.build_asin_index", return_value=asin_index),
+            patch("shelfr.commands.abs.check.reload_settings", return_value=mock_settings),
+            patch("shelfr.commands.abs.check.AbsClient", return_value=mock_client),
+            patch("shelfr.commands.abs.check.build_asin_index", return_value=asin_index),
         ):
             result = cmd_abs_check_duplicate(args)
             assert result == 1  # Found = duplicate
@@ -1003,7 +1003,7 @@ class TestAbsResolveAsinsConfidenceValidation:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test that confidence > 1.0 is rejected with error."""
-        from mamfast.commands.abs import cmd_abs_resolve_asins
+        from shelfr.commands.abs import cmd_abs_resolve_asins
 
         args.confidence = 75  # Common mistake: 75 instead of 0.75
         args.path = tmp_path
@@ -1017,7 +1017,7 @@ class TestAbsResolveAsinsConfidenceValidation:
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_resolve_asins(args)
             assert result == 1  # Should fail with invalid confidence
 
@@ -1025,7 +1025,7 @@ class TestAbsResolveAsinsConfidenceValidation:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test that negative confidence is rejected with error."""
-        from mamfast.commands.abs import cmd_abs_resolve_asins
+        from shelfr.commands.abs import cmd_abs_resolve_asins
 
         args.confidence = -0.5
         args.path = tmp_path
@@ -1039,7 +1039,7 @@ class TestAbsResolveAsinsConfidenceValidation:
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_resolve_asins(args)
             assert result == 1  # Should fail with invalid confidence
 
@@ -1047,7 +1047,7 @@ class TestAbsResolveAsinsConfidenceValidation:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test that confidence at 0.0 and 1.0 boundaries is accepted."""
-        from mamfast.commands.abs import cmd_abs_resolve_asins
+        from shelfr.commands.abs import cmd_abs_resolve_asins
 
         # Create empty folder (no subfolders to process)
         args.path = tmp_path
@@ -1058,14 +1058,14 @@ class TestAbsResolveAsinsConfidenceValidation:
 
         # Test 0.0 boundary
         args.confidence = 0.0
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_resolve_asins(args)
             # Should not fail on validation, just return 0 because no folders
             assert result == 0
 
         # Test 1.0 boundary
         args.confidence = 1.0
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_resolve_asins(args)
             assert result == 0
 
@@ -1129,21 +1129,21 @@ class TestAbsTrumpCheckCommand:
 
     def test_abs_trump_check_config_not_found(self, args: argparse.Namespace) -> None:
         """Test abs-trump-check handles missing config file."""
-        from mamfast.commands.abs import cmd_abs_trump_check
+        from shelfr.commands.abs import cmd_abs_trump_check
 
-        with patch("mamfast.config.reload_settings") as mock_reload:
+        with patch("shelfr.config.reload_settings") as mock_reload:
             mock_reload.side_effect = FileNotFoundError("config not found")
             result = cmd_abs_trump_check(args)
             assert result == 1
 
     def test_abs_trump_check_abs_disabled(self, args: argparse.Namespace) -> None:
         """Test abs-trump-check warns when ABS is disabled."""
-        from mamfast.commands.abs import cmd_abs_trump_check
+        from shelfr.commands.abs import cmd_abs_trump_check
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = False
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_trump_check(args)
             assert result == 1
 
@@ -1151,14 +1151,14 @@ class TestAbsTrumpCheckCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock
     ) -> None:
         """Test abs-trump-check fails when no managed libraries configured."""
-        from mamfast.commands.abs import cmd_abs_trump_check
+        from shelfr.commands.abs import cmd_abs_trump_check
 
         mock_abs_config.libraries = []
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_trump_check(args)
             assert result == 1
 
@@ -1166,17 +1166,17 @@ class TestAbsTrumpCheckCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-trump-check returns 0 when no staged books found."""
-        from mamfast.commands.abs import cmd_abs_trump_check
+        from shelfr.commands.abs import cmd_abs_trump_check
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
         mock_settings.paths.library_root = tmp_path  # Empty directory
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.AbsClient"),
-            patch("mamfast.abs.build_asin_index", return_value={}),
-            patch("mamfast.abs.discover_staged_books", return_value=[]),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient"),
+            patch("shelfr.abs.build_asin_index", return_value={}),
+            patch("shelfr.abs.discover_staged_books", return_value=[]),
         ):
             result = cmd_abs_trump_check(args)
             assert result == 0
@@ -1185,7 +1185,7 @@ class TestAbsTrumpCheckCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-trump-check handles ABS connection errors."""
-        from mamfast.commands.abs import cmd_abs_trump_check
+        from shelfr.commands.abs import cmd_abs_trump_check
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
@@ -1196,9 +1196,9 @@ class TestAbsTrumpCheckCommand:
         staged_folder.mkdir()
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.discover_staged_books", return_value=[staged_folder]),
-            patch("mamfast.abs.AbsClient", side_effect=Exception("Connection refused")),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.discover_staged_books", return_value=[staged_folder]),
+            patch("shelfr.abs.AbsClient", side_effect=Exception("Connection refused")),
         ):
             result = cmd_abs_trump_check(args)
             assert result == 1
@@ -1207,7 +1207,7 @@ class TestAbsTrumpCheckCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-trump-check handles books without ASIN."""
-        from mamfast.commands.abs import cmd_abs_trump_check
+        from shelfr.commands.abs import cmd_abs_trump_check
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
@@ -1221,10 +1221,10 @@ class TestAbsTrumpCheckCommand:
         mock_client.close = MagicMock()
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.discover_staged_books", return_value=[staged_folder]),
-            patch("mamfast.abs.AbsClient", return_value=mock_client),
-            patch("mamfast.abs.build_asin_index", return_value={}),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.discover_staged_books", return_value=[staged_folder]),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
         ):
             result = cmd_abs_trump_check(args)
             assert result == 0  # Success, just no ASIN
@@ -1233,7 +1233,7 @@ class TestAbsTrumpCheckCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-trump-check handles new books (ASIN not in library)."""
-        from mamfast.commands.abs import cmd_abs_trump_check
+        from shelfr.commands.abs import cmd_abs_trump_check
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
@@ -1247,10 +1247,10 @@ class TestAbsTrumpCheckCommand:
         mock_client.close = MagicMock()
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.discover_staged_books", return_value=[staged_folder]),
-            patch("mamfast.abs.AbsClient", return_value=mock_client),
-            patch("mamfast.abs.build_asin_index", return_value={}),  # Empty index
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.discover_staged_books", return_value=[staged_folder]),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),  # Empty index
         ):
             result = cmd_abs_trump_check(args)
             assert result == 0
@@ -1259,7 +1259,7 @@ class TestAbsTrumpCheckCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-trump-check still works when trumping is disabled."""
-        from mamfast.commands.abs import cmd_abs_trump_check
+        from shelfr.commands.abs import cmd_abs_trump_check
 
         # Disable trumping
         mock_abs_config.import_settings.trumping.enabled = False
@@ -1272,10 +1272,10 @@ class TestAbsTrumpCheckCommand:
         mock_client.close = MagicMock()
 
         with (
-            patch("mamfast.config.reload_settings", return_value=mock_settings),
-            patch("mamfast.abs.discover_staged_books", return_value=[]),
-            patch("mamfast.abs.AbsClient", return_value=mock_client),
-            patch("mamfast.abs.build_asin_index", return_value={}),
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.discover_staged_books", return_value=[]),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
         ):
             result = cmd_abs_trump_check(args)
             assert result == 0  # Should still work, just show preview message
@@ -1336,21 +1336,21 @@ class TestAbsRestoreCommand:
 
     def test_abs_restore_config_not_found(self, args: argparse.Namespace) -> None:
         """Test abs-restore handles missing config file."""
-        from mamfast.commands.abs import cmd_abs_restore
+        from shelfr.commands.abs import cmd_abs_restore
 
-        with patch("mamfast.config.reload_settings") as mock_reload:
+        with patch("shelfr.config.reload_settings") as mock_reload:
             mock_reload.side_effect = FileNotFoundError("config not found")
             result = cmd_abs_restore(args)
             assert result == 1
 
     def test_abs_restore_abs_disabled(self, args: argparse.Namespace) -> None:
         """Test abs-restore warns when ABS is disabled."""
-        from mamfast.commands.abs import cmd_abs_restore
+        from shelfr.commands.abs import cmd_abs_restore
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = False
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_restore(args)
             assert result == 1
 
@@ -1358,14 +1358,14 @@ class TestAbsRestoreCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock
     ) -> None:
         """Test abs-restore fails when no archive_root configured."""
-        from mamfast.commands.abs import cmd_abs_restore
+        from shelfr.commands.abs import cmd_abs_restore
 
         mock_abs_config.import_settings.trumping.archive_root = None
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_restore(args)
             assert result == 1
 
@@ -1373,7 +1373,7 @@ class TestAbsRestoreCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-restore list mode with empty archives."""
-        from mamfast.commands.abs import cmd_abs_restore
+        from shelfr.commands.abs import cmd_abs_restore
 
         mock_abs_config.import_settings.trumping.archive_root = str(tmp_path)
 
@@ -1382,7 +1382,7 @@ class TestAbsRestoreCommand:
 
         args.list = True
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_restore(args)
             assert result == 0
 
@@ -1392,7 +1392,7 @@ class TestAbsRestoreCommand:
         """Test abs-restore list mode shows archives."""
         import json
 
-        from mamfast.commands.abs import cmd_abs_restore
+        from shelfr.commands.abs import cmd_abs_restore
 
         mock_abs_config.import_settings.trumping.archive_root = str(tmp_path)
 
@@ -1416,7 +1416,7 @@ class TestAbsRestoreCommand:
 
         args.list = True
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_restore(args)
             assert result == 0
 
@@ -1424,7 +1424,7 @@ class TestAbsRestoreCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-restore fails for nonexistent archive path."""
-        from mamfast.commands.abs import cmd_abs_restore
+        from shelfr.commands.abs import cmd_abs_restore
 
         mock_abs_config.import_settings.trumping.archive_root = str(tmp_path)
 
@@ -1433,7 +1433,7 @@ class TestAbsRestoreCommand:
 
         args.archive_path = tmp_path / "nonexistent"
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_restore(args)
             assert result == 1
 
@@ -1441,7 +1441,7 @@ class TestAbsRestoreCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-restore fails when archive has no sidecar."""
-        from mamfast.commands.abs import cmd_abs_restore
+        from shelfr.commands.abs import cmd_abs_restore
 
         mock_abs_config.import_settings.trumping.archive_root = str(tmp_path)
 
@@ -1454,7 +1454,7 @@ class TestAbsRestoreCommand:
 
         args.archive_path = archive
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_restore(args)
             assert result == 1
 
@@ -1623,21 +1623,21 @@ class TestAbsCleanupCommand:
 
     def test_abs_cleanup_config_not_found(self, args: argparse.Namespace) -> None:
         """Test abs-cleanup handles missing config file."""
-        from mamfast.commands.abs import cmd_abs_cleanup
+        from shelfr.commands.abs import cmd_abs_cleanup
 
-        with patch("mamfast.config.reload_settings") as mock_reload:
+        with patch("shelfr.config.reload_settings") as mock_reload:
             mock_reload.side_effect = FileNotFoundError("config not found")
             result = cmd_abs_cleanup(args)
             assert result == 1
 
     def test_abs_cleanup_abs_disabled(self, args: argparse.Namespace) -> None:
         """Test abs-cleanup warns when ABS is disabled."""
-        from mamfast.commands.abs import cmd_abs_cleanup
+        from shelfr.commands.abs import cmd_abs_cleanup
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = False
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_cleanup(args)
             assert result == 1
 
@@ -1645,7 +1645,7 @@ class TestAbsCleanupCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-cleanup exits when strategy is none."""
-        from mamfast.commands.abs import cmd_abs_cleanup
+        from shelfr.commands.abs import cmd_abs_cleanup
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf = mock_abs_config
@@ -1654,7 +1654,7 @@ class TestAbsCleanupCommand:
         mock_settings.paths.library_root = tmp_path / "library"
 
         # Strategy is 'none' by default
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_cleanup(args)
             # Should exit gracefully with 0 (nothing to do)
             assert result == 0
@@ -1663,7 +1663,7 @@ class TestAbsCleanupCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-cleanup fails when move strategy has no cleanup_path."""
-        from mamfast.commands.abs import cmd_abs_cleanup
+        from shelfr.commands.abs import cmd_abs_cleanup
 
         args.strategy = "move"
 
@@ -1673,7 +1673,7 @@ class TestAbsCleanupCommand:
         mock_settings.paths.seed_root = tmp_path / "seed"
         mock_settings.paths.library_root = tmp_path / "library"
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_cleanup(args)
             assert result == 1
 
@@ -1681,7 +1681,7 @@ class TestAbsCleanupCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-cleanup exits gracefully when no candidates found."""
-        from mamfast.commands.abs import cmd_abs_cleanup
+        from shelfr.commands.abs import cmd_abs_cleanup
 
         args.strategy = "hide"
 
@@ -1694,7 +1694,7 @@ class TestAbsCleanupCommand:
         mock_settings.paths.seed_root = tmp_path / "seed"
         mock_settings.paths.library_root = library_root
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_cleanup(args)
             # Should exit gracefully with 0 (no candidates)
             assert result == 0
@@ -1703,7 +1703,7 @@ class TestAbsCleanupCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-cleanup dry-run mode doesn't modify files."""
-        from mamfast.commands.abs import cmd_abs_cleanup
+        from shelfr.commands.abs import cmd_abs_cleanup
 
         args.strategy = "hide"
         args.dry_run = True
@@ -1724,7 +1724,7 @@ class TestAbsCleanupCommand:
         mock_settings.paths.seed_root = tmp_path / "seed"
         mock_settings.paths.library_root = library_root
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_cleanup(args)
             assert result == 0
 
@@ -1735,7 +1735,7 @@ class TestAbsCleanupCommand:
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:
         """Test abs-cleanup hide strategy creates marker file."""
-        from mamfast.commands.abs import cmd_abs_cleanup
+        from shelfr.commands.abs import cmd_abs_cleanup
 
         args.strategy = "hide"
         args.no_verify_seed = True  # Skip seed verification
@@ -1755,7 +1755,7 @@ class TestAbsCleanupCommand:
         mock_settings.paths.seed_root = tmp_path / "seed"
         mock_settings.paths.library_root = library_root
 
-        with patch("mamfast.config.reload_settings", return_value=mock_settings):
+        with patch("shelfr.config.reload_settings", return_value=mock_settings):
             result = cmd_abs_cleanup(args)
             assert result == 0
 

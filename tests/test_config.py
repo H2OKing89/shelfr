@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from mamfast.config import (
+from shelfr.config import (
     ConfigurationError,
     FiltersConfig,
     MamConfig,
@@ -107,7 +107,7 @@ class TestAudnexConfig:
 
     def test_default_values(self) -> None:
         """Test default audnex configuration."""
-        from mamfast.config import DEFAULT_ASIN_REGION, AudnexConfig
+        from shelfr.config import DEFAULT_ASIN_REGION, AudnexConfig
 
         config = AudnexConfig()
         assert config.base_url == "https://api.audnex.us"
@@ -117,7 +117,7 @@ class TestAudnexConfig:
 
     def test_valid_audnex_regions_constant(self) -> None:
         """Test that VALID_AUDNEX_REGIONS contains expected values."""
-        from mamfast.config import VALID_AUDNEX_REGIONS
+        from shelfr.config import VALID_AUDNEX_REGIONS
 
         # Should include all documented regions
         assert "us" in VALID_AUDNEX_REGIONS
@@ -269,7 +269,7 @@ paths:
 
     def test_rejects_invalid_audnex_region(self) -> None:
         """Test that invalid audnex region raises ConfigurationError."""
-        from mamfast.config import ConfigurationError
+        from shelfr.config import ConfigurationError
 
         yaml_content = """
 paths:
@@ -293,7 +293,7 @@ audnex:
 
     def test_rejects_invalid_preferred_asin_region(self) -> None:
         """Test that invalid preferred_asin_region raises ConfigurationError."""
-        from mamfast.config import ConfigurationError
+        from shelfr.config import ConfigurationError
 
         yaml_content = """
 paths:
@@ -568,7 +568,7 @@ class TestValidateSameFilesystem:
                     return MockStatResult(result, 999)
                 return MockStatResult(result, 1)
 
-            with patch("mamfast.config.Path.stat") as mock:
+            with patch("shelfr.config.Path.stat") as mock:
                 # Create mock stat results with different st_dev values
                 class Stat1:
                     st_dev = 1
@@ -925,7 +925,7 @@ class TestBuildTrumpPrefs:
 
     def test_returns_none_when_disabled(self) -> None:
         """build_trump_prefs returns None when trumping is disabled."""
-        from mamfast.config import TrumpingConfig, build_trump_prefs
+        from shelfr.config import TrumpingConfig, build_trump_prefs
 
         config = TrumpingConfig(enabled=False, archive_root="/archive")
         result = build_trump_prefs(config)
@@ -933,7 +933,7 @@ class TestBuildTrumpPrefs:
 
     def test_returns_none_with_enabled_override_false(self) -> None:
         """build_trump_prefs returns None when enabled_override is False."""
-        from mamfast.config import TrumpingConfig, build_trump_prefs
+        from shelfr.config import TrumpingConfig, build_trump_prefs
 
         config = TrumpingConfig(enabled=True, archive_root="/archive")
         result = build_trump_prefs(config, enabled_override=False)
@@ -941,8 +941,8 @@ class TestBuildTrumpPrefs:
 
     def test_creates_prefs_when_enabled(self) -> None:
         """build_trump_prefs creates TrumpPrefs when enabled."""
-        from mamfast.abs.trumping import TrumpPrefs
-        from mamfast.config import TrumpingConfig, build_trump_prefs
+        from shelfr.abs.trumping import TrumpPrefs
+        from shelfr.config import TrumpingConfig, build_trump_prefs
 
         config = TrumpingConfig(enabled=True, archive_root="/archive")
         result = build_trump_prefs(config)
@@ -951,8 +951,8 @@ class TestBuildTrumpPrefs:
 
     def test_creates_prefs_with_enabled_override_true(self) -> None:
         """build_trump_prefs creates TrumpPrefs when enabled_override is True."""
-        from mamfast.abs.trumping import TrumpPrefs
-        from mamfast.config import TrumpingConfig, build_trump_prefs
+        from shelfr.abs.trumping import TrumpPrefs
+        from shelfr.config import TrumpingConfig, build_trump_prefs
 
         config = TrumpingConfig(enabled=False, archive_root="/archive")
         result = build_trump_prefs(config, enabled_override=True)
@@ -961,7 +961,7 @@ class TestBuildTrumpPrefs:
 
     def test_aggressiveness_override(self) -> None:
         """build_trump_prefs applies aggressiveness override."""
-        from mamfast.config import TrumpingConfig, build_trump_prefs
+        from shelfr.config import TrumpingConfig, build_trump_prefs
 
         config = TrumpingConfig(enabled=True, archive_root="/archive", aggressiveness="balanced")
         result = build_trump_prefs(config, aggressiveness_override="aggressive")
@@ -970,7 +970,7 @@ class TestBuildTrumpPrefs:
 
     def test_uses_config_aggressiveness_when_no_override(self) -> None:
         """build_trump_prefs uses config aggressiveness when no override."""
-        from mamfast.config import TrumpingConfig, build_trump_prefs
+        from shelfr.config import TrumpingConfig, build_trump_prefs
 
         config = TrumpingConfig(
             enabled=True, archive_root="/archive", aggressiveness="conservative"
@@ -981,7 +981,7 @@ class TestBuildTrumpPrefs:
 
     def test_passes_all_config_fields(self) -> None:
         """build_trump_prefs passes all config fields to TrumpPrefs."""
-        from mamfast.config import TrumpingConfig, build_trump_prefs
+        from shelfr.config import TrumpingConfig, build_trump_prefs
 
         config = TrumpingConfig(
             enabled=True,

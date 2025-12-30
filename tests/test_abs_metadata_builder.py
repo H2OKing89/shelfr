@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from mamfast.abs.importer import ParsedFolderName
-from mamfast.abs.metadata_builder import (
+from shelfr.abs.importer import ParsedFolderName
+from shelfr.abs.metadata_builder import (
     build_abs_metadata_fallback,
     build_abs_metadata_from_audnex,
     write_abs_metadata_json,
 )
-from mamfast.schemas.abs_metadata import AbsMetadataJson
+from shelfr.schemas.abs_metadata import AbsMetadataJson
 
 
 class TestBuildAbsMetadataFromAudnex:
@@ -395,7 +395,7 @@ class TestWriteAbsMetadataJson:
 
     def test_write_with_chapters(self, tmp_path: Path) -> None:
         """Test writing metadata with chapters."""
-        from mamfast.schemas.abs_metadata import AbsChapter
+        from shelfr.schemas.abs_metadata import AbsChapter
 
         metadata = AbsMetadataJson(
             title="Chaptered Book",
@@ -429,7 +429,7 @@ class TestAbsMetadataJsonSchema:
 
     def test_full_metadata(self) -> None:
         """Test full metadata with all fields."""
-        from mamfast.schemas.abs_metadata import AbsChapter
+        from shelfr.schemas.abs_metadata import AbsChapter
 
         metadata = AbsMetadataJson(
             title="Full Book",
@@ -472,7 +472,7 @@ class TestAbsMetadataJsonSchema:
 
     def test_validation_accepts_camel_case_input(self) -> None:
         """Test that validation accepts ABS-style camelCase keys."""
-        from mamfast.schemas.abs_metadata import validate_abs_metadata
+        from shelfr.schemas.abs_metadata import validate_abs_metadata
 
         # Simulate reading an existing ABS metadata.json file
         abs_style_data = {

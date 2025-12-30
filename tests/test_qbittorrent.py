@@ -7,14 +7,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mamfast.qbittorrent import (
+from shelfr.qbittorrent import (
     check_torrent_exists,
     get_client,
     get_torrent_info,
     reset_client,
     upload_torrent,
 )
-from mamfast.qbittorrent import (
+from shelfr.qbittorrent import (
     test_connection as qb_test_connection,
 )
 
@@ -39,8 +39,8 @@ class TestGetClient:
         mock_settings.qbittorrent.password = "admin"
 
         with (
-            patch("mamfast.qbittorrent.qbittorrentapi.Client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.qbittorrentapi.Client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
         ):
             client = get_client()
 
@@ -56,8 +56,8 @@ class TestGetClient:
         mock_settings.qbittorrent.password = "admin"
 
         with (
-            patch("mamfast.qbittorrent.qbittorrentapi.Client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.qbittorrentapi.Client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
         ):
             # First call creates client
             client1 = get_client()
@@ -83,10 +83,10 @@ class TestResetClient:
 
         with (
             patch(
-                "mamfast.qbittorrent.qbittorrentapi.Client",
+                "shelfr.qbittorrent.qbittorrentapi.Client",
                 side_effect=[mock_client1, mock_client2],
             ),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
         ):
             # First call
             client1 = get_client()
@@ -108,12 +108,12 @@ class TestTestConnection:
         mock_client = MagicMock()
         mock_client.app.version = "4.5.0"
 
-        with patch("mamfast.qbittorrent.get_client", return_value=mock_client):
+        with patch("shelfr.qbittorrent.get_client", return_value=mock_client):
             assert qb_test_connection() is True
 
     def test_connection_failure(self):
         """Test failed connection check."""
-        with patch("mamfast.qbittorrent.get_client", side_effect=Exception("Connection failed")):
+        with patch("shelfr.qbittorrent.get_client", side_effect=Exception("Connection failed")):
             assert qb_test_connection() is False
 
 
@@ -125,7 +125,7 @@ class TestCheckTorrentExists:
         mock_client = MagicMock()
         mock_client.torrents_info.return_value = [MagicMock()]
 
-        with patch("mamfast.qbittorrent.get_client", return_value=mock_client):
+        with patch("shelfr.qbittorrent.get_client", return_value=mock_client):
             result = check_torrent_exists("abc123")
 
         assert result is True
@@ -136,7 +136,7 @@ class TestCheckTorrentExists:
         mock_client = MagicMock()
         mock_client.torrents_info.return_value = []
 
-        with patch("mamfast.qbittorrent.get_client", return_value=mock_client):
+        with patch("shelfr.qbittorrent.get_client", return_value=mock_client):
             result = check_torrent_exists("abc123")
 
         assert result is False
@@ -152,7 +152,7 @@ class TestGetTorrentInfo:
         mock_client = MagicMock()
         mock_client.torrents_info.return_value = [mock_torrent]
 
-        with patch("mamfast.qbittorrent.get_client", return_value=mock_client):
+        with patch("shelfr.qbittorrent.get_client", return_value=mock_client):
             result = get_torrent_info("abc123")
 
         assert result == {"name": "test", "size": 1000}
@@ -162,7 +162,7 @@ class TestGetTorrentInfo:
         mock_client = MagicMock()
         mock_client.torrents_info.return_value = []
 
-        with patch("mamfast.qbittorrent.get_client", return_value=mock_client):
+        with patch("shelfr.qbittorrent.get_client", return_value=mock_client):
             result = get_torrent_info("abc123")
 
         assert result is None
@@ -182,7 +182,7 @@ class TestUploadTorrent:
         mock_settings.qbittorrent.tags = ["mam"]
         mock_settings.qbittorrent.auto_start = True
 
-        with patch("mamfast.qbittorrent.get_settings", return_value=mock_settings):
+        with patch("shelfr.qbittorrent.get_settings", return_value=mock_settings):
             success, infohash = upload_torrent(
                 torrent_path=tmp_path / "nonexistent.torrent",
                 save_path=tmp_path,
@@ -203,10 +203,10 @@ class TestUploadTorrent:
         mock_settings.qbittorrent.auto_start = True
 
         with (
-            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="abc123def456"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=False),
+            patch("shelfr.qbittorrent.get_client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="abc123def456"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
             success, infohash = upload_torrent(
                 torrent_path=torrent_file,
@@ -230,10 +230,10 @@ class TestUploadTorrent:
         mock_settings.qbittorrent.auto_start = True
 
         with (
-            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="abc123"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=False),
+            patch("shelfr.qbittorrent.get_client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
             success, infohash = upload_torrent(
                 torrent_path=torrent_file,
@@ -259,12 +259,12 @@ class TestUploadTorrent:
 
         with (
             patch(
-                "mamfast.qbittorrent.get_client",
+                "shelfr.qbittorrent.get_client",
                 side_effect=qbittorrentapi.LoginFailed("Bad credentials"),
             ),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="abc123"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=False),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
             success, infohash = upload_torrent(
                 torrent_path=torrent_file,
@@ -289,12 +289,12 @@ class TestUploadTorrent:
 
         with (
             patch(
-                "mamfast.qbittorrent.get_client",
+                "shelfr.qbittorrent.get_client",
                 side_effect=qbittorrentapi.APIConnectionError("No connection"),
             ),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="abc123"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=False),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
             success, infohash = upload_torrent(
                 torrent_path=torrent_file,
@@ -317,10 +317,10 @@ class TestUploadTorrent:
         mock_settings.qbittorrent.auto_start = True
 
         with (
-            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="abc123"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=False),
+            patch("shelfr.qbittorrent.get_client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
             success, infohash = upload_torrent(
                 torrent_path=torrent_file,
@@ -350,10 +350,10 @@ class TestUploadTorrent:
         mock_settings.qbittorrent.auto_start = False
 
         with (
-            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="abc123"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=False),
+            patch("shelfr.qbittorrent.get_client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
             success, infohash = upload_torrent(
                 torrent_path=torrent_file,
@@ -376,10 +376,10 @@ class TestUploadTorrent:
         mock_settings.qbittorrent.auto_start = True
 
         with (
-            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="existing123"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=True),
+            patch("shelfr.qbittorrent.get_client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="existing123"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=True),
         ):
             success, infohash = upload_torrent(
                 torrent_path=torrent_file,
@@ -402,8 +402,8 @@ class TestUploadTorrent:
         mock_settings.qbittorrent.auto_start = True
 
         with (
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value=None),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value=None),
         ):
             success, infohash = upload_torrent(
                 torrent_path=torrent_file,
@@ -432,10 +432,10 @@ class TestUploadTorrentAutoTMM:
         mock_settings.qbittorrent.save_path = "/some/path"
 
         with (
-            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="abc123"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=False),
+            patch("shelfr.qbittorrent.get_client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
             success, infohash = upload_torrent(torrent_path=torrent_file)
 
@@ -460,10 +460,10 @@ class TestUploadTorrentAutoTMM:
         mock_settings.qbittorrent.save_path = "/config/path"
 
         with (
-            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="abc123"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=False),
+            patch("shelfr.qbittorrent.get_client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
             success, infohash = upload_torrent(torrent_path=torrent_file, save_path=explicit_path)
 
@@ -487,10 +487,10 @@ class TestUploadTorrentAutoTMM:
         mock_settings.qbittorrent.save_path = "/config/save/path"
 
         with (
-            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="abc123"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=False),
+            patch("shelfr.qbittorrent.get_client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
             success, infohash = upload_torrent(torrent_path=torrent_file)
 
@@ -514,10 +514,10 @@ class TestUploadTorrentAutoTMM:
         mock_settings.qbittorrent.save_path = ""  # Empty - no path configured
 
         with (
-            patch("mamfast.qbittorrent.get_client", return_value=mock_client),
-            patch("mamfast.qbittorrent.get_settings", return_value=mock_settings),
-            patch("mamfast.qbittorrent.extract_infohash", return_value="abc123"),
-            patch("mamfast.qbittorrent.check_torrent_exists", return_value=False),
+            patch("shelfr.qbittorrent.get_client", return_value=mock_client),
+            patch("shelfr.qbittorrent.get_settings", return_value=mock_settings),
+            patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
+            patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
             success, infohash = upload_torrent(torrent_path=torrent_file)
 
@@ -536,7 +536,7 @@ class TestCheckTorrentExistsErrors:
         import qbittorrentapi
 
         with patch(
-            "mamfast.qbittorrent.get_client",
+            "shelfr.qbittorrent.get_client",
             side_effect=qbittorrentapi.LoginFailed("Bad credentials"),
         ):
             result = check_torrent_exists("abc123")
@@ -548,7 +548,7 @@ class TestCheckTorrentExistsErrors:
         import qbittorrentapi
 
         with patch(
-            "mamfast.qbittorrent.get_client",
+            "shelfr.qbittorrent.get_client",
             side_effect=qbittorrentapi.APIConnectionError("No connection"),
         ):
             result = check_torrent_exists("abc123")
@@ -564,7 +564,7 @@ class TestGetTorrentInfoErrors:
         import qbittorrentapi
 
         with patch(
-            "mamfast.qbittorrent.get_client",
+            "shelfr.qbittorrent.get_client",
             side_effect=qbittorrentapi.LoginFailed("Bad credentials"),
         ):
             result = get_torrent_info("abc123")
@@ -576,7 +576,7 @@ class TestGetTorrentInfoErrors:
         import qbittorrentapi
 
         with patch(
-            "mamfast.qbittorrent.get_client",
+            "shelfr.qbittorrent.get_client",
             side_effect=qbittorrentapi.APIConnectionError("No connection"),
         ):
             result = get_torrent_info("abc123")

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mamfast.utils.cmd import CmdResult
+from shelfr.utils.cmd import CmdResult
 
 
 def make_cmd_result(

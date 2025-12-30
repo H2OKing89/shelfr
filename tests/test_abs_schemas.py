@@ -9,7 +9,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from mamfast.schemas.abs import (
+from shelfr.schemas.abs import (
     AbsAuthorizeResponse,
     AbsBookMedia,
     AbsBookMetadata,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from mamfast.schemas.state import (
+from shelfr.schemas.state import (
     FailedRelease,
     ProcessedRelease,
     create_empty_state,

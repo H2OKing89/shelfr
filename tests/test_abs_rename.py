@@ -11,7 +11,7 @@ class TestAbsMetadataSchema:
 
     def test_basic_parsing(self) -> None:
         """Test parsing basic metadata."""
-        from mamfast.abs.rename import AbsMetadataSchema
+        from shelfr.abs.rename import AbsMetadataSchema
 
         data = {
             "title": "Project Hail Mary",
@@ -27,7 +27,7 @@ class TestAbsMetadataSchema:
 
     def test_series_parsing(self) -> None:
         """Test parsing series info."""
-        from mamfast.abs.rename import AbsMetadataSchema
+        from shelfr.abs.rename import AbsMetadataSchema
 
         data = {
             "title": "The Way of Kings",
@@ -39,7 +39,7 @@ class TestAbsMetadataSchema:
 
     def test_missing_optional_fields(self) -> None:
         """Test that missing optional fields get defaults."""
-        from mamfast.abs.rename import AbsMetadataSchema
+        from shelfr.abs.rename import AbsMetadataSchema
 
         data = {"title": "Some Book"}
         schema = AbsMetadataSchema.model_validate(data)
@@ -49,7 +49,7 @@ class TestAbsMetadataSchema:
 
     def test_published_year_int(self) -> None:
         """Test publishedYear as int."""
-        from mamfast.abs.rename import AbsMetadataSchema
+        from shelfr.abs.rename import AbsMetadataSchema
 
         data = {"title": "Book", "publishedYear": 2021}
         schema = AbsMetadataSchema.model_validate(data)
@@ -61,7 +61,7 @@ class TestParseAbsMetadata:
 
     def test_valid_metadata(self, tmp_path: Path) -> None:
         """Test parsing valid metadata.json file."""
-        from mamfast.abs.rename import parse_abs_metadata
+        from shelfr.abs.rename import parse_abs_metadata
 
         folder = tmp_path / "book_folder"
         folder.mkdir()
@@ -88,7 +88,7 @@ class TestParseAbsMetadata:
 
     def test_no_metadata_file(self, tmp_path: Path) -> None:
         """Test returns None when no metadata.json exists."""
-        from mamfast.abs.rename import parse_abs_metadata
+        from shelfr.abs.rename import parse_abs_metadata
 
         folder = tmp_path / "book_folder"
         folder.mkdir()
@@ -98,7 +98,7 @@ class TestParseAbsMetadata:
 
     def test_invalid_json(self, tmp_path: Path) -> None:
         """Test returns None for invalid JSON."""
-        from mamfast.abs.rename import parse_abs_metadata
+        from shelfr.abs.rename import parse_abs_metadata
 
         folder = tmp_path / "book_folder"
         folder.mkdir()
@@ -110,7 +110,7 @@ class TestParseAbsMetadata:
 
     def test_series_position_decimal(self, tmp_path: Path) -> None:
         """Test parsing decimal series positions (novellas)."""
-        from mamfast.abs.rename import parse_abs_metadata
+        from shelfr.abs.rename import parse_abs_metadata
 
         folder = tmp_path / "book_folder"
         folder.mkdir()
@@ -135,7 +135,7 @@ class TestHasAudioFiles:
 
     def test_with_m4b(self, tmp_path: Path) -> None:
         """Test folder with .m4b file."""
-        from mamfast.abs.rename import has_audio_files
+        from shelfr.abs.rename import has_audio_files
 
         folder = tmp_path / "book"
         folder.mkdir()
@@ -145,7 +145,7 @@ class TestHasAudioFiles:
 
     def test_with_mp3(self, tmp_path: Path) -> None:
         """Test folder with .mp3 files."""
-        from mamfast.abs.rename import has_audio_files
+        from shelfr.abs.rename import has_audio_files
 
         folder = tmp_path / "book"
         folder.mkdir()
@@ -156,7 +156,7 @@ class TestHasAudioFiles:
 
     def test_no_audio(self, tmp_path: Path) -> None:
         """Test folder without audio files."""
-        from mamfast.abs.rename import has_audio_files
+        from shelfr.abs.rename import has_audio_files
 
         folder = tmp_path / "book"
         folder.mkdir()
@@ -167,7 +167,7 @@ class TestHasAudioFiles:
 
     def test_empty_folder(self, tmp_path: Path) -> None:
         """Test empty folder."""
-        from mamfast.abs.rename import has_audio_files
+        from shelfr.abs.rename import has_audio_files
 
         folder = tmp_path / "book"
         folder.mkdir()
@@ -180,28 +180,28 @@ class TestDetectEditionFlags:
 
     def test_full_cast(self) -> None:
         """Test detecting Full-Cast edition."""
-        from mamfast.abs.rename import detect_edition_flags
+        from shelfr.abs.rename import detect_edition_flags
 
         flags = detect_edition_flags("Book Title (Full-Cast)")
         assert "Full-Cast" in flags
 
     def test_graphic_audio(self) -> None:
         """Test detecting Graphic Audio edition."""
-        from mamfast.abs.rename import detect_edition_flags
+        from shelfr.abs.rename import detect_edition_flags
 
         flags = detect_edition_flags("Book Title (Graphic Audio)")
         assert "Graphic Audio" in flags
 
     def test_publishers_pack(self) -> None:
         """Test detecting Publisher's Pack."""
-        from mamfast.abs.rename import detect_edition_flags
+        from shelfr.abs.rename import detect_edition_flags
 
         flags = detect_edition_flags("Series vol_01-03 (Publisher's Pack)")
         assert "Publisher's Pack" in flags
 
     def test_multiple_flags(self) -> None:
         """Test detecting multiple flags."""
-        from mamfast.abs.rename import detect_edition_flags
+        from shelfr.abs.rename import detect_edition_flags
 
         flags = detect_edition_flags("Title (Dolby Atmos) (Unabridged)")
         assert "Dolby Atmos" in flags
@@ -209,7 +209,7 @@ class TestDetectEditionFlags:
 
     def test_no_flags(self) -> None:
         """Test no flags returns empty list."""
-        from mamfast.abs.rename import detect_edition_flags
+        from shelfr.abs.rename import detect_edition_flags
 
         flags = detect_edition_flags("Just a Normal Title")
         assert flags == []
@@ -220,7 +220,7 @@ class TestDiscoverRenameCandidates:
 
     def test_finds_leaf_folders(self, tmp_path: Path) -> None:
         """Test discovering leaf folders with audio."""
-        from mamfast.abs.rename import discover_rename_candidates
+        from shelfr.abs.rename import discover_rename_candidates
 
         # Create structure: author/series/book
         book_folder = tmp_path / "Author" / "Series" / "Book vol_01"
@@ -233,7 +233,7 @@ class TestDiscoverRenameCandidates:
 
     def test_skips_folders_without_audio(self, tmp_path: Path) -> None:
         """Test skips folders without audio files."""
-        from mamfast.abs.rename import discover_rename_candidates
+        from shelfr.abs.rename import discover_rename_candidates
 
         folder = tmp_path / "NoAudio"
         folder.mkdir()
@@ -244,7 +244,7 @@ class TestDiscoverRenameCandidates:
 
     def test_multiple_books(self, tmp_path: Path) -> None:
         """Test discovering multiple book folders."""
-        from mamfast.abs.rename import discover_rename_candidates
+        from shelfr.abs.rename import discover_rename_candidates
 
         for i in range(3):
             folder = tmp_path / f"Book{i}"
@@ -260,7 +260,7 @@ class TestRenameCandidate:
 
     def test_creation(self) -> None:
         """Test creating a RenameCandidate."""
-        from mamfast.abs.rename import RenameCandidate
+        from shelfr.abs.rename import RenameCandidate
 
         candidate = RenameCandidate(
             source_path=Path("/a/Book"),
@@ -273,7 +273,7 @@ class TestRenameCandidate:
 
     def test_with_optional_fields(self) -> None:
         """Test RenameCandidate with optional fields."""
-        from mamfast.abs.rename import RenameCandidate
+        from shelfr.abs.rename import RenameCandidate
 
         candidate = RenameCandidate(
             source_path=Path("/a/Book"),
@@ -290,7 +290,7 @@ class TestComputeTargetName:
 
     def test_requires_parsed_data(self) -> None:
         """Test that compute_target_name requires parsed folder data."""
-        from mamfast.abs.rename import RenameCandidate, compute_target_name
+        from shelfr.abs.rename import RenameCandidate, compute_target_name
 
         # Without parsed data, should return error status
         candidate = RenameCandidate(
@@ -307,7 +307,7 @@ class TestRenameFolder:
 
     def test_dry_run(self, tmp_path: Path) -> None:
         """Test dry run doesn't actually rename."""
-        from mamfast.abs.rename import RenameCandidate, rename_folder
+        from shelfr.abs.rename import RenameCandidate, rename_folder
 
         source = tmp_path / "OriginalName"
         source.mkdir()
@@ -327,7 +327,7 @@ class TestRenameFolder:
 
     def test_actual_rename(self, tmp_path: Path) -> None:
         """Test actual rename operation."""
-        from mamfast.abs.rename import RenameCandidate, rename_folder
+        from shelfr.abs.rename import RenameCandidate, rename_folder
 
         source = tmp_path / "OriginalName"
         source.mkdir()
@@ -347,7 +347,7 @@ class TestRenameFolder:
 
     def test_skipped_if_wrong_status(self) -> None:
         """Test skips when status is not needs_rename."""
-        from mamfast.abs.rename import RenameCandidate, rename_folder
+        from shelfr.abs.rename import RenameCandidate, rename_folder
 
         candidate = RenameCandidate(
             source_path=Path("/a/SameName"),
@@ -361,7 +361,7 @@ class TestRenameFolder:
 
     def test_failed_no_target(self) -> None:
         """Test fails when no target name."""
-        from mamfast.abs.rename import RenameCandidate, rename_folder
+        from shelfr.abs.rename import RenameCandidate, rename_folder
 
         candidate = RenameCandidate(
             source_path=Path("/a/Name"),
@@ -379,7 +379,7 @@ class TestRenameResult:
 
     def test_success_result(self) -> None:
         """Test successful rename result."""
-        from mamfast.abs.rename import RenameResult
+        from shelfr.abs.rename import RenameResult
 
         result = RenameResult(
             source_path=Path("/a/Original"),
@@ -391,7 +391,7 @@ class TestRenameResult:
 
     def test_error_result(self) -> None:
         """Test error result."""
-        from mamfast.abs.rename import RenameResult
+        from shelfr.abs.rename import RenameResult
 
         result = RenameResult(
             source_path=Path("/a/Original"),
@@ -409,7 +409,7 @@ class TestRenameSummary:
 
     def test_default_values(self) -> None:
         """Test default summary values."""
-        from mamfast.abs.rename import RenameSummary
+        from shelfr.abs.rename import RenameSummary
 
         summary = RenameSummary()
         assert summary.total_candidates == 0
@@ -418,7 +418,7 @@ class TestRenameSummary:
 
     def test_custom_values(self) -> None:
         """Test summary with custom values."""
-        from mamfast.abs.rename import RenameSummary
+        from shelfr.abs.rename import RenameSummary
 
         summary = RenameSummary(
             total_candidates=10,
@@ -435,7 +435,7 @@ class TestParseCandidate:
 
     def test_basic_parse(self, tmp_path: Path) -> None:
         """Test basic folder name parsing."""
-        from mamfast.abs.rename import parse_candidate
+        from shelfr.abs.rename import parse_candidate
 
         folder = tmp_path / "Brandon Sanderson - Mistborn vol_01 (2023) {ASIN.B001234567}"
         folder.mkdir()
@@ -448,7 +448,7 @@ class TestParseCandidate:
 
     def test_detects_edition_flags(self, tmp_path: Path) -> None:
         """Test that edition flags are detected."""
-        from mamfast.abs.rename import parse_candidate
+        from shelfr.abs.rename import parse_candidate
 
         folder = tmp_path / "Title (Full-Cast) (Dolby Atmos)"
         folder.mkdir()
@@ -463,7 +463,7 @@ class TestRenameFilesInside:
 
     def test_renames_media_files(self, tmp_path: Path) -> None:
         """Test that media files are renamed."""
-        from mamfast.abs.rename import _rename_files_inside
+        from shelfr.abs.rename import _rename_files_inside
 
         folder = tmp_path / "New Book Name"
         folder.mkdir()
@@ -479,7 +479,7 @@ class TestRenameFilesInside:
 
     def test_skips_cover_and_metadata(self, tmp_path: Path) -> None:
         """Test that cover.jpg and metadata.json are skipped."""
-        from mamfast.abs.rename import _rename_files_inside
+        from shelfr.abs.rename import _rename_files_inside
 
         folder = tmp_path / "New Book"
         folder.mkdir()
@@ -498,7 +498,7 @@ class TestRenameFilesInside:
 
     def test_idempotent_when_already_named(self, tmp_path: Path) -> None:
         """Test no rename when files already have correct name."""
-        from mamfast.abs.rename import _rename_files_inside
+        from shelfr.abs.rename import _rename_files_inside
 
         folder = tmp_path / "Book Name"
         folder.mkdir()
@@ -511,7 +511,7 @@ class TestRenameFilesInside:
 
     def test_multi_file_audiobook_gets_part_numbers(self, tmp_path: Path) -> None:
         """Test that multiple audio files get Part XX suffixes to prevent collisions."""
-        from mamfast.abs.rename import _rename_files_inside
+        from shelfr.abs.rename import _rename_files_inside
 
         folder = tmp_path / "Multi Part Book"
         folder.mkdir()
@@ -534,7 +534,7 @@ class TestRenameFilesInside:
 
     def test_single_audio_with_companion_files_no_part_numbers(self, tmp_path: Path) -> None:
         """Test single audio file + companions don't get Part numbers."""
-        from mamfast.abs.rename import _rename_files_inside
+        from shelfr.abs.rename import _rename_files_inside
 
         folder = tmp_path / "Single File Book"
         folder.mkdir()
@@ -556,7 +556,7 @@ class TestRenameWithFilesInside:
 
     def test_rename_folder_with_files(self, tmp_path: Path) -> None:
         """Test folder rename automatically renames files inside."""
-        from mamfast.abs.rename import RenameCandidate, rename_folder
+        from shelfr.abs.rename import RenameCandidate, rename_folder
 
         source = tmp_path / "OldName"
         source.mkdir()
@@ -581,7 +581,7 @@ class TestRenameWithFilesInside:
 
     def test_force_rename_files_when_folder_up_to_date(self, tmp_path: Path) -> None:
         """Test force mode renames files even when folder is already correct."""
-        from mamfast.abs.rename import RenameCandidate, rename_folder
+        from shelfr.abs.rename import RenameCandidate, rename_folder
 
         folder = tmp_path / "CorrectName"
         folder.mkdir()
@@ -614,7 +614,7 @@ class TestGenerateReport:
 
     def test_generates_valid_json(self, tmp_path: Path) -> None:
         """Test report is valid JSON with expected structure."""
-        from mamfast.abs.rename import (
+        from shelfr.abs.rename import (
             RenameCandidate,
             RenameResult,
             RenameSummary,
@@ -661,7 +661,7 @@ class TestFullPipeline:
 
     def test_full_pipeline_dry_run(self, tmp_path: Path) -> None:
         """Test end-to-end pipeline with dry run."""
-        from mamfast.abs.rename import run_rename_pipeline
+        from shelfr.abs.rename import run_rename_pipeline
 
         # Create fake library structure
         lib = tmp_path / "lib"
@@ -692,7 +692,7 @@ class TestFullPipeline:
 
     def test_full_pipeline_actual_rename(self, tmp_path: Path) -> None:
         """Test actual rename operation."""
-        from mamfast.abs.rename import run_rename_pipeline
+        from shelfr.abs.rename import run_rename_pipeline
 
         lib = tmp_path / "lib"
         lib.mkdir()
@@ -727,7 +727,7 @@ class TestFullPipeline:
 
     def test_pipeline_skips_up_to_date(self, tmp_path: Path) -> None:
         """Test that correctly named folders are skipped."""
-        from mamfast.abs.rename import run_rename_pipeline
+        from shelfr.abs.rename import run_rename_pipeline
 
         lib = tmp_path / "lib"
         lib.mkdir()

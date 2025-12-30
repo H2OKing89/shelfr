@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
-from mamfast.config import Settings
-from mamfast.validation import (
+from shelfr.config import Settings
+from shelfr.validation import (
     CheckCategory,
     ValidationCheck,
     ValidationResult,
@@ -344,11 +344,11 @@ class TestCheckPaths:
 class TestCheckServices:
     """Tests for check_services function."""
 
-    @patch("mamfast.validation._check_docker_running")
-    @patch("mamfast.validation._check_docker_image")
-    @patch("mamfast.validation._check_docker_container")
-    @patch("mamfast.validation._check_qbittorrent")
-    @patch("mamfast.validation._check_audnex_api")
+    @patch("shelfr.validation._check_docker_running")
+    @patch("shelfr.validation._check_docker_image")
+    @patch("shelfr.validation._check_docker_container")
+    @patch("shelfr.validation._check_qbittorrent")
+    @patch("shelfr.validation._check_audnex_api")
     def test_all_services_available(
         self,
         mock_audnex,
@@ -370,7 +370,7 @@ class TestCheckServices:
         assert result.passed is True
         assert result.error_count == 0
 
-    @patch("mamfast.validation._check_docker_running")
+    @patch("shelfr.validation._check_docker_running")
     def test_docker_not_running_fails(self, mock_docker):
         """Docker not running should fail."""
         mock_docker.return_value = False
@@ -424,9 +424,9 @@ class TestCheckCategories:
 class TestRunAllChecks:
     """Tests for run_all_checks function."""
 
-    @patch("mamfast.validation._check_docker_running")
-    @patch("mamfast.validation._check_qbittorrent")
-    @patch("mamfast.validation._check_audnex_api")
+    @patch("shelfr.validation._check_docker_running")
+    @patch("shelfr.validation._check_qbittorrent")
+    @patch("shelfr.validation._check_audnex_api")
     def test_runs_all_check_categories(
         self,
         mock_audnex,
@@ -591,8 +591,8 @@ class TestDiscoveryValidation:
 
     def test_valid_asin_passes(self, tmp_path):
         """Valid ASIN format should pass."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import DiscoveryValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import DiscoveryValidation
 
         # Create a mock M4B file
         m4b_file = tmp_path / "test.m4b"
@@ -613,8 +613,8 @@ class TestDiscoveryValidation:
 
     def test_invalid_asin_fails(self, tmp_path):
         """Invalid ASIN format should fail."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import DiscoveryValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import DiscoveryValidation
 
         m4b_file = tmp_path / "test.m4b"
         m4b_file.write_bytes(b"fake m4b content")
@@ -634,8 +634,8 @@ class TestDiscoveryValidation:
 
     def test_missing_asin_fails(self, tmp_path):
         """Missing ASIN should fail."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import DiscoveryValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import DiscoveryValidation
 
         m4b_file = tmp_path / "test.m4b"
         m4b_file.write_bytes(b"fake m4b content")
@@ -654,8 +654,8 @@ class TestDiscoveryValidation:
 
     def test_m4b_exists_passes(self, tmp_path):
         """Existing M4B file should pass."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import DiscoveryValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import DiscoveryValidation
 
         m4b_file = tmp_path / "test.m4b"
         m4b_file.write_bytes(b"fake m4b content")
@@ -674,8 +674,8 @@ class TestDiscoveryValidation:
 
     def test_missing_m4b_fails(self, tmp_path):
         """Missing M4B file should fail."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import DiscoveryValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import DiscoveryValidation
 
         release = AudiobookRelease(
             asin="B09GHD1R2R",
@@ -690,8 +690,8 @@ class TestDiscoveryValidation:
 
     def test_cover_exists_passes(self, tmp_path):
         """Existing cover should pass."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import DiscoveryValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import DiscoveryValidation
 
         m4b_file = tmp_path / "test.m4b"
         m4b_file.write_bytes(b"fake m4b content")
@@ -714,8 +714,8 @@ class TestDiscoveryValidation:
 
     def test_duplicate_detection(self, tmp_path):
         """Already processed release should be flagged."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import DiscoveryValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import DiscoveryValidation
 
         m4b_file = tmp_path / "test.m4b"
         m4b_file.write_bytes(b"fake m4b content")
@@ -735,8 +735,8 @@ class TestDiscoveryValidation:
 
     def test_title_cleaning_ok(self, tmp_path):
         """Normal title cleaning should pass."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import DiscoveryValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import DiscoveryValidation
 
         m4b_file = tmp_path / "test.m4b"
         m4b_file.write_bytes(b"fake m4b content")
@@ -757,8 +757,8 @@ class TestDiscoveryValidation:
 
     def test_aggressive_title_cleaning_warns(self, tmp_path, monkeypatch):
         """Aggressive title cleaning should warn."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import DiscoveryValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import DiscoveryValidation
 
         m4b_file = tmp_path / "test.m4b"
         m4b_file.write_bytes(b"fake m4b content")
@@ -775,7 +775,7 @@ class TestDiscoveryValidation:
         def mock_filter_title(title):
             return "Title"  # Very short - triggers low similarity
 
-        monkeypatch.setattr("mamfast.utils.naming.filter_title", mock_filter_title)
+        monkeypatch.setattr("shelfr.utils.naming.filter_title", mock_filter_title)
 
         validator = DiscoveryValidation()
         result = validator.validate(release)
@@ -791,8 +791,8 @@ class TestMetadataValidation:
 
     def test_required_fields_present_passes(self):
         """All required fields present should pass."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import MetadataValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import MetadataValidation
 
         release = AudiobookRelease(asin="B09GHD1R2R", title="Test Book")
         audnex_data = {
@@ -810,8 +810,8 @@ class TestMetadataValidation:
 
     def test_missing_required_fields_fails(self):
         """Missing required fields should fail."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import MetadataValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import MetadataValidation
 
         release = AudiobookRelease(asin="B09GHD1R2R", title="Test Book")
         audnex_data = {
@@ -827,8 +827,8 @@ class TestMetadataValidation:
 
     def test_authors_present_passes(self):
         """Authors present should pass."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import MetadataValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import MetadataValidation
 
         release = AudiobookRelease(asin="B09GHD1R2R")
         audnex_data = {
@@ -845,8 +845,8 @@ class TestMetadataValidation:
 
     def test_narrators_present_passes(self):
         """Narrators present should pass."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import MetadataValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import MetadataValidation
 
         release = AudiobookRelease(asin="B09GHD1R2R")
         audnex_data = {
@@ -863,8 +863,8 @@ class TestMetadataValidation:
 
     def test_runtime_match_within_tolerance(self):
         """Runtime within tolerance should pass."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import MetadataValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import MetadataValidation
 
         release = AudiobookRelease(asin="B09GHD1R2R")
         audnex_data = {"title": "Test", "asin": "B09", "runtimeLengthSec": 10000}
@@ -880,8 +880,8 @@ class TestMetadataValidation:
 
     def test_runtime_mismatch_outside_tolerance(self):
         """Runtime outside tolerance should warn."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import MetadataValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import MetadataValidation
 
         release = AudiobookRelease(asin="B09GHD1R2R")
         audnex_data = {"title": "Test", "asin": "B09", "runtimeLengthSec": 10000}
@@ -901,8 +901,8 @@ class TestPreUploadValidation:
 
     def test_torrent_valid_passes(self, tmp_path):
         """Valid torrent file should pass."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import PreUploadValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import PreUploadValidation
 
         torrent_file = tmp_path / "test.torrent"
         torrent_file.write_bytes(b"d8:announce...")
@@ -924,8 +924,8 @@ class TestPreUploadValidation:
 
     def test_missing_torrent_fails(self, tmp_path):
         """Missing torrent file should fail."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import PreUploadValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import PreUploadValidation
 
         release = AudiobookRelease(
             asin="B09GHD1R2R",
@@ -943,8 +943,8 @@ class TestPreUploadValidation:
 
     def test_filename_length_ok(self, tmp_path):
         """Filename under 225 chars should pass."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import PreUploadValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import PreUploadValidation
 
         staging = tmp_path / ("A" * 100)  # 100 chars - OK
         staging.mkdir()
@@ -965,8 +965,8 @@ class TestPreUploadValidation:
 
     def test_filename_too_long_fails(self, tmp_path):
         """Filename over 225 chars should fail."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import PreUploadValidation
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import PreUploadValidation
 
         staging = tmp_path / ("A" * 230)  # 230 chars - Too long
         staging.mkdir()
@@ -991,7 +991,7 @@ class TestChapterIntegrityChecker:
 
     def test_matching_chapter_counts(self):
         """Matching chapter counts should pass."""
-        from mamfast.validation import ChapterIntegrityChecker
+        from shelfr.validation import ChapterIntegrityChecker
 
         embedded = [{"title": "Ch 1"}, {"title": "Ch 2"}, {"title": "Ch 3"}]
         api = [{"title": "Ch 1"}, {"title": "Ch 2"}, {"title": "Ch 3"}]
@@ -1005,7 +1005,7 @@ class TestChapterIntegrityChecker:
 
     def test_mismatched_chapter_counts(self):
         """Mismatched chapter counts should fail - detects Libation bug."""
-        from mamfast.validation import ChapterIntegrityChecker
+        from shelfr.validation import ChapterIntegrityChecker
 
         embedded = [{"title": "Ch 1"}, {"title": "Ch 2"}]  # 2 chapters
         api = [{"title": "Ch 1"}, {"title": "Ch 2"}, {"title": "Ch 3"}]  # 3 chapters
@@ -1019,8 +1019,8 @@ class TestChapterIntegrityChecker:
 
     def test_chapter_validation_integration(self):
         """Full chapter validation flow."""
-        from mamfast.models import AudiobookRelease
-        from mamfast.validation import ChapterIntegrityChecker
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import ChapterIntegrityChecker
 
         release = AudiobookRelease(
             asin="B09GHD1R2R",
@@ -1062,7 +1062,7 @@ class TestSafetyUtilities:
 
     def test_sanitize_path_component_removes_traversal(self):
         """Path traversal patterns should be removed."""
-        from mamfast.validation import sanitize_path_component
+        from shelfr.validation import sanitize_path_component
 
         assert ".." not in sanitize_path_component("../evil")
         assert ".." not in sanitize_path_component("foo/../bar")
@@ -1071,14 +1071,14 @@ class TestSafetyUtilities:
 
     def test_sanitize_path_component_removes_null_bytes(self):
         """Null bytes should be removed."""
-        from mamfast.validation import sanitize_path_component
+        from shelfr.validation import sanitize_path_component
 
         result = sanitize_path_component("test\x00evil")
         assert "\x00" not in result
 
     def test_is_safe_path_within_root(self, tmp_path):
         """Path within root should be safe."""
-        from mamfast.validation import is_safe_path
+        from shelfr.validation import is_safe_path
 
         subdir = tmp_path / "subdir"
         subdir.mkdir()
@@ -1087,14 +1087,14 @@ class TestSafetyUtilities:
 
     def test_is_safe_path_outside_root(self, tmp_path):
         """Path outside root should not be safe."""
-        from mamfast.validation import is_safe_path
+        from shelfr.validation import is_safe_path
 
         outside = tmp_path.parent / "other"
         assert is_safe_path(outside, tmp_path) is False
 
     def test_compute_file_checksum(self, tmp_path):
         """File checksum should be computed correctly."""
-        from mamfast.validation import compute_file_checksum
+        from shelfr.validation import compute_file_checksum
 
         test_file = tmp_path / "test.txt"
         test_file.write_text("hello world")
@@ -1105,7 +1105,7 @@ class TestSafetyUtilities:
 
     def test_compute_file_checksum_missing_file(self, tmp_path):
         """Missing file should return None."""
-        from mamfast.validation import compute_file_checksum
+        from shelfr.validation import compute_file_checksum
 
         missing = tmp_path / "missing.txt"
         assert compute_file_checksum(missing) is None
@@ -1116,7 +1116,7 @@ class TestValidationReport:
 
     def test_report_all_passed(self):
         """Report with all passing results should indicate all_passed."""
-        from mamfast.validation import ValidationReport, ValidationResult
+        from shelfr.validation import ValidationReport, ValidationResult
 
         result = ValidationResult()
         result.add(ValidationCheck(name="test1", passed=True, message="OK"))
@@ -1135,7 +1135,7 @@ class TestValidationReport:
 
     def test_report_with_failures(self):
         """Report with failures should indicate not all_passed."""
-        from mamfast.validation import ValidationReport, ValidationResult
+        from shelfr.validation import ValidationReport, ValidationResult
 
         result = ValidationResult()
         result.add(ValidationCheck(name="test1", passed=True, message="OK"))
@@ -1153,7 +1153,7 @@ class TestValidationReport:
 
     def test_report_to_dict(self):
         """Report should serialize to dictionary."""
-        from mamfast.validation import ValidationReport, ValidationResult
+        from shelfr.validation import ValidationReport, ValidationResult
 
         result = ValidationResult()
         result.add(ValidationCheck(name="test1", passed=True, message="OK"))

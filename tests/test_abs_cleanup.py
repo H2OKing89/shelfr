@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from mamfast.abs.cleanup import (
+from shelfr.abs.cleanup import (
     CLEANUP_ELIGIBLE_STATUSES,
     CleanupError,
     CleanupPrefs,
@@ -600,7 +600,7 @@ class TestCleanupSchemaValidation:
 
     def test_default_values(self) -> None:
         """Test schema default values."""
-        from mamfast.schemas.config import CleanupSchema
+        from shelfr.schemas.config import CleanupSchema
 
         schema = CleanupSchema()
         assert schema.strategy == "none"
@@ -612,7 +612,7 @@ class TestCleanupSchemaValidation:
 
     def test_valid_strategies(self) -> None:
         """Test all valid strategy values."""
-        from mamfast.schemas.config import CleanupSchema
+        from shelfr.schemas.config import CleanupSchema
 
         # Test strategies that don't require additional config
         for strategy in ["none", "hide", "delete"]:
@@ -627,7 +627,7 @@ class TestCleanupSchemaValidation:
         """Test invalid strategy is rejected."""
         from pydantic import ValidationError
 
-        from mamfast.schemas.config import CleanupSchema
+        from shelfr.schemas.config import CleanupSchema
 
         with pytest.raises(ValidationError, match="Invalid cleanup strategy"):
             CleanupSchema(strategy="invalid")
@@ -636,14 +636,14 @@ class TestCleanupSchemaValidation:
         """Test move strategy requires cleanup_path."""
         from pydantic import ValidationError
 
-        from mamfast.schemas.config import CleanupSchema
+        from shelfr.schemas.config import CleanupSchema
 
         with pytest.raises(ValidationError, match="cleanup_path is required"):
             CleanupSchema(strategy="move")
 
     def test_move_with_cleanup_path(self) -> None:
         """Test move strategy with cleanup_path succeeds."""
-        from mamfast.schemas.config import CleanupSchema
+        from shelfr.schemas.config import CleanupSchema
 
         schema = CleanupSchema(strategy="move", cleanup_path="/tmp/cleanup")
         assert schema.strategy == "move"
@@ -653,7 +653,7 @@ class TestCleanupSchemaValidation:
         """Test cleanup_path must be absolute."""
         from pydantic import ValidationError
 
-        from mamfast.schemas.config import CleanupSchema
+        from shelfr.schemas.config import CleanupSchema
 
         with pytest.raises(ValidationError, match="must be an absolute path"):
             CleanupSchema(strategy="move", cleanup_path="relative/path")
@@ -662,14 +662,14 @@ class TestCleanupSchemaValidation:
         """Test hide_marker cannot contain path separators."""
         from pydantic import ValidationError
 
-        from mamfast.schemas.config import CleanupSchema
+        from shelfr.schemas.config import CleanupSchema
 
         with pytest.raises(ValidationError, match="must be a filename, not a path"):
             CleanupSchema(hide_marker="/path/to/marker")
 
     def test_nested_in_import_settings(self) -> None:
         """Test cleanup is nested under import settings."""
-        from mamfast.schemas.config import AudiobookshelfImportSchema, CleanupSchema
+        from shelfr.schemas.config import AudiobookshelfImportSchema, CleanupSchema
 
         # Test using dict (Pydantic should coerce)
         schema = AudiobookshelfImportSchema.model_validate({"cleanup": {"strategy": "hide"}})
@@ -685,13 +685,13 @@ class TestPruneEmptyDirs:
 
     def test_import(self) -> None:
         """Test function can be imported."""
-        from mamfast.abs.cleanup import prune_empty_dirs
+        from shelfr.abs.cleanup import prune_empty_dirs
 
         assert callable(prune_empty_dirs)
 
     def test_empty_tree(self, tmp_path: Path) -> None:
         """Test pruning empty nested directories."""
-        from mamfast.abs.cleanup import prune_empty_dirs
+        from shelfr.abs.cleanup import prune_empty_dirs
 
         # Create empty nested structure like after trumping
         (tmp_path / "Author" / "Series" / "Book").mkdir(parents=True)
@@ -707,7 +707,7 @@ class TestPruneEmptyDirs:
 
     def test_preserves_non_empty_dirs(self, tmp_path: Path) -> None:
         """Test that directories with files are preserved."""
-        from mamfast.abs.cleanup import prune_empty_dirs
+        from shelfr.abs.cleanup import prune_empty_dirs
 
         # Create mix of empty and non-empty dirs
         (tmp_path / "Author" / "Book1").mkdir(parents=True)
@@ -723,7 +723,7 @@ class TestPruneEmptyDirs:
 
     def test_dry_run_mode(self, tmp_path: Path) -> None:
         """Test dry run doesn't actually remove directories."""
-        from mamfast.abs.cleanup import prune_empty_dirs
+        from shelfr.abs.cleanup import prune_empty_dirs
 
         (tmp_path / "Author" / "Book").mkdir(parents=True)
 
@@ -736,7 +736,7 @@ class TestPruneEmptyDirs:
 
     def test_never_removes_root(self, tmp_path: Path) -> None:
         """Test that root directory is never removed."""
-        from mamfast.abs.cleanup import prune_empty_dirs
+        from shelfr.abs.cleanup import prune_empty_dirs
 
         # Root is already empty
         removed = prune_empty_dirs(tmp_path, dry_run=False)
@@ -746,7 +746,7 @@ class TestPruneEmptyDirs:
 
     def test_handles_nested_empty_dirs(self, tmp_path: Path) -> None:
         """Test deep nesting is handled correctly."""
-        from mamfast.abs.cleanup import prune_empty_dirs
+        from shelfr.abs.cleanup import prune_empty_dirs
 
         # Create deep nesting
         deep = tmp_path / "a" / "b" / "c" / "d" / "e"

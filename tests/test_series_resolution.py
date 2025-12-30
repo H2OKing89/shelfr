@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from mamfast.models import AudiobookRelease, SeriesInfo, SeriesSource
-from mamfast.utils.naming import (
+from shelfr.models import AudiobookRelease, SeriesInfo, SeriesSource
+from shelfr.utils.naming import (
     parse_series_from_libation_path,
     parse_series_from_title,
     resolve_series,
@@ -366,7 +366,7 @@ class TestBuildMamJsonSeriesIntegration:
 
     def test_preserves_primary_and_secondary_series(self) -> None:
         """Test that primary + secondary series from Audnex are both preserved."""
-        from mamfast.metadata import build_mam_json
+        from shelfr.metadata import build_mam_json
 
         release = AudiobookRelease(
             title="Test Book",
@@ -378,7 +378,7 @@ class TestBuildMamJsonSeriesIntegration:
             "seriesSecondary": {"name": "Progressive", "position": "10"},
         }
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result = build_mam_json(release, audnex_data=audnex)
 
         assert len(result["series"]) == 2
@@ -389,7 +389,7 @@ class TestBuildMamJsonSeriesIntegration:
 
     def test_no_audnex_uses_libation_path(self) -> None:
         """Test that missing Audnex series falls back to Libation path."""
-        from mamfast.metadata import build_mam_json
+        from shelfr.metadata import build_mam_json
 
         release = AudiobookRelease(
             title="Test Book vol_05",
@@ -401,7 +401,7 @@ class TestBuildMamJsonSeriesIntegration:
             # No seriesPrimary!
         }
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result = build_mam_json(release, audnex_data=audnex)
 
         assert "series" in result
@@ -411,7 +411,7 @@ class TestBuildMamJsonSeriesIntegration:
 
     def test_no_audnex_no_libation_uses_title_heuristics(self) -> None:
         """Test title heuristics as last resort when Audnex and Libation fail."""
-        from mamfast.metadata import build_mam_json
+        from shelfr.metadata import build_mam_json
 
         release = AudiobookRelease(
             title="Black Summoner, Vol. 4",
@@ -423,7 +423,7 @@ class TestBuildMamJsonSeriesIntegration:
             # No seriesPrimary!
         }
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result = build_mam_json(release, audnex_data=audnex)
 
         assert "series" in result
@@ -433,7 +433,7 @@ class TestBuildMamJsonSeriesIntegration:
 
     def test_fills_missing_position_from_libation(self) -> None:
         """Test that resolver fills missing position without overwriting name."""
-        from mamfast.metadata import build_mam_json
+        from shelfr.metadata import build_mam_json
 
         release = AudiobookRelease(
             title="Test Book",
@@ -446,7 +446,7 @@ class TestBuildMamJsonSeriesIntegration:
             "seriesPrimary": {"name": "Epic Fantasy", "position": ""},
         }
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result = build_mam_json(release, audnex_data=audnex)
 
         assert "series" in result
@@ -457,7 +457,7 @@ class TestBuildMamJsonSeriesIntegration:
 
     def test_does_not_overwrite_multiple_series_with_resolver(self) -> None:
         """Test that resolve_series doesn't bulldoze multiple Audnex series."""
-        from mamfast.metadata import build_mam_json
+        from shelfr.metadata import build_mam_json
 
         release = AudiobookRelease(
             title="Test Book",
@@ -470,7 +470,7 @@ class TestBuildMamJsonSeriesIntegration:
             "seriesSecondary": {"name": "Progressive", "position": "2"},
         }
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result = build_mam_json(release, audnex_data=audnex)
 
         # Should still have both Audnex series, not replaced by Libation's "Different Thing"
@@ -482,7 +482,7 @@ class TestBuildMamJsonSeriesIntegration:
 
     def test_release_series_fallback(self) -> None:
         """Test fallback to release.series when all other sources fail."""
-        from mamfast.metadata import build_mam_json
+        from shelfr.metadata import build_mam_json
 
         release = AudiobookRelease(
             title="Standalone Title",
@@ -495,7 +495,7 @@ class TestBuildMamJsonSeriesIntegration:
             # No series data
         }
 
-        with patch("mamfast.metadata.render_bbcode_description", return_value=""):
+        with patch("shelfr.metadata.render_bbcode_description", return_value=""):
             result = build_mam_json(release, audnex_data=audnex)
 
         assert "series" in result
