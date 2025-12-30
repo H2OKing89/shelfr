@@ -13,9 +13,12 @@ It skips external URLs, mailto links, and pure fragments (e.g. `#section`).
 
 from __future__ import annotations
 
+import logging
 import re
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 
@@ -90,14 +93,21 @@ def check_links() -> int:
     repo_root = Path.cwd()
     docs_dir = repo_root / "docs"
     if not docs_dir.exists():
-        print("ERROR: docs/ not found. Run from repo root.", file=sys.stderr)
+        logger.error("docs/ not found. Run from repo root.")
         return 2
 
     broken = []
     checked = 0
 
     for md_file in sorted(list(docs_dir.rglob("*.md")) + list(docs_dir.rglob("*.mdx"))):
-        text = md_file.read_text(encoding="utf-8", errors="ignore")
+        try:
+            text = md_file.read_text(encoding="utf-8")
+        except UnicodeDecodeError as e:
+            logger.error(f"Encoding error reading {md_file}: {e}")
+            continue
+        except (FileNotFoundError, PermissionError) as e:
+            logger.error(f"Cannot read {md_file}: {e}")
+            continue
 
         for display, target in LINK_RE.findall(text):
             checked += 1
@@ -126,12 +136,12 @@ def check_links() -> int:
                 broken.append((rel_path, target, display))
 
     if broken:
-        print(f"❌ Found {len(broken)} broken link(s):\n")
+        logger.error(f"Found {len(broken)} broken link(s):")
         for file_path, target, display in broken:
-            print(f"  {file_path}: [{display}]({target})")
+            logger.error(f"  {file_path}: [{display}]({target})")
         return 1
 
-    print(f"✅ OK: checked {checked} links, all valid")
+    logger.info(f"OK: checked {checked} links, all valid")
     return 0
 
 
