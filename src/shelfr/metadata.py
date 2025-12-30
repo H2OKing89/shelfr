@@ -643,7 +643,56 @@ def render_bbcode_description(
         show_signature=show_signature,
     )
 
-    return str(description).strip()
+    # MAM fast-fill imports JSON and puts description into a textarea.
+    # - Inside [pre] blocks: convert newlines to [br] tags (for ASCII art)
+    # - Outside [pre] blocks: remove newlines (template already uses [br])
+    result = str(description).strip()
+    result = _convert_newlines_for_mam(result)
+    return result
+
+
+def _convert_newlines_for_mam(text: str) -> str:
+    """Convert text for MAM fast-fill import.
+
+    Inside [pre] blocks:
+      - Convert actual newlines to [br] tags
+      - Convert regular spaces to non-breaking spaces (\\u00a0) to prevent
+        MAM from collapsing consecutive spaces during import
+
+    Outside [pre] blocks:
+      - Remove newlines (BBCode uses [br] tags)
+
+    This allows templates to remain readable (multiline) while
+    producing single-line output that MAM can import correctly.
+    """
+    import re
+
+    # Non-breaking space character - prevents MAM from collapsing spaces
+    NBSP = "\u00a0"
+
+    # Pattern to split while keeping delimiters
+    parts = re.split(r"(\[pre\]|\[/pre\])", text, flags=re.IGNORECASE)
+
+    result_parts = []
+    inside_pre = False
+
+    for part in parts:
+        if part.lower() == "[pre]":
+            inside_pre = True
+            result_parts.append(part)
+        elif part.lower() == "[/pre]":
+            inside_pre = False
+            result_parts.append(part)
+        elif inside_pre:
+            # Convert actual newlines to [br] tags inside [pre] blocks
+            # Convert regular spaces to non-breaking spaces to preserve alignment
+            converted = part.replace("\n", "[br]").replace(" ", NBSP)
+            result_parts.append(converted)
+        else:
+            # Remove newlines outside [pre] blocks
+            result_parts.append(part.replace("\n", ""))
+
+    return "".join(result_parts)
 
 
 # =============================================================================
