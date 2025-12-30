@@ -52,8 +52,8 @@ from rich.traceback import install as install_rich_traceback
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 DOCS_DIR = Path(__file__).parent.parent.parent / "docs"
-ABS_DOCS_DIR = DOCS_DIR / "audiobookshelf" / "api"
-AUDNEX_DOCS_DIR = DOCS_DIR / "audnex" / "api"
+ABS_DOCS_DIR = DOCS_DIR / "reference" / "audiobookshelf" / "api"
+AUDNEX_DOCS_DIR = DOCS_DIR / "reference" / "audnex" / "api"
 METADATA_FILE = DOCS_DIR / ".api_docs_metadata.json"
 
 # API Sources
