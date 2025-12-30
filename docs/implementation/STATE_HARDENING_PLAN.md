@@ -12,7 +12,7 @@ This plan upgrades `processed.json` state management for production reliability:
 - Atomic writes with `fsync()` to survive crashes
 - Backup rotation for recovery
 - Full test coverage for checkpoint/resume logic
-- `mamfast state` CLI for operator tooling
+- `shelfr state` CLI for operator tooling
 - Status transition validation (state machine)
 
 ---
@@ -235,45 +235,45 @@ def find_stale_entries() -> list[tuple[str, str, str]]:
 
 ---
 
-## Step 4: `mamfast state` CLI Subcommand
+## Step 4: `shelfr state` CLI Subcommand
 
 ### Design
 
 ```bash
-mamfast state list [--failed|--processed] [--limit N] [--json]
-mamfast state prune [--stale-only] [--failed-older-than DAYS]
-mamfast state retry <ASIN>
-mamfast state clear <ASIN>
-mamfast state export [--output FILE]
+shelfr state list [--failed|--processed] [--limit N] [--json]
+shelfr state prune [--stale-only] [--failed-older-than DAYS]
+shelfr state retry <ASIN>
+shelfr state clear <ASIN>
+shelfr state export [--output FILE]
 ```
 
 ### Implementation
 
-#### `mamfast state list`
+#### `shelfr state list`
 - Default: show counts + most recent 20 entries
 - `--failed`: only failed entries
 - `--processed`: only processed entries
 - `--limit 50`: show more/fewer
 - `--json`: machine-readable output
 
-#### `mamfast state prune`
+#### `shelfr state prune`
 - Shows what would be removed
 - Respects `--dry-run`
 - `--stale-only` (default): entries with missing required paths
 - `--failed-older-than 30d`: optional TTL cleanup
 
-#### `mamfast state retry <ASIN>`
+#### `shelfr state retry <ASIN>`
 - Remove from failed (allows re-processing)
 - Reset retry_count
 - Print "not found" and exit 0 if missing
 
-#### `mamfast state clear <ASIN>`
+#### `shelfr state clear <ASIN>`
 - Remove from processed (force full re-run)
 - Also remove checkpoints
 - Print "not found" and exit 0 if missing
 
 ### Acceptance Criteria
-- [ ] All actions use `mamfast.console` helpers
+- [ ] All actions use `shelfr.console` helpers
 - [ ] `--dry-run` respected for mutating actions
 - [ ] "not found" is graceful (not an error)
 
@@ -287,7 +287,7 @@ Nothing prevents jumping from DISCOVERED → TORRENT_CREATED if code gets called
 ### Solution
 
 ```python
-from mamfast.models import ReleaseStatus
+from shelfr.models import ReleaseStatus
 
 ALLOWED_TRANSITIONS: dict[ReleaseStatus, set[ReleaseStatus]] = {
     ReleaseStatus.DISCOVERED: {ReleaseStatus.DISCOVERED, ReleaseStatus.STAGED},

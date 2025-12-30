@@ -12,7 +12,7 @@ The P1 package upgrade (see [P1_SH_LIBRARY_COMPLETE.md](../archive/P1_SH_LIBRARY
 
 #### 1. metadata.py - MediaInfo Calls
 
-**File**: `src/mamfast/metadata.py`
+**File**: `src/shelfr/metadata.py`
 **Function**: `run_mediainfo()` (line ~990)
 **Current Implementation**: Direct `subprocess.run()` call to `mediainfo --Output=JSON`
 **Migration Target**: Use `utils/cmd.run()` wrapper
@@ -45,7 +45,7 @@ The P1 package upgrade (see [P1_SH_LIBRARY_COMPLETE.md](../archive/P1_SH_LIBRARY
 
 #### 2. abs/asin.py - MediaInfo Calls
 
-**File**: `src/mamfast/abs/asin.py`
+**File**: `src/shelfr/abs/asin.py`
 **Function**: `extract_asin_from_mediainfo()` (line ~430)
 **Current Implementation**: Direct `subprocess.run()` call to `mediainfo --Output=JSON`
 **Migration Target**: Use `utils/cmd.run()` wrapper
@@ -87,7 +87,7 @@ When migrating subprocess calls to sh library:
    import subprocess
 
    # Add:
-   from mamfast.utils.cmd import run, CmdError
+   from shelfr.utils.cmd import run, CmdError
    ```
 
 2. **Function call**:

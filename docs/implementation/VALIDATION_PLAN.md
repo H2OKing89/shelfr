@@ -1,8 +1,8 @@
-# MAMFast Validation & Verification Plan
+# shelfr Validation & Verification Plan
 
 ## Overview
 
-This document outlines the comprehensive validation and verification strategy for MAMFast to ensure reliability, catch errors early, and provide confidence in the upload pipeline.
+This document outlines the comprehensive validation and verification strategy for shelfr to ensure reliability, catch errors early, and provide confidence in the upload pipeline.
 
 ---
 
@@ -10,7 +10,7 @@ This document outlines the comprehensive validation and verification strategy fo
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Health Check (`mamfast check`) | ✅ Complete | Config, paths, services, categories checks |
+| Health Check (`shelfr check`) | ✅ Complete | Config, paths, services, categories checks |
 | Dry Run Mode (`--dry-run`) | ✅ Complete | Full pipeline simulation |
 | Validation Framework | ✅ Complete | `ValidationCheck`, `ValidationResult` classes |
 | Validation Tests | ✅ Complete | 67 tests in `test_validation.py` |
@@ -19,7 +19,7 @@ This document outlines the comprehensive validation and verification strategy fo
 | Chapter Integrity | ✅ Complete | `ChapterIntegrityChecker` detects Libation bug |
 | Validation Reports | ✅ Complete | `ValidationReport` with JSON export |
 | Safety Utilities | ✅ Complete | Path sanitization, checksums, traversal protection |
-| Validate CLI | ✅ Complete | `mamfast validate` with `--json` output |
+| Validate CLI | ✅ Complete | `shelfr validate` with `--json` output |
 | Naming Validation | ✅ Complete | 112 tests for title/series/subtitle cleaning |
 | Audnex Normalization | ✅ Complete | 20 tests for title/subtitle swap detection |
 | Golden File Tests | ✅ Complete | 68 tests for expected output comparisons |
@@ -104,7 +104,7 @@ tests/
 
 Validation at key pipeline stages to catch issues before they cause problems.
 
-All three validation classes are now implemented in `src/mamfast/validation.py`:
+All three validation classes are now implemented in `src/shelfr/validation.py`:
 
 ### Stage 1: Discovery Validation ✅
 
@@ -169,13 +169,13 @@ Safe testing mode that simulates the full pipeline without making changes.
 
 ```bash
 # Dry run - show what would happen
-mamfast run --dry-run
+shelfr run --dry-run
 
 # Dry run with verbose output
-mamfast run --dry-run --verbose
+shelfr run --dry-run --verbose
 
 # Dry run specific ASIN
-mamfast run --dry-run --asin B0G4NFQDWR
+shelfr run --dry-run --asin B0G4NFQDWR
 ```
 
 ### Behavior
@@ -228,18 +228,18 @@ Errors: 0
 
 ## 5. Health Check Command ✅ COMPLETE
 
-`mamfast check` command to verify environment setup.
+`shelfr check` command to verify environment setup.
 
 ### CLI Interface
 
 ```bash
 # Run all health checks
-mamfast check
+shelfr check
 
 # Run specific check category
-mamfast check --config-only
-mamfast check --paths-only
-mamfast check --services-only
+shelfr check --config-only
+shelfr check --paths-only
+shelfr check --services-only
 ```
 
 ### Health Checks
@@ -272,9 +272,9 @@ mamfast check --services-only
 ### Output Example
 
 ```
-$ mamfast check
+$ shelfr check
 
-MAMFast Health Check
+shelfr Health Check
 ====================
 
 Configuration
@@ -377,7 +377,7 @@ End of each run shows summary:
 
 ```
 ═══════════════════════════════════════════════════════════════
-                      MAMFast Run Summary
+                      shelfr Run Summary
 ═══════════════════════════════════════════════════════════════
 
 Discovered:     4 releases
@@ -401,8 +401,8 @@ Duration:       2m 34s
 ## 8. Implementation Priority
 
 ### Phase 1: Foundation ✅ COMPLETE
-1. ✅ **Health Check Command** - `mamfast check` validates environment setup
-2. ✅ **Dry Run Mode** - `mamfast --dry-run run` simulates full pipeline
+1. ✅ **Health Check Command** - `shelfr check` validates environment setup
+2. ✅ **Dry Run Mode** - `shelfr --dry-run run` simulates full pipeline
 3. ✅ **Basic Validation Framework** - `ValidationCheck`, `ValidationResult` classes
 
 ### Phase 2: Testing ✅ COMPLETE
@@ -416,7 +416,7 @@ Duration:       2m 34s
 
 ### Phase 4: Advanced ✅ COMPLETE
 9. ✅ **Chapter Integrity Checks** - `ChapterIntegrityChecker` detects Libation-style bugs
-10. ✅ **Detailed Reporting** - `ValidationReport` with JSON export via `mamfast validate --json`
+10. ✅ **Detailed Reporting** - `ValidationReport` with JSON export via `shelfr validate --json`
 
 ### Phase 5: Safety & Hardening ✅ PARTIAL (Utilities Complete, Advanced TODO)
 11. ✅ **Path Traversal Protection** - `is_safe_path()` validates paths stay within allowed roots
@@ -442,26 +442,26 @@ Duration:       2m 34s
 
 ```bash
 # Health check
-mamfast check                    # Run all checks
-mamfast check --config-only      # Config checks only
-mamfast check --paths-only       # Path checks only
-mamfast check --services-only    # Service checks only
+shelfr check                    # Run all checks
+shelfr check --config-only      # Config checks only
+shelfr check --paths-only       # Path checks only
+shelfr check --services-only    # Service checks only
 
 # Dry run
-mamfast --dry-run run            # Simulate full pipeline
-mamfast --dry-run run --skip-scan  # Skip Libation scan
+shelfr --dry-run run            # Simulate full pipeline
+shelfr --dry-run run --skip-scan  # Skip Libation scan
 
 # Validation
-mamfast validate                 # Validate all discovered releases
-mamfast validate --asin B0G4NFQDWR  # Validate specific release
-mamfast validate --json          # Output as JSON
+shelfr validate                 # Validate all discovered releases
+shelfr validate --asin B0G4NFQDWR  # Validate specific release
+shelfr validate --json          # Output as JSON
 
 # Testing
 pytest                           # Run all tests (655 tests)
 pytest tests/test_validation.py  # Run validation tests only (67 tests)
 pytest tests/test_naming.py      # Run naming tests only (112 tests)
 pytest tests/test_normalization.py  # Run normalization tests (20 tests)
-pytest --cov=src/mamfast         # With coverage
+pytest --cov=src/shelfr         # With coverage
 ```
 
 ---
@@ -470,14 +470,14 @@ pytest --cov=src/mamfast         # With coverage
 
 The validation system is complete when:
 
-- [x] `mamfast check` passes on a correctly configured system
-- [x] `mamfast --dry-run run` completes without errors
+- [x] `shelfr check` passes on a correctly configured system
+- [x] `shelfr --dry-run run` completes without errors
 - [x] Unit test coverage ≥ 80% for critical modules (655 tests)
 - [x] Validation framework implemented (`validation.py`)
 - [x] Runtime validation checks at each pipeline stage
 - [x] Chapter integrity check detects the Libation bug scenario
 - [x] Clear error messages guide users to fix issues
-- [x] `mamfast validate` command for pre-flight checks
+- [x] `shelfr validate` command for pre-flight checks
 - [x] JSON export for validation reports
 - [x] Naming validation: title/series/subtitle cleaning (112 tests)
 - [x] Audnex normalization: title/subtitle swap detection (20 tests)
