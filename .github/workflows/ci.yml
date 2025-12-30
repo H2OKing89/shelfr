@@ -36,7 +36,7 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest --cov=src/mamfast --cov-branch --cov-report=xml --cov-fail-under=65
+          pytest --cov=src/shelfr --cov-branch --cov-report=xml --cov-fail-under=65
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
