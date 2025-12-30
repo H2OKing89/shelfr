@@ -210,6 +210,8 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         unknown_asin_policy = UnknownAsinPolicy(unknown_asin_policy_str.lower())
     except ValueError:
         allowed = ", ".join([p.value for p in UnknownAsinPolicy])
+        if use_abs_search:
+            client.close()
         fatal_error(
             f"Invalid unknown_asin_policy: '{unknown_asin_policy_str}'",
             f"Allowed values: {allowed}. Update import_settings.unknown_asin_policy in config.yaml",
