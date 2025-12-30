@@ -1842,7 +1842,9 @@ class HardcoverEnricher:
         """Return short git commit if available."""
         try:
             result = sh.git("rev-parse", "--short", "HEAD", _ok_code=[0])
-            return result.stdout.decode().strip() or None
+            # sh library returns a result object; convert to string
+            commit = str(result).strip()
+            return commit if commit else None
         except (sh.ErrorReturnCode, sh.CommandNotFound, Exception):
             return None
 
