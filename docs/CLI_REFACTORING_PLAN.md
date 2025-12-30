@@ -466,11 +466,11 @@ def main():
 
 ---
 
-### Phase 4: Command Handler Refactoring (Priority: MEDIUM) ✅ COMPLETE (abs)
+### Phase 4: Command Handler Refactoring (Priority: MEDIUM) ✅ COMPLETE
 
 **Goal**: Break up large handler files.
 
-**Status**: `commands/abs.py` refactored to package structure. `commands/libation.py` planned for future.
+**Status**: Both `commands/abs.py` and `commands/libation.py` refactored to package structures.
 
 **`commands/abs/` (COMPLETE)**:
 
@@ -491,26 +491,30 @@ commands/abs/
 └── resolve.py         # cmd_abs_resolve_asins (166 lines)
 ```
 
-**Changes Made**:
+**`commands/libation/` (COMPLETE)**:
 
-- Created `commands/abs/` package with 10 modules
-- `_common.py`: Shared `should_ignore()` helper + console imports
-- Each handler module: Single command + local imports
-- Package `__init__.py`: Re-exports all handlers for backward compatibility
-- Deleted old monolithic `commands/abs.py`
-- All 2,132 tests pass
-
-**For `commands/libation.py` (1,970 lines)** (PLANNED):
+Split 1,971-line `commands/libation.py` into focused modules:
 
 ```tree
 commands/libation/
-├── __init__.py        # Re-exports
-├── core.py            # scan, liberate, status
-├── search.py          # search, books
-├── export_.py         # export
-├── management.py      # redownload, set-status, convert
-└── guide.py           # guide command + help text
+├── __init__.py        # Re-exports all handlers and utilities
+├── _common.py         # LibationCommandResult, run_libation_cmd, export_library
+├── _ui.py             # Rich UI helpers (headers, hints, tables, dashboard)
+├── _parser.py         # argparse setup + cmd_libation dispatcher
+├── core.py            # scan, liberate, status commands
+├── search.py          # search, books commands
+├── export_.py         # export command
+├── settings.py        # settings command
+├── guide.py           # guide command
+└── management.py      # redownload, set-status, convert commands
 ```
+
+**Changes Made**:
+
+- Both large handler files split into focused packages
+- Shared utilities and UI helpers extracted to `_common.py` and `_ui.py`
+- Package `__init__.py` re-exports all handlers for backward compatibility
+- All 2,132 tests pass
 
 ---
 
@@ -655,18 +659,18 @@ Add to commands that prompt for confirmation:
 
 ### Immediate (Next Sprint)
 
-1. **Phase 1A: RuntimeContext** — Foundation for everything else
-2. **Phase 1B: Split `cli.py`** into `cli/` package — HIGH impact, low risk
+1. ✅ **Phase 1A: RuntimeContext** — Foundation for everything else
+2. ✅ **Phase 1B: Split `cli.py`** into `cli/` package — HIGH impact, low risk
 
 ### Short-Term (1-2 Sprints)
 
-1. **Phase 2: Promote ABS to sub-app** — Consistency improvement
+1. ✅ **Phase 2: Promote ABS to sub-app** — Consistency improvement
 2. **CLI UX Polish** — Add `--yes`, aliases, etc.
 
 ### Medium-Term (2-3 Sprints)
 
-1. **Phase 4: Split large handlers** — `abs.py` and `libation.py`
-2. **Phase 3: Audit argparse** — Determine if deprecation is feasible
+1. ✅ **Phase 4: Split large handlers** — `abs.py` and `libation.py` → packages
+2. ✅ **Phase 3: Deprecate argparse CLI** — Migrated tests to Typer
 
 ### Long-Term (Future)
 
