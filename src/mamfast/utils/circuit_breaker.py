@@ -247,6 +247,13 @@ audiobookshelf_breaker = CircuitBreaker(
     exceptions=(ConnectionError, TimeoutError, OSError) + _HTTPX_EXCEPTIONS,
 )
 
+hardcover_breaker = CircuitBreaker(
+    service_name="hardcover-api",
+    failure_threshold=5,
+    recovery_timeout=60.0,
+    exceptions=(ConnectionError, TimeoutError, OSError) + _HTTPX_EXCEPTIONS,
+)
+
 
 def get_breaker_status() -> dict[str, dict[str, Any]]:
     """Get status of all pre-configured circuit breakers."""
@@ -255,6 +262,7 @@ def get_breaker_status() -> dict[str, dict[str, Any]]:
         "qbittorrent": qbittorrent_breaker,
         "docker": docker_breaker,
         "audiobookshelf": audiobookshelf_breaker,
+        "hardcover-api": hardcover_breaker,
     }
 
     result: dict[str, dict[str, Any]] = {}
@@ -268,5 +276,11 @@ def get_breaker_status() -> dict[str, dict[str, Any]]:
 
 def reset_all_breakers() -> None:
     """Reset all circuit breakers to closed state."""
-    for breaker in [audnex_breaker, qbittorrent_breaker, docker_breaker, audiobookshelf_breaker]:
+    for breaker in [
+        audnex_breaker,
+        qbittorrent_breaker,
+        docker_breaker,
+        audiobookshelf_breaker,
+        hardcover_breaker,
+    ]:
         breaker.reset()
