@@ -2316,9 +2316,6 @@ async def run_enrichment(dry_run: bool = False) -> int:
         # Print spectacular summary
         enricher.print_summary()
 
-        # Close HTTP client
-        await enricher.close_http_client()
-
         return 0
 
     except KeyboardInterrupt:
@@ -2346,6 +2343,10 @@ async def run_enrichment(dry_run: bool = False) -> int:
         console.print(error_panel)
         logger.exception("Unhandled exception")
         return 1
+
+    finally:
+        # Always close HTTP client to prevent resource leaks
+        await enricher.close_http_client()
 
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗
