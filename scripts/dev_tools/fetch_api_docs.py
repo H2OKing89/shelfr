@@ -24,6 +24,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -47,6 +48,10 @@ from rich.progress import (
 from rich.table import Table
 from rich.text import Text
 from rich.traceback import install as install_rich_traceback
+
+# Add mamfast to path for retry utilities
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+from mamfast.utils.retry import NETWORK_EXCEPTIONS, retry_with_backoff
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Configuration
@@ -264,6 +269,7 @@ def get_file_hash(content: str) -> str:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
+@retry_with_backoff(max_attempts=3, base_delay=1.0, exceptions=NETWORK_EXCEPTIONS)
 async def list_github_directory(
     client: httpx.AsyncClient,
     source: GitHubSource,
@@ -466,6 +472,7 @@ def print_footer() -> None:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
+@retry_with_backoff(max_attempts=3, base_delay=1.0, exceptions=NETWORK_EXCEPTIONS)
 async def fetch_single_file(
     client: httpx.AsyncClient,
     url: str,
