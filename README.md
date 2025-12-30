@@ -1,8 +1,14 @@
 <div align="center">
 
-# 🎧 shelfr
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/banner-light.svg">
+  <img alt="shelfr" src="docs/assets/banner-dark.svg" width="520">
+</picture>
 
-**Audiobook library automation - staging, metadata, uploads, and collection management**
+<br>
+
+**Audiobook library automation — staging, metadata, uploads, and collection management**
 
 <p>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python 3.11+"></a>
@@ -28,56 +34,46 @@
 
 ---
 
-## ✨ Features
+## Features
 
 <table>
 <tr>
-<td width="50">🔍</td>
 <td width="200"><strong>Libation Integration</strong></td>
 <td>Trigger scans via <code>libationcli</code> in Docker with automatic book discovery</td>
 </tr>
 <tr>
-<td>📦</td>
 <td><strong>Smart Staging</strong></td>
 <td>Hardlink files to upload workspace with MAM-compliant naming (≤225 chars, automatic truncation with hash suffix)</td>
 </tr>
 <tr>
-<td>🌏</td>
 <td><strong>Japanese Transliteration</strong></td>
 <td>Auto-converts Japanese author names using pykakasi with intelligent romanization</td>
 </tr>
 <tr>
-<td>📋</td>
 <td><strong>Metadata Enrichment</strong></td>
 <td>Fetch from <a href="https://api.audnex.us">Audnex API</a> + MediaInfo with series/volume detection</td>
 </tr>
 <tr>
-<td>🧲</td>
 <td><strong>Torrent Creation</strong></td>
 <td>Uses mkbrr in Docker with configurable presets and piece sizes</td>
 </tr>
 <tr>
-<td>⬆️</td>
 <td><strong>qBittorrent Upload</strong></td>
 <td>Auto-add torrents with category/tags, ready for cross-seeding</td>
 </tr>
 <tr>
-<td>🔄</td>
 <td><strong>Production-Grade Retry</strong></td>
 <td>Powered by <a href="https://github.com/jd/tenacity">tenacity</a> with exponential backoff and jitter</td>
 </tr>
 <tr>
-<td>📊</td>
 <td><strong>Robust State Tracking</strong></td>
 <td>Atomic writes, automatic backups, stale detection, and checkpoint recovery</td>
 </tr>
 <tr>
-<td>📚</td>
 <td><strong>Audiobookshelf Import</strong></td>
 <td>Direct library import with duplicate detection and quality-based trumping</td>
 </tr>
 <tr>
-<td>🛡️</td>
 <td><strong>Type-Safe Architecture</strong></td>
 <td>Strict typing with Pydantic v2 models and mypy verification</td>
 </tr>
