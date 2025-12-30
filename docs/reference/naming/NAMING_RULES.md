@@ -451,5 +451,5 @@ Step 2: "The Book"
 
 - [config/naming.json](/config/naming.json) - Rule definitions
 - [schemas/naming.py](/src/mamfast/schemas/naming.py) - Pydantic validation
-- [utils/naming.py](/src/mamfast/utils/naming.py) - Implementation
+- [src/mamfast/utils/naming/](/src/mamfast/utils/naming/) - Implementation
 - [test_naming.py](/tests/test_naming.py) - Unit tests

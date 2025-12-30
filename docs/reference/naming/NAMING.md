@@ -104,7 +104,7 @@ file:   "Stormlight Archive vol_01 The Way of Kings (2010) (Brandon Sanderson) {
 
 | File | Purpose |
 |------|--------|
-| `src/mamfast/utils/naming.py` | Core naming functions (~2000 lines) |
+| `src/mamfast/utils/naming/` | Core naming functions (package) |
 | `src/mamfast/models.py` | `NormalizedBook`, `MamPath` dataclasses |
 | `config/naming.json` | Phrase removal rules, author map |
 | `src/mamfast/schemas/naming.py` | Pydantic validation for naming.json |

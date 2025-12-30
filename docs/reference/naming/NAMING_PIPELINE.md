@@ -309,7 +309,7 @@ class MamPath(BaseModel):
 
 ## Function Reference
 
-### Core Functions (`utils/naming.py`)
+### Core Functions (`mamfast.utils.naming`)
 
 | Function | Purpose |
 |----------|---------|
@@ -349,4 +349,4 @@ file = build_mam_file_name(
 
 - [Folder & File Schemas](NAMING_FOLDER_FILE_SCHEMAS.md) - Output format details
 - [Rules Reference](NAMING_RULES.md) - Phrase removal rules
-- [utils/naming.py](/src/mamfast/utils/naming.py) - Implementation
+- [src/mamfast/utils/naming/](/src/mamfast/utils/naming/) - Implementation

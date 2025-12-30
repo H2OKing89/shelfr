@@ -188,7 +188,7 @@ def test_full_naming_pipeline():
 
 | Module | Target | Current |
 |--------|--------|---------|
-| `utils/naming.py` | 95% | 94% |
+| `utils/naming/` | 95% | 94% |
 | `models.py` (naming) | 90% | 92% |
 | `schemas/naming.py` | 100% | 100% |
 

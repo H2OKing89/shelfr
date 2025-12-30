@@ -84,7 +84,7 @@ class NormalizedBook:
     was_swapped: bool = False
 ```
 
-The `normalize_audnex_book()` function in `utils/naming.py` creates NormalizedBook instances from raw Audnex API responses.
+The `normalize_audnex_book()` function in `utils/naming/normalization.py` creates NormalizedBook instances from raw Audnex API responses.
 
 ### Normalization Rules
 
@@ -301,5 +301,5 @@ See `tests/fixtures/audnex_normalization_samples.json` for comprehensive test ca
 
 - [schemas/audnex.py](/src/mamfast/schemas/audnex.py) - Audnex response validation
 - [models.py](/src/mamfast/models.py) - NormalizedBook dataclass
-- [utils/naming.py](/src/mamfast/utils/naming.py) - `normalize_audnex_book()` implementation
+- [utils/naming/normalization.py](/src/mamfast/utils/naming/normalization.py) - `normalize_audnex_book()` implementation
 - [test_normalization.py](/tests/test_normalization.py) - Normalization tests

@@ -4,7 +4,7 @@
 **Priority**: P0 (Do immediately) → P1 (Do soon) → P2 (Consider later)
 
 > **Update 2025-12-20**: P0 upgrades (tenacity + platformdirs) successfully implemented.
-> See [P0_UPGRADE_COMPLETE.md](archive/P0_UPGRADE_COMPLETE.md) for implementation details.
+> See [P0_UPGRADE_COMPLETE.md](../archive/P0_UPGRADE_COMPLETE.md) for implementation details.
 
 ---
 
@@ -577,7 +577,7 @@ dev = [
 - [ ] (Optional) Add `pydantic-settings` for env var config
 
 > **Update 2025-12-20**: sh library core integration complete.
-> See [P1_SH_LIBRARY_COMPLETE.md](P1_SH_LIBRARY_COMPLETE.md) for details.
+> See [P1_SH_LIBRARY_COMPLETE.md](../archive/P1_SH_LIBRARY_COMPLETE.md) for details.
 > metadata.py and abs/asin.py migrations deferred to P2 (low priority, single calls each).
 
 ### Phase 3 - P2 (Future)

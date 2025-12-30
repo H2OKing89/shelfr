@@ -29,8 +29,8 @@
 - [Deployment](#deployment)
 - [Usage](#usage)
 - [Built Using](#built_using)
-- [TODO](../TODO.md)
-- [Contributing](../CONTRIBUTING.md)
+- [TODO](https://github.com/djdembeck/audnexus/issues)
+- [Contributing](https://github.com/djdembeck/audnexus)
 - [Authors](#authors)
 - [Acknowledgments](#acknowledgement)
 
