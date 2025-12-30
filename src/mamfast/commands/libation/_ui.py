@@ -5,6 +5,7 @@ This module contains Rich UI helpers used across Libation commands.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from rich.columns import Columns
@@ -14,6 +15,8 @@ from rich.text import Text
 
 from mamfast.console import console
 
+logger = logging.getLogger(__name__)
+
 
 def print_libation_header(
     title: str,
@@ -22,7 +25,12 @@ def print_libation_header(
     dry_run: bool = False,
     hint: str | None = None,
 ) -> None:
-    """Print a styled Libation command header with optional hints."""
+    """Print a styled Libation command header with optional hints.
+
+    Examples:
+        >>> print_libation_header("Export Library", subtitle="Exporting to JSON")
+        >>> print_libation_header("Import Books", dry_run=True, hint="Use --yes to skip prompts")
+    """
     content = Text()
     content.append("📚 ", style="bold")
     content.append(title, style="bold white")
@@ -48,7 +56,12 @@ def print_libation_header(
 
 
 def print_hint_box(hints: list[str], title: str = "💡 Tips") -> None:
-    """Print a box with helpful hints for users."""
+    """Print a box with helpful hints for users.
+
+    Examples:
+        >>> print_hint_box(["Run with --dry-run first", "Check logs for details"])
+        >>> print_hint_box(["Use --verbose for more output"], title="Pro Tips")
+    """
     if not hints:
         return
 
@@ -76,7 +89,15 @@ def print_command_help(
     examples: list[tuple[str, str]],
     options: list[tuple[str, str, str]] | None = None,
 ) -> None:
-    """Print formatted command help with examples."""
+    """Print formatted command help with examples.
+
+    Examples:
+        >>> print_command_help(
+        ...     "libation status",
+        ...     "Show library status",
+        ...     [("mamfast libation status", "Show all books")],
+        ... )
+    """
     console.print(f"\n[bold cyan]{command}[/] - {description}\n")
 
     if options:
@@ -104,7 +125,13 @@ def print_book_table(
     show_status: bool = True,
     limit: int = 20,
 ) -> None:
-    """Print a formatted table of books."""
+    """Print a formatted table of books.
+
+    Examples::
+
+        books = [{"Title": "Example", "AuthorNames": "Author", "AudibleProductId": "B0ABC"}]
+        print_book_table(books, title="Library", limit=10)
+    """
     if not books:
         console.print(f"[dim]No {title.lower()} found[/]")
         return
@@ -167,7 +194,12 @@ def print_book_table(
 
 
 def print_status_dashboard(status: dict[str, int], title: str = "Library Status") -> None:
-    """Print a rich dashboard showing library status."""
+    """Print a rich dashboard showing library status.
+
+    Examples:
+        >>> status = {"Liberated": 150, "NotLiberated": 25, "Error": 3}
+        >>> print_status_dashboard(status, title="Audible Library Status")
+    """
     # Status cards
     cards: list[Panel] = []
 

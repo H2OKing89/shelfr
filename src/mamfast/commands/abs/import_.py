@@ -56,6 +56,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         validate_import_prerequisites,
     )
     from mamfast.abs.cleanup import CleanupStrategy, cleanup_source, prune_empty_dirs
+    from mamfast.abs.client import AbsApiError, AbsAuthError, AbsConnectionError
     from mamfast.abs.importer import UnknownAsinPolicy, build_clean_file_name
     from mamfast.abs.paths import PathMapper
     from mamfast.config import build_cleanup_prefs, build_trump_prefs, reload_settings
@@ -139,7 +140,10 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         # Test connection first
         user = client.authorize()
         print_success(f"Connected as {user.username}")
-    except (ConnectionError, TimeoutError, OSError) as e:
+    except AbsAuthError as e:
+        fatal_error(f"Authentication failed: {e}")
+        return 1
+    except (AbsConnectionError, ConnectionError, TimeoutError, OSError) as e:
         fatal_error(f"Failed to connect to ABS: {e}")
         return 1
 
@@ -147,7 +151,18 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     try:
         asin_index = build_asin_index(client, target_library.id)
         print_success(f"Indexed {len(asin_index)} books with ASINs")
-    except (ConnectionError, TimeoutError, OSError, ValueError) as e:
+    except AbsApiError as e:
+        client.close()
+        fatal_error(f"Failed to fetch library items: {e}")
+        return 1
+    except (
+        AbsConnectionError,
+        AbsAuthError,
+        ConnectionError,
+        TimeoutError,
+        OSError,
+        ValueError,
+    ) as e:
         client.close()  # Clean up on error
         fatal_error(f"Failed to build ASIN index: {e}")
         return 1

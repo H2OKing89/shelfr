@@ -29,7 +29,7 @@ def cmd_abs_check_duplicate(args: argparse.Namespace) -> int:
     # Validate ASIN format
     if not is_valid_asin(asin):
         print_error(f"Invalid ASIN format: {asin}")
-        print_info("ASIN should be 10 characters starting with B0")
+        print_info("ASIN: 10 chars (B + 9 alphanumeric e.g. B09GHD1R2R, or ISBN-10)")
         return 1
 
     try:

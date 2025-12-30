@@ -112,17 +112,23 @@ def cmd_abs_orphans(args: argparse.Namespace) -> int:
             match_rel = (
                 orphan.matching_folder.relative_to(source_dir) if orphan.matching_folder else None
             )
+            files_display = ", ".join(orphan.files[:5]) if orphan.files else "(no files)"
+            if len(orphan.files) > 5:
+                files_display += f" (+{len(orphan.files) - 5} more)"
             console.print(f"\n  [red]ORPHAN:[/]  {rel_path}")
             console.print(f"  [green]MATCH:[/]   {match_rel}")
-            console.print(f"  [dim]Score: {orphan.match_score:.1%}, Files: {orphan.files}[/]")
+            console.print(f"  [dim]Score: {orphan.match_score:.1%}, Files: {files_display}[/]")
 
     # Show orphaned folders without matches
     if result.orphaned_no_match:
         console.print("\n[bold yellow]Orphaned folders with NO matching folder:[/]")
         for orphan in sorted(result.orphaned_no_match, key=lambda x: str(x.path)):
             rel_path = orphan.path.relative_to(source_dir)
+            files_display = ", ".join(orphan.files[:5]) if orphan.files else "(no files)"
+            if len(orphan.files) > 5:
+                files_display += f" (+{len(orphan.files) - 5} more)"
             console.print(f"  {rel_path}")
-            console.print(f"    [dim]Files: {orphan.files}[/]")
+            console.print(f"    [dim]Files: {files_display}[/]")
 
     # Generate report if requested
     if args.report:

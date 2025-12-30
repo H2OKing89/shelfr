@@ -104,20 +104,23 @@ def cmd_abs_rename(args: argparse.Namespace) -> int:
     # Generate report if requested
     if args.report:
         report_path = Path(args.report)
-        report_data = generate_report(
-            results,
-            candidates,
-            summary,
-            report_path,
-            source_dir=source_dir,
-            dry_run=args.dry_run,
-        )
-        print_success(f"JSON report written to {report_path}")
+        try:
+            report_data = generate_report(
+                results,
+                candidates,
+                summary,
+                report_path,
+                source_dir=source_dir,
+                dry_run=args.dry_run,
+            )
+            print_success(f"JSON report written to {report_path}")
 
-        # Also generate HTML report
-        html_path = report_path.with_suffix(".html")
-        generate_html_report(report_data, html_path)
-        print_success(f"HTML report written to {html_path}")
+            # Also generate HTML report
+            html_path = report_path.with_suffix(".html")
+            generate_html_report(report_data, html_path)
+            print_success(f"HTML report written to {html_path}")
+        except OSError as e:
+            print_warning(f"Failed to write report: {e}")
 
     # Return error code if there were failures
     if summary.errors > 0:

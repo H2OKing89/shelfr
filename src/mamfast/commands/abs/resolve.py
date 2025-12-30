@@ -39,8 +39,13 @@ def cmd_abs_resolve_asins(args: argparse.Namespace) -> int:
         fatal_error(str(e), "Check that config/config.yaml exists")
         return 1
 
+    # Check if ABS is configured and enabled
+    if not hasattr(settings, "audiobookshelf") or not settings.audiobookshelf.enabled:
+        fatal_error("Audiobookshelf integration is not enabled in config")
+        return 1
+
     abs_config = settings.audiobookshelf
-    if not abs_config.enabled:
+    if not abs_config.host or not abs_config.api_key:
         fatal_error("Audiobookshelf integration is not enabled in config")
         return 1
 

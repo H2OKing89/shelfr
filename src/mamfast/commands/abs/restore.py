@@ -120,8 +120,31 @@ def cmd_abs_restore(args: argparse.Namespace) -> int:
     print_info(f"Target: {library_root}")
 
     if args.dry_run:
-        folder_name = archive_path.name
-        print_dry_run(f"Would restore {folder_name} to {library_root / folder_name}")
+        # Read sidecar to calculate actual restore destination
+        import json
+
+        try:
+            with sidecar.open() as f:
+                sidecar_data = json.load(f)
+            original_path_str = sidecar_data.get("original_path")
+            original_folder_name = sidecar_data.get("original_folder_name", archive_path.name)
+
+            if original_path_str:
+                original_path = Path(original_path_str)
+                try:
+                    original_path.relative_to(library_root)
+                    restore_dest = original_path
+                except ValueError:
+                    restore_dest = library_root / original_folder_name
+            else:
+                restore_dest = library_root / original_folder_name
+
+            print_dry_run(f"Would restore {archive_path.name} to {restore_dest}")
+        except (OSError, json.JSONDecodeError) as e:
+            print_warning(f"Could not read sidecar: {e}")
+            print_dry_run(
+                f"Would restore {archive_path.name} to {library_root / archive_path.name}"
+            )
         return 0
 
     try:

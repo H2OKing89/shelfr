@@ -90,7 +90,13 @@ def export_library(container: str) -> list[dict[str, Any]]:
     # Read the exported JSON
     try:
         read_result = docker("exec", container, "cat", export_path, timeout=30)
-        books = json.loads(read_result.stdout)
+        try:
+            books = json.loads(read_result.stdout)
+        except json.JSONDecodeError as e:
+            raise LibationError(
+                f"Invalid JSON in export from {container}: {e}",
+                return_code=-1,
+            ) from e
         return list(books) if isinstance(books, list) else []
     finally:
         # Cleanup
