@@ -58,9 +58,15 @@ from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
-# Add mamfast to path for circuit breaker
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
-from mamfast.utils.circuit_breaker import CircuitOpenError, hardcover_breaker
+# Import from mamfast package (requires: pip install -e . from repo root)
+try:
+    from mamfast.utils.circuit_breaker import CircuitOpenError, hardcover_breaker
+except ImportError as e:
+    raise ImportError(
+        "Cannot import from mamfast package. Please install in editable mode:\n"
+        "  cd /path/to/mam_tool && pip install -e .\n"
+        "Or ensure the package is installed and PYTHONPATH is set correctly."
+    ) from e
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║                         🎨 THEME & STYLING                                   ║
