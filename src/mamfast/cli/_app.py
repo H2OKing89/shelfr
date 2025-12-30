@@ -7,6 +7,7 @@ shared enums, and type aliases used across all CLI commands.
 from __future__ import annotations
 
 import argparse
+import logging
 from enum import Enum
 from pathlib import Path
 from typing import Annotated
@@ -17,6 +18,8 @@ from rich.panel import Panel
 
 from mamfast import __version__
 from mamfast.console import console as mamfast_console
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Help Panel Names
@@ -224,14 +227,10 @@ def setup_logging(verbose: bool, config_path: Path) -> None:
     except FileNotFoundError:
         pass  # Config may not exist yet, use defaults
     except PermissionError as e:
-        import logging
-
-        logging.getLogger(__name__).warning("Config file not accessible: %s", e)
+        logger.warning("Config file not accessible: %s", e)
         raise
     except yaml.YAMLError as e:
-        import logging
-
-        logging.getLogger(__name__).error("Invalid config.yaml: %s", e)
+        logger.error("Invalid config.yaml: %s", e)
         raise
 
     _setup_logging(
