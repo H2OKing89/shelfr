@@ -58,6 +58,10 @@ from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
+# Add mamfast to path for circuit breaker
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+from mamfast.utils.circuit_breaker import CircuitOpenError, hardcover_breaker
+
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║                         🎨 THEME & STYLING                                   ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -888,11 +892,12 @@ class RateLimiter:
         """Async context manager entry."""
         await self.semaphore.acquire()
         async with self.lock:
-            now = asyncio.get_event_loop().time()
+            loop = asyncio.get_running_loop()
+            now = loop.time()
             wait_time = max(0, self.min_interval - (now - self.last_request_time))
             if wait_time > 0:
                 await asyncio.sleep(wait_time)
-            self.last_request_time = asyncio.get_event_loop().time()
+            self.last_request_time = loop.time()
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
@@ -1357,22 +1362,25 @@ class HardcoverEnricher:
 
         for attempt in range(Settings.API_RETRIES):
             try:
-                async with self.rate_limiter:
-                    client = await self.get_http_client()
-                    headers = {
-                        "authorization": f"Bearer {Settings.API_KEY}",
-                        "content-type": "application/json",
-                        "user-agent": "MAMFast-Hardcover-Enrichment/2.0.0",  # noqa: E501
-                    }
+                # Check circuit breaker before attempting request
+                with hardcover_breaker:
+                    async with self.rate_limiter:
+                        client = await self.get_http_client()
+                        headers = {
+                            "authorization": f"Bearer {Settings.API_KEY}",
+                            "content-type": "application/json",
+                            "user-agent": "MAMFast-Hardcover-Enrichment/2.0.0",  # noqa: E501
+                        }
 
-                    start_time = asyncio.get_event_loop().time()
-                    response = await client.post(
-                        Settings.API_ENDPOINT,
-                        json=query_payload,
-                        headers=headers,
-                    )
-                    request_time = asyncio.get_event_loop().time() - start_time
-                    self.stats.total_request_time += request_time
+                        loop = asyncio.get_running_loop()
+                        start_time = loop.time()
+                        response = await client.post(
+                            Settings.API_ENDPOINT,
+                            json=query_payload,
+                            headers=headers,
+                        )
+                        request_time = loop.time() - start_time
+                        self.stats.total_request_time += request_time
 
                     logger.debug(
                         f"API Response Status: {response.status_code}, Time: {request_time:.2f}s"
@@ -1471,6 +1479,15 @@ class HardcoverEnricher:
                                 f"API returned status {response.status_code} for '{search_query}'"
                             )
                         return None
+
+            except CircuitOpenError as e:
+                # Circuit breaker is open, fail fast without retrying
+                logger.warning(
+                    f"Circuit breaker open for Hardcover API: {e.service_name}. "
+                    f"Retry after {e.retry_after:.1f}s"
+                )
+                self.stats.api_errors += 1
+                return None
 
             except TimeoutError:
                 self.stats.api_errors += 1
