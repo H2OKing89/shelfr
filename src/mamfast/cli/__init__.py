@@ -32,6 +32,7 @@ from mamfast.cli._app import (
     SetStatusValue,
     TrumpAggressiveness,
     create_main_callback,
+    make_abs_app,
     make_app,
     make_libation_app,
     make_state_app,
@@ -46,11 +47,13 @@ app = make_app()
 state_app = make_state_app()
 libation_app = make_libation_app()
 tools_app = make_tools_app()
+abs_app = make_abs_app()
 
 # Register sub-apps
 app.add_typer(state_app, name="state", rich_help_panel=STATE_COMMANDS)
 app.add_typer(libation_app, name="libation")
 app.add_typer(tools_app, name="tools", rich_help_panel=TOOLS_COMMANDS)
+app.add_typer(abs_app, name="abs", rich_help_panel=ABS_COMMANDS)
 
 # Register main callback (handles --version, --verbose, --config, --dry-run)
 create_main_callback(app)
@@ -63,7 +66,10 @@ create_main_callback(app)
 # This avoids circular import issues while keeping command definitions in
 # separate files.
 
-from mamfast.cli.abs import register_abs_commands  # noqa: E402
+from mamfast.cli.abs import (  # noqa: E402
+    register_abs_commands,
+    register_abs_deprecated_aliases,
+)
 from mamfast.cli.core import register_core_commands  # noqa: E402
 from mamfast.cli.diagnostics import register_diagnostics_commands  # noqa: E402
 from mamfast.cli.libation import register_libation_commands  # noqa: E402
@@ -73,7 +79,8 @@ from mamfast.cli.tools import register_tools_commands  # noqa: E402
 register_core_commands(app)
 register_diagnostics_commands(app)
 register_state_commands(state_app)
-register_abs_commands(app)
+register_abs_commands(abs_app)  # Register on sub-app now
+register_abs_deprecated_aliases(app)  # Deprecated aliases on main app
 register_libation_commands(libation_app)
 register_tools_commands(tools_app)
 

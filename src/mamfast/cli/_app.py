@@ -194,6 +194,16 @@ def make_tools_app() -> typer.Typer:
     )
 
 
+def make_abs_app() -> typer.Typer:
+    """Create the Audiobookshelf sub-app."""
+    return typer.Typer(
+        name="abs",
+        help="📚 Audiobookshelf library management",
+        rich_markup_mode="rich",
+        no_args_is_help=True,
+    )
+
+
 # =============================================================================
 # Logging Setup Helper
 # =============================================================================
