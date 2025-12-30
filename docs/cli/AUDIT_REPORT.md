@@ -1,14 +1,14 @@
-# CLI Audit Report — MAMFast
+# CLI Audit Report — shelfr
 
 **Date**: December 2025
-**Scope**: Comprehensive audit of `mamfast` CLI structure, consistency, and usability
+**Scope**: Comprehensive audit of `shelfr` CLI structure, consistency, and usability
 **Status**: ✅ P0-P3 Complete — Full Typer/Rich migration with all enhancements
 
 ---
 
 ## Executive Summary
 
-The MAMFast CLI has been **migrated from argparse to Typer** with full Rich integration for a modern, beautiful command-line experience. The audit identified several consistency issues that have been addressed.
+The shelfr CLI has been **migrated from argparse to Typer** with full Rich integration for a modern, beautiful command-line experience. The audit identified several consistency issues that have been addressed.
 
 ### Major Changes ✓
 
@@ -32,7 +32,7 @@ The MAMFast CLI has been **migrated from argparse to Typer** with full Rich inte
 
 **Solution Implemented**:
 
-- Created `src/mamfast/utils/validation.py` with shared ASIN validation
+- Created `src/shelfr/utils/validation.py` with shared ASIN validation
 - Typer CLI uses `validate_asin_callback()` for all `--asin` options
 - argparse CLI (preserved for tests) uses `type=validate_asin`
 - Updated `commands/libation.py` to import from shared module
@@ -148,8 +148,8 @@ prepare --asin ASIN             # uppercase ✓
 **Solution**: Typer provides built-in shell completion:
 
 ```bash
-mamfast --install-completion  # Install for current shell
-mamfast --show-completion     # Show completion script
+shelfr --install-completion  # Install for current shell
+shelfr --show-completion     # Show completion script
 ```
 
 #### 10. Command Aliases — ✅ DONE
@@ -168,11 +168,11 @@ mamfast --show-completion     # Show completion script
 **Solution**: Commands now accept `--dry-run` after subcommand and show a helpful redirect message.
 
 ```bash
-$ mamfast run --dry-run
+$ shelfr run --dry-run
 ⚠️  --dry-run must come BEFORE the subcommand:
 
-    mamfast --dry-run run  ✓
-    mamfast run --dry-run  ✗
+    shelfr --dry-run run  ✓
+    shelfr run --dry-run  ✗
 ```
 
 **Commands with redirect hint**: `run`, `prepare`, `upload`

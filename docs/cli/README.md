@@ -1,6 +1,6 @@
 # CLI Documentation
 
-This folder contains documentation about the MAMFast CLI architecture, refactoring efforts, and audit results.
+This folder contains documentation about the shelfr CLI architecture, refactoring efforts, and audit results.
 
 ## Quick Start
 
@@ -20,7 +20,7 @@ This folder contains documentation about the MAMFast CLI architecture, refactori
 
 ✅ **Phase 1A**: RuntimeContext foundation (typed context object)
 ✅ **Phase 1B**: Split monolithic cli.py → 10 focused modules (2,488 lines, all under 400 lines)
-✅ **Phase 2**: Promote ABS to sub-app (`mamfast abs <verb>`)
+✅ **Phase 2**: Promote ABS to sub-app (`shelfr abs <verb>`)
 ✅ **Phase 3**: Deprecate argparse CLI (frozen, showing warnings)
 ✅ **Phase 4**: Split large handlers into commands/ packages
 ✅ **UX Polish**: Added `--yes`/`-y` flags and command aliases

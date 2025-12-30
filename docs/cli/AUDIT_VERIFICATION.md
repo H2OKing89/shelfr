@@ -8,14 +8,14 @@
 ## Phase 1A: RuntimeContext ✅ VERIFIED
 
 **Requirement**: Typed runtime context object
-**Files**: `src/mamfast/cli/_context.py`
+**Files**: `src/shelfr/cli/_context.py`
 
 ### Verification
 
 - ✅ `RuntimeContext` dataclass exists (line 28)
 - ✅ Fields present: `config_path`, `settings`, `dry_run`, `verbose`, `json_output`, `_abs_client`
 - ✅ Lazy-loaded `abs_client` property implemented
-- ✅ Imports successfully: `from mamfast.cli._context import RuntimeContext`
+- ✅ Imports successfully: `from shelfr.cli._context import RuntimeContext`
 - ✅ Used in cli callbacks and commands
 
 ---
@@ -44,7 +44,7 @@
 
 - ✅ Each file under 400 lines (abs.py: 738 is split handlers, not just CLI defs)
 - ✅ All imports work
-- ✅ `mamfast --help` output unchanged
+- ✅ `shelfr --help` output unchanged
 - ✅ No import performance degradation
 
 ---
@@ -56,18 +56,18 @@
 ### Command Examples
 
 ```bash
-mamfast abs init           # ✅ Works (was: abs-init)
-mamfast abs import         # ✅ Works (was: abs-import)
-mamfast abs check-asin     # ✅ Works (was: abs-check-duplicate)
-mamfast abs trump-preview  # ✅ Works (was: abs-trump-check)
-mamfast abs orphans        # ✅ Works (was: abs-orphans)
-mamfast abs resolve-asins  # ✅ Works
+shelfr abs init           # ✅ Works (was: abs-init)
+shelfr abs import         # ✅ Works (was: abs-import)
+shelfr abs check-asin     # ✅ Works (was: abs-check-duplicate)
+shelfr abs trump-preview  # ✅ Works (was: abs-trump-check)
+shelfr abs orphans        # ✅ Works (was: abs-orphans)
+shelfr abs resolve-asins  # ✅ Works
 ```
 
 ### Command Validation
 
-- ✅ `mamfast abs --help` shows 9 subcommands
-- ✅ Global flags still work BEFORE subcommand: `mamfast --dry-run abs import`
+- ✅ `shelfr abs --help` shows 9 subcommands
+- ✅ Global flags still work BEFORE subcommand: `shelfr --dry-run abs import`
 - ✅ Old deprecated aliases still work (hidden)
 - ✅ Test suite passes
 

@@ -1,4 +1,4 @@
-# CLI Refactoring Plan — MAMFast
+# CLI Refactoring Plan — shelfr
 
 **Date**: December 2025
 **Author**: Code Review Analysis
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The MAMFast CLI has grown to **~8,800 lines** across CLI-related modules with **42 commands**. While functional and well-organized for its current size, continued growth will create maintenance challenges. This plan addresses:
+The shelfr CLI has grown to **~8,800 lines** across CLI-related modules with **42 commands**. While functional and well-organized for its current size, continued growth will create maintenance challenges. This plan addresses:
 
 1. Current architecture assessment
 2. Scalability bottlenecks
@@ -94,7 +94,7 @@ The MAMFast CLI has grown to **~8,800 lines** across CLI-related modules with **
 ```python
 @app.command()
 def some_command(ctx: typer.Context, ...):
-    from mamfast.commands import cmd_some_command
+    from shelfr.commands import cmd_some_command
     args = get_args(ctx, ...)
     result = cmd_some_command(args)
     raise typer.Exit(result)
@@ -112,10 +112,10 @@ def some_command(ctx: typer.Context, ...):
 
 **Current**:
 
-- `mamfast state list` (sub-app ✓)
-- `mamfast libation scan` (sub-app ✓)
-- `mamfast abs-import` (flat with prefix ✗)
-- `mamfast abs-cleanup` (flat with prefix ✗)
+- `shelfr state list` (sub-app ✓)
+- `shelfr libation scan` (sub-app ✓)
+- `shelfr abs-import` (flat with prefix ✗)
+- `shelfr abs-cleanup` (flat with prefix ✗)
 
 ---
 
@@ -137,7 +137,7 @@ The current `ArgsNamespace` bridge is a legacy shim that every command re-implem
 **Implementation**:
 
 ```python
-# src/mamfast/cli/_context.py
+# src/shelfr/cli/_context.py
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -145,8 +145,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from mamfast.abs.client import AbsClient
-    from mamfast.config import Settings
+    from shelfr.abs.client import AbsClient
+    from shelfr.config import Settings
 
 @dataclass
 class RuntimeContext:
@@ -176,7 +176,7 @@ class RuntimeContext:
             if not self.settings or not self.settings.audiobookshelf:
                 raise ValueError("ABS configuration not found in settings")
             try:
-                from mamfast.abs.client import AbsClient
+                from shelfr.abs.client import AbsClient
                 self._abs_client = AbsClient.from_config(self.settings.audiobookshelf)
             except Exception as e:
                 import logging
@@ -197,8 +197,8 @@ class RuntimeContext:
 ```python
 @app.callback()
 def main_callback(ctx: typer.Context, ...) -> None:
-    from mamfast.cli._context import RuntimeContext
-    from mamfast.config import reload_settings
+    from shelfr.cli._context import RuntimeContext
+    from shelfr.config import reload_settings
 
     settings = reload_settings(config_file=config)
     ctx.obj = RuntimeContext(
@@ -240,7 +240,7 @@ def abs_import(ctx: typer.Context, ...) -> None:
 **Proposed Structure**:
 
 ```bash
-src/mamfast/cli/
+src/shelfr/cli/
 ├── __init__.py          # Main app factory + entry point
 ├── _app.py              # App configuration, callbacks, shared types
 ├── _context.py          # RuntimeContext dataclass
@@ -255,7 +255,7 @@ src/mamfast/cli/
 
 **Migration Steps**:
 
-1. Create `src/mamfast/cli/` directory
+1. Create `src/shelfr/cli/` directory
 2. Create `_context.py` with `RuntimeContext` (Phase 1A)
 3. Extract `_app.py` with app factory, callbacks, shared Enums
 4. Extract command definitions by category
@@ -273,7 +273,7 @@ src/mamfast/cli/
 
 **Acceptance Criteria**:
 
-- [x] `mamfast --help` output unchanged ✅
+- [x] `shelfr --help` output unchanged ✅
 - [x] Command import time stays within ~200ms ✅
 - [x] All tests pass ✅ (2,125 tests passing)
 - [x] `cli.py` renamed to `cli_legacy.py` (package takes precedence) ✅
@@ -303,18 +303,18 @@ src/mamfast/cli/
 **Before**:
 
 ```bash
-mamfast abs-init
-mamfast abs-import
-mamfast abs-cleanup
+shelfr abs-init
+shelfr abs-import
+shelfr abs-cleanup
 ```
 
 **After**:
 
 ```bash
-mamfast abs init
-mamfast abs import
-mamfast abs cleanup
-mamfast abs resolve-asins
+shelfr abs init
+shelfr abs import
+shelfr abs cleanup
+shelfr abs resolve-asins
 ```
 
 **Command Renames** (consider while migrating):
@@ -328,13 +328,13 @@ mamfast abs resolve-asins
 
 ```bash
 # Old syntax (still works via aliases):
-mamfast --dry-run abs-import
+shelfr --dry-run abs-import
 
 # New syntax (after migration):
-mamfast --dry-run abs import  # Flag BEFORE subcommand
+shelfr --dry-run abs import  # Flag BEFORE subcommand
 
 # ❌ WRONG - Flag goes before subcommand, not after:
-mamfast abs import --dry-run  # This won't work
+shelfr abs import --dry-run  # This won't work
 ```
 
 **Migration**:
@@ -347,8 +347,8 @@ mamfast abs import --dry-run  # This won't work
 # Hidden alias with deprecation warning
 @app.command("abs-import", hidden=True)
 def abs_import_deprecated(ctx: typer.Context, ...) -> None:
-    """Deprecated: Use 'mamfast abs import' instead."""
-    from mamfast.console import print_warning
+    """Deprecated: Use 'shelfr abs import' instead."""
+    from shelfr.console import print_warning
     print_warning("Deprecated: 'abs-import' is now 'abs import'. Update your scripts.")
     return _abs_import_impl(ctx, ...)
 ```
@@ -360,8 +360,8 @@ def abs_import_deprecated(ctx: typer.Context, ...) -> None:
 
 - [x] All ABS commands work under `abs <verb>` syntax ✅ (Dec 2025)
 - [x] Old `abs-*` commands still work (hidden, with warning) ✅ (Dec 2025)
-- [x] `mamfast abs --help` shows all ABS subcommands ✅ (Dec 2025)
-- [x] Global flags remain BEFORE subcommand (e.g., `mamfast --dry-run abs import`) ✅
+- [x] `shelfr abs --help` shows all ABS subcommands ✅ (Dec 2025)
+- [x] Global flags remain BEFORE subcommand (e.g., `shelfr --dry-run abs import`) ✅
 - [x] Tests updated to use new syntax and verify flag ordering ✅ (Dec 2025)
 - [x] Documentation and examples updated with correct flag placement ✅ (Dec 2025)
 
@@ -394,7 +394,7 @@ def abs_import_deprecated(ctx: typer.Context, ...) -> None:
 Hidden dependencies often include:
 
 - Shell scripts / cron jobs
-- CI tooling calling `python -m mamfast.cli_argparse ...`
+- CI tooling calling `python -m shelfr.cli_argparse ...`
 - Undocumented user workflows
 - Test fixtures
 
@@ -405,8 +405,8 @@ Hidden dependencies often include:
    ```python
    # cli_argparse.py - add at entry
    import logging
-   logging.getLogger("mamfast.deprecation").warning(
-       "argparse CLI is deprecated; migrate to 'mamfast' command"
+   logging.getLogger("shelfr.deprecation").warning(
+       "argparse CLI is deprecated; migrate to 'shelfr' command"
    )
    ```
 
@@ -425,7 +425,7 @@ Rather than maintain parity:
 ```python
 # cli_argparse.py entry point
 def main():
-    console.print("[yellow]⚠️ argparse CLI is deprecated. Use 'mamfast' instead.[/]")
+    console.print("[yellow]⚠️ argparse CLI is deprecated. Use 'shelfr' instead.[/]")
     console.print("[dim]This interface will be removed in v2.0[/]\n")
     # ... existing logic
 ```
@@ -525,12 +525,12 @@ commands/libation/
 For truly extensible CLI, consider a plugin system:
 
 ```python
-# src/mamfast/cli/plugins.py
+# src/shelfr/cli/plugins.py
 from importlib.metadata import entry_points
 
 def load_plugins(app: typer.Typer) -> None:
     """Load CLI plugins from entry points."""
-    eps = entry_points(group="mamfast.cli.plugins")
+    eps = entry_points(group="shelfr.cli.plugins")
     for ep in eps:
         try:
             plugin_app = ep.load()
@@ -538,14 +538,14 @@ def load_plugins(app: typer.Typer) -> None:
         except Exception as e:
             # Safe loading: skip broken plugins, show errors
             import logging
-            logging.getLogger("mamfast.plugins").warning(
+            logging.getLogger("shelfr.plugins").warning(
                 f"Failed to load plugin '{ep.name}': {e}"
             )
 ```
 
 **Plugin Guardrails** (add when implementing):
 
-1. **Discovery command**: `mamfast plugins list` — shows loaded plugins and status
+1. **Discovery command**: `shelfr plugins list` — shows loaded plugins and status
 2. **Safe loading**: Skip broken plugins, log errors, don't break `--help`
 3. **Config allowlist** (optional):
 
@@ -561,7 +561,7 @@ def load_plugins(app: typer.Typer) -> None:
 **Plugin Example** (in separate package):
 
 ```python
-# mamfast-hardcover/src/mamfast_hardcover/cli.py
+# shelfr-hardcover/src/shelfr_hardcover/cli.py
 import typer
 
 hardcover_app = typer.Typer(name="hardcover", help="Hardcover.app integration")
@@ -575,8 +575,8 @@ def hardcover_search(query: str) -> None:
 **Registration** (in plugin's pyproject.toml):
 
 ```toml
-[project.entry-points."mamfast.cli.plugins"]
-hardcover = "mamfast_hardcover.cli:hardcover_app"
+[project.entry-points."shelfr.cli.plugins"]
+hardcover = "shelfr_hardcover.cli:hardcover_app"
 ```
 
 ### Near-Term Add-On Patterns
@@ -586,7 +586,7 @@ Without full plugins, use consistent patterns for new features:
 #### Pattern A: New Sub-App
 
 ```python
-# src/mamfast/cli/hardcover.py
+# src/shelfr/cli/hardcover.py
 import typer
 
 hardcover_app = typer.Typer(
@@ -608,7 +608,7 @@ def match(asin: str) -> None:
 Then in `cli/__init__.py`:
 
 ```python
-from mamfast.cli.hardcover import hardcover_app
+from shelfr.cli.hardcover import hardcover_app
 app.add_typer(hardcover_app, name="hardcover", rich_help_panel="Integrations")
 ```
 
@@ -649,21 +649,21 @@ These improvements can be done alongside or after the refactor:
 
 | Alias | Target | Rationale | Status |
 | --- | --- | --- | --- |
-| `mamfast doctor` | `mamfast check` | Intuitive for users | ✅ Added |
-| `mamfast dupes` | `mamfast check-duplicates` | Shorter | ✅ Exists |
-| `mamfast lint` | `mamfast validate-config` | Developer familiarity | ✅ Exists |
-| `mamfast suspicious` | `mamfast check-suspicious` | Shorter | ✅ Exists |
+| `shelfr doctor` | `shelfr check` | Intuitive for users | ✅ Added |
+| `shelfr dupes` | `shelfr check-duplicates` | Shorter | ✅ Exists |
+| `shelfr lint` | `shelfr validate-config` | Developer familiarity | ✅ Exists |
+| `shelfr suspicious` | `shelfr check-suspicious` | Shorter | ✅ Exists |
 
 ### `--yes` Flag Coverage
 
 Commands with confirmation prompts now support `--yes`/`-y`:
 
-- ✅ `mamfast libation liberate` — already had `--yes`
-- ✅ `mamfast libation redownload` — already had `--yes`
-- ✅ `mamfast libation set-status` — already had `--yes`
-- ✅ `mamfast libation convert` — already had `--yes`
-- ✅ `mamfast abs orphans --cleanup-all` — added `--yes`
-- ⚪ `mamfast state clear` — no confirmation (atomic operation)
+- ✅ `shelfr libation liberate` — already had `--yes`
+- ✅ `shelfr libation redownload` — already had `--yes`
+- ✅ `shelfr libation set-status` — already had `--yes`
+- ✅ `shelfr libation convert` — already had `--yes`
+- ✅ `shelfr abs orphans --cleanup-all` — added `--yes`
+- ⚪ `shelfr state clear` — no confirmation (atomic operation)
 
 ---
 
@@ -699,7 +699,7 @@ When adding a new command:
 
 - [ ] Determine category (Core, ABS, Libation, Tools, or new sub-app?)
 - [ ] Check if related command exists to extend
-- [ ] Review naming consistency (`mamfast <noun> <verb>` vs `mamfast <verb>-<noun>`)
+- [ ] Review naming consistency (`shelfr <noun> <verb>` vs `shelfr <verb>-<noun>`)
 
 ### Implementation
 
@@ -744,9 +744,9 @@ When adding a new command:
 ### Recommended Convention
 
 ```bash
-mamfast <noun> <verb>      # For grouped features (sub-apps)
-mamfast <verb>             # For core pipeline single actions
-mamfast <verb>-<modifier>  # For variants (check-duplicates)
+shelfr <noun> <verb>      # For grouped features (sub-apps)
+shelfr <verb>             # For core pipeline single actions
+shelfr <verb>-<modifier>  # For variants (check-duplicates)
 ```
 
 ---
@@ -757,21 +757,21 @@ Based on project direction, these might be added:
 
 | Command | Category | Purpose |
 | --- | --- | --- |
-| `mamfast hardcover search` | New sub-app | Search Hardcover.app |
-| `mamfast hardcover match` | New sub-app | Match ASIN to Hardcover ID |
-| `mamfast hardcover enrich` | New sub-app | Pull Hardcover metadata |
-| `mamfast mam search` | New sub-app | Search MAM for existing uploads |
-| `mamfast mam check-dup` | New sub-app | Check if release exists on MAM |
-| `mamfast tools mediainfo` | Tools | Extract MediaInfo JSON |
-| `mamfast tools asin-lookup` | Tools | Lookup ASIN metadata |
-| `mamfast batch import` | Core | Batch import from file list |
-| `mamfast watch` | Core | Watch directory for new files |
+| `shelfr hardcover search` | New sub-app | Search Hardcover.app |
+| `shelfr hardcover match` | New sub-app | Match ASIN to Hardcover ID |
+| `shelfr hardcover enrich` | New sub-app | Pull Hardcover metadata |
+| `shelfr mam search` | New sub-app | Search MAM for existing uploads |
+| `shelfr mam check-dup` | New sub-app | Check if release exists on MAM |
+| `shelfr tools mediainfo` | Tools | Extract MediaInfo JSON |
+| `shelfr tools asin-lookup` | Tools | Lookup ASIN metadata |
+| `shelfr batch import` | Core | Batch import from file list |
+| `shelfr watch` | Core | Watch directory for new files |
 
 ---
 
 ## Summary
 
-The MAMFast CLI is well-designed but reaching a size where proactive refactoring will pay dividends. The key recommendations:
+The shelfr CLI is well-designed but reaching a size where proactive refactoring will pay dividends. The key recommendations:
 
 1. **Add RuntimeContext first** — Foundation that makes everything else easier
 2. **Split `cli.py` now** — Prevents further growth pain
@@ -795,16 +795,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from mamfast.abs.client import AbsClient  # Type annotation only
+    from shelfr.abs.client import AbsClient  # Type annotation only
 
 @app.command()
 def my_command(ctx: typer.Context) -> None:
     # Heavy runtime import happens inside function
-    from mamfast.abs.client import AbsClient
+    from shelfr.abs.client import AbsClient
     client = AbsClient(...)
 
 # ❌ BAD - Heavy runtime import at module level
-from mamfast.abs.client import AbsClient  # Imported even if command never runs
+from shelfr.abs.client import AbsClient  # Imported even if command never runs
 from httpx import Client  # Slow startup
 
 @app.command()
@@ -820,7 +820,7 @@ def my_command():
 # ✅ Preferred pattern after Phase 1A
 @app.command()
 def abs_import(ctx: typer.Context, ...) -> None:
-    from mamfast.cli._context import RuntimeContext
+    from shelfr.cli._context import RuntimeContext
     runtime: RuntimeContext = ctx.obj
 
     if runtime.dry_run:
@@ -837,9 +837,9 @@ def abs_import(ctx: typer.Context, ...) -> None:
 # For deprecated command aliases
 @app.command("old-name", hidden=True)
 def old_name_deprecated(ctx: typer.Context) -> None:
-    from mamfast.console import print_warning
+    from shelfr.console import print_warning
     print_warning(
-        "Deprecated: 'mamfast old-name' is now 'mamfast new name'. "
+        "Deprecated: 'shelfr old-name' is now 'shelfr new name'. "
         "This alias will be removed in v2.0."
     )
     return new_name_impl(ctx)
