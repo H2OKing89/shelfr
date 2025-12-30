@@ -899,7 +899,7 @@ class TestBuildMamJson:
 
         tags = result.get("tags", "")
         assert "Length:" in tags
-        assert "Release date: 11-25-25" in tags
+        assert "Release date: November 25, 2025" in tags
         assert "Format:" in tags
         assert "Chapterized" in tags
 

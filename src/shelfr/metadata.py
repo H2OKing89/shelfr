@@ -315,6 +315,30 @@ def _get_jinja_env() -> Environment:
     )
 
 
+def _format_release_date(date_str: str) -> str:
+    """
+    Format release date to human readable format (e.g., 'January 1, 2016').
+
+    Args:
+        date_str: Date string in ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+
+    Returns:
+        Formatted date string like 'January 1, 2016', or original if parsing fails
+    """
+    if not date_str:
+        return ""
+    try:
+        # Handle both YYYY-MM-DD and YYYY-MM-DDTHH:MM:SS formats
+        date_part = date_str[:10] if len(date_str) >= 10 else date_str
+        from datetime import datetime
+
+        dt = datetime.strptime(date_part, "%Y-%m-%d")
+        # Format: January 1, 2016 (no leading zero on day)
+        return dt.strftime("%B %-d, %Y")
+    except (ValueError, IndexError):
+        return date_str
+
+
 def _format_duration(seconds: float) -> str:
     """
     Format duration in seconds to human readable (e.g., '6h 11m').
@@ -563,10 +587,7 @@ def render_bbcode_description(
                 break
 
     publisher = audnex_data.get("publisherName", "")
-    release_date = audnex_data.get("releaseDate", "")
-    if release_date:
-        # Format: 2025-11-25
-        release_date = release_date[:10] if len(release_date) >= 10 else release_date
+    release_date = _format_release_date(audnex_data.get("releaseDate", ""))
 
     genres = [g.get("name", "") for g in audnex_data.get("genres", []) if g.get("name")]
     language = audnex_data.get("language", "English")
@@ -1834,7 +1855,7 @@ def build_mam_json(
     mam_json["mediaType"] = 1
 
     # Tags - build audio info string
-    # Format: Length: Xh Xm | Release date: MM-DD-YY | Format: M4B, codec | Chapterized |
+    # Format: Length: Xh Xm | Release date: January 1, 2016 | Format: M4B, codec | Chapterized |
     tag_parts = []
 
     # Get audio info from mediainfo
@@ -1848,15 +1869,9 @@ def build_mam_json(
             tag_parts.append(f"Length: {duration}")
 
         # Release date from Audnex
-        release_date = audnex.get("releaseDate", "")
+        release_date = _format_release_date(audnex.get("releaseDate", ""))
         if release_date:
-            # Convert 2025-11-25 to 11-25-25
-            try:
-                parts = release_date[:10].split("-")
-                if len(parts) == 3:
-                    tag_parts.append(f"Release date: {parts[1]}-{parts[2]}-{parts[0][2:]}")
-            except (IndexError, ValueError):
-                pass
+            tag_parts.append(f"Release date: {release_date}")
 
         # Format
         container = audio_info.get("container", "M4B")
