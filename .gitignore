@@ -65,9 +65,5 @@ config/.env
 # Sample data (contains personal library info)
 samples/
 
-# Local-only docs
-docs/mam/SUPPORTED_BBCODE.md
-docs/mam/*
-docs/mam/
-/samples/test_data/
-docs/hardcover
+# Documentation - track all docs/ (including reference materials)
+# Note: API docs under docs/reference/* ARE tracked intentionally
