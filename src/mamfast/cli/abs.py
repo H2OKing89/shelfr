@@ -339,6 +339,10 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             bool,
             typer.Option("--cleanup-all", help="[red]DANGEROUS:[/] Remove ALL orphaned folders."),
         ] = False,
+        yes: Annotated[
+            bool,
+            typer.Option("--yes", "-y", help="Skip confirmation prompt for --cleanup-all."),
+        ] = False,
         min_match_score: Annotated[
             float,
             typer.Option(help="Minimum similarity score to consider a match."),
@@ -360,6 +364,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             source=source,
             cleanup=cleanup,
             cleanup_all=cleanup_all,
+            yes=yes,
             min_match_score=min_match_score,
             report=report,
             command="abs orphans",

@@ -203,3 +203,4 @@ def register_diagnostics_commands(app: typer.Typer) -> None:
     app.command("dupes", hidden=True)(check_duplicates)
     app.command("suspicious", hidden=True)(check_suspicious)
     app.command("lint", hidden=True)(validate_config)
+    app.command("doctor", hidden=True)(check)

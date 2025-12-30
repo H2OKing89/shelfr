@@ -166,7 +166,8 @@ def cmd_abs_orphans(args: argparse.Namespace) -> int:
         if args.cleanup_all:
             # Clean up ALL orphans (dangerous)
             all_orphans = result.orphaned_with_match + result.orphaned_no_match
-            if not args.dry_run:
+            skip_confirm = getattr(args, "yes", False)
+            if not args.dry_run and not skip_confirm:
                 console.print(
                     "[bold red]WARNING: --cleanup-all will remove folders "
                     "without matching audio![/]"
