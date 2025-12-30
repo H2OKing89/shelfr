@@ -23,6 +23,15 @@ Usage:
 
 from __future__ import annotations
 
+# Banner and version
+from shelfr.ui.banner import (
+    BANNER_ART,
+    get_version,
+    get_version_string,
+    make_banner_text,
+    print_banner,
+)
+
 # Core - always import these
 from shelfr.ui.core import (
     MAMFAST_THEME,
@@ -119,6 +128,12 @@ __all__ = [
     "console",
     "err_console",
     "StepResult",
+    # Banner
+    "BANNER_ART",
+    "get_version",
+    "get_version_string",
+    "make_banner_text",
+    "print_banner",
     # Messages
     "print_success",
     "print_error",
