@@ -1228,7 +1228,7 @@ class HardcoverEnricher:
 
         with (
             console.status("[bold #7C3AED]Reading file...[/]", spinner="dots12"),
-            open(Settings.COMBINED_METADATA_FILE) as f,
+            open(Settings.COMBINED_METADATA_FILE, encoding="utf-8") as f,
         ):
             data = json.load(f)
 
@@ -1263,12 +1263,16 @@ class HardcoverEnricher:
             with console.status(
                 f"[bold {COLORS['secondary']}]Reading cache file...[/]", spinner="moon"
             ):
-                with open(Settings.SEARCH_CACHE_FILE) as f:
+                with open(Settings.SEARCH_CACHE_FILE, encoding="utf-8") as f:
                     cache_data = json.load(f)
 
                 # Reconstruct SearchResult objects
                 for book_data in cache_data.get("books", []):
                     key = f"{book_data['title']}:{book_data['asin']}"
+                    # Extract keywords from nested structure (raw or normalized)
+                    kw_data = book_data.get("keywords", {})
+                    kw_raw = kw_data.get("raw", {})
+                    kw_norm = kw_data.get("normalized", {})
                     result = SearchResult(
                         title=book_data["title"],
                         authors=book_data["authors"],
@@ -1278,12 +1282,14 @@ class HardcoverEnricher:
                         hardcover_rating=book_data.get("hardcover_rating"),
                         hardcover_rating_count=book_data.get("hardcover_rating_count"),
                         keywords=BookKeywords(
-                            genres=book_data.get("keywords", {}).get("genres", []),
-                            moods=book_data.get("keywords", {}).get("moods", []),
-                            content_warnings=book_data.get("keywords", {}).get(
-                                "content_warnings", []
-                            ),
-                            tags=book_data.get("keywords", {}).get("tags", []),
+                            raw_genres=kw_raw.get("genres", []),
+                            raw_moods=kw_raw.get("moods", []),
+                            raw_content_warnings=kw_raw.get("content_warnings", []),
+                            raw_tags=kw_raw.get("tags", []),
+                            genres=kw_norm.get("genres", []),
+                            moods=kw_norm.get("moods", []),
+                            content_warnings=kw_norm.get("content_warnings", []),
+                            tags=kw_norm.get("tags", []),
                         ),
                         search_query=book_data.get("search_query", ""),
                         search_match_score=book_data.get("search_match_score", 0.0),
