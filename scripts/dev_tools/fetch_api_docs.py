@@ -247,7 +247,8 @@ def load_metadata() -> dict[str, Any]:
                 return json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to load metadata: {e}")
-    return {"abs": {}, "audnex": {}, "hardcover": {}, "last_updated": None}
+    # Use source keys to match what gets written during fetch
+    return {key: {} for key in SOURCES} | {"last_updated": None}
 
 
 def save_metadata(metadata: dict[str, Any]) -> None:
@@ -558,6 +559,7 @@ async def fetch_single_file(
 async def fetch_github_source(
     client: httpx.AsyncClient,
     source: GitHubSource,
+    source_key: str,
     metadata: dict[str, Any],
     force: bool,
 ) -> list[FetchResult]:
@@ -594,7 +596,7 @@ async def fetch_github_source(
                 url=file_info.download_url,
                 filename=file_info.path,  # Use relative path to preserve structure
                 target_dir=target_dir,
-                metadata_section=metadata.setdefault(source.short_name.lower(), {}),
+                metadata_section=metadata.setdefault(source_key, {}),
                 source_name=source.short_name,
                 force=force,
             )
@@ -696,7 +698,7 @@ async def run_fetch(
     ) as client:
         # Fetch ABS docs
         if source in (SourceChoice.ALL, SourceChoice.ABS):
-            results = await fetch_github_source(client, SOURCES["abs"], metadata, force)
+            results = await fetch_github_source(client, SOURCES["abs"], "abs", metadata, force)
             all_results.extend(results)
 
         # Fetch Audnex docs (special handling - specific files)
@@ -706,7 +708,7 @@ async def run_fetch(
 
         # Fetch Hardcover docs
         if source in (SourceChoice.ALL, SourceChoice.HARDCOVER):
-            results = await fetch_github_source(client, SOURCES["hardcover"], metadata, force)
+            results = await fetch_github_source(client, SOURCES["hardcover"], "hardcover", metadata, force)
             all_results.extend(results)
 
     # Save metadata
