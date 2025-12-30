@@ -858,7 +858,10 @@ class TestAbsCheckDuplicateCommand:
         with (
             patch("mamfast.commands.abs.check.reload_settings", return_value=mock_settings),
             patch("mamfast.commands.abs.check.AbsClient"),
-            patch("mamfast.commands.abs.check.build_asin_index", side_effect=Exception("Connection refused")),
+            patch(
+                "mamfast.commands.abs.check.build_asin_index",
+                side_effect=Exception("Connection refused"),
+            ),
         ):
             result = cmd_abs_check_duplicate(args)
             assert result == 1  # Error = non-zero
