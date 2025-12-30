@@ -98,6 +98,14 @@ def cmd_abs_cleanup(args: argparse.Namespace) -> int:
     # Get seed_root for hardlink verification
     seed_root = settings.paths.seed_root
 
+    # Validate seed_root configuration if required for verification
+    if cleanup_prefs.require_seed_exists and not seed_root:
+        fatal_error(
+            "Seed verification is enabled but paths.seed_root is not configured",
+            "Set paths.seed_root in config.yaml or disable cleanup.require_seed_exists",
+        )
+        return 1
+
     # Get library_root (source of Libation files)
     library_root = settings.paths.library_root
 
