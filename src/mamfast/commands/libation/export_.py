@@ -66,6 +66,7 @@ def cmd_libation_export(args: argparse.Namespace) -> int:
 
     # Copy from container to host
     try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         docker("cp", f"{container}:{container_path}", str(output_path), timeout=30)
         console.print(f"  [green]✓[/] Exported to: {output_path}")
 

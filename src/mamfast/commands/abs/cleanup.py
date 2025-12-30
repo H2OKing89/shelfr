@@ -35,6 +35,7 @@ def cmd_abs_cleanup(args: argparse.Namespace) -> int:
     - Batch cleanup of historical imports
     """
     from rich.panel import Panel
+    from rich.progress import Progress, SpinnerColumn, TextColumn
     from rich.table import Table
 
     from mamfast.abs.cleanup import (
@@ -119,26 +120,34 @@ def cmd_abs_cleanup(args: argparse.Namespace) -> int:
                 return True
             return bool(name.startswith("."))
 
-        def find_eligible_folders(root: Path, depth: int = 0, max_depth: int = 4) -> None:
-            """Recursively find eligible folders."""
-            if depth > max_depth:
-                return
-            try:
-                for folder in root.iterdir():
-                    if not folder.is_dir():
-                        continue
-                    if should_ignore_dir(folder.name):
-                        continue
-                    # Check if this folder is eligible for cleanup
-                    if is_cleanup_eligible(folder):
-                        candidates.append(folder)
-                    else:
-                        # Not eligible, search deeper (Author/Series folders)
-                        find_eligible_folders(folder, depth + 1, max_depth)
-            except PermissionError:
-                logger.warning("Permission denied: %s", root)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Scanning library...", total=None)
 
-        find_eligible_folders(library_root)
+            def find_eligible_folders(root: Path, depth: int = 0, max_depth: int = 4) -> None:
+                """Recursively find eligible folders."""
+                if depth > max_depth:
+                    return
+                try:
+                    for folder in root.iterdir():
+                        if not folder.is_dir():
+                            continue
+                        if should_ignore_dir(folder.name):
+                            continue
+                        progress.update(task, description=f"Scanning {folder}")
+                        # Check if this folder is eligible for cleanup
+                        if is_cleanup_eligible(folder):
+                            candidates.append(folder)
+                        else:
+                            # Not eligible, search deeper (Author/Series folders)
+                            find_eligible_folders(folder, depth + 1, max_depth)
+                except PermissionError:
+                    logger.warning("Permission denied: %s", root)
+
+            find_eligible_folders(library_root)
 
     if not candidates:
         print_info("No eligible folders found for cleanup")

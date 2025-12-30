@@ -6,6 +6,7 @@ This module contains the `cmd_abs_import` command handler.
 from __future__ import annotations
 
 import argparse
+import re as re_cli
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -475,8 +476,6 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                                 # For multi-file audio, extract and preserve track suffix
                                 track_suffix = ""
                                 if is_multi_file and ext in audio_exts:
-                                    import re as re_cli
-
                                     track_match = re_cli.search(r"[\s_-]+(\d{1,3})$", f.stem)
                                     if track_match:
                                         track_num = track_match.group(1)

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 
+from mamfast.abs.client import AbsApiError, AbsAuthError, AbsConnectionError
 from mamfast.commands.abs._common import (
     fatal_error,
     print_error,
@@ -76,12 +77,11 @@ def cmd_abs_check_duplicate(args: argparse.Namespace) -> int:
             else:
                 print_success(f"ASIN {asin} not found in library - safe to import")
                 return 0
-    except (ConnectionError, TimeoutError, OSError) as e:
-        fatal_error(f"Failed to query ABS: {e}")
+    except (AbsApiError, AbsAuthError, AbsConnectionError) as e:
+        fatal_error(f"ABS error: {e}")
         return 1
     except Exception as e:
-        # Catch any other API-related errors
-        fatal_error(f"Failed to query ABS: {e}")
+        fatal_error(f"Unexpected error querying ABS: {e}")
         return 1
 
 

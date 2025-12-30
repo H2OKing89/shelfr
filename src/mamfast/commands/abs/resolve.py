@@ -100,86 +100,84 @@ def cmd_abs_resolve_asins(args: argparse.Namespace) -> int:
     print_info(f"Found {len(folders_to_scan)} folder(s) to resolve")
     print_info(f"Confidence threshold: {confidence:.0%}")
 
-    # Connect to ABS
-    print_step(1, 3, "Connecting to ABS")
-    try:
-        client = AbsClient(
-            host=abs_config.host,
-            api_key=abs_config.api_key,
-            timeout=abs_config.timeout_seconds,
-        )
-    except Exception as e:
-        fatal_error(f"Failed to connect to ABS: {e}")
-        return 1
-
-    # Process folders (using with statement for proper cleanup)
-    print_step(2, 3, "Searching for ASINs")
     resolved_count = 0
     failed_count = 0
 
-    with client:
-        try:
-            user = client.authorize()
-            print_success(f"Connected as {user.username}")
-        except Exception as e:
-            fatal_error(f"Failed to authorize with ABS: {e}")
-            return 1
+    print_step(1, 3, "Connecting to ABS")
+    try:
+        with AbsClient(
+            host=abs_config.host,
+            api_key=abs_config.api_key,
+            timeout=abs_config.timeout_seconds,
+        ) as client:
+            # Process folders (using with statement for proper cleanup)
+            print_step(2, 3, "Searching for ASINs")
+            try:
+                user = client.authorize()
+                print_success(f"Connected as {user.username}")
+            except Exception as e:
+                fatal_error(f"Failed to authorize with ABS: {e}")
+                return 1
 
-        for folder in folders_to_scan:
-            folder_name = folder.name
-            console.print(f"\n[dim]→[/] {folder_name}")
+            for folder in folders_to_scan:
+                folder_name = folder.name
+                console.print(f"\n[dim]→[/] {folder_name}")
 
-            # Parse folder name for title/author
-            # For abs-resolve-asins, we're dealing with non-MAM folders that need ASIN resolution.
-            # Use conservative extraction - only split on " - " pattern which reliably indicates
-            # "Author - Title" format. Don't use MAM parser which may incorrectly extract
-            # parenthetical content like "(Light Novel)" as author.
-            title: str = folder_name  # Default to full folder name
-            author: str | None = None
+                # Parse folder name for title/author
+                # For abs-resolve-asins, we're dealing with non-MAM folders that need
+                # ASIN resolution. Use conservative extraction - only split on " - "
+                # pattern which reliably indicates "Author - Title" format.
+                # Don't use MAM parser which may incorrectly extract parenthetical
+                # content like "(Light Novel)" as author.
+                title: str = folder_name  # Default to full folder name
+                author: str | None = None
 
-            if " - " in folder_name:
-                # Simple "Author - Title" split (e.g., "Quentin Kilgore - Primal Imperative 2")
-                parts = folder_name.split(" - ", 1)
-                author = parts[0].strip()
-                title = parts[1].strip() if len(parts) > 1 else folder_name
+                if " - " in folder_name:
+                    # Simple "Author - Title" split (e.g., "Quentin Kilgore - Primal Imperative 2")
+                    parts = folder_name.split(" - ", 1)
+                    author = parts[0].strip()
+                    title = parts[1].strip() if len(parts) > 1 else folder_name
 
-            if args.dry_run:
-                print_dry_run(f"Would search: title={title!r}, author={author!r}")
-                continue
+                if args.dry_run:
+                    print_dry_run(f"Would search: title={title!r}, author={author!r}")
+                    continue
 
-            # Search via ABS
-            resolution = resolve_asin_via_abs_search(
-                client,
-                title=title,
-                author=author,
-                confidence_threshold=confidence,
-            )
+                # Search via ABS
+                resolution = resolve_asin_via_abs_search(
+                    client,
+                    title=title,
+                    author=author,
+                    confidence_threshold=confidence,
+                )
 
-            if resolution.found:
-                resolved_count += 1
-                print_success(f"Found ASIN: {resolution.asin}")
-                print_info(f"  Source: {resolution.source_detail}")
+                if resolution.found:
+                    resolved_count += 1
+                    print_success(f"Found ASIN: {resolution.asin}")
+                    print_info(f"  Source: {resolution.source_detail}")
 
-                # Write sidecar if requested
-                if args.write_sidecar:
-                    sidecar_path = folder / "_mamfast_resolved_asin.json"
-                    sidecar_data = {
-                        "asin": resolution.asin,
-                        "source": resolution.source,
-                        "source_detail": resolution.source_detail,
-                        "resolved_at": datetime.now(UTC).isoformat(),
-                        "original_folder": folder_name,
-                    }
-                    try:
-                        sidecar_path.write_text(
-                            json_module.dumps(sidecar_data, indent=2, sort_keys=True)
-                        )
-                        print_info(f"  Wrote: {sidecar_path.name}")
-                    except OSError as e:
-                        print_warning(f"  Failed to write sidecar: {e}")
-            else:
-                failed_count += 1
-                print_warning("No confident match found")
+                    # Write sidecar if requested
+                    if args.write_sidecar:
+                        sidecar_path = folder / "_mamfast_resolved_asin.json"
+                        sidecar_data = {
+                            "asin": resolution.asin,
+                            "source": resolution.source,
+                            "source_detail": resolution.source_detail,
+                            "resolved_at": datetime.now(UTC).isoformat(),
+                            "original_folder": folder_name,
+                        }
+                        try:
+                            sidecar_path.write_text(
+                                json_module.dumps(sidecar_data, indent=2, sort_keys=True)
+                            )
+                            print_info(f"  Wrote: {sidecar_path.name}")
+                        except OSError as e:
+                            print_warning(f"  Failed to write sidecar: {e}")
+                else:
+                    failed_count += 1
+                    print_warning("No confident match found")
+    except Exception as e:
+        fatal_error(f"Failed to connect to ABS: {e}")
+        return 1
 
     # Summary
     print_step(3, 3, "Summary")

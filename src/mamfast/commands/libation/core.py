@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import logging
 import re
-from pathlib import Path
 
 from mamfast.console import console
 from mamfast.utils.cmd import CmdError, docker
@@ -139,7 +138,6 @@ def cmd_libation_scan(args: argparse.Namespace) -> int:
 
     # Run scan with progress
     console.print("\n[bold]Scanning Audible library...[/]")
-    overrides = getattr(args, "overrides", None)
     override_args = _build_override_args(overrides)
     if override_args:
         console.print(f"  [dim]Using overrides: {', '.join(overrides or [])}[/]")
@@ -361,17 +359,8 @@ def cmd_libation_liberate(args: argparse.Namespace) -> int:
     if liberate_result.success:
         console.print("  [green]✓[/] Download complete")
 
-        # Check log for completed count
-        completed = 0
-        if liberate_result.log_path:
-            try:
-                log_content = Path(liberate_result.log_path).read_text()
-                completed = log_content.count("Completed:")
-            except Exception:
-                pass
-
-        if completed > 0:
-            console.print(f"  [cyan]→[/] Downloaded {completed} book(s)")
+        if liberate_result.downloaded_count > 0:
+            console.print(f"  [cyan]→[/] Downloaded {liberate_result.downloaded_count} book(s)")
 
         if liberate_result.log_path:
             console.print(f"  [dim]Log saved: {liberate_result.log_path}[/]")

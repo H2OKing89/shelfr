@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+import yaml
 from rich.panel import Panel
 
 from mamfast import __version__
@@ -222,11 +223,16 @@ def setup_logging(verbose: bool, config_path: Path) -> None:
         log_file = settings.paths.log_file
     except FileNotFoundError:
         pass  # Config may not exist yet, use defaults
-    except Exception as e:
-        # Log config errors but don't block startup
+    except PermissionError as e:
         import logging
 
-        logging.getLogger(__name__).debug("Could not load config for logging setup: %s", e)
+        logging.getLogger(__name__).warning("Config file not accessible: %s", e)
+        raise
+    except yaml.YAMLError as e:
+        import logging
+
+        logging.getLogger(__name__).error("Invalid config.yaml: %s", e)
+        raise
 
     _setup_logging(
         log_level=log_level,
