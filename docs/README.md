@@ -1,6 +1,6 @@
-# MAMFast Documentation
+# shelfr Documentation
 
-Complete technical documentation, implementation plans, and reference materials for the MAMFast project.
+Complete technical documentation, implementation plans, and reference materials for the shelfr project.
 
 ## 🚀 Quick Navigation
 
@@ -129,4 +129,4 @@ python3 scripts/check_md_links.py
 ---
 
 **Last Updated**: December 30, 2025
-**Maintained By**: MAMFast Team
+**Maintained By**: shelfr Team
