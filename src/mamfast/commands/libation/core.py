@@ -315,16 +315,24 @@ def cmd_libation_liberate(args: argparse.Namespace) -> int:
     except Exception as e:
         console.print(f"  [yellow]![/] Could not check status: {e}")
         console.print("  [dim]Proceeding with liberate anyway...[/]")
-        pending = 0  # Unknown
+        pending = None  # Unknown
 
     # Confirmation prompt (unless --yes or dry-run)
-    if not skip_confirm and not asin and pending > 0:
+    if not skip_confirm and not asin:
         from rich.prompt import Confirm
 
         console.print()
-        if not Confirm.ask(f"[yellow]Download {pending} pending book(s)?[/] This may take a while"):
-            console.print("[dim]Cancelled.[/]")
-            return 0
+        if pending is not None and pending > 0:
+            # Known count - show specific prompt
+            if not Confirm.ask(f"[yellow]Download {pending} pending book(s)?[/] This may take a while"):
+                console.print("[dim]Cancelled.[/]")
+                return 0
+        elif pending is None:
+            # Unknown count - show generic prompt
+            if not Confirm.ask("[yellow]Download pending books?[/] (count unknown — may take a while)"):
+                console.print("[dim]Cancelled.[/]")
+                return 0
+        # If pending == 0, no confirmation needed (already handled earlier)
 
     # Run liberate with progress
     download_type = "PDFs" if pdf_only else ("book" if asin else "audiobooks")
