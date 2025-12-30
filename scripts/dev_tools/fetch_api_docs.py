@@ -119,7 +119,7 @@ SOURCES: dict[str, GitHubSource] = {
 
 # Audnex has specific files (not a directory to scan)
 AUDNEX_SPECIFIC_FILES = [
-    ("README.md", "main/README.md"),
+    ("AUDNEX_README.md", "main/README.md"),
     ("AUDNEXUS_SPEC.yaml", "refs/heads/main/docs/spec/audnexus.yaml"),
 ]
 
@@ -347,18 +347,28 @@ async def list_github_directory(
 
 def print_banner() -> None:
     """Print the application banner."""
-    banner = Text()
-    banner.append("╭───────────────────────────────────────────────────╮\n", style="cyan")
-    banner.append("│", style="cyan")
-    banner.append("       📚 ", style="")
-    banner.append("API Docs Fetcher", style="bold magenta")
-    banner.append("       📚          ", style="")
-    banner.append("│\n", style="cyan")
-    banner.append("│", style="cyan")
-    banner.append("  Audiobookshelf • Audnex • Hardcover  ", style="dim")
-    banner.append("          │\n", style="cyan")
-    banner.append("╰───────────────────────────────────────────────────╯", style="cyan")
-    console.print(banner)
+    title = Text()
+    title.append("📚 ", style="")
+    title.append("API Docs Fetcher", style="bold magenta")
+    title.append(" 📚", style="")
+
+    subtitle = Text("Audiobookshelf • Audnex • Hardcover", style="dim")
+
+    banner_content = Text()
+    banner_content.append("\n")
+    banner_content.append(title)
+    banner_content.append("\n")
+    banner_content.append(subtitle)
+    banner_content.append("\n")
+
+    console.print(
+        Panel(
+            banner_content,
+            border_style="cyan",
+            box=box.ROUNDED,
+            padding=(0, 2),
+        )
+    )
     console.print()
 
 
