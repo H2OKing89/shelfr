@@ -450,6 +450,7 @@ def main():
 | Docs (`CLI_AUDIT_REPORT.md`) | Documents argparse preservation | Update when removing |
 
 **No external dependencies found**:
+
 - No shell scripts or cron jobs reference `cli_argparse`
 - No CI tooling uses argparse entry point
 - All command handlers are shared (Typer and argparse call same handlers)
@@ -465,24 +466,41 @@ def main():
 
 ---
 
-### Phase 4: Command Handler Refactoring (Priority: MEDIUM)
+### Phase 4: Command Handler Refactoring (Priority: MEDIUM) ✅ COMPLETE (abs)
 
 **Goal**: Break up large handler files.
 
-**For `commands/abs.py` (2,131 lines)**:
+**Status**: `commands/abs.py` refactored to package structure. `commands/libation.py` planned for future.
+
+**`commands/abs/` (COMPLETE)**:
+
+Split 2,131-line `commands/abs.py` into focused modules:
 
 ```tree
 commands/abs/
-├── __init__.py        # Re-exports
-├── import_.py         # cmd_abs_import + helpers
-├── cleanup.py         # cmd_abs_cleanup + helpers
-├── trump.py           # cmd_abs_trump_check + helpers
-├── orphans.py         # cmd_abs_orphans
-├── rename.py          # cmd_abs_rename
-└── resolve.py         # cmd_abs_resolve_asins
+├── __init__.py        # Re-exports all handlers
+├── _common.py         # Shared utilities (should_ignore, console helpers)
+├── init.py            # cmd_abs_init (140 lines)
+├── import_.py         # cmd_abs_import (825 lines)
+├── check.py           # cmd_abs_check_duplicate (64 lines)
+├── trump.py           # cmd_abs_trump_check (244 lines)
+├── restore.py         # cmd_abs_restore (118 lines)
+├── cleanup.py         # cmd_abs_cleanup (220 lines)
+├── rename.py          # cmd_abs_rename (106 lines)
+├── orphans.py         # cmd_abs_orphans (179 lines)
+└── resolve.py         # cmd_abs_resolve_asins (166 lines)
 ```
 
-**For `commands/libation.py` (1,970 lines)**:
+**Changes Made**:
+
+- Created `commands/abs/` package with 10 modules
+- `_common.py`: Shared `should_ignore()` helper + console imports
+- Each handler module: Single command + local imports
+- Package `__init__.py`: Re-exports all handlers for backward compatibility
+- Deleted old monolithic `commands/abs.py`
+- All 2,132 tests pass
+
+**For `commands/libation.py` (1,970 lines)** (PLANNED):
 
 ```tree
 commands/libation/
