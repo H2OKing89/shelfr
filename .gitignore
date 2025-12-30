@@ -56,6 +56,7 @@ data/
 logs/
 config/config.yaml
 config/.env
+config/templates/
 
 # Backup files
 *.bak
