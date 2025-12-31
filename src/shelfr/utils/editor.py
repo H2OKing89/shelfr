@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +47,7 @@ class NoEditorError(EditorError):
     """Raised when no editor is available."""
 
     def __init__(self, message: str | None = None) -> None:
-        super().__init__(
-            message or "No editor found. Set $EDITOR or $VISUAL environment variable."
-        )
+        super().__init__(message or "No editor found. Set $EDITOR or $VISUAL environment variable.")
 
 
 def get_editor(override: str | None = None) -> str | None:
