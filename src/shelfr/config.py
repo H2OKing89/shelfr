@@ -23,7 +23,7 @@ Settings are loaded from three sources:
 3. **.env file** (for secrets and environment-specific values):
    - QB_HOST, QB_USERNAME, QB_PASSWORD (qBittorrent credentials)
    - LIBATION_CONTAINER, DOCKER_BIN, TARGET_UID, TARGET_GID
-   - MAMFAST_ENV, LOG_LEVEL
+   - SHELFR_ENV, LOG_LEVEL
    - AUDIOBOOKSHELF_HOST, AUDIOBOOKSHELF_API_KEY
 
    Environment variables are loaded using pydantic-settings for type-safe
@@ -135,7 +135,7 @@ class QBittorrentConfig:
     username: str = ""  # From .env: QB_USERNAME
     password: str = ""  # From .env: QB_PASSWORD
     category: str = "mam-audiobooks"
-    tags: list[str] = field(default_factory=lambda: ["mamfast"])
+    tags: list[str] = field(default_factory=lambda: ["shelfr"])
     auto_start: bool = True
     auto_tmm: bool = False  # Automatic Torrent Management
     save_path: str = ""  # Static save path as seen by qBittorrent (container path)
@@ -289,7 +289,7 @@ class AudiobookshelfLibrary:
 
     id: str  # ABS library ID (e.g., lib_xxxxx)
     name: str = ""  # Human-readable library name
-    mamfast_managed: bool = False  # Whether mamfast imports to this library
+    shelfr_managed: bool = False  # Whether Shelfr imports to this library
 
 
 @dataclass
@@ -317,7 +317,7 @@ class CleanupConfig:
     cleanup_path: str | None = None  # Required if strategy=move
     require_seed_exists: bool = True
     verify_in_abs: bool = False
-    hide_marker: str = ".mamfast_imported"
+    hide_marker: str = ".shelfr_imported"
     min_age_days: int = 0
     ignore_dirs: list[str] = field(default_factory=lambda: ["__import_test", ".git", ".venv"])
     ignore_glob: list[str] = field(default_factory=lambda: ["*/__*", "*/.#*"])
@@ -482,7 +482,7 @@ class Settings:
     docker_bin: str  # .env: DOCKER_BIN
     target_uid: int  # .env: TARGET_UID
     target_gid: int  # .env: TARGET_GID
-    env: str  # .env: MAMFAST_ENV
+    env: str  # .env: SHELFR_ENV
     log_level: str  # .env: LOG_LEVEL
 
     # From config.yaml
@@ -764,7 +764,7 @@ def _parse_cleanup_config(data: dict[str, Any]) -> CleanupConfig:
         cleanup_path=data.get("cleanup_path"),
         require_seed_exists=data.get("require_seed_exists", True),
         verify_in_abs=data.get("verify_in_abs", False),
-        hide_marker=data.get("hide_marker", ".mamfast_imported"),
+        hide_marker=data.get("hide_marker", ".shelfr_imported"),
         min_age_days=data.get("min_age_days", 0),
         ignore_dirs=data.get("ignore_dirs", ["__import_test", ".git", ".venv"]),
         ignore_glob=data.get("ignore_glob", ["*/__*", "*/.#*"]),
@@ -1051,7 +1051,7 @@ def load_settings(
         torrent_output=Path(paths_data.get("torrent_output", "")),
         seed_root=Path(paths_data.get("seed_root", "")),
         state_file=resolve_path(paths_data.get("state_file", str(data_dir() / "processed.json"))),
-        log_file=resolve_path(paths_data.get("log_file", str(log_dir() / "mamfast.log"))),
+        log_file=resolve_path(paths_data.get("log_file", str(log_dir() / "shelfr.log"))),
     )
 
     # Parse MAM config
@@ -1092,7 +1092,7 @@ def load_settings(
         username=env_settings.qb.username,
         password=env_settings.qb.password,
         category=qb_data.get("category", "mam-audiobooks"),
-        tags=qb_data.get("tags", ["mamfast"]),
+        tags=qb_data.get("tags", ["shelfr"]),
         auto_start=qb_data.get("auto_start", True),
         auto_tmm=qb_data.get("auto_tmm", False),
         save_path=qb_data.get("save_path", ""),
@@ -1230,7 +1230,7 @@ def load_settings(
                 AudiobookshelfLibrary(
                     id=lib["id"],
                     name=lib.get("name", ""),
-                    mamfast_managed=lib.get("mamfast_managed", False),
+                    shelfr_managed=lib.get("shelfr_managed", False),
                 )
             )
 

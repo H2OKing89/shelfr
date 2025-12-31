@@ -48,7 +48,7 @@ class PathsSchema(BaseModel):
     torrent_output: str = Field(..., description="Where .torrent files are written")
     seed_root: str = Field(..., description="qBittorrent seed directory")
     state_file: str = "./data/processed.json"
-    log_file: str = "./logs/mamfast.log"
+    log_file: str = "./logs/shelfr.log"
 
     @field_validator("library_root", "torrent_output", "seed_root")
     @classmethod
@@ -108,7 +108,7 @@ class QBittorrentSchema(BaseModel):
     """qBittorrent settings (credentials come from .env)."""
 
     category: str = "mam-audiobooks"
-    tags: list[str] = Field(default_factory=lambda: ["mamfast"])
+    tags: list[str] = Field(default_factory=lambda: ["shelfr"])
     auto_start: bool = True
     auto_tmm: bool = False
     save_path: str = ""
@@ -197,8 +197,8 @@ class AudiobookshelfLibrarySchema(BaseModel):
 
     id: str = Field(..., description="ABS library ID (e.g., lib_xxxxx)")
     name: str = Field(default="", description="Human-readable library name")
-    mamfast_managed: bool = Field(
-        default=False, description="Whether mamfast imports to this library"
+    shelfr_managed: bool = Field(
+        default=False, description="Whether Shelfr imports to this library"
     )
 
     @field_validator("id")
@@ -334,7 +334,7 @@ class CleanupSchema(BaseModel):
     )
 
     hide_marker: str = Field(
-        default=".mamfast_imported",
+        default=".shelfr_imported",
         description="Marker filename for hide strategy",
     )
 

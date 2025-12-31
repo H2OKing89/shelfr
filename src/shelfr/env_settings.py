@@ -26,13 +26,13 @@ Environment Variables:
         AUDIOBOOKSHELF_API_KEY - ABS API token
 
     Application:
-        MAMFAST_ENV - Environment name (default: "production")
+        SHELFR_ENV - Environment name (default: "production")
         LOG_LEVEL - Logging level (default: "INFO")
 
     Path Overrides (from platformdirs):
-        MAMFAST_DATA_DIR - Override data directory
-        MAMFAST_CACHE_DIR - Override cache directory
-        MAMFAST_LOG_DIR - Override log directory
+        SHELFR_DATA_DIR - Override data directory
+        SHELFR_CACHE_DIR - Override cache directory
+        SHELFR_LOG_DIR - Override log directory
 """
 
 from __future__ import annotations
@@ -169,7 +169,7 @@ class DockerEnvSettings(BaseSettings):
 class AppEnvSettings(BaseSettings):
     """Application-level settings from environment variables.
 
-    Reads from MAMFAST_ENV, LOG_LEVEL env vars.
+    Reads from SHELFR_ENV, LOG_LEVEL env vars.
     """
 
     model_config = SettingsConfigDict(
@@ -178,7 +178,7 @@ class AppEnvSettings(BaseSettings):
 
     env: str = Field(
         default="production",
-        validation_alias="MAMFAST_ENV",
+        validation_alias="SHELFR_ENV",
         description="Environment name (development/production)",
     )
     log_level: str = Field(
