@@ -99,6 +99,7 @@ def main() -> int:
         set_version(new_version)
         print(f"\n   {old_version} → {new_version}")
         print("\n📦 To release, run:")
+        print("   pip install -e .  # Update installed package metadata")
         print("   git add src/shelfr/__init__.py pyproject.toml")
         print(f"   git commit -m 'chore: bump version to {new_version}'")
         print(f"   git tag v{new_version}")
