@@ -1,4 +1,4 @@
-"""Utility modules for MAMFast."""
+"""Utility modules for shelfr."""
 
 from shelfr.utils.editor import (
     EditorError,

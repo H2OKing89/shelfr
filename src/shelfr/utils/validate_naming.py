@@ -4,8 +4,8 @@ This script analyzes the output of naming functions to flag suspicious results.
 It can be run against the full library export or individual test cases.
 
 Usage:
-    python -m mamfast.utils.validate_naming --library samples/library_full.json
-    python -m mamfast.utils.validate_naming --input "Test Title (Light Novel)"
+    python -m shelfr.utils.validate_naming --library samples/library_full.json
+    python -m shelfr.utils.validate_naming --input "Test Title (Light Novel)"
 """
 
 from __future__ import annotations
