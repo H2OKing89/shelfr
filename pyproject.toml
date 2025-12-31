@@ -94,6 +94,24 @@ module = "tests.*"
 # Tests can still be annotated incrementally where useful, but we don't require
 # strict mypy checks across tests in local dev.
 ignore_errors = true
+
+[tool.coverage.run]
+source = ["src/shelfr"]
+omit = [
+    # Optional dependency modules - can't be tested without textual/prompt_toolkit
+    "src/shelfr/tui/*",
+    "src/shelfr/utils/mini_editor.py",
+]
+
+[tool.coverage.report]
+fail_under = 65
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q"
