@@ -1,7 +1,7 @@
 """Path mapping utilities for Audiobookshelf Docker containers.
 
 Handles translation between container paths (what ABS sees) and host paths
-(what MAMFast sees on the filesystem).
+(what Shelfr sees on the filesystem).
 """
 
 from __future__ import annotations

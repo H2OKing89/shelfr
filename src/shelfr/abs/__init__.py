@@ -1,4 +1,4 @@
-"""Audiobookshelf integration for MAMFast."""
+"""Audiobookshelf integration for shelfr."""
 
 from __future__ import annotations
 

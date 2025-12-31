@@ -1,7 +1,7 @@
 """ASIN extraction and in-memory index for duplicate detection.
 
 Handles multiple naming conventions from different eras of the library:
-- Current MAMFast: {ASIN.B0xxx}
+- Current Shelfr: {ASIN.B0xxx}
 - Older bracket: [ASIN.B0xxx]
 - Bare bracket: [B0xxxxxxxx]
 - Bare ASIN: B0xxxxxxxx (word boundary)
@@ -55,7 +55,7 @@ AUDIO_EXTENSIONS = (".m4b", ".mp3", ".m4a", ".opus", ".flac")
 
 # Pattern cascade for ASIN extraction (most specific → least specific)
 ASIN_PATTERNS = [
-    # NEW: {ASIN.B0xxx} - current MAMFast format
+    # NEW: {ASIN.B0xxx} - current Shelfr format
     re.compile(r"\{ASIN\.([A-Z0-9]{10})\}"),
     # OLD: [ASIN.B0xxx] - older bracket format
     re.compile(r"\[ASIN\.([A-Z0-9]{10})\]"),
@@ -336,16 +336,16 @@ def resolve_asin_from_folder(
                     source_detail="metadata.json",
                 )
 
-        # 5. Check for _mamfast_resolved_asin.json (from abs-resolve-asins Phase 5)
-        resolved_sidecar = folder / "_mamfast_resolved_asin.json"
+        # 5. Check for _shelfr_resolved_asin.json (from abs-resolve-asins Phase 5)
+        resolved_sidecar = folder / "_shelfr_resolved_asin.json"
         if resolved_sidecar.exists():
             asin = _extract_asin_from_metadata_file(resolved_sidecar)
             if asin:
-                logger.debug("Resolved ASIN %s from _mamfast_resolved_asin.json", asin)
+                logger.debug("Resolved ASIN %s from _shelfr_resolved_asin.json", asin)
                 return AsinResolution(
                     asin=asin,
                     source="resolved_sidecar",
-                    source_detail="_mamfast_resolved_asin.json",
+                    source_detail="_shelfr_resolved_asin.json",
                 )
 
     # No ASIN found anywhere

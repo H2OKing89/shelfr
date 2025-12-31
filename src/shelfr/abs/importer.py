@@ -534,7 +534,7 @@ def build_clean_folder_name(parsed: ParsedFolderName) -> str:
     - Sanitization
 
     Note: No path length limit is applied for ABS imports (personal library).
-    The MAM 225-char limit only applies to `mamfast run` uploads.
+    The MAM 225-char limit only applies to `Shelfr run` uploads.
 
     Args:
         parsed: ParsedFolderName from parse_mam_folder_name()
@@ -564,7 +564,7 @@ def build_clean_file_name(parsed: ParsedFolderName, extension: str = ".m4b") -> 
     - Includes file extension
 
     Note: No path length limit is applied for ABS imports (personal library).
-    The MAM 225-char limit only applies to `mamfast run` uploads.
+    The MAM 225-char limit only applies to `Shelfr run` uploads.
 
     Args:
         parsed: ParsedFolderName from parse_mam_folder_name()
@@ -923,7 +923,7 @@ def write_unknown_asin_sidecar(
 ) -> Path | None:
     """Write metadata sidecar for unknown-ASIN import.
 
-    Creates _mamfast_unknown_asin.json with import metadata for future
+    Creates _shelfr_unknown_asin.json with import metadata for future
     batch resolution tools.
 
     Args:
@@ -934,7 +934,7 @@ def write_unknown_asin_sidecar(
     Returns:
         Path to sidecar file, or None if write failed
     """
-    sidecar_path = dst_folder / "_mamfast_unknown_asin.json"
+    sidecar_path = dst_folder / "_shelfr_unknown_asin.json"
 
     payload = {
         "content_type": ctx.content_type.value,

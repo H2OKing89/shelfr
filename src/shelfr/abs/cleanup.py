@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 CLEANUP_ELIGIBLE_STATUSES = frozenset({"success"})
 
 # Default marker file name for hide strategy
-DEFAULT_HIDE_MARKER = ".mamfast_imported"
+DEFAULT_HIDE_MARKER = ".shelfr_imported"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -121,10 +121,10 @@ def is_cleanup_eligible(folder: Path, *, require_metadata: bool = True) -> bool:
     A folder is eligible if it:
     1. Contains at least one .m4b file
     2. AND has either:
-       - A .metadata.json file (Libation+mamfast style)
+       - A .metadata.json file (Libation+Shelfr style)
        - OR {ASIN.XXXXXXXXXX} pattern in folder name
 
-    This ensures we only clean up folders that have been processed by mamfast,
+    This ensures we only clean up folders that have been processed by Shelfr,
     not raw Libation folders or other content.
 
     Args:

@@ -720,7 +720,7 @@ def archive_existing(
     shutil.move(str(existing_path), str(archive_dest))
 
     # Write trump sidecar inside the archived folder
-    sidecar = archive_dest / ".mamfast_trump.json"
+    sidecar = archive_dest / ".shelfr_trump.json"
     sidecar_data = {
         "schema_version": "1.0",
         "archived_at": datetime.now(UTC).isoformat(),
@@ -766,7 +766,7 @@ class ArchiveInfo:
 def discover_archives(archive_root: Path, *, asin: str | None = None) -> list[ArchiveInfo]:
     """Discover archived books in the archive root.
 
-    Scans for folders containing .mamfast_trump.json sidecar files.
+    Scans for folders containing .shelfr_trump.json sidecar files.
 
     Args:
         archive_root: Root directory of the archive
@@ -782,7 +782,7 @@ def discover_archives(archive_root: Path, *, asin: str | None = None) -> list[Ar
         return archives
 
     # Scan recursively for trump sidecar files
-    for sidecar_path in archive_root.rglob(".mamfast_trump.json"):
+    for sidecar_path in archive_root.rglob(".shelfr_trump.json"):
         archive_folder = sidecar_path.parent
 
         try:
@@ -833,7 +833,7 @@ def restore_from_archive(
     Users should manually handle any conflicts or run a rescan.
 
     Args:
-        archive_path: Path to the archived book folder (contains .mamfast_trump.json)
+        archive_path: Path to the archived book folder (contains .shelfr_trump.json)
         library_root: Root of the ABS library to restore to
         dry_run: If True, log but don't actually move
 
@@ -843,7 +843,7 @@ def restore_from_archive(
     Raises:
         TrumpingError: If archive is invalid or restoration fails
     """
-    sidecar_path = archive_path / ".mamfast_trump.json"
+    sidecar_path = archive_path / ".shelfr_trump.json"
 
     if not sidecar_path.exists():
         raise TrumpingError(f"Invalid archive - missing sidecar: {archive_path}")
@@ -893,7 +893,7 @@ def restore_from_archive(
     shutil.move(str(archive_path), str(restore_dest))
 
     # Remove the sidecar from restored location
-    restored_sidecar = restore_dest / ".mamfast_trump.json"
+    restored_sidecar = restore_dest / ".shelfr_trump.json"
     if restored_sidecar.exists():
         restored_sidecar.unlink()
 
