@@ -5,6 +5,7 @@ Automatically pulls the latest API docs from:
   - Audiobookshelf: GitHub API docs repository
   - Audnex: Audnex API specification
   - Hardcover: Hardcover GraphQL API docs
+  - mkbrr: mkbrr CLI reference and guides
 
 Uses GitHub API for dynamic file discovery (no hardcoded file lists).
 Uses ETags and content hashing to check for updates before downloading.
@@ -120,12 +121,31 @@ SOURCES: dict[str, GitHubSource] = {
         style="yellow",
         recursive=True,  # Has nested GraphQL/Schemas, guides/
     ),
+    "mkbrr": GitHubSource(
+        name="mkbrr",
+        short_name="mkbrr",
+        owner="s0up4200",
+        repo="mkbrr.com",
+        branch="main",
+        source_path="",  # Special handling - multiple directories
+        target_subdir="mkbrr",
+        icon="🔧",
+        style="green",
+        recursive=True,
+    ),
 }
 
 # Audnex has specific files (not a directory to scan)
 AUDNEX_SPECIFIC_FILES = [
     ("AUDNEX_README.md", "main/README.md"),
     ("AUDNEXUS_SPEC.yaml", "refs/heads/main/docs/spec/audnexus.yaml"),
+]
+
+# mkbrr has multiple directories to fetch
+MKBRR_DIRECTORIES = [
+    "cli-reference",
+    "features",
+    "guides",
 ]
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -359,7 +379,7 @@ def print_banner() -> None:
     title.append("API Docs Fetcher", style="bold magenta")
     title.append(" 📚", style="")
 
-    subtitle = Text("Audiobookshelf • Audnex • Hardcover", style="dim")
+    subtitle = Text("Audiobookshelf • Audnex • Hardcover • mkbrr", style="dim")
 
     banner_content = Text()
     banner_content.append("\n")
@@ -652,13 +672,86 @@ async def fetch_audnex_docs(
     return results
 
 
+async def fetch_mkbrr_docs(
+    client: httpx.AsyncClient,
+    metadata: dict[str, Any],
+    force: bool,
+) -> list[FetchResult]:
+    """Fetch mkbrr documentation (multiple directories)."""
+    source = SOURCES["mkbrr"]
+    print_section_header(f"{source.name} Docs", source.icon, source.style)
+
+    target_dir = DOCS_DIR / "reference" / source.target_subdir
+    results: list[FetchResult] = []
+
+    # Discover files from each directory
+    console.print(f"[dim]Discovering files in {source.owner}/{source.repo}...[/dim]")
+    all_files: list[tuple[str, FileInfo]] = []  # (directory, file_info)
+
+    for directory in MKBRR_DIRECTORIES:
+        # Create a temporary source with the specific directory
+        dir_source = GitHubSource(
+            name=source.name,
+            short_name=source.short_name,
+            owner=source.owner,
+            repo=source.repo,
+            branch=source.branch,
+            source_path=directory,
+            target_subdir=source.target_subdir,
+            icon=source.icon,
+            style=source.style,
+            recursive=True,
+            file_extensions=source.file_extensions,
+        )
+        files = await list_github_directory(client, dir_source)
+        # Tag each file with its parent directory to preserve structure
+        all_files.extend((directory, f) for f in files)
+
+    if not all_files:
+        console.print(f"[yellow]No files found in {MKBRR_DIRECTORIES}[/yellow]")
+        return results
+
+    console.print(f"[dim]Found {len(all_files)} files[/dim]")
+
+    with Progress(
+        SpinnerColumn("dots", style=source.style),
+        TextColumn(f"[{source.style}]{{task.description}}[/{source.style}]"),
+        BarColumn(bar_width=30, style=source.style, complete_style="green"),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        console=console,
+        transient=False,
+    ) as progress:
+        task = progress.add_task("Fetching...", total=len(all_files))
+
+        for directory, file_info in all_files:
+            # Preserve directory structure: cli-reference/create.mdx, guides/creating-torrents.mdx
+            filename = f"{directory}/{file_info.path}"
+            result = await fetch_single_file(
+                client=client,
+                url=file_info.download_url,
+                filename=filename,
+                target_dir=target_dir,
+                metadata_section=metadata.setdefault("mkbrr", {}),
+                source_name=source.short_name,
+                force=force,
+            )
+            results.append(result)
+            progress.advance(task)
+
+    console.print()
+    console.print(create_results_table(results, f"{source.name} Files"))
+
+    return results
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # CLI Application
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 app = typer.Typer(
     name="fetch-api-docs",
-    help="Fetch and sync API documentation from Audiobookshelf, Audnex, and Hardcover.",
+    help="Fetch and sync API documentation from Audiobookshelf, Audnex, Hardcover, and mkbrr.",
     add_completion=False,
     rich_markup_mode="rich",
     no_args_is_help=False,
@@ -674,6 +767,7 @@ class SourceChoice(str, Enum):
     ABS = "abs"
     AUDNEX = "audnex"
     HARDCOVER = "hardcover"
+    MKBRR = "mkbrr"
 
 
 async def run_fetch(
@@ -711,6 +805,11 @@ async def run_fetch(
             results = await fetch_github_source(
                 client, SOURCES["hardcover"], "hardcover", metadata, force
             )
+            all_results.extend(results)
+
+        # Fetch mkbrr docs (special handling - multiple directories)
+        if source in (SourceChoice.ALL, SourceChoice.MKBRR):
+            results = await fetch_mkbrr_docs(client, metadata, force)
             all_results.extend(results)
 
     # Save metadata
@@ -765,12 +864,14 @@ def main(
       • [cyan]abs[/cyan]       - Audiobookshelf API docs
       • [magenta]audnex[/magenta]    - Audnex API specification
       • [yellow]hardcover[/yellow] - Hardcover GraphQL API docs
+      • [green]mkbrr[/green]     - mkbrr CLI reference and guides
 
     [dim]Examples:[/dim]
       [green]$[/green] python fetch_api_docs.py              [dim]# Fetch all sources[/dim]
       [green]$[/green] python fetch_api_docs.py --force      [dim]# Force re-fetch everything[/dim]
       [green]$[/green] python fetch_api_docs.py -s abs       [dim]# Only ABS docs[/dim]
       [green]$[/green] python fetch_api_docs.py -s hardcover [dim]# Only Hardcover docs[/dim]
+      [green]$[/green] python fetch_api_docs.py -s mkbrr     [dim]# Only mkbrr docs[/dim]
       [green]$[/green] python fetch_api_docs.py -v           [dim]# Verbose mode[/dim]
     """
     if ctx.invoked_subcommand is not None:
