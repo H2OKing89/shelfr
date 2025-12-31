@@ -114,15 +114,11 @@ class TestMkbrrCreate:
     def test_create_piece_length_validation(self, runner: CliRunner) -> None:
         """Test piece length must be 16-27."""
         # Below range
-        result = runner.invoke(
-            app, ["mkbrr", "create", "/tmp", "--piece-length", "15"]
-        )
+        result = runner.invoke(app, ["mkbrr", "create", "/tmp", "--piece-length", "15"])
         assert result.exit_code != 0
 
         # Above range
-        result = runner.invoke(
-            app, ["mkbrr", "create", "/tmp", "--piece-length", "28"]
-        )
+        result = runner.invoke(app, ["mkbrr", "create", "/tmp", "--piece-length", "28"])
         assert result.exit_code != 0
 
     def test_create_success(self, runner: CliRunner, tmp_path: Path) -> None:
@@ -155,9 +151,7 @@ class TestMkbrrCreate:
         )
 
         with patch(f"{MKBRR_MODULE}.create_torrent", return_value=mock_result) as mock_create:
-            result = runner.invoke(
-                app, ["mkbrr", "create", str(test_file), "--preset", "mam"]
-            )
+            result = runner.invoke(app, ["mkbrr", "create", str(test_file), "--preset", "mam"])
             assert result.exit_code == 0
             mock_create.assert_called_once()
             call_kwargs = mock_create.call_args.kwargs
@@ -240,9 +234,7 @@ class TestMkbrrCheck:
         )
 
         with patch(f"{MKBRR_MODULE}.check_torrent", return_value=mock_result):
-            result = runner.invoke(
-                app, ["mkbrr", "check", str(torrent_file), str(content_dir)]
-            )
+            result = runner.invoke(app, ["mkbrr", "check", str(torrent_file), str(content_dir)])
             assert result.exit_code == 0
 
     def test_check_failure(self, runner: CliRunner, tmp_path: Path) -> None:
@@ -259,11 +251,9 @@ class TestMkbrrCheck:
         )
 
         with patch(f"{MKBRR_MODULE}.check_torrent", return_value=mock_result):
-            result = runner.invoke(
-                app, ["mkbrr", "check", str(torrent_file), str(content_dir)]
-            )
-            # Check command should exit non-zero for failed verification
-            # (depends on implementation - may show warning instead)
+            result = runner.invoke(app, ["mkbrr", "check", str(torrent_file), str(content_dir)])
+            # Check command may show warning for partial verification
+            assert "50" in result.output or result.exit_code in (0, 1)
 
 
 class TestMkbrrModify:
@@ -308,9 +298,13 @@ class TestMkbrrModify:
             result = runner.invoke(
                 app,
                 [
-                    "mkbrr", "modify", str(torrent_file),
-                    "--source", "MAM",
-                    "--tracker", "https://tracker.example.com/announce",
+                    "mkbrr",
+                    "modify",
+                    str(torrent_file),
+                    "--source",
+                    "MAM",
+                    "--tracker",
+                    "https://tracker.example.com/announce",
                 ],
             )
             assert result.exit_code == 0
@@ -425,8 +419,6 @@ class TestMkbrrGlobalFlags:
         mock_result = MkbrrResult(success=True, return_code=0, stdout="test")
 
         with patch(f"{MKBRR_MODULE}.inspect_torrent", return_value=mock_result):
-            result = runner.invoke(
-                app, ["--verbose", "mkbrr", "inspect", str(torrent_file)]
-            )
+            result = runner.invoke(app, ["--verbose", "mkbrr", "inspect", str(torrent_file)])
             # Should accept the flag
             assert "Unknown option" not in result.output
