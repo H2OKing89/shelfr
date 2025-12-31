@@ -81,15 +81,19 @@ naming:
 # ─────────────────────────────────────────────────────────────────────────────
 mkbrr:
   image: "ghcr.io/autobrr/mkbrr:latest"
-  preset: "mam"                       # mkbrr preset name (contains announce URL)
+  preset: "mam"                       # mkbrr preset name (from presets.yaml)
 
   # Path mapping: how host paths appear inside the mkbrr container
   host_data_root: "/mnt/user/data"
   container_data_root: "/data"
 
   # mkbrr config directory mapping (where presets.yaml lives)
+  # Edit presets.yaml directly for tracker URLs, filtering patterns, etc.
   host_config_dir: "/path/to/mkbrr/config"
   container_config_dir: "/root/.config/mkbrr"
+
+  # Docker command timeout (60-3600 seconds)
+  timeout_seconds: 300
 
 # ─────────────────────────────────────────────────────────────────────────────
 # qBittorrent Settings

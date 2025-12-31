@@ -100,6 +100,9 @@ class MkbrrSchema(BaseModel):
     host_config_dir: str = "/mnt/cache/appdata/mkbrr"
     container_config_dir: str = "/root/.config/mkbrr"
 
+    # Docker command timeout (filtering/presets handled by mkbrr's presets.yaml)
+    timeout_seconds: int = Field(default=300, ge=60, le=3600)
+
 
 class QBittorrentSchema(BaseModel):
     """qBittorrent settings (credentials come from .env)."""

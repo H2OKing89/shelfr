@@ -27,9 +27,7 @@ class TUINotAvailableError(ImportError):
     """Raised when TUI dependencies are not installed."""
 
     def __init__(self) -> None:
-        super().__init__(
-            "Textual TUI not available. Install with: pip install shelfr[tui]"
-        )
+        super().__init__("Textual TUI not available. Install with: pip install shelfr[tui]")
 
 
 __all__ = [

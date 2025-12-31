@@ -23,6 +23,7 @@ from shelfr.commands.abs._common import (
     print_warning,
     should_ignore,
 )
+from shelfr.ui.icons import get_icons
 
 if TYPE_CHECKING:
     from rich.progress import TaskID
@@ -532,16 +533,21 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
 
             elif r.status == "trump_replaced":
                 # Trumping: replaced existing with new (better quality)
-                console.print(f"  [green]🔄 TRUMPED:[/green] {r.error or 'Better quality'}")
+                icons = get_icons()
+                msg = r.error or "Better quality"
+                console.print(f"  [green]{icons.update} TRUMPED:[/green] {msg}")
                 if r.target_path:
                     console.print(f"  [dim][DST][/dim] {r.target_path}")
             elif r.status == "trump_kept_existing":
                 # Trumping: kept existing (no improvement)
+                icons = get_icons()
                 reason = r.error or "No quality improvement"
-                console.print(f"  [dim]⏭️  KEPT EXISTING:[/dim] {reason}")
+                console.print(f"  [dim]{icons.arrow}  KEPT EXISTING:[/dim] {reason}")
             elif r.status == "trump_rejected":
                 # Trumping: rejected incoming (worse quality)
-                console.print(f"  [yellow]❌ REJECTED:[/yellow] {r.error or 'Lower quality'}")
+                icons = get_icons()
+                msg = r.error or "Lower quality"
+                console.print(f"  [yellow]{icons.fail} REJECTED:[/yellow] {msg}")
             elif r.status == "duplicate" and r.error:
                 if "Already exists at " in r.error:
                     existing_path = r.error.replace("Already exists at ", "")
@@ -839,14 +845,16 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
             f"[yellow]{needs_review_count}[/yellow]{review_breakdown}",
         )
 
+    icons = get_icons()
     if args.dry_run:
         panel_title = "[bold yellow]DRY RUN Summary[/bold yellow]"
         panel_border = "yellow"
-        footer = "\n[yellow]⚠️  DRY RUN: No files were moved or renamed[/yellow]"
+        footer = f"\n[yellow]{icons.warn}  DRY RUN: No files were moved or renamed[/yellow]"
     else:
         panel_title = "[bold green]Import Summary[/bold green]"
         panel_border = "green"
-        footer = f"\n[green]✅ Import completed: {result.success_count} book(s) imported[/green]"
+        imported = result.success_count
+        footer = f"\n[green]{icons.ok} Import completed: {imported} book(s) imported[/green]"
 
     console.print()
     console.print(Panel(summary_table, title=panel_title, border_style=panel_border))

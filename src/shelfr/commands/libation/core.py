@@ -189,7 +189,7 @@ def cmd_libation_scan(args: argparse.Namespace) -> int:
                     "These are from previous scans that weren't liberated yet",
                     "Run 'shelfr libation liberate' to download them",
                 ],
-                title="💡 Understanding 'New: 0'",
+                title="* Understanding 'New: 0'",
             )
 
         if pending > 0:
@@ -435,7 +435,7 @@ def cmd_libation_status(args: argparse.Namespace) -> int:
         console.print()
         print_book_table(
             pending_books,
-            title="📥 Pending Downloads",
+            title="* Pending Downloads",
             show_status=False,
             limit=10,
         )
@@ -447,7 +447,7 @@ def cmd_libation_status(args: argparse.Namespace) -> int:
         console.print()
         print_book_table(
             error_books,
-            title="❌ Failed Downloads",
+            title="✗ Failed Downloads",
             show_status=False,
             limit=5,
         )

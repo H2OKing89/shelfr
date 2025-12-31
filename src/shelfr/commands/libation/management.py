@@ -14,6 +14,7 @@ from rich.prompt import Confirm
 
 from shelfr.console import console
 from shelfr.paths import log_dir
+from shelfr.ui.icons import get_icons
 
 from ._common import (
     export_library as _export_library,
@@ -54,7 +55,7 @@ def cmd_libation_redownload(args: argparse.Namespace) -> int:
     skip_confirm = getattr(args, "yes", False)
 
     print_libation_header(
-        "🔄 Re-download Audiobooks",
+        "↻ Re-download Audiobooks",
         f"Re-downloading {len(asins)} book(s)",
         dry_run=args.dry_run,
         hint="This marks books for re-download and liberates them",
@@ -191,8 +192,9 @@ def cmd_libation_set_status(args: argparse.Namespace) -> int:
     # Determine scope description for confirmation
     scope = f"{len(asins)} book(s)" if asins else "ALL books in library"
 
+    icons = get_icons()
     print_libation_header(
-        "📋 Set Book Status",
+        f"{icons.update} Set Book Status",
         f"Will {' and '.join(action_desc)}",
         dry_run=args.dry_run,
     )

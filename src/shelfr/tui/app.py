@@ -119,7 +119,7 @@ if TEXTUAL_AVAILABLE:
             """Show file information."""
             lines = content.count("\n") + 1
             size = len(content.encode("utf-8"))
-            info = f"📄 {path.name}\n"
+            info = f"[bold]{path.name}[/]\n"
             info += f"   Lines: {lines}\n"
             info += f"   Size: {size:,} bytes\n"
             info += f"   Type: {path.suffix or 'unknown'}"

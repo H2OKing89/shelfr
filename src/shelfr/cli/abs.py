@@ -27,7 +27,7 @@ from shelfr.console import console
 def _deprecation_warning(old_cmd: str, new_cmd: str) -> None:
     """Print deprecation warning for old command name."""
     console.print(
-        f"[yellow]⚡ '{old_cmd}' is deprecated. Use '{new_cmd}' instead.[/yellow]",
+        f"[yellow]'{old_cmd}' is deprecated. Use '{new_cmd}' instead.[/yellow]",
         highlight=False,
     )
 
@@ -37,7 +37,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
 
     @abs_app.callback(invoke_without_command=True)
     def abs_callback(ctx: typer.Context) -> None:
-        """📚 Audiobookshelf library management.
+        """Audiobookshelf library management.
 
         Manage audiobook imports, deduplication, and library maintenance.
 
@@ -57,7 +57,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
 
     @abs_app.command("init")
     def abs_init(ctx: typer.Context) -> None:
-        """🔌 Initialize Audiobookshelf connection.
+        """Initialize Audiobookshelf connection.
 
         Tests ABS API connection and discovers available libraries.
         """
@@ -115,7 +115,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             typer.Option("--no-metadata", help="Disable metadata.json generation."),
         ] = False,
     ) -> None:
-        """📥 Import staged audiobooks to Audiobookshelf.
+        """Import staged audiobooks to Audiobookshelf.
 
         Moves staged books to ABS library structure with duplicate detection.
 
@@ -151,7 +151,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             str, typer.Argument(metavar="ASIN", help="ASIN to check (e.g., B0DK27WWT8).")
         ],
     ) -> None:
-        """🔍 Check if ASIN exists in library.
+        """Check if ASIN exists in library.
 
         Quick lookup to check for duplicates before importing.
 
@@ -176,7 +176,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             typer.Option("--detailed", help="Show detailed quality comparison tables."),
         ] = False,
     ) -> None:
-        """🔀 Preview trumping decisions for staged folders.
+        """Preview trumping decisions for staged folders.
 
         Shows what would be replaced, kept, or rejected based on quality comparison.
         """
@@ -199,7 +199,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             typer.Option("--list", help="List available archives without restoring."),
         ] = False,
     ) -> None:
-        """🔄 Restore archived books to library.
+        """Restore archived books to library.
 
         Restore books that were archived by trumping back to the library.
 
@@ -247,7 +247,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             typer.Option(help="Only cleanup sources older than N days."),
         ] = None,
     ) -> None:
-        """🧹 Cleanup Libation source files after import.
+        """Cleanup Libation source files after import.
 
         Standalone cleanup of Libation source folders that have been imported.
         Supports strategies: hide (add marker), move, or delete.
@@ -302,7 +302,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             typer.Option(help="Output JSON report of changes to file."),
         ] = None,
     ) -> None:
-        """📝 Rename folders to match MAM naming schema.
+        """Rename folders to match MAM naming schema.
 
         Normalizes folder names in your Audiobookshelf library to follow
         the MAM naming convention for consistency.
@@ -352,7 +352,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             typer.Option(help="Output JSON report of orphaned folders."),
         ] = None,
     ) -> None:
-        """🔎 Find and clean up orphaned folders.
+        """Find and clean up orphaned folders.
 
         Finds orphaned folders that have metadata.json but no audio files.
         These are often created by ABS when it creates duplicate library entries.
@@ -388,7 +388,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             typer.Option("--write-sidecar", help="Write resolved ASINs to sidecar JSON files."),
         ] = False,
     ) -> None:
-        """🔍 Resolve ASINs for Unknown/ books via ABS search.
+        """Resolve ASINs for Unknown/ books via ABS search.
 
         Searches Audible via ABS to find ASINs for books in Unknown/.
         """

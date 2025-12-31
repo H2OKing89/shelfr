@@ -28,7 +28,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
 
     @libation_app.callback(invoke_without_command=True)
     def libation_callback(ctx: typer.Context) -> None:
-        """📚 Libation audiobook manager integration.
+        """Libation audiobook manager integration.
 
         Manage your Audible audiobook library through Libation.
 
@@ -57,7 +57,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--liberate", help="Also download new books after scanning."),
         ] = False,
     ) -> None:
-        """🔍 Scan Audible library for new purchases.
+        """Scan Audible library for new purchases.
 
         Checks your Audible account for new audiobook purchases.
 
@@ -87,7 +87,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--yes", "-y", help="Skip confirmation prompts."),
         ] = False,
     ) -> None:
-        """📥 Download and decrypt pending audiobooks.
+        """Download and decrypt pending audiobooks.
 
         Downloads all books with 'NotDownloaded' status from your library.
 
@@ -109,7 +109,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--refresh", help="Force refresh library data."),
         ] = False,
     ) -> None:
-        """📊 Show library status and statistics.
+        """Show library status and statistics.
 
         Displays a summary of your audiobook library status.
         """
@@ -132,7 +132,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--format", "-f", help="Output format."),
         ] = SearchFormat.table,
     ) -> None:
-        """🔎 Search your audiobook library.
+        """Search your audiobook library.
 
         Search for books by title, author, or ASIN.
 
@@ -158,7 +158,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--format", "-f", help="Export format."),
         ] = ExportFormat.json,
     ) -> None:
-        """💾 Export library data to file.
+        """Export library data to file.
 
         Export your library data to JSON or CSV format.
 
@@ -180,7 +180,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--raw", help="Show raw settings output."),
         ] = False,
     ) -> None:
-        """🔧 View Libation configuration settings.
+        """View Libation configuration settings.
 
         Displays current Libation configuration.
         """
@@ -206,7 +206,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--limit", "-n", help="Maximum books to show."),
         ] = 50,
     ) -> None:
-        """📚 List audiobooks in your library.
+        """List audiobooks in your library.
 
         Shows books with optional status filtering.
 
@@ -245,7 +245,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--yes", "-y", help="Skip confirmation prompt."),
         ] = False,
     ) -> None:
-        """🔄 Re-download specific audiobook(s).
+        """Re-download specific audiobook(s).
 
         Forces re-download of a specific audiobook by ASIN.
 
@@ -272,7 +272,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--yes", "-y", help="Skip confirmation prompt."),
         ] = False,
     ) -> None:
-        """📝 Set download status for books.
+        """Set download status for books.
 
         Change the download status of a specific audiobook.
 
@@ -313,7 +313,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--yes", "-y", help="Skip confirmation prompt."),
         ] = False,
     ) -> None:
-        """🔄 Convert M4B audiobooks to MP3.
+        """Convert M4B audiobooks to MP3.
 
         Converts audiobooks from M4B to MP3 format.
 
@@ -337,7 +337,7 @@ def register_libation_commands(libation_app: typer.Typer) -> None:
             typer.Option("--section", "-s", help="Show specific section only."),
         ] = None,
     ) -> None:
-        """📖 Show detailed integration guide.
+        """Show detailed integration guide.
 
         Comprehensive tutorial on using Libation with MAMFast.
 

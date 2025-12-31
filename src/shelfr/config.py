@@ -118,6 +118,9 @@ class MkbrrConfig:
     host_config_dir: str = "/mnt/cache/appdata/mkbrr"
     container_config_dir: str = "/root/.config/mkbrr"
 
+    # Docker command timeout (filtering/presets handled by mkbrr's presets.yaml)
+    timeout_seconds: int = 300
+
 
 @dataclass
 class QBittorrentConfig:
@@ -1079,6 +1082,7 @@ def load_settings(
         container_output_dir=mkbrr_data.get("container_output_dir", "/torrentfiles"),
         host_config_dir=mkbrr_data.get("host_config_dir", "/mnt/cache/appdata/mkbrr"),
         container_config_dir=mkbrr_data.get("container_config_dir", "/root/.config/mkbrr"),
+        timeout_seconds=mkbrr_data.get("timeout_seconds", 300),
     )
 
     # Parse qBittorrent config (credentials from pydantic-settings, rest from YAML)

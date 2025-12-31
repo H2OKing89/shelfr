@@ -274,7 +274,7 @@ def render_bbcode_preview(
     console.print()
 
     # Add note about MAM upload page bug
-    console.print("[dim]⚠️  Note: MAM's upload page preview renderer has a bug that may show[/]")
+    console.print("[dim]⚠  Note: MAM's upload page preview renderer has a bug that may show[/]")
     console.print(
         "[dim]   ASCII art incorrectly. The actual torrent page will render correctly.[/]"
     )

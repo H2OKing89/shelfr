@@ -1,7 +1,7 @@
 # Text Editor Integration Plan
 
-> **Branch:** `feature/mkbrr-wrapper`  
-> **Status:** ✅ Complete (All 3 Tiers)  
+> **Branch:** `feature/mkbrr-wrapper`
+> **Status:** ✅ Complete (All 3 Tiers)
 > **Created:** 2024-12-30
 
 ## Overview
@@ -242,11 +242,11 @@ def edit(
 ) -> None:
     """Open a file in your default editor."""
     from shelfr.utils.editor import edit_file
-    
+
     if not file.exists():
         print_error(f"File not found: {file}")
         raise typer.Exit(1)
-    
+
     if not edit_file(file, editor=editor):
         print_error("Editor exited with error")
         raise typer.Exit(1)
@@ -258,7 +258,7 @@ def edit_config() -> None:
     """Edit shelfr config.yaml."""
     from shelfr.config import get_config_path
     from shelfr.utils.editor import edit_yaml
-    
+
     config_path = get_config_path()
     if edit_yaml(config_path):
         print_success(f"Saved: {config_path}")
@@ -271,7 +271,7 @@ def edit_presets() -> None:
     """Edit mkbrr presets.yaml."""
     from shelfr.config import config
     from shelfr.utils.editor import edit_yaml
-    
+
     presets_path = Path(config.mkbrr.host_config_dir) / "presets.yaml"
     if edit_yaml(presets_path):
         print_success(f"Saved: {presets_path}")
@@ -799,13 +799,13 @@ src/shelfr/
 editor:
   # Preferred editor (overrides $EDITOR)
   command: null  # e.g., "code --wait", "nano", "vim"
-  
+
   # Use inline editor when available (prompt_toolkit)
   prefer_inline: false
-  
+
   # Validate YAML after editing
   validate_yaml: true
-  
+
   # TUI settings
   tui:
     theme: "cyberpunk"  # monokai, dracula, cyberpunk

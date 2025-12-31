@@ -169,6 +169,8 @@ class TestProcessingResult:
 
     def test_success_result(self):
         """Test successful processing result."""
+        from shelfr.ui.icons import get_icons
+
         release = AudiobookRelease(title="Test Book")
         result = ProcessingResult(
             release=release,
@@ -178,11 +180,14 @@ class TestProcessingResult:
         )
         assert result.success is True
         assert result.error is None
-        assert result.status_emoji == "✅"
+        icons = get_icons()
+        assert result.status_emoji == icons.ok
         assert result.duration_seconds == 5.5
 
     def test_failure_result(self):
         """Test failed processing result."""
+        from shelfr.ui.icons import get_icons
+
         release = AudiobookRelease(title="Failed Book")
         result = ProcessingResult(
             release=release,
@@ -191,7 +196,8 @@ class TestProcessingResult:
         )
         assert result.success is False
         assert result.error == "Connection failed"
-        assert result.status_emoji == "❌"
+        icons = get_icons()
+        assert result.status_emoji == icons.fail
 
 
 class TestProcessedState:

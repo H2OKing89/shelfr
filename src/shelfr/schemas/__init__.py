@@ -32,6 +32,13 @@ from shelfr.schemas.config import (
     QBittorrentSchema,
     validate_config_yaml,
 )
+from shelfr.schemas.mkbrr import (
+    CheckResult,
+    TorrentFileInfo,
+    TorrentInfo,
+    validate_check_result,
+    validate_torrent_info,
+)
 from shelfr.schemas.naming import NamingSchema, validate_naming_json
 from shelfr.schemas.state import (
     FailedRelease,
@@ -58,6 +65,12 @@ __all__ = [
     "PathsSchema",
     "QBittorrentSchema",
     "validate_config_yaml",
+    # mkbrr Data
+    "CheckResult",
+    "TorrentFileInfo",
+    "TorrentInfo",
+    "validate_check_result",
+    "validate_torrent_info",
     # Naming
     "NamingSchema",
     "validate_naming_json",

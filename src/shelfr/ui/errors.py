@@ -33,7 +33,7 @@ def print_exception(
         ... except ValueError as e:
         ...     print_exception(e, "Validation Error", {"field": "title"})
     """
-    err_console.print(f"\n[error]❌ {title}[/]")
+    err_console.print(f"\n[error]✗ {title}[/]")
     err_console.print(f"[error]{type(error).__name__}:[/] {error}")
 
     if context:
@@ -106,7 +106,7 @@ def print_error_panel(
     from rich.text import Text
 
     content = Text()
-    content.append("❌ ", style="error")
+    content.append("✗ ", style="error")
     content.append(message, style="error")
 
     if details:
@@ -116,7 +116,7 @@ def print_error_panel(
 
     if hints:
         content.append("\n\n")
-        content.append("💡 ", style="info")
+        content.append("* ", style="info")
         content.append("Suggestions:", style="info")
         for hint in hints:
             content.append(f"\n  → {hint}", style="hint")

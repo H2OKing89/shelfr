@@ -229,7 +229,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
         # Print progress (non-JSON mode)
         if not output_json:
-            status = "✅" if discovery_result.passed else "❌"
+            status = "✓" if discovery_result.passed else "✗"
             console.print(f"\n[bold][{i}/{len(releases)}] {release.display_name}[/]")
             console.print(f"  ASIN: {release.asin or 'N/A'}")
             console.print(f"  Status: {status}")
@@ -238,9 +238,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
                 console.print(f"    {check.icon} {check.message}")
 
             if discovery_result.warning_count > 0:
-                console.print(f"  [warning]⚠️ {discovery_result.warning_count} warning(s)[/]")
+                console.print(f"  [warning]⚠ {discovery_result.warning_count} warning(s)[/]")
             if discovery_result.error_count > 0:
-                console.print(f"  [error]❌ {discovery_result.error_count} error(s)[/]")
+                console.print(f"  [error]✗ {discovery_result.error_count} error(s)[/]")
 
     # Output
     if output_json:
@@ -262,11 +262,11 @@ def cmd_validate(args: argparse.Namespace) -> int:
         failed_count = len(reports) - passed_count
 
         if failed_count == 0 and total_warnings == 0:
-            console.print(f"[success]Summary:[/] All {len(reports)} releases validated ✅")
+            console.print(f"[success]Summary:[/] All {len(reports)} releases validated")
         elif failed_count == 0:
             console.print(
                 f"[success]Summary:[/] {passed_count}/{len(reports)} validated, "
-                f"[warning]{total_warnings} warning(s)[/] ⚠️"
+                f"[warning]{total_warnings} warning(s)[/]"
             )
         else:
             console.print(
@@ -415,7 +415,7 @@ def cmd_validate_config(args: argparse.Namespace) -> int:
         console.print("[error]Validation failed with errors[/]")
         return 1
     else:
-        console.print("[success]All configuration files validated successfully ✅[/]")
+        console.print("[success]All configuration files validated successfully[/]")
         return 0
 
 

@@ -32,7 +32,7 @@ def print_libation_header(
         >>> print_libation_header("Import Books", dry_run=True, hint="Use --yes to skip prompts")
     """
     content = Text()
-    content.append("📚 ", style="bold")
+    content.append("* ", style="bold")
     content.append(title, style="bold white")
 
     if subtitle:
@@ -55,7 +55,7 @@ def print_libation_header(
     console.print()
 
 
-def print_hint_box(hints: list[str], title: str = "💡 Tips") -> None:
+def print_hint_box(hints: list[str], title: str = "* Tips") -> None:
     """Print a box with helpful hints for users.
 
     Examples:
@@ -243,7 +243,7 @@ def print_status_dashboard(status: dict[str, int], title: str = "Library Status"
     cards.append(
         Panel(
             f"[bold cyan]{total:,}[/]\n[dim]Books[/]",
-            title="[cyan]📚 Total[/]",
+            title="[cyan]* Total[/]",
             border_style="cyan",
             width=18,
         )

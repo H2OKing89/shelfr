@@ -32,7 +32,7 @@ def register_diagnostics_commands(app: typer.Typer) -> None:
             typer.Option("--services-only", help="Run service connectivity checks only."),
         ] = False,
     ) -> None:
-        """🩺 Run health checks to verify environment setup.
+        """Run health checks to verify environment setup.
 
         Validates configuration, paths, and service connectivity.
         [bold cyan]Run this first[/] before using other commands!
@@ -47,7 +47,7 @@ def register_diagnostics_commands(app: typer.Typer) -> None:
           mamfast check --config-only  [dim]# Configuration only[/]
           mamfast check --services-only [dim]# Test service connections[/]
 
-        [bold cyan]💡 Tip:[/] Run this after any configuration changes!
+        [bold cyan]Tip:[/] Run this after any configuration changes!
         """
         from shelfr.commands import cmd_check
 
@@ -70,15 +70,15 @@ def register_diagnostics_commands(app: typer.Typer) -> None:
             typer.Option("--json", "-j", help="Output validation report as JSON."),
         ] = False,
     ) -> None:
-        """✅ Validate discovered releases.
+        """Validate discovered releases.
 
         Runs validation checks on all discovered releases without processing.
         Useful for catching issues before running the full pipeline.
 
         [bold]What gets validated:[/]
-          • Metadata completeness (author, title, ASIN)
-          • Folder naming correctness
-          • Audio file presence and format
+          - Metadata completeness (author, title, ASIN)
+          - Folder naming correctness
+          - Audio file presence and format
 
         [bold]Examples:[/]
           mamfast validate               [dim]# Validate all[/]
@@ -93,11 +93,11 @@ def register_diagnostics_commands(app: typer.Typer) -> None:
 
     @app.command("validate-config", rich_help_panel=DIAG_COMMANDS)
     def validate_config(ctx: typer.Context) -> None:
-        """📝 Validate configuration files.
+        """Validate configuration files.
 
         Checks naming.json, config.yaml, and other config files for errors.
 
-        [bold cyan]💡 Tip:[/] Run this after editing any config files to catch
+        [bold cyan]Tip:[/] Run this after editing any config files to catch
         syntax errors or invalid values before they cause problems.
         """
         from shelfr.commands import cmd_validate_config
@@ -119,7 +119,7 @@ def register_diagnostics_commands(app: typer.Typer) -> None:
             typer.Option("--json", "-j", help="Output results as JSON."),
         ] = False,
     ) -> None:
-        """👀 Preview naming transformations.
+        """Preview naming transformations.
 
         Shows before/after for title filtering and folder renaming
         without making any changes. Great for testing naming rules!
@@ -129,7 +129,7 @@ def register_diagnostics_commands(app: typer.Typer) -> None:
           mamfast preview-naming -n 50         [dim]# Preview 50 releases[/]
           mamfast preview-naming -a B0DK9T5P28 [dim]# Preview specific ASIN[/]
 
-        [bold cyan]💡 Tip:[/] Use this to verify naming.json rules work correctly
+        [bold cyan]Tip:[/] Use this to verify naming.json rules work correctly
         before running the full pipeline.
         """
         from shelfr.commands import cmd_preview_naming
@@ -158,7 +158,7 @@ def register_diagnostics_commands(app: typer.Typer) -> None:
             typer.Option("--json", "-j", help="Output results as JSON."),
         ] = False,
     ) -> None:
-        """🔎 Find potential duplicate releases.
+        """Find potential duplicate releases.
 
         Uses fuzzy matching to find near-duplicate titles in your library.
         Helps avoid uploading the same audiobook twice!
@@ -168,7 +168,7 @@ def register_diagnostics_commands(app: typer.Typer) -> None:
           mamfast check-duplicates -t 90    [dim]# Stricter matching[/]
           mamfast check-duplicates --json   [dim]# JSON output[/]
 
-        [bold cyan]💡 Tip:[/] Higher threshold = stricter matching.
+        [bold cyan]Tip:[/] Higher threshold = stricter matching.
         Use 90%+ for more exact matches, 80% for looser detection.
         """
         from shelfr.commands import cmd_check_duplicates
@@ -201,7 +201,7 @@ def register_diagnostics_commands(app: typer.Typer) -> None:
             typer.Option("--json", "-j", help="Output results as JSON."),
         ] = False,
     ) -> None:
-        """🔍 Check for over-aggressive title cleaning.
+        """Check for over-aggressive title cleaning.
 
         Compares original titles to cleaned versions and flags significant changes.
 

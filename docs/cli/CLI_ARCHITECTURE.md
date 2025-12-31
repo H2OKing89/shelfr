@@ -1,6 +1,6 @@
 # CLI Architecture
 
-> **Status:** Active  
+> **Status:** Active
 > **Last Updated:** December 2025
 
 ## Overview
@@ -42,7 +42,7 @@ The shelfr CLI is built with [Typer](https://typer.tiangolo.com/) and [Rich](htt
 ```bash
 shelfr
 ├── --version                # Show version
-├── --verbose / -v           # Enable verbose logging  
+├── --verbose / -v           # Enable verbose logging
 ├── --config / -c            # Custom config file
 ├── --dry-run / -n           # Preview mode (no mutations)
 │
@@ -185,8 +185,8 @@ shelfr
 
 ### `mkbrr` - Torrent Operations
 
-**Source:** `src/shelfr/cli/mkbrr.py`  
-**Handler:** `src/shelfr/mkbrr.py`  
+**Source:** `src/shelfr/cli/mkbrr.py`
+**Handler:** `src/shelfr/mkbrr.py`
 **Plan:** [MKBRR_WRAPPER_PLAN.md](../implementation/MKBRR_WRAPPER_PLAN.md)
 
 Wraps mkbrr (Docker-based torrent creator) with CLI commands.
@@ -220,7 +220,7 @@ shelfr mkbrr update
 
 ### `edit` - Editor & TUI
 
-**Source:** `src/shelfr/cli/edit.py`  
+**Source:** `src/shelfr/cli/edit.py`
 **Handlers:**
 
 - `src/shelfr/utils/editor.py` (Tier 1: $EDITOR)

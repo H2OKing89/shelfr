@@ -1,6 +1,6 @@
 """MAMFast CLI - Legacy argparse command-line interface.
 
-⚠️ DEPRECATED: This module is deprecated and will be removed in v2.0.
+⚠ DEPRECATED: This module is deprecated and will be removed in v2.0.
 Use the Typer-based CLI via `mamfast` command instead.
 
 This module is preserved for backward compatibility with existing scripts
@@ -739,12 +739,12 @@ Libation Management:
 def main() -> int:
     """Main entry point.
 
-    ⚠️ DEPRECATED: This entry point is deprecated. Use `mamfast` instead.
+    ⚠ DEPRECATED: This entry point is deprecated. Use `mamfast` instead.
     """
     # Show deprecation banner
     from shelfr.console import console
 
-    console.print("\n[yellow]⚠️  This argparse CLI is deprecated. Use 'mamfast' instead.[/yellow]")
+    console.print("\n[yellow]⚠  This argparse CLI is deprecated. Use 'mamfast' instead.[/yellow]")
     console.print("[dim]This interface will be removed in v2.0[/dim]\n")
 
     parser = build_parser()

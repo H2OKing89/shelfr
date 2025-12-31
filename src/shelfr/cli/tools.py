@@ -22,7 +22,7 @@ def register_tools_commands(tools_app: typer.Typer) -> None:
 
     @tools_app.callback(invoke_without_command=True)
     def tools_callback(ctx: typer.Context) -> None:
-        """🔧 Utility tools.
+        """Utility tools.
 
         [bold]Commands:[/]
           shelfr tools prepare  Stage audiobooks for upload
@@ -47,7 +47,7 @@ def register_tools_commands(tools_app: typer.Typer) -> None:
             typer.Option("--dry-run", hidden=True),
         ] = False,
     ) -> None:
-        """📦 Stage audiobooks for upload.
+        """Stage audiobooks for upload.
 
         Creates hardlinks and renames files to MAM-compliant naming format
         in the staging directory.
@@ -66,9 +66,9 @@ def register_tools_commands(tools_app: typer.Typer) -> None:
 
         if dry_run_hint:
             console.print(
-                "[yellow]⚡ --dry-run must come BEFORE the subcommand:[/]\n\n"
-                "    [green]mamfast --dry-run tools prepare[/]  ✅\n"
-                "    [red]mamfast tools prepare --dry-run[/]  ❌\n"
+                "[yellow]--dry-run must come BEFORE the subcommand:[/]\n\n"
+                "    [green]mamfast --dry-run tools prepare[/]  [OK]\n"
+                "    [red]mamfast tools prepare --dry-run[/]  [X]\n"
             )
             raise typer.Exit(2)
 
@@ -97,7 +97,7 @@ def register_tools_commands(tools_app: typer.Typer) -> None:
             ),
         ] = None,
     ) -> None:
-        """📝 Generate MAM fast-fill JSON for a release folder.
+        """Generate MAM fast-fill JSON for a release folder.
 
         Creates the JSON file used by MAM's fast-fill upload feature.
         Fetches metadata from Audnex and extracts info from MediaInfo.

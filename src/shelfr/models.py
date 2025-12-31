@@ -218,8 +218,11 @@ class ProcessingResult:
 
     @property
     def status_emoji(self) -> str:
-        """Emoji for status display."""
-        return "✅" if self.success else "❌"
+        """Icon for status display."""
+        from shelfr.ui.icons import get_icons
+
+        icons = get_icons()
+        return icons.ok if self.success else icons.fail
 
 
 @dataclass

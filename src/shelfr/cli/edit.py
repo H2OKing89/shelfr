@@ -32,8 +32,8 @@ EDIT_EPILOG = """
 [bold cyan]Edit Any File:[/]
   shelfr edit file <path>  [dim]# Edit any file with $EDITOR[/]
 
-[dim]💡 Set $EDITOR or $VISUAL to use your preferred editor.[/]
-[dim]   YAML files are validated after editing.[/]
+[dim]Set $EDITOR or $VISUAL to use your preferred editor.[/]
+[dim]YAML files are validated after editing.[/]
 """
 
 
@@ -41,7 +41,7 @@ def make_edit_app() -> typer.Typer:
     """Create the edit sub-app."""
     return typer.Typer(
         name="edit",
-        help="📝 Edit configuration files",
+        help="Edit configuration files.",
         epilog=EDIT_EPILOG,
         rich_markup_mode="rich",
         no_args_is_help=True,
@@ -53,7 +53,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
 
     @edit_app.callback(invoke_without_command=True)
     def edit_callback(ctx: typer.Context) -> None:
-        """📝 Edit configuration files.
+        """Edit configuration files.
 
         Opens files in your $EDITOR (or $VISUAL) for editing.
         YAML and JSON files are validated after saving.
@@ -107,7 +107,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             ),
         ] = False,
     ) -> None:
-        """📄 Edit any file.
+        """Edit any file.
 
         Opens the specified file in your editor. YAML and JSON files
         are validated after saving (unless --no-validate is used).
@@ -161,7 +161,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             typer.Option("--editor", "-e", help="Editor command."),
         ] = None,
     ) -> None:
-        """🔧 Edit shelfr config.yaml.
+        """Edit shelfr config.yaml.
 
         Opens config/config.yaml in your editor. The file is validated
         after saving to catch YAML syntax errors.
@@ -193,7 +193,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
         try:
             if edit_yaml(config_path, validate=True, backup=True, editor=editor):
                 print_success(f"Saved: {config_path}")
-                console.print("[dim]💡 Restart shelfr for config changes to take effect.[/]")
+                console.print("[dim]Restart shelfr for config changes to take effect.[/]")
             else:
                 print_warning("No changes made (or invalid YAML)")
                 raise typer.Exit(1)
@@ -212,7 +212,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             typer.Option("--editor", "-e", help="Editor command."),
         ] = None,
     ) -> None:
-        """🎯 Edit mkbrr presets.yaml.
+        """Edit mkbrr presets.yaml.
 
         Opens the mkbrr presets configuration file for editing.
         Location is determined by mkbrr.host_config_dir in config.yaml.
@@ -256,7 +256,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             typer.Option("--editor", "-e", help="Editor command."),
         ] = None,
     ) -> None:
-        """📝 Edit naming.json rules.
+        """Edit naming.json rules.
 
         Opens config/naming.json for editing. This file controls
         title/author/series normalization rules.
@@ -302,7 +302,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             typer.Option("--editor", "-e", help="Editor command."),
         ] = None,
     ) -> None:
-        """📜 Edit signature template.
+        """Edit signature template.
 
         Opens config/templates/signature.j2 for editing.
         This Jinja2 template is used for BBCode signatures.
@@ -349,7 +349,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             typer.Option("--editor", "-e", help="Editor command."),
         ] = None,
     ) -> None:
-        """📂 Edit categories.json.
+        """Edit categories.json.
 
         Opens config/categories.json for editing.
         This maps genres to MAM category IDs.
@@ -417,7 +417,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             ),
         ] = False,
     ) -> None:
-        """💻 Edit file with inline terminal editor.
+        """Edit file with inline terminal editor.
 
         Opens an embedded editor that stays in the terminal.
         Supports syntax highlighting for YAML, JSON, Markdown.
@@ -479,7 +479,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             ),
         ] = 50,
     ) -> None:
-        """👀 Preview file with syntax highlighting.
+        """Preview file with syntax highlighting.
 
         Shows file content with syntax highlighting based on extension.
 
@@ -502,7 +502,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             typer.Argument(help="Second file (after).", exists=True),
         ],
     ) -> None:
-        """📊 Show diff between two files.
+        """Show diff between two files.
 
         Displays a unified diff with syntax highlighting.
 
@@ -532,7 +532,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             typer.Option("--depth", "-d", help="Maximum tree depth."),
         ] = 3,
     ) -> None:
-        """🌳 Show YAML file as tree structure.
+        """Show YAML file as tree structure.
 
         Displays the structure of a YAML file as a tree,
         showing keys and value types.
@@ -560,7 +560,7 @@ def register_edit_commands(edit_app: typer.Typer) -> None:
             ),
         ] = None,
     ) -> None:
-        """💻 Launch full-screen TUI editor.
+        """Launch full-screen TUI editor.
 
         Opens a full-screen terminal interface with file browser,
         editor, and validation preview. Supports YAML, JSON, and

@@ -21,7 +21,7 @@ def register_mam_commands(mam_app: typer.Typer) -> None:
 
     @mam_app.callback(invoke_without_command=True)
     def mam_callback(ctx: typer.Context) -> None:
-        """📤 MAM tracker workflows.
+        """MAM tracker workflows.
 
         [bold]Commands:[/]
           shelfr mam bbcode <path>   Output raw BBCode (copyable)
@@ -46,7 +46,7 @@ def register_mam_commands(mam_app: typer.Typer) -> None:
             ),
         ],
     ) -> None:
-        """🔤 Output raw BBCode description for a release.
+        """Output raw BBCode description for a release.
 
         Outputs the MAM BBCode description as plain text for easy copying.
         Use this when you need the raw BBCode to paste into MAM.
@@ -60,7 +60,7 @@ def register_mam_commands(mam_app: typer.Typer) -> None:
           2. Fetches Audnex metadata
           3. Outputs raw BBCode to terminal (copyable)
 
-        [dim]💡 For visual preview, use 'shelfr mam render' instead.[/]
+        [dim]For visual preview, use 'shelfr mam render' instead.[/]
         """
         from shelfr.cli._helpers import get_args
         from shelfr.commands.mam import cmd_mam_bbcode
@@ -80,7 +80,7 @@ def register_mam_commands(mam_app: typer.Typer) -> None:
             ),
         ],
     ) -> None:
-        """🎨 Render BBCode visually in terminal.
+        """Render BBCode visually in terminal.
 
         Renders the MAM BBCode description using Rich formatting,
         showing approximately how it will appear on MAM.
@@ -94,10 +94,10 @@ def register_mam_commands(mam_app: typer.Typer) -> None:
           2. Fetches Audnex metadata
           3. Renders BBCode visually with colors and formatting
 
-        [dim]⚡ Note: MAM's upload page renderer has a bug that shows ASCII art[/]
+        [dim]Note: MAM's upload page renderer has a bug that shows ASCII art[/]
         [dim]   crooked. The actual torrent page will render correctly.[/]
 
-        [dim]💡 For raw BBCode to copy, use 'shelfr mam bbcode' instead.[/]
+        [dim]For raw BBCode to copy, use 'shelfr mam bbcode' instead.[/]
         """
         from shelfr.cli._helpers import get_args
         from shelfr.commands.mam import cmd_mam_render

@@ -40,12 +40,12 @@ def print_trump_decision(
         incoming_bitrate: Incoming bitrate in kbps (optional)
     """
     icons = {
-        "KEEP_EXISTING": "⏭️",
-        "KEEP_BOTH": "📁",
-        "REPLACE_WITH_NEW": "🔄",
-        "REJECT_NEW": "❌",
+        "KEEP_EXISTING": "→",
+        "KEEP_BOTH": "+",
+        "REPLACE_WITH_NEW": "↻",
+        "REJECT_NEW": "✗",
     }
-    icon = icons.get(decision_name, "❓")
+    icon = icons.get(decision_name, "?")
 
     console.print(f"  {icon} [bold]{decision_name}[/]: {reason}")
 
@@ -132,8 +132,8 @@ def print_trump_summary(
     console.print()
     console.print("[bold]Trumping Summary[/]")
     if replaced > 0:
-        console.print(f"  🔄 Replaced: [green]{replaced}[/]")
+        console.print(f"  ↻ Replaced: [green]{replaced}[/]")
     if kept_existing > 0:
-        console.print(f"  ⏭️  Kept existing: [dim]{kept_existing}[/]")
+        console.print(f"  → Kept existing: [dim]{kept_existing}[/]")
     if rejected > 0:
-        console.print(f"  ❌ Rejected: [warning]{rejected}[/]")
+        console.print(f"  ✗ Rejected: [warning]{rejected}[/]")

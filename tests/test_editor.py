@@ -272,14 +272,14 @@ class TestEditYaml:
                 return original_content
             return invalid_content
 
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("subprocess.run") as mock_run,
+            patch.object(Path, "read_text", side_effect=mock_read_text),
+            patch("shutil.copy2"),
+        ):
             mock_run.return_value = MagicMock(returncode=0)
-            with (
-                patch.object(Path, "read_text", side_effect=mock_read_text),
-                patch("shutil.copy2"),
-            ):
-                result = edit_yaml(test_file, validate=True, backup=True)
-                assert result is False
+            result = edit_yaml(test_file, validate=True, backup=True)
+            assert result is False
 
     def test_backup_created(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Backup file should be created when backup=True."""
@@ -385,14 +385,14 @@ class TestEditJson:
                 return original_content
             return invalid_content
 
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("subprocess.run") as mock_run,
+            patch.object(Path, "read_text", side_effect=mock_read_text),
+            patch("shutil.copy2"),
+        ):
             mock_run.return_value = MagicMock(returncode=0)
-            with (
-                patch.object(Path, "read_text", side_effect=mock_read_text),
-                patch("shutil.copy2"),
-            ):
-                result = edit_json(test_file, validate=True, backup=True)
-                assert result is False
+            result = edit_json(test_file, validate=True, backup=True)
+            assert result is False
 
 
 # =============================================================================

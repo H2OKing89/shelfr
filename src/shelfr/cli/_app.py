@@ -155,10 +155,10 @@ MAIN_EPILOG = """
   [dim]3.[/] shelfr --dry-run run   [dim]# Preview pipeline[/]
   [dim]4.[/] shelfr run             [dim]# Upload to MAM[/]
 
-[bold cyan]💡 Tips:[/]
-  • Use [green]--dry-run[/] before any command to preview changes
-  • Run [green]shelfr check[/] first to verify your configuration
-  • Global flags like [green]--dry-run[/] go [bold]BEFORE[/] the command
+[bold cyan]Tips:[/]
+  - Use [green]--dry-run[/] before any command to preview changes
+  - Run [green]shelfr check[/] first to verify your configuration
+  - Global flags like [green]--dry-run[/] go [bold]BEFORE[/] the command
 
 [dim]Documentation: https://github.com/H2OKing89/shelfr[/]
 """
@@ -168,7 +168,7 @@ def make_app() -> typer.Typer:
     """Create and configure the main Typer application."""
     return typer.Typer(
         name="shelfr",
-        help="🎧 Audiobook library automation - staging, metadata, uploads",
+        help="Audiobook library automation - staging, metadata, uploads",
         epilog=MAIN_EPILOG,
         rich_markup_mode="rich",
         pretty_exceptions_enable=True,
@@ -185,7 +185,7 @@ STATE_EPILOG = """
   shelfr state prune           [dim]# Remove stale entries[/]
   shelfr state retry --asin X  [dim]# Retry a failed upload[/]
 
-[dim]💡 The state file tracks which audiobooks have been processed.[/]
+[dim]The state file tracks which audiobooks have been processed.[/]
 """
 
 
@@ -193,7 +193,7 @@ def make_state_app() -> typer.Typer:
     """Create the state management sub-app."""
     return typer.Typer(
         name="state",
-        help="📋 Manage processed.json state tracking",
+        help="Manage processed.json state tracking",
         epilog=STATE_EPILOG,
         rich_markup_mode="rich",
         no_args_is_help=True,
@@ -206,8 +206,8 @@ LIBATION_EPILOG = """
   shelfr libation liberate    [dim]# Download pending audiobooks[/]
   shelfr libation books       [dim]# List your library[/]
 
-[dim]💡 Libation downloads and decrypts Audible audiobooks automatically.[/]
-[dim]   Run 'shelfr libation guide' for detailed setup instructions.[/]
+[dim]Libation downloads and decrypts Audible audiobooks automatically.[/]
+[dim]Run 'shelfr libation guide' for detailed setup instructions.[/]
 """
 
 
@@ -215,7 +215,7 @@ def make_libation_app() -> typer.Typer:
     """Create the Libation sub-app."""
     return typer.Typer(
         name="libation",
-        help="📚 Libation audiobook manager integration",
+        help="Libation audiobook manager integration",
         epilog=LIBATION_EPILOG,
         rich_markup_mode="rich",
         no_args_is_help=False,  # Default to status
@@ -227,8 +227,8 @@ TOOLS_EPILOG = """
   shelfr tools prepare       [dim]# Stage releases for upload[/]
   shelfr tools mkbrr         [dim]# Create torrent files[/]
 
-[dim]💡 These tools are for advanced troubleshooting and manual operations.[/]
-[dim]   For BBCode tools, see 'shelfr mam --help'.[/]
+[dim]These tools are for advanced troubleshooting and manual operations.[/]
+[dim]For BBCode tools, see 'shelfr mam --help'.[/]
 """
 
 
@@ -236,7 +236,7 @@ def make_tools_app() -> typer.Typer:
     """Create the tools sub-app."""
     return typer.Typer(
         name="tools",
-        help="🔧 Troubleshooting and utility tools",
+        help="Troubleshooting and utility tools",
         epilog=TOOLS_EPILOG,
         rich_markup_mode="rich",
         no_args_is_help=True,
@@ -248,8 +248,8 @@ MAM_EPILOG = """
   shelfr mam bbcode <path>   [dim]# Output raw BBCode (copyable)[/]
   shelfr mam render <path>   [dim]# Preview BBCode visually[/]
 
-[dim]⚡ Note: MAM's upload page preview has a rendering bug for ASCII art.[/]
-[dim]   The actual torrent page will display correctly.[/]
+[dim]Note: MAM's upload page preview has a rendering bug for ASCII art.[/]
+[dim]The actual torrent page will display correctly.[/]
 """
 
 
@@ -257,7 +257,7 @@ def make_mam_app() -> typer.Typer:
     """Create the MAM sub-app."""
     return typer.Typer(
         name="mam",
-        help="📤 MAM tracker workflows and BBCode tools",
+        help="MAM tracker workflows and BBCode tools",
         epilog=MAM_EPILOG,
         rich_markup_mode="rich",
         no_args_is_help=True,
@@ -275,7 +275,7 @@ ABS_EPILOG = """
   shelfr abs rename          [dim]# Fix folder naming[/]
   shelfr abs resolve-asins   [dim]# Resolve missing ASINs[/]
 
-[dim]💡 Run 'shelfr abs init' first to verify your connection.[/]
+[dim]Run 'shelfr abs init' first to verify your connection.[/]
 """
 
 
@@ -283,7 +283,7 @@ def make_abs_app() -> typer.Typer:
     """Create the Audiobookshelf sub-app."""
     return typer.Typer(
         name="abs",
-        help="📚 Audiobookshelf library management",
+        help="Audiobookshelf library management",
         epilog=ABS_EPILOG,
         rich_markup_mode="rich",
         no_args_is_help=True,
@@ -369,7 +369,7 @@ def create_main_callback(app: typer.Typer) -> None:
             ),
         ] = False,
     ) -> None:
-        """🎧 Fast MAM audiobook upload automation tool.
+        """Fast MAM audiobook upload automation tool.
 
         MAMFast automates the audiobook upload workflow:
         [cyan]Libation → Staging → Metadata → Torrent → Upload[/]

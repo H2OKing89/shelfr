@@ -47,28 +47,28 @@ def register_core_commands(app: typer.Typer) -> None:
             ),
         ] = False,
     ) -> None:
-        """🚀 Run the full upload pipeline.
+        """Run the full upload pipeline.
 
-        Executes all steps: [cyan]scan → discover → prepare → metadata → torrent → upload[/]
+        Executes all steps: [cyan]scan -> discover -> prepare -> metadata -> torrent -> upload[/]
 
         [bold]Examples:[/]
           mamfast run               [dim]# Full pipeline[/]
           mamfast --dry-run run     [dim]# Preview without changes[/]
           mamfast run --skip-scan   [dim]# Skip Libation scan[/]
 
-        [bold cyan]💡 Tips:[/]
-          • Always run [green]mamfast check[/] first to verify your setup
-          • Use [green]--dry-run[/] to preview what will happen
-          • Check [green]mamfast status[/] to see pending releases
+        [bold cyan]Tips:[/]
+          - Always run [green]mamfast check[/] first to verify your setup
+          - Use [green]--dry-run[/] to preview what will happen
+          - Check [green]mamfast status[/] to see pending releases
         """
         from shelfr.console import console
 
         # Handle misplaced --dry-run flag
         if dry_run_hint:
             console.print(
-                "[yellow]⚡ --dry-run must come BEFORE the subcommand:[/]\n\n"
-                "    [green]mamfast --dry-run run[/]  ✅\n"
-                "    [red]mamfast run --dry-run[/]  ❌\n"
+                "[yellow]--dry-run must come BEFORE the subcommand:[/]\n\n"
+                "    [green]mamfast --dry-run run[/]  [OK]\n"
+                "    [red]mamfast run --dry-run[/]  [X]\n"
             )
             raise typer.Exit(2)
 
@@ -86,7 +86,7 @@ def register_core_commands(app: typer.Typer) -> None:
 
     @app.command(rich_help_panel=CORE_COMMANDS)
     def status(ctx: typer.Context) -> None:
-        """📊 Show processing status of all releases.
+        """Show processing status of all releases.
 
         Displays a summary of discovered, staged, and processed releases
         with their current status in the pipeline.
@@ -105,12 +105,12 @@ def register_core_commands(app: typer.Typer) -> None:
 
     @app.command(rich_help_panel=CORE_COMMANDS)
     def config(ctx: typer.Context) -> None:
-        """🔧 Print loaded configuration.
+        """Print loaded configuration.
 
         Shows the current configuration values for debugging.
         Useful for verifying paths and settings are correct.
 
-        [bold cyan]💡 Tip:[/] Run [green]mamfast check[/] for a more thorough
+        [bold cyan]Tip:[/] Run [green]mamfast check[/] for a more thorough
         configuration validation with health checks.
         """
         from shelfr.commands import cmd_config

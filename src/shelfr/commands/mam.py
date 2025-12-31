@@ -192,7 +192,7 @@ def cmd_mam_render(args: argparse.Namespace) -> int:
         return 1
 
     # Render visually
-    title = audnex_data.get("title", "BBCode Preview")
-    render_bbcode_preview(bbcode_description, console, title=f"📖 {title}")
+    title = str(audnex_data.get("title", "BBCode Preview"))
+    render_bbcode_preview(bbcode_description, console, title=title)
 
     return 0

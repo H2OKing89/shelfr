@@ -36,7 +36,7 @@ def register_state_commands(state_app: typer.Typer) -> None:
             typer.Option("--json", "-j", help="Output as JSON."),
         ] = False,
     ) -> None:
-        """📋 List state entries.
+        """List state entries.
 
         Shows processed and/or failed entries from the state file.
 
@@ -61,7 +61,7 @@ def register_state_commands(state_app: typer.Typer) -> None:
 
     @state_app.command("prune")
     def state_prune(ctx: typer.Context) -> None:
-        """🧹 Remove stale entries with missing paths.
+        """Remove stale entries with missing paths.
 
         Cleans up state entries whose files no longer exist.
 
@@ -80,7 +80,7 @@ def register_state_commands(state_app: typer.Typer) -> None:
             str, typer.Argument(metavar="ASIN", help="ASIN to clear from failed state.")
         ],
     ) -> None:
-        """🔄 Clear a failed entry to allow re-processing.
+        """Clear a failed entry to allow re-processing.
 
         Removes the ASIN from failed state so it can be processed again.
 
@@ -100,7 +100,7 @@ def register_state_commands(state_app: typer.Typer) -> None:
             str, typer.Argument(metavar="ASIN", help="ASIN to clear from processed state.")
         ],
     ) -> None:
-        """❌ Clear a processed entry to force re-run.
+        """Clear a processed entry to force re-run.
 
         Removes the ASIN from processed state for full re-processing.
 
@@ -121,7 +121,7 @@ def register_state_commands(state_app: typer.Typer) -> None:
             typer.Option("--output", "-o", help="Output file path (default: stdout)."),
         ] = None,
     ) -> None:
-        """💾 Export state to JSON file.
+        """Export state to JSON file.
 
         Exports the current state to a JSON file for backup or analysis.
 

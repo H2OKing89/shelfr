@@ -94,7 +94,7 @@ def cmd_libation_books(args: argparse.Namespace) -> int:
     subtitle = f"Filters: {', '.join(filter_desc)}" if filter_desc else "All audiobooks"
 
     print_libation_header(
-        "📚 Your Audiobook Library",
+        "* Your Audiobook Library",
         subtitle,
         hint="Use filters to narrow down results",
     )
@@ -243,7 +243,7 @@ def cmd_libation_books(args: argparse.Namespace) -> int:
             "shelfr libation books --show-asin       → Show ASIN column",
             "shelfr libation redownload <ASIN>       → Re-download a specific book",
         ],
-        title="🔍 Filter Tips",
+        title="* Filter Tips",
     )
 
     return 0
