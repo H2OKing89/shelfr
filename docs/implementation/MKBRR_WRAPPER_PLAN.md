@@ -607,7 +607,7 @@ src/shelfr/
 | 3 | ~~Extend `create_torrent()` params~~ | `mkbrr.py` | Medium | ✅ **DONE** - 18 tests |
 | 4 | ~~Add Pydantic models~~ | `schemas/mkbrr.py` | Small | ✅ **DONE** - 34 tests |
 | 5 | ~~Add bencode parser~~ | `mkbrr.py` | Medium | ✅ **DONE** - 15 tests |
-| 6 | Parse inspect output (optional) | `mkbrr.py` | Medium | Best-effort fallback for human-readable view |
+| 6 | ~~Parse inspect output (optional)~~ | `mkbrr.py` | Medium | ✅ **DONE** - 20 tests (best-effort fallback) |
 | 7 | Create CLI commands | `cli/mkbrr.py` | Medium | Pretty dashboard time (Rich demands it) |
 | 8 | Register CLI subcommand | `cli/main.py` | Small | Wire up to main app |
 | 9 | Update config schema | `schemas/config.py` | Small | Defaults for new parameters |
