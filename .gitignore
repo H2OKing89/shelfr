@@ -66,11 +66,14 @@ config/templates/
 # Sample data (contains personal library info)
 samples/
 
-# Documentation - track all docs/ (including reference materials)
-# Note: API docs under docs/reference/* ARE tracked intentionally
-CHEATSHEET.md
-docs/reference/mam
-docs/reference/mkbrr
+# Documentation reference - ignore external/upstream API docs
+# Keep only internal docs (naming/, tracking/)
+docs/reference/audiobookshelf/
+docs/reference/audnex/
+docs/reference/hardcover/
+docs/reference/mam/
+docs/reference/mkbrr/
 
 # BBCode signature samples (user-specific, generated)
 samples/bbcode_sig*.json
+CHEATSHEET.md
