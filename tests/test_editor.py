@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
@@ -54,9 +52,7 @@ class TestGetEditor:
         result = get_editor()
         assert result == "vim"
 
-    def test_visual_preferred_over_editor(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_visual_preferred_over_editor(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """$VISUAL should be preferred over $EDITOR."""
         monkeypatch.setenv("VISUAL", "code")
         monkeypatch.setenv("EDITOR", "vim")
@@ -121,9 +117,7 @@ class TestEditFile:
         with pytest.raises(FileNotFoundError, match="File not found"):
             edit_file(tmp_path / "nonexistent.txt")
 
-    def test_no_editor_available(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_editor_available(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should raise NoEditorError when no editor available."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
@@ -131,13 +125,10 @@ class TestEditFile:
         monkeypatch.delenv("VISUAL", raising=False)
         monkeypatch.delenv("EDITOR", raising=False)
 
-        with patch("shutil.which", return_value=None):
-            with pytest.raises(NoEditorError):
-                edit_file(test_file)
+        with patch("shutil.which", return_value=None), pytest.raises(NoEditorError):
+            edit_file(test_file)
 
-    def test_successful_edit(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_successful_edit(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should return True on successful editor exit."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
@@ -149,9 +140,7 @@ class TestEditFile:
             assert result is True
             mock_run.assert_called_once()
 
-    def test_editor_failure(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_editor_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should return False on editor failure."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
@@ -162,9 +151,7 @@ class TestEditFile:
             result = edit_file(test_file)
             assert result is False
 
-    def test_editor_override(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_editor_override(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Editor override should be used."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
@@ -192,9 +179,8 @@ class TestEditTemp:
         monkeypatch.delenv("VISUAL", raising=False)
         monkeypatch.delenv("EDITOR", raising=False)
 
-        with patch("shutil.which", return_value=None):
-            with pytest.raises(NoEditorError):
-                edit_temp("content")
+        with patch("shutil.which", return_value=None), pytest.raises(NoEditorError):
+            edit_temp("content")
 
     def test_cancelled_unchanged(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should return None if file is unchanged."""
@@ -207,9 +193,7 @@ class TestEditTemp:
             # Result should be None since content is unchanged
             assert result is None
 
-    def test_editor_failure_returns_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_editor_failure_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should return None if editor exits with error."""
         monkeypatch.setenv("EDITOR", "false")
 
@@ -231,10 +215,12 @@ class TestEditTemp:
                 mock_file.__exit__ = MagicMock(return_value=False)
                 mock_temp.return_value = mock_file
 
-                with patch("pathlib.Path.stat"):
-                    with patch("pathlib.Path.read_text", return_value="content"):
-                        with patch("pathlib.Path.unlink"):
-                            edit_temp("content", suffix=".yaml")
+                with (
+                    patch("pathlib.Path.stat"),
+                    patch("pathlib.Path.read_text", return_value="content"),
+                    patch("pathlib.Path.unlink"),
+                ):
+                    edit_temp("content", suffix=".yaml")
 
                 mock_temp.assert_called_once()
                 call_kwargs = mock_temp.call_args[1]
@@ -254,9 +240,7 @@ class TestEditYaml:
         with pytest.raises(FileNotFoundError):
             edit_yaml(tmp_path / "nonexistent.yaml")
 
-    def test_valid_yaml_accepted(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_valid_yaml_accepted(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Valid YAML should be accepted."""
         test_file = tmp_path / "test.yaml"
         test_file.write_text("key: value\n")
@@ -271,9 +255,7 @@ class TestEditYaml:
                 # With our mocking, file appears unchanged
                 assert result is False  # No actual change
 
-    def test_invalid_yaml_rejected(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_invalid_yaml_rejected(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Invalid YAML should be rejected and backup restored."""
         test_file = tmp_path / "test.yaml"
         test_file.write_text("key: value\n")
@@ -283,22 +265,23 @@ class TestEditYaml:
         invalid_content = "key: [invalid yaml\n"
 
         read_count = [0]
+
         def mock_read_text(encoding="utf-8"):
             read_count[0] += 1
             if read_count[0] == 1:
                 return original_content
             return invalid_content
 
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("subprocess.run") as mock_run,
+            patch.object(Path, "read_text", side_effect=mock_read_text),
+            patch("shutil.copy2"),
+        ):
             mock_run.return_value = MagicMock(returncode=0)
-            with patch.object(Path, "read_text", side_effect=mock_read_text):
-                with patch("shutil.copy2"):
-                    result = edit_yaml(test_file, validate=True, backup=True)
-                    assert result is False
+            result = edit_yaml(test_file, validate=True, backup=True)
+            assert result is False
 
-    def test_backup_created(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_backup_created(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Backup file should be created when backup=True."""
         test_file = tmp_path / "test.yaml"
         test_file.write_text("key: value\n")
@@ -311,9 +294,7 @@ class TestEditYaml:
                 # Backup should be created
                 mock_copy.assert_called()
 
-    def test_no_backup_when_disabled(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_backup_when_disabled(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """No backup should be created when backup=False."""
         test_file = tmp_path / "test.yaml"
         test_file.write_text("key: value\n")
@@ -343,9 +324,7 @@ class TestEditYamlTemp:
             result = edit_yaml_temp("initial: content\n", validate=True)
             assert result == "key: value\n"
 
-    def test_invalid_yaml_returns_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_invalid_yaml_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Invalid YAML should return None."""
         monkeypatch.setenv("EDITOR", "true")
 
@@ -377,9 +356,7 @@ class TestEditJson:
         with pytest.raises(FileNotFoundError):
             edit_json(tmp_path / "nonexistent.json")
 
-    def test_valid_json_accepted(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_valid_json_accepted(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Valid JSON should be accepted."""
         test_file = tmp_path / "test.json"
         test_file.write_text('{"key": "value"}')
@@ -391,9 +368,7 @@ class TestEditJson:
             result = edit_json(test_file, validate=True, backup=False)
             assert result is False  # No change
 
-    def test_invalid_json_rejected(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_invalid_json_rejected(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Invalid JSON should be rejected."""
         test_file = tmp_path / "test.json"
         test_file.write_text('{"key": "value"}')
@@ -403,18 +378,21 @@ class TestEditJson:
         invalid_content = '{"key": invalid}'
 
         read_count = [0]
+
         def mock_read_text(encoding="utf-8"):
             read_count[0] += 1
             if read_count[0] == 1:
                 return original_content
             return invalid_content
 
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("subprocess.run") as mock_run,
+            patch.object(Path, "read_text", side_effect=mock_read_text),
+            patch("shutil.copy2"),
+        ):
             mock_run.return_value = MagicMock(returncode=0)
-            with patch.object(Path, "read_text", side_effect=mock_read_text):
-                with patch("shutil.copy2"):
-                    result = edit_json(test_file, validate=True, backup=True)
-                    assert result is False
+            result = edit_json(test_file, validate=True, backup=True)
+            assert result is False
 
 
 # =============================================================================
