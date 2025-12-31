@@ -141,7 +141,7 @@ class TestAppEnvSettings:
     def test_loads_from_env(self) -> None:
         """Test loading from environment variables."""
         env = {
-            "MAMFAST_ENV": "development",
+            "SHELFR_ENV": "development",
             "LOG_LEVEL": "debug",
         }
         with mock.patch.dict(os.environ, env, clear=True):
@@ -175,7 +175,7 @@ class TestEnvSettings:
             "QB_HOST": "http://localhost:8080",
             "AUDIOBOOKSHELF_HOST": "https://abs.example.com",
             "LIBATION_CONTAINER": "test-container",
-            "MAMFAST_ENV": "development",
+            "SHELFR_ENV": "development",
         }
         with mock.patch.dict(os.environ, env, clear=True):
             settings = EnvSettings()

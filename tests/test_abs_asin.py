@@ -62,8 +62,8 @@ class TestIsValidAsin:
 class TestExtractAsin:
     """Tests for extract_asin()."""
 
-    def test_current_mamfast_format(self) -> None:
-        """Current MAMFast format: {ASIN.B0xxx}."""
+    def test_current_shelfr_format(self) -> None:
+        """Current Shelfr format: {ASIN.B0xxx}."""
         assert extract_asin("Book Title {ASIN.B0DK9TS6D9}") == "B0DK9TS6D9"
         assert extract_asin("{ASIN.B0CNTY7LVH} Book") == "B0CNTY7LVH"
         assert (

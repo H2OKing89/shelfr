@@ -234,11 +234,11 @@ class TestPathMapper:
 
 
 class TestRealWorldPaths:
-    """Test with realistic MAMFast paths."""
+    """Test with realistic Shelfr paths."""
 
     @pytest.fixture
     def mam_mapper(self) -> PathMapper:
-        """Mapper with typical MAMFast setup."""
+        """Mapper with typical Shelfr setup."""
         return PathMapper(
             container_prefix="/audiobooks",
             host_prefix="/mnt/user/data/audio/audiobooks",

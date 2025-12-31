@@ -1,4 +1,4 @@
-"""Integration tests for the MAMFast pipeline."""
+"""Integration tests for the Shelfr pipeline."""
 
 from __future__ import annotations
 

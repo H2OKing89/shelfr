@@ -120,7 +120,7 @@ class MockAbsLibrary:
 
     id: str = "lib_test"
     name: str = "Test Library"
-    mamfast_managed: bool = True
+    shelfr_managed: bool = True
 
 
 class TestAbsInitCommand:
@@ -440,7 +440,7 @@ class TestAbsImportCommand:
         config.import_settings.cleanup.cleanup_path = None
         config.import_settings.cleanup.require_seed_exists = True
         config.import_settings.cleanup.verify_in_abs = False
-        config.import_settings.cleanup.hide_marker = ".mamfast_imported"
+        config.import_settings.cleanup.hide_marker = ".shelfr_imported"
         config.import_settings.cleanup.min_age_days = 0
         config.import_settings.cleanup.ignore_dirs = ["__import_test", ".git", ".venv"]
         config.import_settings.cleanup.ignore_glob = ["*/__*", "*/.#*"]
@@ -846,7 +846,7 @@ class TestAbsCheckDuplicateCommand:
 
         mock_lib_config = MagicMock()
         mock_lib_config.id = "lib_test"
-        mock_lib_config.mamfast_managed = True
+        mock_lib_config.shelfr_managed = True
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = True
@@ -872,7 +872,7 @@ class TestAbsCheckDuplicateCommand:
 
         mock_lib_config = MagicMock()
         mock_lib_config.id = "lib_test"
-        mock_lib_config.mamfast_managed = True
+        mock_lib_config.shelfr_managed = True
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = True
@@ -901,7 +901,7 @@ class TestAbsCheckDuplicateCommand:
 
         mock_lib_config = MagicMock()
         mock_lib_config.id = "lib_test"
-        mock_lib_config.mamfast_managed = True
+        mock_lib_config.shelfr_managed = True
 
         mock_settings = MagicMock()
         mock_settings.audiobookshelf.enabled = True
@@ -1399,7 +1399,7 @@ class TestAbsRestoreCommand:
         # Create an archive
         archive = tmp_path / "B0TEST12345" / "2024-01-01T12-00-00"
         archive.mkdir(parents=True)
-        sidecar = archive / ".mamfast_trump.json"
+        sidecar = archive / ".shelfr_trump.json"
         sidecar.write_text(
             json.dumps(
                 {
@@ -1614,7 +1614,7 @@ class TestAbsCleanupCommand:
         config.import_settings.cleanup.cleanup_path = None
         config.import_settings.cleanup.require_seed_exists = True
         config.import_settings.cleanup.verify_in_abs = False
-        config.import_settings.cleanup.hide_marker = ".mamfast_imported"
+        config.import_settings.cleanup.hide_marker = ".shelfr_imported"
         config.import_settings.cleanup.min_age_days = 0
         config.import_settings.cleanup.ignore_dirs = ["__import_test", ".git", ".venv"]
         config.import_settings.cleanup.ignore_glob = ["*/__*", "*/.#*"]
@@ -1729,7 +1729,7 @@ class TestAbsCleanupCommand:
             assert result == 0
 
         # Verify no marker file was created (dry run)
-        assert not (book_folder / ".mamfast_imported").exists()
+        assert not (book_folder / ".shelfr_imported").exists()
 
     def test_abs_cleanup_hide_strategy(
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
@@ -1760,4 +1760,4 @@ class TestAbsCleanupCommand:
             assert result == 0
 
         # Verify marker file was created
-        assert (book_folder / ".mamfast_imported").exists()
+        assert (book_folder / ".shelfr_imported").exists()

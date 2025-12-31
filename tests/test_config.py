@@ -99,7 +99,7 @@ class TestQBittorrentConfig:
         """Test default qBittorrent configuration."""
         config = QBittorrentConfig()
         assert config.auto_start is True
-        assert "mamfast" in config.tags
+        assert "shelfr" in config.tags
 
 
 class TestAudnexConfig:

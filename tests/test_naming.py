@@ -1034,7 +1034,7 @@ class TestFilterSubtitle:
         config = NamingConfig(
             subtitle_remove_patterns=[r"^[Uu]nabridged$"],
         )
-        # Need to set the logger for mamfast.utils.naming specifically
+        # Need to set the logger for Shelfr.utils.naming specifically
         with caplog.at_level(logging.DEBUG, logger="shelfr.utils.naming"):
             result = filter_subtitle("Unabridged", naming_config=config, verbose=True)
 

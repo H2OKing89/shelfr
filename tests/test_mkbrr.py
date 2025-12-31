@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from shelfr.mkbrr import (
     MkbrrResult,
     _cleanup_stale_torrents,
@@ -1798,7 +1800,16 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
 # parse_torrent_file() tests
 # =============================================================================
 
+# Check if bencodepy is available
+try:
+    import bencodepy  # noqa: F401
 
+    HAS_BENCODEPY = True
+except ImportError:
+    HAS_BENCODEPY = False
+
+
+@pytest.mark.skipif(not HAS_BENCODEPY, reason="bencodepy not installed")
 class TestParseTorrentFile:
     """Tests for parse_torrent_file() bencode parsing."""
 

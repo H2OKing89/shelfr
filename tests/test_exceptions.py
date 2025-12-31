@@ -14,13 +14,13 @@ from shelfr.exceptions import (
     DockerError,
     ExternalToolError,
     LibationError,
-    MAMFastError,
     MetadataError,
     MkbrrError,
     NetworkError,
     PipelineError,
     PreUploadValidationError,
     QBittorrentError,
+    ShelfrError,
     StagingError,
     StateCorruptionError,
     StateError,
@@ -31,30 +31,30 @@ from shelfr.exceptions import (
 )
 
 
-class TestMAMFastError:
+class TestShelfrError:
     """Tests for base exception."""
 
     def test_simple_message(self) -> None:
         """Base exception stores message."""
-        exc = MAMFastError("test error")
+        exc = ShelfrError("test error")
         assert str(exc) == "test error"
         assert exc.message == "test error"
         assert exc.details == {}
 
     def test_with_details(self) -> None:
         """Details dict is stored."""
-        exc = MAMFastError("test", details={"key": "value"})
+        exc = ShelfrError("test", details={"key": "value"})
         assert exc.details == {"key": "value"}
 
     def test_can_be_raised(self) -> None:
         """Can raise and catch as Exception."""
-        with pytest.raises(MAMFastError) as exc_info:
-            raise MAMFastError("raised")
+        with pytest.raises(ShelfrError) as exc_info:
+            raise ShelfrError("raised")
         assert str(exc_info.value) == "raised"
 
     def test_can_be_caught_as_exception(self) -> None:
         """Can catch as generic Exception."""
-        exc = MAMFastError("generic")
+        exc = ShelfrError("generic")
         assert isinstance(exc, Exception)
 
 
@@ -80,10 +80,10 @@ class TestConfigurationError:
         assert exc.field == "log_level"
         assert exc.details["field"] == "log_level"
 
-    def test_inherits_mamfast_error(self) -> None:
+    def test_inherits_shelfr_error(self) -> None:
         """Inherits from base."""
         exc = ConfigurationError("test")
-        assert isinstance(exc, MAMFastError)
+        assert isinstance(exc, ShelfrError)
 
 
 class TestValidationError:
@@ -110,7 +110,7 @@ class TestValidationError:
         """Discovery validation subclass."""
         exc = DiscoveryValidationError("No books found")
         assert isinstance(exc, ValidationError)
-        assert isinstance(exc, MAMFastError)
+        assert isinstance(exc, ShelfrError)
 
     def test_pre_upload_validation_error(self) -> None:
         """Pre-upload validation subclass."""
@@ -295,8 +295,8 @@ class TestStateLockError:
 
     def test_with_lock_file(self) -> None:
         """Lock file path stored."""
-        exc = StateLockError("Conflict", lock_file="/tmp/mamfast.lock")
-        assert exc.lock_file == "/tmp/mamfast.lock"
+        exc = StateLockError("Conflict", lock_file="/tmp/shelfr.lock")
+        assert exc.lock_file == "/tmp/shelfr.lock"
 
     def test_inherits_state_error(self) -> None:
         """Inherits from StateError."""
@@ -374,7 +374,7 @@ class TestExceptionHierarchy:
     """Test exception inheritance hierarchy."""
 
     def test_all_inherit_from_base(self) -> None:
-        """All exceptions inherit from MAMFastError."""
+        """All exceptions inherit from ShelfrError."""
         exceptions = [
             ConfigurationError("test"),
             ValidationError("test"),
@@ -398,7 +398,7 @@ class TestExceptionHierarchy:
             LibationError("test"),
         ]
         for exc in exceptions:
-            assert isinstance(exc, MAMFastError), f"{type(exc)} not MAMFastError"
+            assert isinstance(exc, ShelfrError), f"{type(exc)} not ShelfrError"
 
     def test_catch_by_category(self) -> None:
         """Can catch by category."""
@@ -423,8 +423,8 @@ class TestExceptionHierarchy:
         with pytest.raises(ExternalToolError):
             raise MkbrrError("Tool error")
 
-    def test_catch_all_mamfast_errors(self) -> None:
-        """Can catch all mamfast errors with base class."""
+    def test_catch_all_shelfr_errors(self) -> None:
+        """Can catch all Shelfr errors with base class."""
         errors = [
             ConfigurationError("config"),
             StagingError("staging"),
@@ -433,5 +433,5 @@ class TestExceptionHierarchy:
             DockerError("docker"),
         ]
         for error in errors:
-            with pytest.raises(MAMFastError):
+            with pytest.raises(ShelfrError):
                 raise error

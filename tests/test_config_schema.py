@@ -338,7 +338,7 @@ class TestAudiobookshelfSchema:
             "timeout_seconds": 60,
             "docker_mode": True,
             "path_map": [{"container": "/audiobooks", "host": "/mnt/data/audiobooks"}],
-            "libraries": [{"id": "lib_abc123", "name": "Audiobooks", "mamfast_managed": True}],
+            "libraries": [{"id": "lib_abc123", "name": "Audiobooks", "shelfr_managed": True}],
             "import_settings": {"duplicate_policy": "skip", "trigger_scan": "batch"},
             "index_db": "./data/abs_index.db",
         }
@@ -563,7 +563,7 @@ class TestAudiobookshelfSchema:
                 "docker_mode": True,
                 "path_map": [{"container": "/audiobooks", "host": "/mnt/user/data/audiobooks"}],
                 "libraries": [
-                    {"id": "lib_test123", "name": "Main Library", "mamfast_managed": True}
+                    {"id": "lib_test123", "name": "Main Library", "shelfr_managed": True}
                 ],
                 "import": {"duplicate_policy": "skip", "trigger_scan": "batch"},
                 "index_db": "./data/abs_index.db",
@@ -572,5 +572,5 @@ class TestAudiobookshelfSchema:
         schema = validate_config_yaml(data)
         assert schema.audiobookshelf.enabled is True
         assert schema.audiobookshelf.path_map[0].container == "/audiobooks"
-        assert schema.audiobookshelf.libraries[0].mamfast_managed is True
+        assert schema.audiobookshelf.libraries[0].shelfr_managed is True
         assert schema.audiobookshelf.import_settings.trigger_scan == "batch"

@@ -51,7 +51,7 @@ class TestCleanupPrefs:
         assert prefs.cleanup_path is None
         assert prefs.require_seed_exists is True
         assert prefs.verify_in_abs is False
-        assert prefs.hide_marker == ".mamfast_imported"
+        assert prefs.hide_marker == ".shelfr_imported"
         assert prefs.min_age_days == 0
 
     def test_custom_values(self) -> None:
@@ -337,21 +337,21 @@ class TestCleanupHide:
         source_path = tmp_path / "book"
         source_path.mkdir()
 
-        result = _cleanup_hide(source_path, ".mamfast_imported", dry_run=False)
+        result = _cleanup_hide(source_path, ".shelfr_imported", dry_run=False)
 
         assert result.status == "success"
         assert result.strategy == CleanupStrategy.HIDE
-        assert (source_path / ".mamfast_imported").exists()
+        assert (source_path / ".shelfr_imported").exists()
 
     def test_dry_run_no_marker(self, tmp_path: Path) -> None:
         """Test dry run doesn't create marker."""
         source_path = tmp_path / "book"
         source_path.mkdir()
 
-        result = _cleanup_hide(source_path, ".mamfast_imported", dry_run=True)
+        result = _cleanup_hide(source_path, ".shelfr_imported", dry_run=True)
 
         assert result.status == "dry_run"
-        assert not (source_path / ".mamfast_imported").exists()
+        assert not (source_path / ".shelfr_imported").exists()
 
     def test_handles_permission_error(self, tmp_path: Path) -> None:
         """Test handling permission error when creating marker."""
@@ -359,7 +359,7 @@ class TestCleanupHide:
         source_path.mkdir()
 
         with patch("pathlib.Path.touch", side_effect=OSError("Permission denied")):
-            result = _cleanup_hide(source_path, ".mamfast_imported", dry_run=False)
+            result = _cleanup_hide(source_path, ".shelfr_imported", dry_run=False)
 
         assert result.status == "failed"
         assert result.error is not None
@@ -607,7 +607,7 @@ class TestCleanupSchemaValidation:
         assert schema.cleanup_path is None
         assert schema.require_seed_exists is True
         assert schema.verify_in_abs is False
-        assert schema.hide_marker == ".mamfast_imported"
+        assert schema.hide_marker == ".shelfr_imported"
         assert schema.min_age_days == 0
 
     def test_valid_strategies(self) -> None:

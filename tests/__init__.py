@@ -1,1 +1,1 @@
-"""MAMFast test suite."""
+"""shelfr test suite."""

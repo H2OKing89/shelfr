@@ -1,4 +1,4 @@
-"""Shared pytest fixtures and helpers for mamfast tests."""
+"""Shared pytest fixtures and helpers for shelfr tests."""
 
 from __future__ import annotations
 

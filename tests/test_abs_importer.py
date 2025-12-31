@@ -1422,7 +1422,7 @@ class TestUnknownAsinSidecar:
 
         assert sidecar_path is not None
         assert sidecar_path.exists()
-        assert sidecar_path.name == "_mamfast_unknown_asin.json"
+        assert sidecar_path.name == "_shelfr_unknown_asin.json"
 
         data = json.loads(sidecar_path.read_text())
         assert data["content_type"] == "missing_asin"
@@ -1492,7 +1492,7 @@ class TestUnknownAsinPolicyHandler:
         audio_files = list(result.target_path.glob("*.m4b"))
         assert len(audio_files) == 1
         # Sidecar written
-        assert (result.target_path / "_mamfast_unknown_asin.json").exists()
+        assert (result.target_path / "_shelfr_unknown_asin.json").exists()
 
     def test_policy_quarantine_requires_path(self, tmp_path: Path) -> None:
         """Policy QUARANTINE fails without quarantine_path."""
@@ -1543,7 +1543,7 @@ class TestUnknownAsinPolicyHandler:
         audio_files = list(result.target_path.glob("*.m4b"))
         assert len(audio_files) == 1
         # Sidecar written
-        assert (result.target_path / "_mamfast_unknown_asin.json").exists()
+        assert (result.target_path / "_shelfr_unknown_asin.json").exists()
 
     def test_policy_import_homebrew_to_author(self, tmp_path: Path) -> None:
         """Policy IMPORT routes HOMEBREW to Author/."""
@@ -2194,7 +2194,7 @@ class TestImportSingleWithCleanup:
         assert result.cleanup.status == "success"
         assert result.cleanup.strategy == CleanupStrategy.HIDE
         # Marker file should exist
-        assert (source_folder / ".mamfast_imported").exists()
+        assert (source_folder / ".shelfr_imported").exists()
 
     def test_cleanup_not_run_when_source_path_not_provided(self, tmp_path: Path) -> None:
         """Test that cleanup does not run when source_path is None."""
@@ -2374,7 +2374,7 @@ class TestBatchImportWithCleanup:
 
         # All markers should exist
         for src in source_paths.values():
-            assert (src / ".mamfast_imported").exists()
+            assert (src / ".shelfr_imported").exists()
 
     def test_batch_mixed_cleanup_results(self, tmp_path: Path) -> None:
         """Test batch with mixed cleanup results (some skipped)."""
@@ -2444,6 +2444,6 @@ class TestBatchImportWithCleanup:
         assert result.cleanup_skipped_count == 1  # book2 skipped (no seed)
 
         # Book1 marker exists
-        assert (src1 / ".mamfast_imported").exists()
+        assert (src1 / ".shelfr_imported").exists()
         # Book2 marker does not exist
-        assert not (src2 / ".mamfast_imported").exists()
+        assert not (src2 / ".shelfr_imported").exists()

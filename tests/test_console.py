@@ -11,7 +11,7 @@ import pytest
 from rich.console import Console
 
 from shelfr.console import (
-    MAMFAST_THEME,
+    SHELFR_THEME,
     StepResult,
     confirm,
     console,
@@ -45,7 +45,7 @@ from shelfr.libation import LibationStatus
 def mock_console() -> tuple[Console, StringIO]:
     """Create a mock console for testing output."""
     output = StringIO()
-    test_console = Console(file=output, force_terminal=True, theme=MAMFAST_THEME)
+    test_console = Console(file=output, force_terminal=True, theme=SHELFR_THEME)
     return test_console, output
 
 
@@ -73,14 +73,14 @@ class TestConsoleSetup:
 
     def test_theme_has_required_styles(self) -> None:
         """Theme should have all required styles."""
-        assert "info" in MAMFAST_THEME.styles
-        assert "success" in MAMFAST_THEME.styles
-        assert "warning" in MAMFAST_THEME.styles
-        assert "error" in MAMFAST_THEME.styles
-        assert "step" in MAMFAST_THEME.styles
-        assert "title" in MAMFAST_THEME.styles
-        assert "dim" in MAMFAST_THEME.styles
-        assert "highlight" in MAMFAST_THEME.styles
+        assert "info" in SHELFR_THEME.styles
+        assert "success" in SHELFR_THEME.styles
+        assert "warning" in SHELFR_THEME.styles
+        assert "error" in SHELFR_THEME.styles
+        assert "step" in SHELFR_THEME.styles
+        assert "title" in SHELFR_THEME.styles
+        assert "dim" in SHELFR_THEME.styles
+        assert "highlight" in SHELFR_THEME.styles
 
     def test_console_instances_exist(self) -> None:
         """Console instances should be created."""

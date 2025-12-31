@@ -356,7 +356,7 @@ class TestAbsUserSchema:
         returns user data directly (not wrapped in {"user": ...}).
         """
         user = AbsUserSchema.model_validate(authorize_response)
-        assert user.username == "mamfast"
+        assert user.username == "Shelfr"
         assert user.type == "admin"
         assert user.has_admin is True
         assert user.is_active is True
@@ -387,7 +387,7 @@ class TestAbsAuthorizeResponse:
         # Client wraps /api/me response in {"user": ...} for schema validation
         wrapped = {"user": authorize_response}
         response = AbsAuthorizeResponse.model_validate(wrapped)
-        assert response.user.username == "mamfast"
+        assert response.user.username == "Shelfr"
         assert response.user.has_admin is True
 
     def test_validate_helper(self, authorize_response: dict[str, Any]) -> None:
@@ -395,7 +395,7 @@ class TestAbsAuthorizeResponse:
         # Client wraps /api/me response in {"user": ...} for schema validation
         wrapped = {"user": authorize_response}
         response = validate_authorize_response(wrapped)
-        assert response.user.id == "usr_mamfast"
+        assert response.user.id == "usr_Shelfr"
 
 
 class TestSchemaForwardCompatibility:

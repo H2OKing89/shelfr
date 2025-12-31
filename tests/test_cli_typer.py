@@ -214,8 +214,8 @@ class TestAllCommandsHaveHelp:
         """Test that global flags work BEFORE sub-app commands.
 
         Global flags like --dry-run must be placed before the subcommand:
-          mamfast --dry-run abs import  ✓ (correct)
-          mamfast abs import --dry-run  ✗ (wrong - flag after subcommand)
+          Shelfr --dry-run abs import  ✓ (correct)
+          Shelfr abs import --dry-run  ✗ (wrong - flag after subcommand)
         """
         # Global flag BEFORE subcommand should work
         result = runner.invoke(app, ["--dry-run", "abs", "init"])

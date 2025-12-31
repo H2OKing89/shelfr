@@ -287,7 +287,7 @@ class TestIntegrationWithRealConfig:
     def test_full_naming_json_structure(self):
         """Test validation of a config matching the real naming.json structure."""
         data = {
-            "_comment": "Naming rules for MAMFast.",
+            "_comment": "Naming rules for Shelfr.",
             "_version": "1.5.0",
             "title_subtitle_normalization": {
                 "_comment": "Fix Audible's inconsistent title/subtitle swaps.",

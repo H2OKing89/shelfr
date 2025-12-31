@@ -122,8 +122,8 @@ class TestAbsClientAuthorize:
             user = client.authorize()
 
         assert isinstance(user, AbsUser)
-        assert user.id == "usr_mamfast"
-        assert user.username == "mamfast"
+        assert user.id == "usr_Shelfr"
+        assert user.username == "Shelfr"
         assert user.user_type == "admin"
         assert user.is_active is True
         assert user.has_admin is True

@@ -670,7 +670,7 @@ class TestArchiveExisting:
         assert result.exists()  # Archive exists
         assert (result / "book.m4b").exists()  # Files present
         assert (result / "cover.jpg").exists()
-        assert (result / ".mamfast_trump.json").exists()  # Sidecar written
+        assert (result / ".shelfr_trump.json").exists()  # Sidecar written
 
     def test_archive_by_year(self, tmp_path: Path) -> None:
         """Archive organizes by year when enabled."""
@@ -819,7 +819,7 @@ class TestDiscoverArchives:
         archive_folder = tmp_path / "B0TEST12345" / "2024-01-01T12-00-00"
         archive_folder.mkdir(parents=True)
 
-        sidecar = archive_folder / ".mamfast_trump.json"
+        sidecar = archive_folder / ".shelfr_trump.json"
         sidecar.write_text(
             json.dumps(
                 {
@@ -851,7 +851,7 @@ class TestDiscoverArchives:
         for asin in ["B0AAAA11111", "B0BBBB22222"]:
             folder = tmp_path / asin / "2024-01-01T12-00-00"
             folder.mkdir(parents=True)
-            sidecar = folder / ".mamfast_trump.json"
+            sidecar = folder / ".shelfr_trump.json"
             sidecar.write_text(
                 json.dumps(
                     {
@@ -882,7 +882,7 @@ class TestDiscoverArchives:
         ]:
             folder = tmp_path / asin / timestamp
             folder.mkdir(parents=True)
-            sidecar = folder / ".mamfast_trump.json"
+            sidecar = folder / ".shelfr_trump.json"
             sidecar.write_text(
                 json.dumps(
                     {
@@ -925,7 +925,7 @@ class TestRestoreFromArchive:
         # Create archive with sidecar
         archive = tmp_path / "archive" / "B0TEST" / "2024-01-01T12-00-00"
         archive.mkdir(parents=True)
-        sidecar = archive / ".mamfast_trump.json"
+        sidecar = archive / ".shelfr_trump.json"
         sidecar.write_text(json.dumps({"existing_meta": {"asin": "B0TEST"}}))
 
         # Create audio file
@@ -948,7 +948,7 @@ class TestRestoreFromArchive:
 
         archive = tmp_path / "archive" / "MyBook"
         archive.mkdir(parents=True)
-        sidecar = archive / ".mamfast_trump.json"
+        sidecar = archive / ".shelfr_trump.json"
         sidecar.write_text(json.dumps({"existing_meta": {"asin": "B0TEST"}}))
 
         # Create audio file
@@ -971,7 +971,7 @@ class TestRestoreFromArchive:
 
         archive = tmp_path / "archive" / "MyBook"
         archive.mkdir(parents=True)
-        sidecar = archive / ".mamfast_trump.json"
+        sidecar = archive / ".shelfr_trump.json"
         sidecar.write_text(json.dumps({"existing_meta": {"asin": "B0TEST"}}))
 
         library = tmp_path / "library"
@@ -980,7 +980,7 @@ class TestRestoreFromArchive:
         result = restore_from_archive(archive, library)
         assert result is not None
         # Sidecar should be removed from restored location
-        assert not (result / ".mamfast_trump.json").exists()
+        assert not (result / ".shelfr_trump.json").exists()
 
     def test_restore_destination_exists_raises(self, tmp_path: Path) -> None:
         """Raises error if destination already exists."""
@@ -990,7 +990,7 @@ class TestRestoreFromArchive:
 
         archive = tmp_path / "archive" / "MyBook"
         archive.mkdir(parents=True)
-        sidecar = archive / ".mamfast_trump.json"
+        sidecar = archive / ".shelfr_trump.json"
         sidecar.write_text(json.dumps({"existing_meta": {"asin": "B0TEST"}}))
 
         library = tmp_path / "library"

@@ -14,7 +14,7 @@ class TestSetupLogging:
     def test_default_setup(self) -> None:
         """Test default logging setup."""
         logger = setup_logging()
-        assert logger.name == "mamfast"
+        assert logger.name == "shelfr"
         assert logger.level == logging.INFO
         assert len(logger.handlers) >= 1
 
