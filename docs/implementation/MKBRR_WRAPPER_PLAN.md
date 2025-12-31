@@ -1,8 +1,8 @@
 # mkbrr Wrapper Enhancement Plan
 
-> **Branch:** `feature/mkbrr-wrapper`  
-> **Status:** Planning  
-> **Created:** 2024-12-30
+> **Branch:** `feature/mkbrr-wrapper`
+> **Status:** In Progress
+> **Created:** 2025-12-30
 
 ## Overview
 
@@ -15,38 +15,40 @@ Enhance the existing `src/shelfr/mkbrr.py` Docker wrapper to expose more mkbrr f
 The existing `src/shelfr/mkbrr.py` provides:
 
 | Function | Description | Status |
-|----------|-------------|--------|
+| --- | --- | --- |
 | `create_torrent()` | Create torrents with presets | ✅ |
 | `inspect_torrent()` | View torrent metadata | ✅ |
 | `check_torrent()` | Verify content against torrent | ✅ |
 | `load_presets()` | Load preset names from presets.yaml | ✅ |
 | `fix_torrent_permissions()` | Fix Docker-created file ownership | ✅ |
 | `check_docker_available()` | Verify Docker is accessible | ✅ |
+| `get_mkbrr_version()` | Get mkbrr version from container | ✅ **NEW** |
+| `modify_torrent()` | Modify torrent metadata without rehash | ✅ **NEW** |
 
 ### Missing Features (from mkbrr docs)
 
 | Feature | mkbrr CLI | Current Wrapper | Priority |
-|---------|-----------|-----------------|----------|
-| `modify` command | ✅ | ❌ | **High** |
+| --- | --- | --- | --- |
+| `modify` command | ✅ | ✅ **DONE** | **High** |
 | `update` command | ✅ | ❌ | Low (Docker) |
-| Custom piece size (`-l`, `--piece-length`) | ✅ | ❌ | Medium |
-| Max piece size (`-m`, `--max-piece-length`) | ✅ | ❌ | Medium |
-| Source tag override (`-s`, `--source`) | ✅ | ❌ | Medium |
-| Output filename (`-o`, `--output`) | ✅ | ❌ | Medium |
-| Output directory (`--output-dir`) | ✅ | ❌ | Medium |
-| Exclude patterns (`-x`, `--exclude`) | ✅ | ❌ | Medium |
-| Include patterns (`-n`, `--include`) | ✅ | ❌ | Low |
-| Comment override (`-c`, `--comment`) | ✅ | ❌ | Low |
-| Skip prefix (`--skip-prefix`) | ✅ | ❌ | Low |
-| Tracker URL (`-t`, `--tracker`) | ✅ | ❌ | Medium |
-| Private flag (`--private`) | ✅ | ❌ | Low |
-| Web seeds (`-w`, `--web-seed`) | ✅ | ❌ | Low |
-| Entropy source (`-e`, `--entropy`) | ✅ | ❌ | Low |
-| No date (`--no-date`) | ✅ | ❌ | Low |
-| No creator (`--no-creator`) | ✅ | ❌ | Low |
-| Workers (`--workers`) | ✅ (check) | ❌ | Low |
-| Dry run (`--dry-run`) | ✅ (modify) | ❌ | Low |
-| Version command | ✅ | ❌ | Low |
+| Custom piece size (`-l`, `--piece-length`) | ✅ | ✅ (create) | Medium |
+| Max piece size (`-m`, `--max-piece-length`) | ✅ | ✅ (create) | Medium |
+| Source tag override (`-s`, `--source`) | ✅ | ✅ (create, modify) | Medium |
+| Output filename (`-o`, `--output`) | ✅ | ✅ (create, modify) | Medium |
+| Output directory (`--output-dir`) | ✅ (modify) | ✅ (create, modify) | Medium |
+| Exclude patterns (`--exclude`) | ✅ | ✅ (create) | Medium |
+| Include patterns (`--include`) | ✅ | ✅ (create) | Low |
+| Comment override (`-c`, `--comment`) | ✅ | ✅ (create, modify) | Low |
+| Skip prefix (`--skip-prefix`) | ✅ | ✅ (create) | Low |
+| Tracker URL (`-t`, `--tracker`) | ✅ | ✅ (create, modify) | Medium |
+| Private flag (`--private`) | ✅ | ✅ (create, modify) | Low |
+| Web seeds (`-w`, `--web-seed`) | ✅ | ✅ (create) | Low |
+| Entropy source (`-e`, `--entropy`) | ✅ | ✅ (create, modify) | Low |
+| No date (`--no-date`) | ✅ | ✅ (create) | Low |
+| No creator (`--no-creator`) | ✅ | ✅ (create) | Low |
+| Workers (`--workers`) | ✅ (check) | ✅ (check) | Low |
+| Dry run (`--dry-run`) | ✅ (modify) | ✅ (modify) | Low |
+| Version command | ✅ | ✅ **DONE** | Low |
 | Batch mode (`-b`) | ✅ | ❌ | Low (complex) |
 | Batch config (batch.yaml) | ✅ | ❌ | Low (complex) |
 | Season pack detection | ✅ (auto) | ❌ | Low (info only) |
@@ -63,8 +65,8 @@ The `modify` command allows changing torrent metadata without recreating:
 ```python
 def modify_torrent(
     torrent_paths: Path | str | list[Path | str],
-    output_path: Path | str | None = None,
-    output_dir: Path | str | None = None,
+    output_path: Path | str | None = None,  # -o, --output (filename without extension for modify)
+    output_dir: Path | str | None = None,   # --output-dir (for batch modifications)
     tracker: str | None = None,
     source: str | None = None,
     comment: str | None = None,
@@ -111,16 +113,16 @@ Add optional parameters for advanced torrent creation:
 ```python
 def create_torrent(
     content_path: Path | str,
-    output_dir: Path | str | None = None,
+    output_dir: Path | str | None = None,  # WRAPPER SUGAR: uses Docker -w workdir
     preset: str | None = None,
     # NEW optional parameters:
-    output_filename: str | None = None,  # -o, --output
+    output_filename: str | None = None,  # -o, --output (output file path)
     tracker: str | None = None,          # -t, --tracker (override preset)
     source: str | None = None,           # -s, --source (override preset)
-    piece_length: int | None = None,     # -l, --piece-length (exponent, e.g., 18 = 256KiB)
-    max_piece_length: int | None = None, # -m, --max-piece-length
-    exclude_patterns: list[str] | None = None,  # -x, --exclude
-    include_patterns: list[str] | None = None,  # -n, --include
+    piece_length: int | None = None,     # -l, --piece-length (exponent 16-27, e.g., 18 = 256KiB)
+    max_piece_length: int | None = None, # -m, --max-piece-length (exponent 16-27)
+    exclude_patterns: list[str] | None = None,  # --exclude (no short flag)
+    include_patterns: list[str] | None = None,  # --include (no short flag)
     skip_prefix: bool = False,           # --skip-prefix
     preset_file: Path | str | None = None,  # --preset-file (custom presets.yaml path)
     workers: int | None = None,          # --workers (hashing concurrency)
@@ -136,14 +138,39 @@ def create_torrent(
 **Notes from mkbrr docs:**
 
 - Piece size is auto-calculated based on content size (smart defaults)
+- Piece length exponents: **16-27** (2^16 = 64KiB to 2^27 = 128MiB)
 - When tracker URL provided, output filename prefixed with tracker domain
 - `--skip-prefix` disables the tracker domain prefix
-- Tracker-specific rules override manual `-l`/`-m` flags for compliance
+- **Tracker-specific rules override manual `-l`/`-m` flags** for compliance (cannot be bypassed)
 - Filtering patterns are additive with preset patterns
+- **`output_dir` wrapper implementation:** Set Docker container `-w` to output dir, let mkbrr create files there with auto-generated names (preserves tracker prefix logic)
 - **Season pack detection:** mkbrr auto-detects incomplete TV season packs by analyzing `S01E01` patterns in `.mkv`/`.mp4` files (warning only, doesn't block creation)
 - **Symbolic links:** Links are followed (target content hashed), but link path is stored in torrent metadata. When checking, verifies against original target content at creation time.
 
-### 1.3 Add `get_mkbrr_version()` Function
+### 1.3 Enhanced `inspect_torrent()` Function
+
+```python
+def inspect_torrent(
+    torrent_paths: Path | str | list[Path | str],  # Future-proof: support multiple torrents
+    verbose: bool = False,
+) -> MkbrrResult:
+    """
+    Inspect torrent metadata.
+
+    Args:
+        torrent_paths: Path(s) to .torrent file(s) to inspect.
+        verbose: Include non-standard metadata fields.
+
+    Returns:
+        MkbrrResult with human-readable torrent info.
+
+    Note:
+        For structured data, prefer parse_torrent_file() which reads
+        .torrent bencode directly (more robust than text parsing).
+    """
+```
+
+### 1.4 Add `get_mkbrr_version()` Function
 
 ```python
 def get_mkbrr_version() -> str | None:
@@ -155,7 +182,7 @@ def get_mkbrr_version() -> str | None:
     """
 ```
 
-### 1.4 Add `update_mkbrr()` Function
+### 1.5 Add `update_mkbrr()` Function
 
 ```python
 def update_mkbrr() -> MkbrrResult:
@@ -208,7 +235,7 @@ shelfr mkbrr update
 
 ### 2.2 CLI File Structure
 
-```
+```text
 src/shelfr/cli/
 ├── __init__.py
 ├── main.py          # Main app with subcommand groups
@@ -252,9 +279,9 @@ def create(
     source: Annotated[str | None, typer.Option("--source", "-s")] = None,
     output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
     output_dir: Annotated[Path | None, typer.Option("--output-dir")] = None,
-    piece_length: Annotated[int | None, typer.Option("--piece-length", "-l")] = None,
-    exclude: Annotated[list[str] | None, typer.Option("--exclude", "-x")] = None,
-    include: Annotated[list[str] | None, typer.Option("--include", "-n")] = None,
+    piece_length: Annotated[int | None, typer.Option("--piece-length", "-l", help="Piece size exponent (16-27)")] = None,
+    exclude: Annotated[list[str] | None, typer.Option("--exclude", help="Exclude pattern (no short flag)")] = None,
+    include: Annotated[list[str] | None, typer.Option("--include", help="Include pattern (triggers whitelist mode)")] = None,
     comment: Annotated[str | None, typer.Option("--comment", "-c")] = None,
     skip_prefix: Annotated[bool, typer.Option("--skip-prefix")] = False,
     preset_file: Annotated[Path | None, typer.Option("--preset-file")] = None,
@@ -267,10 +294,14 @@ def create(
 
 @app.command()
 def inspect(
-    torrent: Annotated[Path, typer.Argument(help="Path to .torrent file")],
+    torrents: Annotated[list[Path], typer.Argument(help="Path(s) to .torrent file(s)")],
     verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
 ) -> None:
-    """Inspect torrent metadata."""
+    """Inspect torrent metadata.
+
+    For structured data access, the wrapper uses bencode parsing
+    internally rather than text parsing mkbrr inspect output.
+    """
     ...
 
 
@@ -283,10 +314,10 @@ def check(
     workers: Annotated[int | None, typer.Option("--workers")] = None,
 ) -> None:
     """Verify content against torrent file.
-    
+
     Outputs: completion %, good/bad pieces, missing files, check time.
     Exit code non-zero if bad pieces > 0 or missing files > 0.
-    
+
     Quiet mode (-q) outputs only completion percentage (e.g., "99.50%").
     Verbose mode (-v) includes bad piece indices.
     """
@@ -307,7 +338,7 @@ def modify(
     dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
 ) -> None:
     """Modify existing torrent file(s).
-    
+
     Note: All non-standard metadata is stripped during modification.
     For multiple files, use --output-dir instead of --output.
     """
@@ -329,7 +360,7 @@ def version() -> None:
 @app.command()
 def update() -> None:
     """Update mkbrr Docker image to latest version.
-    
+
     Pulls the latest ghcr.io/autobrr/mkbrr image.
     Note: This updates the Docker image, not the mkbrr binary directly.
     """
@@ -362,10 +393,11 @@ class TorrentFileInfo(BaseModel):
 
 
 class TorrentInfo(BaseModel):
-    """Parsed torrent metadata from mkbrr inspect.
-    
-    Note: Use --verbose flag to capture non-standard metadata fields
-    in both root and info dictionaries.
+    """Parsed torrent metadata (from bencode or mkbrr inspect).
+
+    Recommended: Parse .torrent files directly using bencode for stable,
+    format-independent access. mkbrr inspect is human-readable but not
+    designed for machine parsing.
     """
 
     name: str
@@ -382,7 +414,7 @@ class TorrentInfo(BaseModel):
     creation_date: datetime | None = None
     files: list[TorrentFileInfo] = Field(default_factory=list)
     file_count: int = 1  # For multi-file torrents
-    extra_fields: dict[str, Any] | None = None  # Non-standard fields (verbose mode)
+    extra_fields: dict[str, Any] | None = None  # Non-standard fields
 
 
 class CheckResult(BaseModel):
@@ -398,13 +430,42 @@ class CheckResult(BaseModel):
     check_time_seconds: float | None = None
 ```
 
-### 3.2 Parse Inspect Output
+### 3.2 Bencode Parser (Primary)
 
-Add function to parse `mkbrr inspect` output into structured data:
+Add function to parse `.torrent` files directly:
+
+```python
+def parse_torrent_file(torrent_path: Path) -> TorrentInfo:
+    """
+    Parse .torrent file via bencode (recommended approach).
+
+    This is more robust than parsing mkbrr inspect output since it
+    directly reads the torrent file format without Docker dependency.
+
+    Args:
+        torrent_path: Path to .torrent file.
+
+    Returns:
+        TorrentInfo model with structured metadata.
+
+    Note:
+        Requires bencodepy or similar bencode library.
+    """
+    ...
+```
+
+### 3.3 Inspect Output Parser (Secondary)
+
+Add best-effort text parser for human-readable output:
 
 ```python
 def parse_inspect_output(stdout: str) -> TorrentInfo:
-    """Parse mkbrr inspect output into TorrentInfo model."""
+    """
+    Parse mkbrr inspect output into TorrentInfo model (best effort).
+
+    Note: This is fragile since inspect output is human-readable text.
+    Prefer parse_torrent_file() for programmatic use.
+    """
     ...
 ```
 
@@ -520,7 +581,7 @@ From [season-packs.mdx](../reference/mkbrr/features/season-packs.mdx):
 
 ## File Structure Summary
 
-```
+```text
 src/shelfr/
 ├── mkbrr.py                    # Enhanced core wrapper
 ├── cli/
@@ -537,18 +598,21 @@ src/shelfr/
 
 ## Implementation Order
 
-| Step | Task | Files | Est. Effort |
-|------|------|-------|-------------|
-| 1 | Add `modify_torrent()` | `mkbrr.py` | Small |
-| 2 | Add `get_mkbrr_version()` | `mkbrr.py` | Small |
-| 3 | Extend `create_torrent()` params | `mkbrr.py` | Medium |
-| 4 | Add Pydantic models | `schemas/mkbrr.py` | Small |
-| 5 | Parse inspect output | `mkbrr.py` | Medium |
-| 6 | Create CLI commands | `cli/mkbrr.py` | Medium |
-| 7 | Register CLI subcommand | `cli/main.py` | Small |
-| 8 | Update config schema | `schemas/config.py` | Small |
-| 9 | Write tests | `tests/test_mkbrr.py` | Medium |
-| 10 | Documentation | `docs/cli/mkbrr.md` | Small |
+**Recommended sequence ("strong opinion" order):**
+
+| Step | Task | Files | Est. Effort | Rationale |
+| --- | --- | --- | --- | --- |
+| 1 | ~~Add `get_mkbrr_version()`~~ | `mkbrr.py` | Small | ✅ **DONE** - 7 tests |
+| 2 | ~~Add `modify_torrent()`~~ | `mkbrr.py` | Small | ✅ **DONE** - 14 tests |
+| 3 | ~~Extend `create_torrent()` params~~ | `mkbrr.py` | Medium | ✅ **DONE** - 18 tests |
+| 4 | Add Pydantic models | `schemas/mkbrr.py` | Small | Foundation for structured data |
+| 5 | Add bencode parser | `mkbrr.py` | Medium | Robust .torrent parsing (prefer over text) |
+| 6 | Parse inspect output (optional) | `mkbrr.py` | Medium | Best-effort fallback for human-readable view |
+| 7 | Create CLI commands | `cli/mkbrr.py` | Medium | Pretty dashboard time (Rich demands it) |
+| 8 | Register CLI subcommand | `cli/main.py` | Small | Wire up to main app |
+| 9 | Update config schema | `schemas/config.py` | Small | Defaults for new parameters |
+| 10 | Write tests | `tests/test_mkbrr.py` | Medium | Mock Docker, test edge cases |
+| 11 | Documentation | `docs/cli/mkbrr.md` | Small | Usage examples + troubleshooting |
 
 ---
 
@@ -586,13 +650,14 @@ src/shelfr/
 ## Changelog
 
 | Date | Change |
-|------|--------|
-| 2024-12-30 | Initial planning document |
-| 2024-12-30 | Updated with complete CLI flags from mkbrr docs |
-| 2024-12-30 | Added key features section (filtering, tracker rules, presets) |
-| 2024-12-30 | Enhanced modify_torrent() to support multiple files, dry-run, entropy |
-| 2024-12-30 | Added workers flag for check, output-dir for batch operations |
-| 2024-12-30 | Added update command (pulls latest Docker image) |
-| 2024-12-30 | Added batch mode docs, season pack detection, preset-file flag |
-| 2024-12-30 | Added workers and entropy params to create, expanded presets section |
-| 2024-12-30 | Cross-referenced guides: symlink handling, size mismatch, quiet mode, verbose metadata |
+| --- | --- |
+| 2025-12-30 | Initial planning document |
+| 2025-12-30 | Updated with complete CLI flags from mkbrr docs |
+| 2025-12-30 | Added key features section (filtering, tracker rules, presets) |
+| 2025-12-30 | Enhanced modify_torrent() to support multiple files, dry-run, entropy |
+| 2025-12-30 | Added workers flag for check, output-dir for batch operations |
+| 2025-12-30 | Added update command (pulls latest Docker image) |
+| 2025-12-30 | Added batch mode docs, season pack detection, preset-file flag |
+| 2025-12-30 | Added workers and entropy params to create, expanded presets section |
+| 2025-12-30 | Cross-referenced guides: symlink handling, size mismatch, quiet mode, verbose metadata |
+| 2025-12-30 | **ACCURACY PASS:** Fixed exclude/include (no short flags), output-dir (modify-only), piece length range (16-27), emphasized tracker rule override, reordered implementation (version→modify→create→bencode), future-proofed inspect for multiple torrents, prioritized bencode parsing over text parsing |
