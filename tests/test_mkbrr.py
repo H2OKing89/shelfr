@@ -1792,3 +1792,392 @@ class TestTorrentFileDiscoveryWithPresetPrefix:
 
         assert result.success is True
         assert result.torrent_path == newer_torrent
+
+
+# =============================================================================
+# parse_torrent_file() tests
+# =============================================================================
+
+
+class TestParseTorrentFile:
+    """Tests for parse_torrent_file() bencode parsing."""
+
+    def _create_minimal_torrent(self, tmp_path: Path, name: str = "test") -> Path:
+        """Create a minimal valid torrent file for testing."""
+        import bencodepy
+
+        # Create minimal valid torrent structure
+        info_dict = {
+            b"name": name.encode("utf-8"),
+            b"piece length": 262144,  # 256 KiB
+            b"pieces": b"\x00" * 20,  # 1 piece (20 bytes per SHA1)
+            b"length": 100000,  # Single file, 100KB
+        }
+
+        torrent_dict = {
+            b"info": info_dict,
+            b"announce": b"https://tracker.example.com/announce",
+        }
+
+        torrent_path = tmp_path / f"{name}.torrent"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        return torrent_path
+
+    def _create_multi_file_torrent(self, tmp_path: Path, name: str = "multi") -> Path:
+        """Create a multi-file torrent for testing."""
+        import bencodepy
+
+        info_dict = {
+            b"name": name.encode("utf-8"),
+            b"piece length": 262144,
+            b"pieces": b"\x00" * 40,  # 2 pieces
+            b"files": [
+                {b"length": 50000, b"path": [b"chapter01.mp3"]},
+                {b"length": 50000, b"path": [b"chapter02.mp3"]},
+                {b"length": 25000, b"path": [b"cover", b"front.jpg"]},
+            ],
+        }
+
+        torrent_dict = {
+            b"info": info_dict,
+            b"announce": b"https://tracker.example.com/announce",
+            b"announce-list": [
+                [b"https://tracker1.example.com/announce"],
+                [b"https://tracker2.example.com/announce"],
+            ],
+            b"comment": b"Test multi-file torrent",
+            b"created by": b"test-suite/1.0",
+            b"creation date": 1735574400,  # 2024-12-30 UTC
+        }
+
+        torrent_path = tmp_path / f"{name}.torrent"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        return torrent_path
+
+    def test_parse_minimal_single_file(self, tmp_path: Path) -> None:
+        """Parse a minimal single-file torrent."""
+        from shelfr.mkbrr import parse_torrent_file
+
+        torrent_path = self._create_minimal_torrent(tmp_path, "audiobook")
+        info = parse_torrent_file(torrent_path)
+
+        assert info.name == "audiobook"
+        assert len(info.info_hash) == 40
+        assert all(c in "0123456789abcdef" for c in info.info_hash)
+        assert info.size == 100000
+        assert info.piece_length == 262144
+        assert info.piece_count == 1
+        assert info.private is False
+        assert info.trackers == ["https://tracker.example.com/announce"]
+        assert info.file_count == 1
+        assert info.is_multi_file is False
+        assert info.files == []
+
+    def test_parse_multi_file_torrent(self, tmp_path: Path) -> None:
+        """Parse a multi-file torrent with full metadata."""
+        from shelfr.mkbrr import parse_torrent_file
+
+        torrent_path = self._create_multi_file_torrent(tmp_path, "my_audiobook")
+        info = parse_torrent_file(torrent_path)
+
+        assert info.name == "my_audiobook"
+        assert info.size == 125000  # 50000 + 50000 + 25000
+        assert info.piece_length == 262144
+        assert info.piece_count == 2
+        assert info.private is False
+
+        # Check trackers (primary + announce-list, deduplicated)
+        assert "https://tracker.example.com/announce" in info.trackers
+        assert "https://tracker1.example.com/announce" in info.trackers
+        assert "https://tracker2.example.com/announce" in info.trackers
+
+        # Check optional metadata
+        assert info.comment == "Test multi-file torrent"
+        assert info.created_by == "test-suite/1.0"
+        assert info.creation_date is not None
+
+        # Check files
+        assert info.file_count == 3
+        assert info.is_multi_file is True
+        assert len(info.files) == 3
+        assert info.files[0].path == "chapter01.mp3"
+        assert info.files[0].size == 50000
+        assert info.files[2].path == "cover/front.jpg"
+        assert info.files[2].size == 25000
+
+    def test_parse_private_torrent(self, tmp_path: Path) -> None:
+        """Parse a private torrent."""
+        import bencodepy
+
+        info_dict = {
+            b"name": b"private_audiobook",
+            b"piece length": 262144,
+            b"pieces": b"\x00" * 20,
+            b"length": 100000,
+            b"private": 1,
+            b"source": b"MAM",
+        }
+
+        torrent_dict = {b"info": info_dict}
+        torrent_path = tmp_path / "private.torrent"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        info = parse_torrent_file(torrent_path)
+
+        assert info.private is True
+        assert info.source == "MAM"
+        assert info.trackers == []  # No announce URL
+
+    def test_parse_with_web_seeds(self, tmp_path: Path) -> None:
+        """Parse torrent with web seeds (BEP 19)."""
+        import bencodepy
+
+        info_dict = {
+            b"name": b"test",
+            b"piece length": 262144,
+            b"pieces": b"\x00" * 20,
+            b"length": 100000,
+        }
+
+        torrent_dict = {
+            b"info": info_dict,
+            b"url-list": [
+                b"https://cdn1.example.com/files/",
+                b"https://cdn2.example.com/files/",
+            ],
+        }
+
+        torrent_path = tmp_path / "webseeds.torrent"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        info = parse_torrent_file(torrent_path)
+
+        assert len(info.web_seeds) == 2
+        assert "https://cdn1.example.com/files/" in info.web_seeds
+        assert "https://cdn2.example.com/files/" in info.web_seeds
+
+    def test_parse_with_single_web_seed(self, tmp_path: Path) -> None:
+        """Parse torrent with single web seed (string not list)."""
+        import bencodepy
+
+        info_dict = {
+            b"name": b"test",
+            b"piece length": 262144,
+            b"pieces": b"\x00" * 20,
+            b"length": 100000,
+        }
+
+        torrent_dict = {
+            b"info": info_dict,
+            b"url-list": b"https://cdn.example.com/files/",
+        }
+
+        torrent_path = tmp_path / "single_webseed.torrent"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        info = parse_torrent_file(torrent_path)
+
+        assert len(info.web_seeds) == 1
+        assert info.web_seeds[0] == "https://cdn.example.com/files/"
+
+    def test_parse_extra_fields(self, tmp_path: Path) -> None:
+        """Parse torrent with non-standard fields in info dict."""
+        import bencodepy
+
+        info_dict = {
+            b"name": b"test",
+            b"piece length": 262144,
+            b"pieces": b"\x00" * 20,
+            b"length": 100000,
+            b"x_custom": b"custom_value",
+            b"some_other_field": 42,
+        }
+
+        torrent_dict = {b"info": info_dict}
+        torrent_path = tmp_path / "extra.torrent"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        info = parse_torrent_file(torrent_path)
+
+        assert info.extra_fields is not None
+        assert info.extra_fields.get("x_custom") == "custom_value"
+        assert info.extra_fields.get("some_other_field") == 42
+
+    def test_computed_properties(self, tmp_path: Path) -> None:
+        """Test computed properties on parsed torrent."""
+        import bencodepy
+
+        info_dict = {
+            b"name": b"Large Audiobook",
+            b"piece length": 1048576,  # 1 MiB (2^20)
+            b"pieces": b"\x00" * 100,  # 5 pieces
+            b"length": 1610612736,  # 1.5 GiB
+        }
+
+        torrent_dict = {b"info": info_dict}
+        torrent_path = tmp_path / "large.torrent"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        info = parse_torrent_file(torrent_path)
+
+        assert info.piece_length_exponent == 20
+        assert info.human_piece_length() == "1 MiB"
+        assert info.human_size() == "1.50 GiB"
+
+    def test_parse_file_not_found(self, tmp_path: Path) -> None:
+        """Raise FileNotFoundError for missing file."""
+        import pytest
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        with pytest.raises(FileNotFoundError):
+            parse_torrent_file(tmp_path / "nonexistent.torrent")
+
+    def test_parse_invalid_bencode(self, tmp_path: Path) -> None:
+        """Raise ValueError for invalid bencode data."""
+        import pytest
+
+        torrent_path = tmp_path / "invalid.torrent"
+        torrent_path.write_bytes(b"not valid bencode data")
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        with pytest.raises(ValueError, match="Failed to decode"):
+            parse_torrent_file(torrent_path)
+
+    def test_parse_missing_info_dict(self, tmp_path: Path) -> None:
+        """Raise ValueError for torrent missing info dict."""
+        import bencodepy
+        import pytest
+
+        torrent_dict = {b"announce": b"https://example.com/announce"}
+        torrent_path = tmp_path / "no_info.torrent"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        with pytest.raises(ValueError, match="missing or invalid 'info'"):
+            parse_torrent_file(torrent_path)
+
+    def test_parse_missing_name(self, tmp_path: Path) -> None:
+        """Raise ValueError for torrent missing name field."""
+        import bencodepy
+        import pytest
+
+        info_dict = {
+            b"piece length": 262144,
+            b"pieces": b"\x00" * 20,
+            b"length": 100000,
+        }
+        torrent_dict = {b"info": info_dict}
+        torrent_path = tmp_path / "no_name.torrent"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        with pytest.raises(ValueError, match="missing 'name'"):
+            parse_torrent_file(torrent_path)
+
+    def test_parse_unicode_name(self, tmp_path: Path) -> None:
+        """Parse torrent with unicode characters in name."""
+        import bencodepy
+
+        info_dict = {
+            b"name": "日本語オーディオブック".encode(),
+            b"piece length": 262144,
+            b"pieces": b"\x00" * 20,
+            b"length": 100000,
+        }
+
+        torrent_dict = {b"info": info_dict}
+        torrent_path = tmp_path / "unicode.torrent"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        info = parse_torrent_file(torrent_path)
+        assert info.name == "日本語オーディオブック"
+
+    def test_parse_accepts_path_str(self, tmp_path: Path) -> None:
+        """Accept string path as well as Path object."""
+        from shelfr.mkbrr import parse_torrent_file
+
+        torrent_path = self._create_minimal_torrent(tmp_path, "str_path_test")
+        info = parse_torrent_file(str(torrent_path))
+
+        assert info.name == "str_path_test"
+
+    def test_info_hash_is_stable(self, tmp_path: Path) -> None:
+        """Info hash should be deterministic for same content."""
+        import bencodepy
+
+        info_dict = {
+            b"name": b"stable_hash_test",
+            b"piece length": 262144,
+            b"pieces": b"\x00" * 20,
+            b"length": 100000,
+        }
+
+        # Create two identical torrents
+        torrent_dict = {b"info": info_dict}
+        torrent1 = tmp_path / "stable1.torrent"
+        torrent2 = tmp_path / "stable2.torrent"
+
+        for path in [torrent1, torrent2]:
+            with open(path, "wb") as f:
+                f.write(bencodepy.encode(torrent_dict))
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        info1 = parse_torrent_file(torrent1)
+        info2 = parse_torrent_file(torrent2)
+
+        assert info1.info_hash == info2.info_hash
+
+    def test_warns_on_non_torrent_extension(self, tmp_path: Path, caplog) -> None:
+        """Log warning for files without .torrent extension."""
+        import logging
+
+        import bencodepy
+
+        info_dict = {
+            b"name": b"test",
+            b"piece length": 262144,
+            b"pieces": b"\x00" * 20,
+            b"length": 100000,
+        }
+
+        torrent_dict = {b"info": info_dict}
+        torrent_path = tmp_path / "not_a_torrent.dat"
+        with open(torrent_path, "wb") as f:
+            f.write(bencodepy.encode(torrent_dict))
+
+        from shelfr.mkbrr import parse_torrent_file
+
+        with caplog.at_level(logging.WARNING):
+            info = parse_torrent_file(torrent_path)
+
+        assert info.name == "test"
+        assert "does not have .torrent extension" in caplog.text
