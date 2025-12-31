@@ -54,7 +54,7 @@ def cmd_libation_redownload(args: argparse.Namespace) -> int:
     skip_confirm = getattr(args, "yes", False)
 
     print_libation_header(
-        "🔄 Re-download Audiobooks",
+        "↻ Re-download Audiobooks",
         f"Re-downloading {len(asins)} book(s)",
         dry_run=args.dry_run,
         hint="This marks books for re-download and liberates them",
@@ -192,7 +192,7 @@ def cmd_libation_set_status(args: argparse.Namespace) -> int:
     scope = f"{len(asins)} book(s)" if asins else "ALL books in library"
 
     print_libation_header(
-        "📋 Set Book Status",
+        "* Set Book Status",
         f"Will {' and '.join(action_desc)}",
         dry_run=args.dry_run,
     )

@@ -218,8 +218,8 @@ class ProcessingResult:
 
     @property
     def status_emoji(self) -> str:
-        """Emoji for status display."""
-        return "✅" if self.success else "❌"
+        """Icon for status display."""
+        return "✓" if self.success else "✗"
 
 
 @dataclass

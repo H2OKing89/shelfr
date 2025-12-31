@@ -119,22 +119,22 @@ class TestValidationCheck:
     def test_passed_check_icon(self):
         """Passed checks show checkmark."""
         check = ValidationCheck(name="test", passed=True, message="OK")
-        assert check.icon == "✅"
+        assert check.icon == "✓"
 
     def test_failed_error_icon(self):
         """Failed error checks show X."""
         check = ValidationCheck(name="test", passed=False, message="Failed", severity="error")
-        assert check.icon == "❌"
+        assert check.icon == "✗"
 
     def test_failed_warning_icon(self):
         """Failed warning checks show warning sign."""
         check = ValidationCheck(name="test", passed=False, message="Warn", severity="warning")
-        assert check.icon == "⚠️"
+        assert check.icon == "⚠"
 
     def test_failed_info_icon(self):
         """Failed info checks show info sign."""
         check = ValidationCheck(name="test", passed=False, message="Info", severity="info")
-        assert check.icon == "ℹ️"
+        assert check.icon == "ℹ"
 
     def test_default_severity_is_error(self):
         """Default severity should be error."""

@@ -107,7 +107,7 @@ HELP_TEXT = """
 ╰───────────────────────────╯
 """
 
-# Editor style (cyberpunk theme 🎨)
+# Editor style (cyberpunk theme )
 EDITOR_STYLE_DICT = {
     "": "#ffffff",
     "prompt": "#00ff00 bold",

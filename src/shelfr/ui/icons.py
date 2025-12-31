@@ -216,11 +216,7 @@ def set_icon_mode(mode: IconMode) -> None:
         # Check for dumb terminal or NO_COLOR
         term = os.environ.get("TERM", "")
         no_color = os.environ.get("NO_COLOR", "")
-
-        if term in ("dumb", "") or no_color:
-            mode = "ascii"
-        else:
-            mode = "unicode"
+        mode = "ascii" if term in ("dumb", "") or no_color else "unicode"
 
     _current_mode = mode
 

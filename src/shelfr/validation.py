@@ -57,12 +57,12 @@ class ValidationCheck:
     def icon(self) -> str:
         """Return icon based on pass/fail status."""
         if self.passed:
-            return "✅"
+            return "✓"
         if self.severity == "error":
-            return "❌"
+            return "✗"
         if self.severity == "warning":
-            return "⚠️"
-        return "ℹ️"
+            return "⚠"
+        return "ℹ"
 
 
 @dataclass

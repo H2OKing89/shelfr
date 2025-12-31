@@ -83,7 +83,7 @@ def cmd_tools_mamff(args: argparse.Namespace) -> int:
     path: Path = args.path.resolve()
     output_path: Path | None = args.output
 
-    console.print(Panel.fit("📝 MAM Fast-Fill JSON Generator", style="bold blue"))
+    console.print(Panel.fit("MAM Fast-Fill JSON Generator", style="bold blue"))
     console.print()
 
     # Determine folder and find audio file

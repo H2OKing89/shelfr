@@ -135,7 +135,7 @@ def print_directory_status(name: str, path: Any, exists: bool, count: int | None
         console.print(f"  [error]✗[/] {name}: {path} [dim](not found)[/]")
 
 
-def print_hint_panel(hints: list[str], title: str = "💡 Tips") -> None:
+def print_hint_panel(hints: list[str], title: str = "* Tips") -> None:
     """Print a panel with helpful hints.
 
     Args:
@@ -144,7 +144,7 @@ def print_hint_panel(hints: list[str], title: str = "💡 Tips") -> None:
 
     Example:
         >>> print_hint_panel(["Use --dry-run first", "Check logs for details"])
-        ╭─────────── 💡 Tips ───────────╮
+        ╭─────────── * Tips ───────────╮
         │ • Use --dry-run first         │
         │ • Check logs for details      │
         ╰───────────────────────────────╯

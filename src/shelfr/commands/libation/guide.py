@@ -106,7 +106,7 @@ def cmd_libation_guide(args: argparse.Namespace) -> int:
             "Libation logs are saved to logs/libation/",
             "Configure Libation container in config/config.yaml",
         ],
-        title="💡 Pro Tips",
+        title="* Pro Tips",
     )
 
     return 0

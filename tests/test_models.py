@@ -178,7 +178,7 @@ class TestProcessingResult:
         )
         assert result.success is True
         assert result.error is None
-        assert result.status_emoji == "✅"
+        assert result.status_emoji == "✓"
         assert result.duration_seconds == 5.5
 
     def test_failure_result(self):
@@ -191,7 +191,7 @@ class TestProcessingResult:
         )
         assert result.success is False
         assert result.error == "Connection failed"
-        assert result.status_emoji == "❌"
+        assert result.status_emoji == "✗"
 
 
 class TestProcessedState:

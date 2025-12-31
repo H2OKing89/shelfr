@@ -189,7 +189,7 @@ def print_change_analysis(
         similarity: Similarity percentage
         is_suspicious: Whether the change is flagged as suspicious
     """
-    status_icon = "[warning]⚠️[/]" if is_suspicious else "[success]✓[/]"
+    status_icon = "[warning]⚠[/]" if is_suspicious else "[success]✓[/]"
     status_text = "SUSPICIOUS" if is_suspicious else "OK"
 
     console.print(f"\n{status_icon} [{status_text}] Change Analysis")

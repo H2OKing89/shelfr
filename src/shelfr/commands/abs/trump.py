@@ -251,7 +251,7 @@ def cmd_abs_trump_check(args: argparse.Namespace) -> int:
             rejected=rejected_count,
         )
         if keep_both_count > 0:
-            console.print(f"  📁 Keep both: [dim]{keep_both_count}[/]")
+            console.print(f"  + Keep both: [dim]{keep_both_count}[/]")
 
     return 0
 
