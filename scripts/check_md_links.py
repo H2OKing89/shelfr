@@ -5,7 +5,7 @@ This script is intentionally simple and fast.
 
 It treats these as internal links:
 - Relative links (e.g. `../reference/naming/`)
-- Repo-root links (e.g. `src/mamfast/...`)
+- Repo-root links (e.g. `src/Shelfr/...`)
 - Repo-root absolute links (e.g. `/CLAUDE.md`)
 
 It skips external URLs, mailto links, and pure fragments (e.g. `#section`).

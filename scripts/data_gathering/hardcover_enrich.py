@@ -57,12 +57,12 @@ from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
-# Import from mamfast package (requires: pip install -e . from repo root)
+# Import from Shelfr package (requires: pip install -e . from repo root)
 try:
-    from mamfast.utils.circuit_breaker import CircuitOpenError, hardcover_breaker
+    from Shelfr.utils.circuit_breaker import CircuitOpenError, hardcover_breaker
 except ImportError as e:
     raise ImportError(
-        "Cannot import from mamfast package. Please install in editable mode:\n"
+        "Cannot import from Shelfr package. Please install in editable mode:\n"
         "  cd /path/to/mam_tool && pip install -e .\n"
         "Or ensure the package is installed and PYTHONPATH is set correctly."
     ) from e
@@ -1391,7 +1391,7 @@ class HardcoverEnricher:
                         headers = {
                             "authorization": f"Bearer {Settings.API_KEY}",
                             "content-type": "application/json",
-                            "user-agent": "MAMFast-Hardcover-Enrichment/2.0.0",  # noqa: E501
+                            "user-agent": "Shelfr-Hardcover-Enrichment/2.0.0",  # noqa: E501
                         }
 
                         loop = asyncio.get_running_loop()

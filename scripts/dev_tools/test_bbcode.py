@@ -18,13 +18,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from rich.markup import escape
 
-from mamfast.console import console
-from mamfast.metadata import (
+from shelfr.console import console
+from shelfr.metadata import (
     _html_to_bbcode,
     fetch_audnex_book,
     render_bbcode_description,
 )
-from mamfast.utils.validation import validate_asin
+from shelfr.utils.validation import validate_asin
 
 
 def test_html_to_bbcode(html: str) -> None:

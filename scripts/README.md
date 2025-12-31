@@ -1,4 +1,4 @@
-# MAMFast Development Scripts
+# Shelfr Development Scripts
 
 Collection of standalone utilities for data gathering, analysis, and development.
 
@@ -217,7 +217,7 @@ All data gathering scripts now use standardized JSON schema headers:
     "record_count": 1330,
     "source": "Audiobookshelf + Audnex",
     "description": "Combined ABS and Audnex metadata for each book",
-    "tool": "mamfast/fetch_test_data.py"
+    "tool": "Shelfr/fetch_test_data.py"
   },
   "items": [...]
 }
@@ -273,7 +273,7 @@ Most scripts use minimal dependencies for easy standalone use:
 - `python-dotenv` - Config loading
 - `rich` - Terminal output formatting
 
-Heavy dependencies (like full MAMFast stack) are only needed for specific scripts.
+Heavy dependencies (like full Shelfr stack) are only needed for specific scripts.
 
 ---
 

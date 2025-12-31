@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from mamfast.console import console
+from shelfr.console import console
 
 # Schema version for tracking format changes
 SCHEMA_VERSION = "1.0.0"
@@ -181,7 +181,7 @@ class TestDataFetcher:
                 "record_count": record_count,
                 "source": source,
                 "description": description,
-                "tool": "mamfast/fetch_test_data.py",
+                "tool": "shelfr/fetch_test_data.py",
             }
         }
 

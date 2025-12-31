@@ -186,7 +186,7 @@ def build_expected_output(
     import sys
 
     sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-    from mamfast.utils.naming import normalize_audnex_book
+    from shelfr.utils.naming import normalize_audnex_book
 
     # Call the actual normalization function
     result = normalize_audnex_book(audnex_data)
