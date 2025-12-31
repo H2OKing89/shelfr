@@ -47,6 +47,7 @@ from shelfr.cli._app import (
 from shelfr.cli._context import RuntimeContext, get_runtime_context
 from shelfr.cli._helpers import ArgsNamespace, get_args
 from shelfr.cli.edit import make_edit_app
+from shelfr.cli.mkbrr import make_mkbrr_app
 
 # Create main app and sub-apps
 app = make_app()
@@ -56,6 +57,7 @@ tools_app = make_tools_app()
 abs_app = make_abs_app()
 mam_app = make_mam_app()
 edit_app = make_edit_app()
+mkbrr_app = make_mkbrr_app()
 
 # Register sub-apps
 app.add_typer(state_app, name="state", rich_help_panel=STATE_COMMANDS)
@@ -64,6 +66,7 @@ app.add_typer(tools_app, name="tools", rich_help_panel=TOOLS_COMMANDS)
 app.add_typer(abs_app, name="abs", rich_help_panel=ABS_COMMANDS)
 app.add_typer(mam_app, name="mam")
 app.add_typer(edit_app, name="edit", rich_help_panel=TOOLS_COMMANDS)
+app.add_typer(mkbrr_app, name="mkbrr", rich_help_panel=TOOLS_COMMANDS)
 
 # Register main callback (handles --version, --verbose, --config, --dry-run)
 create_main_callback(app)
@@ -85,6 +88,7 @@ from shelfr.cli.diagnostics import register_diagnostics_commands  # noqa: E402
 from shelfr.cli.edit import register_edit_commands  # noqa: E402
 from shelfr.cli.libation import register_libation_commands  # noqa: E402
 from shelfr.cli.mam import register_mam_commands  # noqa: E402
+from shelfr.cli.mkbrr import register_mkbrr_commands  # noqa: E402
 from shelfr.cli.state import register_state_commands  # noqa: E402
 from shelfr.cli.tools import register_tools_commands  # noqa: E402
 
@@ -97,6 +101,7 @@ register_libation_commands(libation_app)
 register_tools_commands(tools_app)
 register_mam_commands(mam_app)
 register_edit_commands(edit_app)
+register_mkbrr_commands(mkbrr_app)
 
 
 # =============================================================================
