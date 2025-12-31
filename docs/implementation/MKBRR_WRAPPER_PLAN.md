@@ -1,7 +1,7 @@
 # mkbrr Wrapper Enhancement Plan
 
-> **Branch:** `feature/mkbrr-wrapper`  
-> **Status:** Planning  
+> **Branch:** `feature/mkbrr-wrapper`
+> **Status:** Planning
 > **Created:** 2024-12-30
 
 ## Overview
@@ -208,7 +208,7 @@ shelfr mkbrr update
 
 ### 2.2 CLI File Structure
 
-```
+```text
 src/shelfr/cli/
 ├── __init__.py
 ├── main.py          # Main app with subcommand groups
@@ -283,10 +283,10 @@ def check(
     workers: Annotated[int | None, typer.Option("--workers")] = None,
 ) -> None:
     """Verify content against torrent file.
-    
+
     Outputs: completion %, good/bad pieces, missing files, check time.
     Exit code non-zero if bad pieces > 0 or missing files > 0.
-    
+
     Quiet mode (-q) outputs only completion percentage (e.g., "99.50%").
     Verbose mode (-v) includes bad piece indices.
     """
@@ -307,7 +307,7 @@ def modify(
     dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
 ) -> None:
     """Modify existing torrent file(s).
-    
+
     Note: All non-standard metadata is stripped during modification.
     For multiple files, use --output-dir instead of --output.
     """
@@ -329,7 +329,7 @@ def version() -> None:
 @app.command()
 def update() -> None:
     """Update mkbrr Docker image to latest version.
-    
+
     Pulls the latest ghcr.io/autobrr/mkbrr image.
     Note: This updates the Docker image, not the mkbrr binary directly.
     """
@@ -363,7 +363,7 @@ class TorrentFileInfo(BaseModel):
 
 class TorrentInfo(BaseModel):
     """Parsed torrent metadata from mkbrr inspect.
-    
+
     Note: Use --verbose flag to capture non-standard metadata fields
     in both root and info dictionaries.
     """
@@ -520,7 +520,7 @@ From [season-packs.mdx](../reference/mkbrr/features/season-packs.mdx):
 
 ## File Structure Summary
 
-```
+```text
 src/shelfr/
 ├── mkbrr.py                    # Enhanced core wrapper
 ├── cli/

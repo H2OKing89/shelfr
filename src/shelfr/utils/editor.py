@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -97,6 +98,7 @@ def _build_editor_command(editor: str, file_path: Path) -> list[str]:
     Build the command list to invoke the editor.
 
     Handles editors with arguments like "code --wait" or "subl -w".
+    Properly handles quoted paths (e.g., Windows paths with spaces).
 
     Args:
         editor: Editor command (may include arguments).
@@ -105,8 +107,13 @@ def _build_editor_command(editor: str, file_path: Path) -> list[str]:
     Returns:
         Command list suitable for subprocess.run().
     """
-    # Split on spaces to handle "code --wait" style commands
-    parts = editor.split()
+    # Use shlex.split to properly handle quoted paths and arguments
+    # posix=False handles Windows-style paths better
+    try:
+        parts = shlex.split(editor, posix=(os.name != "nt"))
+    except ValueError:
+        # Fallback to simple split if shlex fails
+        parts = editor.split()
     return [*parts, str(file_path)]
 
 
@@ -153,18 +160,21 @@ def edit_file(
     logger.info("Opening %s with: %s", file_path.name, " ".join(cmd))
 
     try:
-        result = subprocess.run(
-            cmd,
-            check=False,
-            timeout=timeout if wait else 0.1,
-        )
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
         if wait:
-            logger.warning("Editor timed out after %d seconds", timeout)
-            return False
-        # For non-wait mode, timeout is expected
-        return True
+            result = subprocess.run(
+                cmd,
+                check=False,
+                timeout=timeout,
+            )
+            return result.returncode == 0
+        else:
+            # For non-wait mode, use Popen to launch without blocking
+            # This allows GUI editors to run without being killed by timeout
+            subprocess.Popen(cmd)  # noqa: S603
+            return True
+    except subprocess.TimeoutExpired:
+        logger.warning("Editor timed out after %d seconds", timeout)
+        return False
     except OSError as e:
         logger.exception("Failed to launch editor: %s", e)
         raise EditorError(f"Failed to launch editor '{editor_cmd}': {e}") from e
