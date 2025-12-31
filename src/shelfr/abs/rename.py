@@ -1083,7 +1083,7 @@ def generate_html_report(
         return
 
     # Load template
-    template_dir = files("mamfast.templates")
+    template_dir = files("shelfr.templates")
     # Get the actual path for FileSystemLoader
     template_path = Path(str(template_dir))
 

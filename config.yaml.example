@@ -52,8 +52,8 @@ mam:
     show_signature: true
     # Signature template file - looked up in this order:
     # 1. config/templates/<name> (user overrides, gitignored)
-    # 2. src/mamfast/templates/<name> (package default)
-    # To customize: copy src/mamfast/templates/signature.j2 to config/templates/
+    # 2. src/shelfr/templates/<name> (package default)
+    # To customize: copy src/shelfr/templates/signature.j2 to config/templates/
     signature_template: "signature.j2"
 
 # ─────────────────────────────────────────────────────────────────────────────

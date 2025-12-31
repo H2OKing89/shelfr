@@ -291,15 +291,15 @@ shelfr uses XDG-compliant paths by default (via [platformdirs](https://github.co
 ```bash
 # Override default data directory (for state files)
 # Default: ~/.local/share/shelfr (Linux), ~/Library/Application Support/shelfr (macOS)
-export MAMFAST_DATA_DIR="/mnt/cache/appdata/shelfr/data"
+export SHELFR_DATA_DIR="/mnt/cache/appdata/shelfr/data"
 
 # Override default cache directory
 # Default: ~/.cache/shelfr (Linux), ~/Library/Caches/shelfr (macOS)
-export MAMFAST_CACHE_DIR="/mnt/cache/appdata/shelfr/cache"
+export SHELFR_CACHE_DIR="/mnt/cache/appdata/shelfr/cache"
 
 # Override default log directory
 # Default: ~/.local/state/shelfr (Linux), ~/Library/Logs/shelfr (macOS)
-export MAMFAST_LOG_DIR="/mnt/cache/appdata/shelfr/logs"
+export SHELFR_LOG_DIR="/mnt/cache/appdata/shelfr/logs"
 ```
 
 > **Note**: Explicitly configured paths in `config.yaml` always take precedence over environment variables.
