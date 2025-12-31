@@ -49,9 +49,9 @@ from rich.table import Table
 from rich.text import Text
 from rich.traceback import install as install_rich_traceback
 
-# Add mamfast to path for retry utilities
+# Add shelfr to path for retry utilities
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
-from mamfast.utils.retry import NETWORK_EXCEPTIONS, retry_with_backoff
+from shelfr.utils.retry import NETWORK_EXCEPTIONS, retry_with_backoff
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Configuration
