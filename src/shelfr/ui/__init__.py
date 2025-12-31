@@ -63,6 +63,18 @@ from shelfr.ui.formatting import (
     truncate_path,
 )
 
+# Icons - standardized icon system
+from shelfr.ui.icons import (
+    ASCII_ICONS,
+    EMOJI_ICONS,
+    UNICODE_ICONS,
+    Icons,
+    get_icon_mode,
+    get_icons,
+    icons,
+    set_icon_mode,
+)
+
 # Messages - frequently used print helpers
 from shelfr.ui.messages import (
     confirm,
@@ -189,4 +201,13 @@ __all__ = [
     "format_duration",
     "format_bitrate",
     "format_file_size",
+    # Icons
+    "icons",
+    "Icons",
+    "get_icons",
+    "set_icon_mode",
+    "get_icon_mode",
+    "UNICODE_ICONS",
+    "ASCII_ICONS",
+    "EMOJI_ICONS",
 ]
