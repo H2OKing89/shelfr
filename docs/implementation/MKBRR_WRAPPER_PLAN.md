@@ -610,9 +610,9 @@ src/shelfr/
 | 6 | ~~Parse inspect output (optional)~~ | `mkbrr.py` | Medium | ✅ **DONE** - 20 tests (best-effort fallback) |
 | 7 | ~~Create CLI commands~~ | `cli/mkbrr.py` | Medium | ✅ **DONE** - 7 commands (create, inspect, check, modify, presets, version, update) |
 | 8 | ~~Register CLI subcommand~~ | `cli/__init__.py` | Small | ✅ **DONE** - Wired up to main app |
-| 9 | ~~Update config schema~~ | `schemas/config.py`, `config.py` | Small | ✅ **DONE** - Added default_exclude/include_patterns, skip_prefix, timeout_seconds |
-| 10 | Write tests | `tests/test_mkbrr.py` | Medium | Mock Docker, test edge cases |
-| 11 | Documentation | `docs/cli/mkbrr.md` | Small | Usage examples + troubleshooting |
+| 9 | ~~Update config schema~~ | `schemas/config.py`, `config.py` | Small | ✅ **DONE** - Added timeout_seconds (mkbrr uses native presets.yaml for other settings) |
+| 10 | ~~Write CLI tests~~ | `tests/test_cli_mkbrr.py` | Medium | ✅ **DONE** - 32 tests for all CLI commands |
+| 11 | ~~Documentation~~ | `docs/cli/mkbrr.md` | Small | ✅ **DONE** - Full usage guide with examples |
 
 ---
 
