@@ -15,6 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from shelfr.console import console, print_error, print_info, print_success, print_warning
+from shelfr.ui.icons import icons
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +29,16 @@ MKBRR_COMMANDS = "Torrent Tools"
 # Epilog for mkbrr sub-app
 # =============================================================================
 
-MKBRR_EPILOG = """
+MKBRR_EPILOG = f"""
 [bold cyan]Common Tasks:[/]
   shelfr mkbrr create <path>     [dim]# Create torrent from file/folder[/]
   shelfr mkbrr inspect <file>    [dim]# View torrent metadata[/]
   shelfr mkbrr check <t> <path>  [dim]# Verify content integrity[/]
 
-[bold cyan]💡 Tips:[/]
-  • Use [green]--preset mam[/] for MAM-compliant torrents
-  • Run [green]shelfr mkbrr presets[/] to see available presets
-  • mkbrr runs in Docker - ensure Docker is available
+[bold cyan]Tips:[/]
+  {icons.bullet} Use [green]--preset mam[/] for MAM-compliant torrents
+  {icons.bullet} Run [green]shelfr mkbrr presets[/] to see available presets
+  {icons.bullet} mkbrr runs in Docker - ensure Docker is available
 """
 
 
@@ -45,7 +46,7 @@ def make_mkbrr_app() -> typer.Typer:
     """Create the mkbrr sub-app."""
     return typer.Typer(
         name="mkbrr",
-        help="🔧 Torrent creation and management via mkbrr",
+        help="Torrent creation and management via mkbrr",
         epilog=MKBRR_EPILOG,
         rich_markup_mode="rich",
         no_args_is_help=True,
@@ -57,7 +58,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
 
     @mkbrr_app.callback(invoke_without_command=True)
     def mkbrr_callback(ctx: typer.Context) -> None:
-        """🔧 Torrent creation and management via mkbrr.
+        """Torrent creation and management via mkbrr.
 
         [bold]Commands:[/]
           shelfr mkbrr create    Create torrent from file/directory
@@ -67,7 +68,6 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
           shelfr mkbrr presets   List available presets
           shelfr mkbrr version   Show mkbrr version
           shelfr mkbrr update    Update mkbrr Docker image
-
         [dim]mkbrr is a fast torrent creation tool from autobrr.[/]
         """
         if ctx.invoked_subcommand is None:
@@ -165,7 +165,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
             typer.Option("--web-seed", "-w", help="Web seed URL (can repeat)."),
         ] = None,
     ) -> None:
-        """📦 Create a torrent from file or directory.
+        """Create a torrent from file or directory.
 
         [bold]Examples:[/]
           shelfr mkbrr create ./audiobook -P mam
@@ -173,9 +173,9 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
           shelfr mkbrr create ./folder --source MAM --private
 
         [bold]Features:[/]
-          • Auto piece size based on content size
-          • Tracker-specific rules for compliance
-          • File filtering with --include/--exclude
+          - Auto piece size based on content size
+          - Tracker-specific rules for compliance
+          - File filtering with --include/--exclude
         """
         from shelfr import mkbrr
 
@@ -259,7 +259,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
             typer.Option("--json", "-j", help="Output as JSON."),
         ] = False,
     ) -> None:
-        """🔍 Inspect torrent file metadata.
+        """Inspect torrent file metadata.
 
         [bold]Examples:[/]
           shelfr mkbrr inspect my-audiobook.torrent
@@ -267,9 +267,9 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
           shelfr mkbrr inspect file.torrent --json
 
         [bold]Shows:[/]
-          • Name, size, piece count
-          • Info hash and trackers
-          • File list (multi-file torrents)
+          - Name, size, piece count
+          - Info hash and trackers
+          - File list (multi-file torrents)
         """
         import json
 
@@ -352,7 +352,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
             typer.Option("--workers", help="Verification worker threads."),
         ] = None,
     ) -> None:
-        """✅ Verify content integrity against torrent file.
+        """Verify content integrity against torrent file.
 
         [bold]Examples:[/]
           shelfr mkbrr check my.torrent ./content/
@@ -360,10 +360,10 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
           shelfr mkbrr check my.torrent ./folder -q
 
         [bold]Output:[/]
-          • Completion percentage
-          • Good/bad piece counts
-          • Missing files (if any)
-          • Verification time
+          - Completion percentage
+          - Good/bad piece counts
+          - Missing files (if any)
+          - Verification time
         """
         from shelfr import mkbrr
 
@@ -458,7 +458,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
             typer.Option("--dry-run", "-n", help="Preview changes without saving."),
         ] = False,
     ) -> None:
-        """✏️ Modify existing torrent file(s).
+        """Modify existing torrent file(s).
 
         [bold]Examples:[/]
           shelfr mkbrr modify my.torrent -t https://newtracker/announce
@@ -466,9 +466,9 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
           shelfr mkbrr modify old.torrent -P mam --entropy
 
         [bold]Note:[/]
-          • Original files are preserved
-          • All non-standard metadata is stripped
-          • For multiple files, use --output-dir
+          - Original files are preserved
+          - All non-standard metadata is stripped
+          - For multiple files, use --output-dir
         """
         from shelfr import mkbrr
 
@@ -482,8 +482,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
 
         if len(torrents) > 1 and output:
             print_warning(
-                "Using --output with multiple files will overwrite. "
-                "Use --output-dir instead."
+                "Using --output with multiple files will overwrite. " "Use --output-dir instead."
             )
 
         # Validate torrent paths exist
@@ -530,7 +529,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
 
     @mkbrr_app.command("presets")
     def mkbrr_presets(ctx: typer.Context) -> None:
-        """📋 List available mkbrr presets.
+        """List available mkbrr presets.
 
         Shows presets defined in mkbrr's presets.yaml configuration.
         Use [cyan]-P <preset>[/] with create/modify commands.
@@ -558,7 +557,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
 
     @mkbrr_app.command("version")
     def mkbrr_version(ctx: typer.Context) -> None:
-        """📦 Show mkbrr version.
+        """Show mkbrr version.
 
         Displays the version of mkbrr running in Docker.
         """
@@ -582,7 +581,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
 
     @mkbrr_app.command("update")
     def mkbrr_update(ctx: typer.Context) -> None:
-        """🔄 Update mkbrr Docker image.
+        """Update mkbrr Docker image.
 
         Pulls the latest ghcr.io/autobrr/mkbrr image from GitHub Container Registry.
         """
@@ -595,7 +594,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
         print_info(f"Pulling latest image: {image}")
 
         try:
-            result = run(
+            run(
                 [settings.docker_bin, "pull", image],
                 timeout=300,
                 ok_codes=(0,),
@@ -611,7 +610,7 @@ def register_mkbrr_commands(mkbrr_app: typer.Typer) -> None:
 
         except Exception as e:
             print_error(f"Failed to update image: {e}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
 
 # =============================================================================
@@ -648,7 +647,6 @@ def _show_create_preview(
 
 def _display_torrent_info(info: TorrentInfo, verbose: bool = False) -> None:
     """Display torrent info in a nice panel."""
-    from shelfr.schemas.mkbrr import TorrentInfo
 
     # Build info lines
     lines = [
@@ -704,7 +702,6 @@ def _display_torrent_info(info: TorrentInfo, verbose: bool = False) -> None:
 
 def _display_check_result(result: CheckResult, verbose: bool = False) -> None:
     """Display check result in a nice format."""
-    from shelfr.schemas.mkbrr import CheckResult
 
     # Status color
     if result.valid:
