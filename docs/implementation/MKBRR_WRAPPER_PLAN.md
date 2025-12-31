@@ -605,7 +605,7 @@ src/shelfr/
 | 1 | ~~Add `get_mkbrr_version()`~~ | `mkbrr.py` | Small | ✅ **DONE** - 7 tests |
 | 2 | ~~Add `modify_torrent()`~~ | `mkbrr.py` | Small | ✅ **DONE** - 14 tests |
 | 3 | ~~Extend `create_torrent()` params~~ | `mkbrr.py` | Medium | ✅ **DONE** - 18 tests |
-| 4 | Add Pydantic models | `schemas/mkbrr.py` | Small | Foundation for structured data |
+| 4 | ~~Add Pydantic models~~ | `schemas/mkbrr.py` | Small | ✅ **DONE** - 34 tests |
 | 5 | Add bencode parser | `mkbrr.py` | Medium | Robust .torrent parsing (prefer over text) |
 | 6 | Parse inspect output (optional) | `mkbrr.py` | Medium | Best-effort fallback for human-readable view |
 | 7 | Create CLI commands | `cli/mkbrr.py` | Medium | Pretty dashboard time (Rich demands it) |
