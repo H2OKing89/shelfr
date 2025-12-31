@@ -1,10 +1,10 @@
 """
-MAMFast exception hierarchy.
+Shelfr exception hierarchy.
 
 Provides typed exceptions for better error handling and clearer error messages.
 
 Exception Hierarchy:
-    MAMFastError (base)
+    ShelfrError (base)
     ├── ConfigurationError - Config file issues, missing settings
     ├── ValidationError - Pre-flight and runtime validation failures
     │   ├── DiscoveryValidationError - Discovery stage validation
@@ -33,12 +33,12 @@ from pathlib import Path
 from typing import Any
 
 
-class MAMFastError(Exception):
-    """Base exception for all MAMFast errors."""
+class ShelfrError(Exception):
+    """Base exception for all shelfr errors."""
 
     def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:
         """
-        Initialize MAMFast exception.
+        Initialize shelfr exception.
 
         Args:
             message: Human-readable error message
@@ -57,7 +57,7 @@ class MAMFastError(Exception):
 # =============================================================================
 
 
-class ConfigurationError(MAMFastError):
+class ConfigurationError(ShelfrError):
     """Configuration file or settings error."""
 
     def __init__(
@@ -83,7 +83,7 @@ class ConfigurationError(MAMFastError):
 # =============================================================================
 
 
-class ValidationError(MAMFastError):
+class ValidationError(ShelfrError):
     """Validation failure (pre-flight or runtime)."""
 
     def __init__(
@@ -121,7 +121,7 @@ class PreUploadValidationError(ValidationError):
 # =============================================================================
 
 
-class PipelineError(MAMFastError):
+class PipelineError(ShelfrError):
     """Pipeline stage execution failure."""
 
     def __init__(
@@ -220,7 +220,7 @@ class UploadError(PipelineError):
 # =============================================================================
 
 
-class NetworkError(MAMFastError):
+class NetworkError(ShelfrError):
     """External service communication failure."""
 
     def __init__(
@@ -290,7 +290,7 @@ class AudiobookshelfError(NetworkError):
 # =============================================================================
 
 
-class StateError(MAMFastError):
+class StateError(ShelfrError):
     """State file operation failure."""
 
     def __init__(
@@ -336,7 +336,7 @@ class StateCorruptionError(StateError):
 # =============================================================================
 
 
-class ExternalToolError(MAMFastError):
+class ExternalToolError(ShelfrError):
     """External tool/subprocess failure."""
 
     def __init__(
