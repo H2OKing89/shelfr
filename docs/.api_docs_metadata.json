@@ -178,6 +178,188 @@
       "url": "https://raw.githubusercontent.com/laxamentumtech/audnexus/main/README.md"
     }
   },
+  "hardcover": {
+    "Getting-Started.mdx": {
+      "fetched_at": "2025-12-30T18:53:21.779845",
+      "hash": "099dd06adbfd6941",
+      "size": 6031,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/Getting-Started.mdx"
+    },
+    "GraphQL/Schemas/Activities.mdx": {
+      "fetched_at": "2025-12-30T18:53:21.875740",
+      "hash": "955f5441fdb746d8",
+      "size": 7389,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Activities.mdx"
+    },
+    "GraphQL/Schemas/Authors.mdx": {
+      "fetched_at": "2025-12-30T18:53:21.986935",
+      "hash": "8ad14ae201c86814",
+      "size": 5171,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Authors.mdx"
+    },
+    "GraphQL/Schemas/Books.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.078231",
+      "hash": "b00227c683758c9b",
+      "size": 10816,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Books.mdx"
+    },
+    "GraphQL/Schemas/Characters.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.158354",
+      "hash": "383561c94a37d411",
+      "size": 4581,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Characters.mdx"
+    },
+    "GraphQL/Schemas/Contributions.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.240290",
+      "hash": "71475986bcae401f",
+      "size": 6946,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Contributions.mdx"
+    },
+    "GraphQL/Schemas/Countries.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.330673",
+      "hash": "b849e25e051f0436",
+      "size": 7632,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Countries.mdx"
+    },
+    "GraphQL/Schemas/Editions.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.412386",
+      "hash": "a5a85344cfa352e0",
+      "size": 9920,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Editions.mdx"
+    },
+    "GraphQL/Schemas/Goals.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.491593",
+      "hash": "86c993243671e978",
+      "size": 2218,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Goals.mdx"
+    },
+    "GraphQL/Schemas/Images.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.569597",
+      "hash": "7b07ea1e58654b1d",
+      "size": 1598,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Images.mdx"
+    },
+    "GraphQL/Schemas/Languages.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.650175",
+      "hash": "61d62a059f1eea9f",
+      "size": 958,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Languages.mdx"
+    },
+    "GraphQL/Schemas/Likes.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.739979",
+      "hash": "fea9b108a8752bd3",
+      "size": 1550,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Likes.mdx"
+    },
+    "GraphQL/Schemas/Lists.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.831026",
+      "hash": "200f9a8bc9c72106",
+      "size": 15772,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Lists.mdx"
+    },
+    "GraphQL/Schemas/Notifications.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.911172",
+      "hash": "b3f016e7452e8e2d",
+      "size": 1891,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Notifications.mdx"
+    },
+    "GraphQL/Schemas/Platforms.mdx": {
+      "fetched_at": "2025-12-30T18:53:22.998343",
+      "hash": "1c81895c6dd3d631",
+      "size": 853,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Platforms.mdx"
+    },
+    "GraphQL/Schemas/Prompts.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.085235",
+      "hash": "93438a2486e61e42",
+      "size": 2129,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Prompts.mdx"
+    },
+    "GraphQL/Schemas/Publishers.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.166986",
+      "hash": "8874842c3aef99e9",
+      "size": 5421,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Publishers.mdx"
+    },
+    "GraphQL/Schemas/ReadingFormats.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.253931",
+      "hash": "dcca05427a2520fe",
+      "size": 781,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/ReadingFormats.mdx"
+    },
+    "GraphQL/Schemas/ReadingJournals.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.334739",
+      "hash": "74c9912b5b5c9cfd",
+      "size": 2420,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/ReadingJournals.mdx"
+    },
+    "GraphQL/Schemas/Recommendations.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.418270",
+      "hash": "b4c2b2e77fb69e94",
+      "size": 2057,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Recommendations.mdx"
+    },
+    "GraphQL/Schemas/Series.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.498213",
+      "hash": "86f62df0eb4aff12",
+      "size": 2480,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Series.mdx"
+    },
+    "GraphQL/Schemas/Tags.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.580019",
+      "hash": "06cf779240b4a449",
+      "size": 1194,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Tags.mdx"
+    },
+    "GraphQL/Schemas/Users.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.676904",
+      "hash": "71d34ddddddbacde",
+      "size": 7366,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/GraphQL/Schemas/Users.mdx"
+    },
+    "guides/GettingAllBooksInLibrary.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.766476",
+      "hash": "7b561c0879984fb4",
+      "size": 1219,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/guides/GettingAllBooksInLibrary.mdx"
+    },
+    "guides/GettingBookDetails.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.849817",
+      "hash": "e64bbf40bc455b36",
+      "size": 1247,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/guides/GettingBookDetails.mdx"
+    },
+    "guides/GettingBooksProgress.mdx": {
+      "fetched_at": "2025-12-30T18:53:23.928195",
+      "hash": "fff3da1c8c2f45ee",
+      "size": 309,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/guides/GettingBooksProgress.mdx"
+    },
+    "guides/GettingBooksWithStatus.mdx": {
+      "fetched_at": "2025-12-30T18:53:24.014168",
+      "hash": "f35a88f15854fef5",
+      "size": 1298,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/guides/GettingBooksWithStatus.mdx"
+    },
+    "guides/Searching.mdx": {
+      "fetched_at": "2025-12-30T18:53:24.106871",
+      "hash": "96e3381f7fde3510",
+      "size": 12874,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/guides/Searching.mdx"
+    },
+    "guides/UpdatingABooksProgress.mdx": {
+      "fetched_at": "2025-12-30T18:53:24.194819",
+      "hash": "9615f69a76db4780",
+      "size": 399,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/guides/UpdatingABooksProgress.mdx"
+    },
+    "guides/UpdatingReadingJournal.mdx": {
+      "fetched_at": "2025-12-30T18:53:24.281599",
+      "hash": "b953740d66d84746",
+      "size": 474,
+      "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/guides/UpdatingReadingJournal.mdx"
+    }
+  },
   "hc": {
     "Getting-Started.mdx": {
       "fetched_at": "2025-12-30T01:23:45.863653",
@@ -360,7 +542,7 @@
       "url": "https://raw.githubusercontent.com/hardcoverapp/hardcover-docs/main/src/content/docs/api/guides/UpdatingReadingJournal.mdx"
     }
   },
-  "last_updated": "2025-12-30T18:39:29.313882",
+  "last_updated": "2025-12-30T18:53:25.676453",
   "mkbrr": {
     "check.mdx": {
       "fetched_at": "2025-12-30T18:36:42.635249",
