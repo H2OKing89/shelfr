@@ -242,6 +242,21 @@ def create_torrent(
     content_path: Path | str,
     output_dir: Path | str | None = None,
     preset: str | None = None,
+    # NEW optional parameters for advanced torrent creation:
+    output_filename: str | None = None,
+    tracker: str | None = None,
+    source: str | None = None,
+    piece_length: int | None = None,
+    max_piece_length: int | None = None,
+    exclude_patterns: list[str] | None = None,
+    include_patterns: list[str] | None = None,
+    skip_prefix: bool = False,
+    comment: str | None = None,
+    private: bool | None = None,
+    no_date: bool = False,
+    no_creator: bool = False,
+    web_seeds: list[str] | None = None,
+    entropy: bool = False,
 ) -> MkbrrResult:
     """
     Create a .torrent file for the given content.
@@ -249,10 +264,36 @@ def create_torrent(
     Args:
         content_path: Path to file or directory to create torrent for.
         output_dir: Where to write .torrent file. Defaults to configured dir.
-        preset: mkbrr preset name. Defaults to configured preset.
+            Implementation: Uses Docker -w workdir to place output files there,
+            preserving mkbrr's tracker prefix naming logic.
+        preset: mkbrr preset name (-P). Defaults to configured preset.
+        output_filename: Output filename (-o). If not set, mkbrr auto-generates
+            with tracker domain prefix (unless skip_prefix is True).
+        tracker: Tracker announce URL (-t). Overrides preset tracker.
+        source: Source tag (-s). Overrides preset source.
+        piece_length: Piece size exponent 16-27 (-l). e.g., 18 = 256KiB.
+            Note: Tracker rules may override this for compliance.
+        max_piece_length: Max piece size exponent 16-27 (-m).
+            Note: Tracker rules may override this for compliance.
+        exclude_patterns: Exclude file patterns (--exclude). Case-insensitive globs.
+            Additive with preset patterns.
+        include_patterns: Include file patterns (--include). Triggers whitelist mode.
+            Only matching files are included. Additive with preset patterns.
+        skip_prefix: Skip tracker domain prefix in output filename (--skip-prefix).
+        comment: Torrent comment (-c).
+        private: Set private flag (--private). Default True for most trackers.
+        no_date: Omit creation date (--no-date).
+        no_creator: Omit creator field (--no-creator).
+        web_seeds: Web seed URLs (-w, --web-seed).
+        entropy: Add random entropy to randomize info hash (-e).
 
     Returns:
         MkbrrResult with success status and torrent path.
+
+    Note:
+        - Piece size is auto-calculated if not specified (smart defaults)
+        - Tracker-specific rules override manual -l/-m flags for compliance
+        - Built-in exclusions always applied: .torrent, .ds_store, thumbs.db, etc.
     """
     settings = get_settings()
 
@@ -273,7 +314,8 @@ def create_torrent(
     container_content = host_to_container_data_path(content_path)
     container_output = host_to_container_torrent_path(output_dir)
 
-    # Build command
+    # Build command - use output_dir as workdir so mkbrr creates files there
+    # This preserves mkbrr's tracker prefix logic while letting us control output location
     cmd = _docker_base_command() + [
         "mkbrr",
         "create",
@@ -283,6 +325,69 @@ def create_torrent(
         "--output-dir",
         container_output,
     ]
+
+    # Add optional flags
+    if output_filename is not None:
+        cmd.extend(["-o", output_filename])
+
+    if tracker is not None:
+        cmd.extend(["-t", tracker])
+
+    if source is not None:
+        cmd.extend(["-s", source])
+
+    if piece_length is not None:
+        # Validate range 16-27
+        if not 16 <= piece_length <= 27:
+            return MkbrrResult(
+                success=False,
+                return_code=-1,
+                error=f"piece_length must be 16-27 (got {piece_length})",
+            )
+        cmd.extend(["-l", str(piece_length)])
+
+    if max_piece_length is not None:
+        # Validate range 16-27
+        if not 16 <= max_piece_length <= 27:
+            return MkbrrResult(
+                success=False,
+                return_code=-1,
+                error=f"max_piece_length must be 16-27 (got {max_piece_length})",
+            )
+        cmd.extend(["-m", str(max_piece_length)])
+
+    if exclude_patterns:
+        for pattern in exclude_patterns:
+            cmd.extend(["--exclude", pattern])
+
+    if include_patterns:
+        for pattern in include_patterns:
+            cmd.extend(["--include", pattern])
+
+    if skip_prefix:
+        cmd.append("--skip-prefix")
+
+    if comment is not None:
+        cmd.extend(["-c", comment])
+
+    if private is not None:
+        if private:
+            cmd.append("--private")
+        else:
+            cmd.append("--private=false")
+
+    if no_date:
+        cmd.append("--no-date")
+
+    if no_creator:
+        cmd.append("--no-creator")
+
+    if web_seeds:
+        for seed in web_seeds:
+            cmd.extend(["-w", seed])
+
+    if entropy:
+        cmd.append("-e")
 
     logger.info(f"Creating torrent for: {content_path}")
     logger.debug(f"Command: {shlex.join(cmd)}")

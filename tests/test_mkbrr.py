@@ -780,6 +780,499 @@ class TestCreateTorrent:
         assert "Unexpected error" in (result.error or "")
 
 
+class TestCreateTorrentExtendedParams:
+    """Tests for create_torrent extended parameters."""
+
+    def _make_mock_settings(self, tmp_path: Path) -> MagicMock:
+        """Create mock settings for create_torrent tests."""
+        mock_settings = MagicMock()
+        mock_settings.docker_bin = "/usr/bin/docker"
+        mock_settings.mkbrr.preset = "mam"
+        mock_settings.mkbrr.host_output_dir = str(tmp_path)
+        mock_settings.mkbrr.host_data_root = "/data"
+        mock_settings.mkbrr.container_data_root = "/data"
+        mock_settings.mkbrr.host_config_dir = str(tmp_path)
+        mock_settings.mkbrr.container_config_dir = "/config"
+        mock_settings.mkbrr.container_output_dir = "/torrents"
+        mock_settings.mkbrr.image = "ghcr.io/autobrr/mkbrr:latest"
+        mock_settings.target_uid = 99
+        mock_settings.target_gid = 100
+        return mock_settings
+
+    def test_create_with_tracker(self, tmp_path: Path):
+        """Test creating torrent with custom tracker URL."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            # Verify tracker flag is in command
+            assert "-t" in argv
+            assert "https://custom.tracker/announce" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(
+                content_dir,
+                output_dir,
+                tracker="https://custom.tracker/announce",
+            )
+
+        assert result.success is True
+
+    def test_create_with_source(self, tmp_path: Path):
+        """Test creating torrent with source tag."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "-s" in argv
+            assert "MAM" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir, source="MAM")
+
+        assert result.success is True
+
+    def test_create_with_piece_length(self, tmp_path: Path):
+        """Test creating torrent with custom piece length."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "-l" in argv
+            assert "20" in argv  # 2^20 = 1MiB
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir, piece_length=20)
+
+        assert result.success is True
+
+    def test_create_piece_length_validation_too_low(self, tmp_path: Path):
+        """Test piece_length validation rejects values below 16."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        with (
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, piece_length=15)
+
+        assert result.success is False
+        assert "piece_length must be 16-27" in result.error
+
+    def test_create_piece_length_validation_too_high(self, tmp_path: Path):
+        """Test piece_length validation rejects values above 27."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        with (
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, piece_length=28)
+
+        assert result.success is False
+        assert "piece_length must be 16-27" in result.error
+
+    def test_create_max_piece_length_validation(self, tmp_path: Path):
+        """Test max_piece_length validation."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        with (
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, max_piece_length=30)
+
+        assert result.success is False
+        assert "max_piece_length must be 16-27" in result.error
+
+    def test_create_with_exclude_patterns(self, tmp_path: Path):
+        """Test creating torrent with exclude patterns."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            # Check exclude patterns are added
+            exclude_indices = [i for i, arg in enumerate(argv) if arg == "--exclude"]
+            assert len(exclude_indices) == 2
+            assert "*.nfo" in argv
+            assert "*.txt" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(
+                content_dir,
+                output_dir,
+                exclude_patterns=["*.nfo", "*.txt"],
+            )
+
+        assert result.success is True
+
+    def test_create_with_include_patterns(self, tmp_path: Path):
+        """Test creating torrent with include patterns (whitelist mode)."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "--include" in argv
+            assert "*.m4b" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(
+                content_dir,
+                output_dir,
+                include_patterns=["*.m4b"],
+            )
+
+        assert result.success is True
+
+    def test_create_with_skip_prefix(self, tmp_path: Path):
+        """Test creating torrent with skip_prefix flag."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "--skip-prefix" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir, skip_prefix=True)
+
+        assert result.success is True
+
+    def test_create_with_comment(self, tmp_path: Path):
+        """Test creating torrent with comment."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "-c" in argv
+            assert "Uploaded via shelfr" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir, comment="Uploaded via shelfr")
+
+        assert result.success is True
+
+    def test_create_with_private_true(self, tmp_path: Path):
+        """Test creating torrent with private flag true."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "--private" in argv
+            assert "--private=false" not in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir, private=True)
+
+        assert result.success is True
+
+    def test_create_with_private_false(self, tmp_path: Path):
+        """Test creating torrent with private flag false (public torrent)."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "--private=false" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir, private=False)
+
+        assert result.success is True
+
+    def test_create_with_no_date(self, tmp_path: Path):
+        """Test creating torrent without creation date."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "--no-date" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir, no_date=True)
+
+        assert result.success is True
+
+    def test_create_with_no_creator(self, tmp_path: Path):
+        """Test creating torrent without creator field."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "--no-creator" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir, no_creator=True)
+
+        assert result.success is True
+
+    def test_create_with_web_seeds(self, tmp_path: Path):
+        """Test creating torrent with web seeds."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            # Find web seed flags (they come after "mkbrr" and "create" in the command)
+            # Look for the pattern: -w followed by a URL
+            cmd_str = " ".join(argv)
+            assert "https://seed1.example.com/files" in cmd_str
+            assert "https://seed2.example.com/files" in cmd_str
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(
+                content_dir,
+                output_dir,
+                web_seeds=[
+                    "https://seed1.example.com/files",
+                    "https://seed2.example.com/files",
+                ],
+            )
+
+        assert result.success is True
+
+    def test_create_with_entropy(self, tmp_path: Path):
+        """Test creating torrent with entropy flag."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "-e" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir, entropy=True)
+
+        assert result.success is True
+
+    def test_create_with_output_filename(self, tmp_path: Path):
+        """Test creating torrent with custom output filename."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            assert "-o" in argv
+            assert "custom_name.torrent" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(content_dir, output_dir, output_filename="custom_name.torrent")
+
+        assert result.success is True
+
+    def test_create_with_multiple_params(self, tmp_path: Path):
+        """Test creating torrent with multiple parameters combined."""
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        output_dir = tmp_path / "torrents"
+        output_dir.mkdir()
+        expected_torrent = output_dir / f"{content_dir.name}.torrent"
+
+        mock_settings = self._make_mock_settings(tmp_path)
+
+        def mock_run(argv, **kwargs):
+            expected_torrent.touch()
+            # Verify multiple params are all present
+            assert "-s" in argv
+            assert "MAM" in argv
+            assert "-c" in argv
+            assert "--no-date" in argv
+            assert "--exclude" in argv
+            return make_cmd_result(exit_code=0)
+
+        with (
+            patch("shelfr.mkbrr.run", side_effect=mock_run),
+            patch("shelfr.mkbrr.get_settings", return_value=mock_settings),
+            patch("shelfr.mkbrr.host_to_container_data_path", return_value="/data/content"),
+            patch("shelfr.mkbrr.host_to_container_torrent_path", return_value="/torrents"),
+        ):
+            result = create_torrent(
+                content_dir,
+                output_dir,
+                source="MAM",
+                comment="Test upload",
+                no_date=True,
+                exclude_patterns=["*.nfo"],
+            )
+
+        assert result.success is True
+
+
 class TestDockerBaseCommand:
     """Tests for _docker_base_command function."""
 
