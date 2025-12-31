@@ -10,7 +10,9 @@ from __future__ import annotations
 import logging
 import shlex
 from dataclasses import dataclass
+from datetime import UTC
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -19,6 +21,9 @@ from shelfr.utils.cmd import CmdError, CmdResult, run
 from shelfr.utils.paths import host_to_container_data_path, host_to_container_torrent_path
 from shelfr.utils.permissions import fix_directory_ownership
 from shelfr.utils.retry import retry_with_backoff
+
+if TYPE_CHECKING:
+    from shelfr.schemas.mkbrr import TorrentInfo
 
 logger = logging.getLogger(__name__)
 
@@ -794,3 +799,222 @@ def get_mkbrr_version() -> str | None:
     except Exception as e:
         logger.warning(f"Exception getting mkbrr version: {e}")
         return None
+
+
+# =============================================================================
+# Bencode Parsing
+# =============================================================================
+
+
+def parse_torrent_file(torrent_path: Path | str) -> TorrentInfo:
+    """
+    Parse .torrent file via bencode (recommended approach).
+
+    This is more robust than parsing mkbrr inspect output since it
+    directly reads the torrent file format without Docker dependency.
+
+    Args:
+        torrent_path: Path to .torrent file.
+
+    Returns:
+        TorrentInfo model with structured metadata.
+
+    Raises:
+        FileNotFoundError: If torrent file doesn't exist.
+        ValueError: If file is not a valid torrent.
+        bencodepy.DecodingError: If bencode decoding fails.
+
+    Example:
+        >>> info = parse_torrent_file("/path/to/file.torrent")
+        >>> print(f"{info.name}: {info.human_size()}, {info.piece_count} pieces")
+    """
+    import hashlib
+    from datetime import datetime
+
+    import bencodepy
+
+    from shelfr.schemas.mkbrr import TorrentFileInfo, TorrentInfo
+
+    torrent_path = Path(torrent_path)
+
+    if not torrent_path.exists():
+        raise FileNotFoundError(f"Torrent file not found: {torrent_path}")
+
+    if torrent_path.suffix.lower() != ".torrent":
+        logger.warning(f"File does not have .torrent extension: {torrent_path}")
+
+    # Read and decode the torrent file
+    with open(torrent_path, "rb") as f:
+        raw_data = f.read()
+
+    try:
+        data = bencodepy.decode(raw_data)
+    except Exception as e:
+        raise ValueError(f"Failed to decode torrent file: {e}") from e
+
+    if not isinstance(data, dict):
+        raise ValueError("Invalid torrent file: root is not a dictionary")
+
+    # Info dict is required
+    info_dict = data.get(b"info")
+    if not isinstance(info_dict, dict):
+        raise ValueError("Invalid torrent file: missing or invalid 'info' dictionary")
+
+    # Calculate info hash (SHA1 of bencoded info dict)
+    info_bencoded = bencodepy.encode(info_dict)
+    info_hash = hashlib.sha1(info_bencoded).hexdigest()
+
+    # Extract name (required)
+    name_bytes = info_dict.get(b"name")
+    if not name_bytes:
+        raise ValueError("Invalid torrent file: missing 'name' in info dict")
+    name = _decode_bytes(name_bytes)
+
+    # Extract piece length (required)
+    piece_length = info_dict.get(b"piece length")
+    if not isinstance(piece_length, int) or piece_length <= 0:
+        raise ValueError("Invalid torrent file: invalid 'piece length'")
+
+    # Extract pieces (required) - used to calculate piece count
+    pieces = info_dict.get(b"pieces")
+    if not isinstance(pieces, bytes) or len(pieces) % 20 != 0:
+        raise ValueError("Invalid torrent file: invalid 'pieces' data")
+    piece_count = len(pieces) // 20  # Each SHA1 hash is 20 bytes
+
+    # Private flag (optional, defaults to False)
+    private = info_dict.get(b"private", 0) == 1
+
+    # Source tag (optional)
+    source_bytes = info_dict.get(b"source")
+    source = _decode_bytes(source_bytes) if source_bytes else None
+
+    # Handle single-file vs multi-file torrents
+    files_list: list[TorrentFileInfo] = []
+    total_size: int
+
+    if b"files" in info_dict:
+        # Multi-file torrent
+        raw_files = info_dict[b"files"]
+        if not isinstance(raw_files, list):
+            raise ValueError("Invalid torrent file: 'files' is not a list")
+
+        total_size = 0
+        for file_entry in raw_files:
+            if not isinstance(file_entry, dict):
+                continue
+            file_size = file_entry.get(b"length", 0)
+            path_parts = file_entry.get(b"path", [])
+            if isinstance(path_parts, list):
+                path_str = "/".join(_decode_bytes(p) for p in path_parts if p)
+            else:
+                path_str = _decode_bytes(path_parts) if path_parts else ""
+            files_list.append(TorrentFileInfo(path=path_str, size=file_size))
+            total_size += file_size
+    else:
+        # Single-file torrent
+        total_size = info_dict.get(b"length", 0)
+        if not isinstance(total_size, int):
+            raise ValueError("Invalid torrent file: invalid 'length' for single-file torrent")
+
+    # Extract trackers
+    trackers: list[str] = []
+
+    # Primary announce URL
+    announce = data.get(b"announce")
+    if announce:
+        trackers.append(_decode_bytes(announce))
+
+    # announce-list (list of tiers, each tier is a list of trackers)
+    announce_list = data.get(b"announce-list")
+    if isinstance(announce_list, list):
+        for tier in announce_list:
+            if isinstance(tier, list):
+                for tracker in tier:
+                    tracker_url = _decode_bytes(tracker) if tracker else ""
+                    if tracker_url and tracker_url not in trackers:
+                        trackers.append(tracker_url)
+
+    # Web seeds (BEP 19)
+    web_seeds: list[str] = []
+    url_list = data.get(b"url-list")
+    if isinstance(url_list, list):
+        for url in url_list:
+            web_seeds.append(_decode_bytes(url))
+    elif url_list:
+        web_seeds.append(_decode_bytes(url_list))
+
+    # Comment (optional)
+    comment_bytes = data.get(b"comment")
+    comment = _decode_bytes(comment_bytes) if comment_bytes else None
+
+    # Created by (optional)
+    created_by_bytes = data.get(b"created by")
+    created_by = _decode_bytes(created_by_bytes) if created_by_bytes else None
+
+    # Creation date (optional, unix timestamp)
+    creation_date: datetime | None = None
+    creation_date_raw = data.get(b"creation date")
+    if isinstance(creation_date_raw, int):
+        try:
+            creation_date = datetime.fromtimestamp(creation_date_raw, tz=UTC)
+        except (OSError, ValueError):
+            logger.debug(f"Invalid creation date timestamp: {creation_date_raw}")
+
+    # Collect extra/non-standard fields from info dict
+    standard_info_keys = {
+        b"name",
+        b"piece length",
+        b"pieces",
+        b"private",
+        b"source",
+        b"length",
+        b"files",
+        b"md5sum",
+        b"path",
+    }
+    extra_fields: dict[str, Any] = {}
+    for key, value in info_dict.items():
+        if key not in standard_info_keys:
+            key_str = _decode_bytes(key)
+            extra_fields[key_str] = _decode_value(value)
+
+    return TorrentInfo(
+        name=name,
+        info_hash=info_hash,
+        size=total_size,
+        piece_length=piece_length,
+        piece_count=piece_count,
+        private=private,
+        trackers=trackers,
+        web_seeds=web_seeds,
+        source=source,
+        comment=comment,
+        created_by=created_by,
+        creation_date=creation_date,
+        files=files_list,
+        extra_fields=extra_fields if extra_fields else None,
+    )
+
+
+def _decode_bytes(value: bytes | str | Any) -> str:
+    """Decode bytes to string, handling various encodings."""
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                return value.decode("latin-1")
+            except UnicodeDecodeError:
+                return value.decode("utf-8", errors="replace")
+    return str(value) if value is not None else ""
+
+
+def _decode_value(value: Any) -> Any:
+    """Recursively decode bencode values for extra_fields."""
+    if isinstance(value, bytes):
+        return _decode_bytes(value)
+    elif isinstance(value, list):
+        return [_decode_value(v) for v in value]
+    elif isinstance(value, dict):
+        return {_decode_bytes(k): _decode_value(v) for k, v in value.items()}
+    return value
