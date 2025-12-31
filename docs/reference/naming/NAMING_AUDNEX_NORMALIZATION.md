@@ -1,6 +1,6 @@
 # Audnex Normalization Layer
 
-> How MAMFast normalizes Audible metadata using the Audnex API.
+> How Shelfr normalizes Audible metadata using the Audnex API.
 
 ## Related Documentation
 
@@ -244,7 +244,7 @@ Series name matching uses fuzzy comparison to handle variations:
 - "A Song of Ice and Fire" ≈ "Song of Ice & Fire"
 
 ```python
-from mamfast.utils.fuzzy import fuzzy_match
+from Shelfr.utils.fuzzy import fuzzy_match
 
 # 80% similarity threshold
 if fuzzy_match(extracted, expected, threshold=0.8):
@@ -299,7 +299,7 @@ See `tests/fixtures/audnex_normalization_samples.json` for comprehensive test ca
 
 ## See Also
 
-- [schemas/audnex.py](/src/mamfast/schemas/audnex.py) - Audnex response validation
-- [models.py](/src/mamfast/models.py) - NormalizedBook dataclass
-- [utils/naming/normalization.py](/src/mamfast/utils/naming/normalization.py) - `normalize_audnex_book()` implementation
+- [schemas/audnex.py](/src/Shelfr/schemas/audnex.py) - Audnex response validation
+- [models.py](/src/Shelfr/models.py) - NormalizedBook dataclass
+- [utils/naming/normalization.py](/src/Shelfr/utils/naming/normalization.py) - `normalize_audnex_book()` implementation
 - [test_normalization.py](/tests/test_normalization.py) - Normalization tests

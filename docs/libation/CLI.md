@@ -8,7 +8,7 @@ LibationCli is the command-line interface for Libation, an Audible audiobook man
 
 ## Understanding Libation's Two-Stage Model
 
-**This is critical for MAMFast integration.**
+**This is critical for Shelfr integration.**
 
 Libation uses a two-stage model for audiobook management:
 
@@ -605,11 +605,11 @@ The `Books` setting inside Libation (usually `/data`) maps to the host path show
 
 ---
 
-## MAMFast Integration Notes
+## Shelfr Integration Notes
 
 ### Understanding the Workflow
 
-MAMFast's `run` command executes this sequence:
+Shelfr's `run` command executes this sequence:
 
 ```
 1. scan      → Index new books from Audible (adds to DB as NotLiberated)
@@ -618,14 +618,14 @@ MAMFast's `run` command executes this sequence:
 4. process   → Stage → Metadata → Torrent → Upload
 ```
 
-**Current mamfast behavior (as of v1.x):**
-- `mamfast run` calls BOTH `scan` AND `liberate` automatically
+**Current Shelfr behavior (as of v1.x):**
+- `Shelfr run` calls BOTH `scan` AND `liberate` automatically
 - `liberate` runs regardless of `scan` results (correct behavior!)
 - If `liberate` fails silently, `discover` finds nothing
 
 ### Verified Behavior (December 2025)
 
-| Scenario | scan output | liberate behavior | MAMFast result |
+| Scenario | scan output | liberate behavior | Shelfr result |
 |----------|-------------|-------------------|----------------|
 | New books on Audible | "New: 5" | Downloads 5 books | Discovers 5 |
 | No new books, 20 NotLiberated | "New: 0" | Downloads 20 books | Discovers 20 |
@@ -657,7 +657,7 @@ docker restart Libation
 **Symptoms:**
 - `liberate` errors: "Books directory is not set"
 - Files not appearing in `library_root`
-- MAMFast finds nothing despite successful liberate
+- Shelfr finds nothing despite successful liberate
 
 ### Checking if liberate Actually Ran
 
@@ -665,8 +665,8 @@ docker restart Libation
 # Check what's in library_root
 ls -la /mnt/user/data/audio/audiobook-import/
 
-# Check liberate stderr (mamfast captures this)
-mamfast -v run 2>&1 | grep -i error
+# Check liberate stderr (Shelfr captures this)
+Shelfr -v run 2>&1 | grep -i error
 
 # Manual liberate with visible output
 docker exec -it Libation /libation/LibationCli liberate
@@ -674,7 +674,7 @@ docker exec -it Libation /libation/LibationCli liberate
 
 ### Getting NotLiberated Count Programmatically
 
-For future MAMFast enhancements, here's how to get the count:
+For future Shelfr enhancements, here's how to get the count:
 
 ```bash
 # Export and parse
@@ -687,9 +687,9 @@ print(sum(1 for b in d if b.get('BookStatus') == 'NotLiberated'))
 echo "NotLiberated books: $NOT_LIBERATED"
 ```
 
-### Recommended mamfast Enhancement
+### Recommended Shelfr Enhancement
 
-The current mamfast workflow is correct but could be improved:
+The current Shelfr workflow is correct but could be improved:
 
 ```python
 # Current (correct but opaque):
@@ -720,7 +720,7 @@ This is **normal and expected**:
 4. But those 20 are still `NotLiberated` in DB
 5. Running `liberate` will download all 20
 
-**MAMFast now handles this correctly** by checking Libation's status after `scan` and only calling `liberate` when there are pending `NotLiberated` books.
+**Shelfr now handles this correctly** by checking Libation's status after `scan` and only calling `liberate` when there are pending `NotLiberated` books.
 
 ---
 

@@ -1,6 +1,6 @@
-# MAMFast Improvements Plan
+# Shelfr Improvements Plan
 
-> Actionable roadmap for hardening MAMFast and improving DX across the entire codebase.
+> Actionable roadmap for hardening Shelfr and improving DX across the entire codebase.
 > Derived from analysis of current implementation + community recommendations.
 
 ---
@@ -54,7 +54,7 @@ Add Pydantic models for all external data boundaries. Keep existing dataclass-ba
 #### 1.1 Create schema modules ✅ COMPLETE
 
 ```
-src/mamfast/schemas/
+src/Shelfr/schemas/
 ├── __init__.py         # ✅ Created - exports all schemas
 ├── naming.py           # ✅ Created - naming.json validation
 ├── audnex.py           # ✅ Created - Audnex API response validation
@@ -66,7 +66,7 @@ src/mamfast/schemas/
 #### 1.2 Naming schema (naming.json) ✅ COMPLETE
 
 ```python
-# src/mamfast/schemas/naming.py
+# src/Shelfr/schemas/naming.py
 from __future__ import annotations
 
 from typing import Literal
@@ -161,7 +161,7 @@ class NamingSchema(BaseModel):
 #### 1.3 Audnex API response schema
 
 ```python
-# src/mamfast/schemas/audnex.py
+# src/Shelfr/schemas/audnex.py
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 
@@ -216,7 +216,7 @@ class AudnexBook(BaseModel):
 #### 1.4 State file schema (processed.json)
 
 ```python
-# src/mamfast/schemas/state.py
+# src/Shelfr/schemas/state.py
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -257,7 +257,7 @@ class ProcessedState(BaseModel):
 #### 1.5 Config schema (config.yaml)
 
 ```python
-# src/mamfast/schemas/config.py
+# src/Shelfr/schemas/config.py
 from pydantic import BaseModel, Field, field_validator, DirectoryPath, FilePath
 from pathlib import Path
 
@@ -268,7 +268,7 @@ class PathsSchema(BaseModel):
     torrent_output: Path
     seed_root: Path
     state_file: Path = Path("data/processed.json")
-    log_file: Path = Path("logs/mamfast.log")
+    log_file: Path = Path("logs/Shelfr.log")
 
     @field_validator("library_root", "seed_root")
     @classmethod
@@ -308,7 +308,7 @@ class ConfigSchema(BaseModel):
 #### 1.6 Add validation to config loading ✅ COMPLETE
 
 ```python
-# In src/mamfast/config.py
+# In src/Shelfr/config.py
 
 def _load_naming_config(config_dir: Path) -> NamingConfig:
     """Load and validate naming.json."""
@@ -321,7 +321,7 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
         data = json.loads(naming_path.read_text("utf-8"))
 
         # Validate with Pydantic
-        from mamfast.schemas.naming import NamingSchema
+        from Shelfr.schemas.naming import NamingSchema
         schema = NamingSchema.model_validate(data)
 
         # Convert to dataclass (existing code works with dataclass)
@@ -334,7 +334,7 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
 #### 1.7 Add CLI command for validation ✅ COMPLETE
 
 ```bash
-mamfast validate-config
+Shelfr validate-config
 ```
 
 Output:
@@ -374,7 +374,7 @@ dependencies = [
 - [ ] `test_state_schema.py` - processed.json validation
 - [ ] `test_schema_migration.py` - Version upgrades
 
-[↑ Back to top](#mamfast-improvements-plan)
+[↑ Back to top](#Shelfr-improvements-plan)
 
 ---
 
@@ -404,7 +404,7 @@ Wrap all path/filename generation with `pathvalidate` as a safety net.
 #### 2.1 Create centralized path safety module ✅ COMPLETE
 
 ```python
-# src/mamfast/utils/paths.py (extend existing)
+# src/Shelfr/utils/paths.py (extend existing)
 
 from pathvalidate import sanitize_filename as pv_sanitize
 from pathvalidate import sanitize_filepath as pv_sanitize_path
@@ -419,7 +419,7 @@ def safe_filename(raw: str, max_length: int = 225) -> str:
     2. Truncate to max length
     3. Apply pathvalidate for OS-level safety
     """
-    from mamfast.utils.naming import sanitize_filename, truncate_filename
+    from Shelfr.utils.naming import sanitize_filename, truncate_filename
 
     sanitized = sanitize_filename(raw)
     truncated = truncate_filename(sanitized, max_length=max_length)
@@ -428,7 +428,7 @@ def safe_filename(raw: str, max_length: int = 225) -> str:
 
 def safe_dirname(raw: str, max_length: int = 225) -> str:
     """Build a safe directory name."""
-    from mamfast.utils.naming import sanitize_filename, truncate_filename
+    from Shelfr.utils.naming import sanitize_filename, truncate_filename
 
     sanitized = sanitize_filename(raw)
     truncated = truncate_filename(sanitized, max_length=max_length)
@@ -443,24 +443,24 @@ def safe_path(raw: str | Path) -> Path:
 #### 2.2 Apply across codebase
 
 ```python
-# src/mamfast/utils/naming.py - build_release_dirname()
+# src/Shelfr/utils/naming.py - build_release_dirname()
 def build_release_dirname(...) -> str:
     """Build release directory name."""
     raw_name = f"{series} vol_{vol_num} ..."
     return safe_dirname(raw_name)
 
-# src/mamfast/hardlinker.py - hardlink destination
+# src/Shelfr/hardlinker.py - hardlink destination
 def create_hardlink(src: Path, dest_dir: Path, filename: str) -> Path:
     safe_name = safe_filename(filename)
     dest = dest_dir / safe_name
     ...
 
-# src/mamfast/mkbrr.py - torrent file naming
+# src/Shelfr/mkbrr.py - torrent file naming
 def create_torrent(release: AudiobookRelease) -> Path:
     torrent_name = safe_filename(f"{release.folder_name}.torrent")
     ...
 
-# src/mamfast/utils/state.py - stored paths
+# src/Shelfr/utils/state.py - stored paths
 def record_processed(release: AudiobookRelease) -> None:
     # Paths stored in state are already sanitized at creation
     state.releases[release.asin] = ProcessedRelease(
@@ -496,7 +496,7 @@ dependencies = [
   - Edge cases (empty, dots, spaces, null bytes)
   - Integration with naming.py functions
 
-[↑ Back to top](#mamfast-improvements-plan)
+[↑ Back to top](#Shelfr-improvements-plan)
 
 ---
 
@@ -521,7 +521,7 @@ dependencies = [
 #### 3.1 Create console utilities module
 
 ```python
-# src/mamfast/utils/console.py
+# src/Shelfr/utils/console.py
 
 from rich.console import Console
 from rich.table import Table
@@ -588,7 +588,7 @@ def print_workflow_summary(releases: list, stats: dict) -> None:
 
 def print_release_details(release) -> None:
     """Print detailed release info in a panel."""
-    from mamfast.models import AudiobookRelease
+    from Shelfr.models import AudiobookRelease
 
     if not isinstance(release, AudiobookRelease):
         return
@@ -606,9 +606,9 @@ def print_release_details(release) -> None:
 #### 3.2 Workflow progress display
 
 ```python
-# src/mamfast/workflow.py
+# src/Shelfr/workflow.py
 
-from mamfast.utils.console import console
+from Shelfr.utils.console import console
 
 def run_workflow(releases: list[AudiobookRelease], dry_run: bool = False) -> None:
     """Run the full workflow with progress display."""
@@ -636,7 +636,7 @@ def run_workflow(releases: list[AudiobookRelease], dry_run: bool = False) -> Non
 #### 3.3 Error display
 
 ```python
-# src/mamfast/utils/console.py
+# src/Shelfr/utils/console.py
 
 def print_error(title: str, error: Exception, context: dict | None = None) -> None:
     """Print formatted error with context."""
@@ -652,7 +652,7 @@ def print_error(title: str, error: Exception, context: dict | None = None) -> No
 #### 3.4 Preview Naming command
 
 ```bash
-mamfast preview-naming --limit 5 --verbose
+Shelfr preview-naming --limit 5 --verbose
 ```
 
 Output:
@@ -692,7 +692,7 @@ Already have `rich>=13.0`.
   - Workflow progress helpers
   - Exception and error formatting
 
-[↑ Back to top](#mamfast-improvements-plan)
+[↑ Back to top](#Shelfr-improvements-plan)
 
 ---
 
@@ -725,7 +725,7 @@ Use `rapidfuzz` for fuzzy string matching throughout the codebase.
 #### 4.1 Core fuzzy utilities
 
 ```python
-# src/mamfast/utils/fuzzy.py
+# src/Shelfr/utils/fuzzy.py
 
 from rapidfuzz import fuzz, process
 
@@ -782,9 +782,9 @@ def find_duplicates(items: list[str], threshold: int = 90) -> list[tuple[str, st
 #### 4.2 Duplicate release detection
 
 ```python
-# src/mamfast/discovery.py
+# src/Shelfr/discovery.py
 
-from mamfast.utils.fuzzy import find_duplicates, similarity_ratio
+from Shelfr.utils.fuzzy import find_duplicates, similarity_ratio
 
 
 def find_duplicate_releases(releases: list[AudiobookRelease]) -> list[tuple]:
@@ -810,9 +810,9 @@ def find_duplicate_releases(releases: list[AudiobookRelease]) -> list[tuple]:
 #### 4.3 Author name matching
 
 ```python
-# src/mamfast/utils/naming.py
+# src/Shelfr/utils/naming.py
 
-from mamfast.utils.fuzzy import find_best_match
+from Shelfr.utils.fuzzy import find_best_match
 
 
 def match_author_name(
@@ -843,9 +843,9 @@ def match_author_name(
 #### 4.4 Series grouping
 
 ```python
-# src/mamfast/metadata.py
+# src/Shelfr/metadata.py
 
-from mamfast.utils.fuzzy import similarity_ratio
+from Shelfr.utils.fuzzy import similarity_ratio
 
 
 def normalize_series_name(series: str, known_series: list[str]) -> str:
@@ -865,9 +865,9 @@ def normalize_series_name(series: str, known_series: list[str]) -> str:
 #### 4.5 Validation integration
 
 ```python
-# src/mamfast/validation.py
+# src/Shelfr/validation.py
 
-from mamfast.utils.fuzzy import is_suspicious_change, find_duplicates
+from Shelfr.utils.fuzzy import is_suspicious_change, find_duplicates
 
 
 def flag_suspicious_titles(
@@ -927,10 +927,10 @@ def validate_library_duplicates(releases: list) -> list[dict]:
 
 ```bash
 # Check for suspicious title changes
-mamfast validate --check-suspicious --threshold 60
+Shelfr validate --check-suspicious --threshold 60
 
 # Find potential duplicates in library
-mamfast check-duplicates --threshold 85
+Shelfr check-duplicates --threshold 85
 ```
 
 Output:
@@ -986,7 +986,7 @@ dependencies = [
 
 #### Completed ✅
 
-1. **Core Utilities** (`src/mamfast/utils/fuzzy.py`):
+1. **Core Utilities** (`src/Shelfr/utils/fuzzy.py`):
    - `similarity_ratio()` - Basic string similarity
    - `partial_ratio()` - Partial string matching
    - `weighted_ratio()` - Combined scoring
@@ -1002,10 +1002,10 @@ dependencies = [
    - `group_similar_series()` - Group similar series names
 
 2. **CLI Commands**:
-   - `mamfast check-duplicates` - Find potential duplicate releases
-   - `mamfast check-suspicious` - Detect over-aggressive title cleaning
+   - `Shelfr check-duplicates` - Find potential duplicate releases
+   - `Shelfr check-suspicious` - Detect over-aggressive title cleaning
 
-3. **Console Helpers** (`src/mamfast/console.py`):
+3. **Console Helpers** (`src/Shelfr/console.py`):
    - `print_duplicate_pairs()` - Display duplicate pairs in Rich table
    - `print_suspicious_changes()` - Display suspicious changes with tips
    - `print_change_analysis()` - Detailed single change analysis
@@ -1018,7 +1018,7 @@ dependencies = [
 
 **Total Tests**: 877 (55 fuzzy + 10 console + 7 integration = 72 new tests)
 
-[↑ Back to top](#mamfast-improvements-plan)
+[↑ Back to top](#Shelfr-improvements-plan)
 
 ---
 
@@ -1121,7 +1121,7 @@ def test_cleanup_never_empties_valid_title(title: str):
 | `hishel` | HTTP caching not needed yet |
 | Full Pydantic Settings migration | Would require rewriting working config |
 
-[↑ Back to top](#mamfast-improvements-plan)
+[↑ Back to top](#Shelfr-improvements-plan)
 
 ---
 
@@ -1154,7 +1154,7 @@ graph TD
 
 Total to "Phase 1 + 2 done": ~2 hours
 
-[↑ Back to top](#mamfast-improvements-plan)
+[↑ Back to top](#Shelfr-improvements-plan)
 
 ---
 

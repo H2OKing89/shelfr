@@ -26,7 +26,7 @@ dependencies = [
 ]
 ```
 
-2. Replace `src/mamfast/utils/retry.py` entirely with:
+2. Replace `src/Shelfr/utils/retry.py` entirely with:
 
 ```python
 """Retry logic using tenacity library.
@@ -121,7 +121,7 @@ dependencies = [
 ]
 ```
 
-2. Create `src/mamfast/paths.py` (new file):
+2. Create `src/Shelfr/paths.py` (new file):
 
 ```python
 """Cross-platform path handling using platformdirs.
@@ -136,7 +136,7 @@ from pathlib import Path
 
 from platformdirs import user_cache_dir, user_data_dir, user_log_dir
 
-APP_NAME = "mamfast"
+APP_NAME = "Shelfr"
 APPAUTHOR = False  # Avoid "CompanyName/AppName" nesting on Windows
 
 
@@ -149,11 +149,11 @@ def _env_override(env_var: str) -> Path | None:
 def data_dir(*, ensure: bool = True) -> Path:
     """Get application data directory.
 
-    Linux: ~/.local/share/mamfast
-    macOS: ~/Library/Application Support/mamfast
-    Windows: C:\\Users\\<user>\\AppData\\Local\\mamfast
+    Linux: ~/.local/share/Shelfr
+    macOS: ~/Library/Application Support/Shelfr
+    Windows: C:\\Users\\<user>\\AppData\\Local\\Shelfr
 
-    Override with MAMFAST_DATA_DIR env var.
+    Override with Shelfr_DATA_DIR env var.
 
     Args:
         ensure: Create directory if it doesn't exist
@@ -161,7 +161,7 @@ def data_dir(*, ensure: bool = True) -> Path:
     Returns:
         Path to data directory
     """
-    d = _env_override("MAMFAST_DATA_DIR") or Path(user_data_dir(APP_NAME, APPAUTHOR))
+    d = _env_override("Shelfr_DATA_DIR") or Path(user_data_dir(APP_NAME, APPAUTHOR))
     if ensure:
         d.mkdir(parents=True, exist_ok=True)
     return d
@@ -170,11 +170,11 @@ def data_dir(*, ensure: bool = True) -> Path:
 def cache_dir(*, ensure: bool = True) -> Path:
     """Get application cache directory.
 
-    Linux: ~/.cache/mamfast
-    macOS: ~/Library/Caches/mamfast
-    Windows: C:\\Users\\<user>\\AppData\\Local\\mamfast\\Cache
+    Linux: ~/.cache/Shelfr
+    macOS: ~/Library/Caches/Shelfr
+    Windows: C:\\Users\\<user>\\AppData\\Local\\Shelfr\\Cache
 
-    Override with MAMFAST_CACHE_DIR env var.
+    Override with Shelfr_CACHE_DIR env var.
 
     Args:
         ensure: Create directory if it doesn't exist
@@ -182,7 +182,7 @@ def cache_dir(*, ensure: bool = True) -> Path:
     Returns:
         Path to cache directory
     """
-    d = _env_override("MAMFAST_CACHE_DIR") or Path(user_cache_dir(APP_NAME, APPAUTHOR))
+    d = _env_override("Shelfr_CACHE_DIR") or Path(user_cache_dir(APP_NAME, APPAUTHOR))
     if ensure:
         d.mkdir(parents=True, exist_ok=True)
     return d
@@ -191,11 +191,11 @@ def cache_dir(*, ensure: bool = True) -> Path:
 def log_dir(*, ensure: bool = True) -> Path:
     """Get application log directory.
 
-    Linux: ~/.local/state/mamfast (or ~/.cache/mamfast if not available)
-    macOS: ~/Library/Logs/mamfast
-    Windows: C:\\Users\\<user>\\AppData\\Local\\mamfast\\Logs
+    Linux: ~/.local/state/Shelfr (or ~/.cache/Shelfr if not available)
+    macOS: ~/Library/Logs/Shelfr
+    Windows: C:\\Users\\<user>\\AppData\\Local\\Shelfr\\Logs
 
-    Override with MAMFAST_LOG_DIR env var.
+    Override with Shelfr_LOG_DIR env var.
 
     Args:
         ensure: Create directory if it doesn't exist
@@ -203,17 +203,17 @@ def log_dir(*, ensure: bool = True) -> Path:
     Returns:
         Path to log directory
     """
-    d = _env_override("MAMFAST_LOG_DIR") or Path(user_log_dir(APP_NAME, APPAUTHOR))
+    d = _env_override("Shelfr_LOG_DIR") or Path(user_log_dir(APP_NAME, APPAUTHOR))
     if ensure:
         d.mkdir(parents=True, exist_ok=True)
     return d
 ```
 
-3. Update `src/mamfast/utils/state.py`:
+3. Update `src/Shelfr/utils/state.py`:
 
 ```python
 # Add at top
-from mamfast.paths import data_dir
+from Shelfr.paths import data_dir
 
 # Replace _get_state_file function
 def _get_state_file() -> Path:
@@ -222,14 +222,14 @@ def _get_state_file() -> Path:
 
 def _get_run_lock_file() -> Path:
     """Get path to run lock file."""
-    return data_dir() / "mamfast.lock"
+    return data_dir() / "Shelfr.lock"
 ```
 
-4. Update `src/mamfast/logging_setup.py`:
+4. Update `src/Shelfr/logging_setup.py`:
 
 ```python
 # Add at top
-from mamfast.paths import log_dir
+from Shelfr.paths import log_dir
 
 # Update default log_file parameter
 def setup_logging(
@@ -240,7 +240,7 @@ def setup_logging(
 ) -> None:
     """Setup logging configuration."""
     if log_file is None:
-        log_file = log_dir() / "mamfast.log"
+        log_file = log_dir() / "Shelfr.log"
 
     # ... rest of function
 ```
@@ -250,16 +250,16 @@ def setup_logging(
 ```markdown
 ## Environment Variables
 
-MAMFast respects the following environment variables for path customization:
+Shelfr respects the following environment variables for path customization:
 
-- `MAMFAST_DATA_DIR` - Override data directory (default: OS-specific)
-- `MAMFAST_CACHE_DIR` - Override cache directory (default: OS-specific)
-- `MAMFAST_LOG_DIR` - Override log directory (default: OS-specific)
+- `Shelfr_DATA_DIR` - Override data directory (default: OS-specific)
+- `Shelfr_CACHE_DIR` - Override cache directory (default: OS-specific)
+- `Shelfr_LOG_DIR` - Override log directory (default: OS-specific)
 
 Example for Unraid:
 ```bash
-export MAMFAST_DATA_DIR="/mnt/cache/appdata/mamfast/data"
-export MAMFAST_LOG_DIR="/mnt/cache/appdata/mamfast/logs"
+export Shelfr_DATA_DIR="/mnt/cache/appdata/Shelfr/data"
+export Shelfr_LOG_DIR="/mnt/cache/appdata/Shelfr/logs"
 ```
 ```
 
@@ -285,7 +285,7 @@ dependencies = [
 ]
 ```
 
-2. Create `src/mamfast/utils/cmd.py` (new file):
+2. Create `src/Shelfr/utils/cmd.py` (new file):
 
 ```python
 """Command execution utilities using sh library.
@@ -402,7 +402,7 @@ def run(
 
 3. **Migrate files one at a time**:
 
-**Example - `src/mamfast/libation.py`**:
+**Example - `src/Shelfr/libation.py`**:
 
 ```python
 # Before
@@ -414,7 +414,7 @@ result = subprocess.run(
 )
 
 # After
-from mamfast.utils.cmd import run
+from Shelfr.utils.cmd import run
 
 result = run(
     ["docker", "exec", "Libation", "/libation/LibationCli", "scan"],
@@ -459,7 +459,7 @@ dependencies = [
 ]
 ```
 
-2. Update `src/mamfast/config.py` to use `BaseSettings`:
+2. Update `src/Shelfr/config.py` to use `BaseSettings`:
 
 ```python
 from pydantic_settings import BaseSettings, SettingsConfigDict

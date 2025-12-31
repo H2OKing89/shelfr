@@ -1,6 +1,6 @@
 # Naming Implementation Guide
 
-> Implementation phases, testing strategy, and changelog for MAMFast naming system.
+> Implementation phases, testing strategy, and changelog for Shelfr naming system.
 
 ## Related Documentation
 
@@ -199,7 +199,7 @@ def test_full_naming_pipeline():
 pytest tests/test_naming.py tests/test_golden.py -v
 
 # With coverage
-pytest tests/test_naming.py --cov=src/mamfast/utils/naming --cov-report=term-missing
+pytest tests/test_naming.py --cov=src/Shelfr/utils/naming --cov-report=term-missing
 
 # Golden tests only
 pytest tests/test_golden.py -v
@@ -293,7 +293,7 @@ pytest tests/test_normalization.py -v
 
 **Debug:**
 ```python
-from mamfast.utils.naming import clean_title, _apply_rules
+from Shelfr.utils.naming import clean_title, _apply_rules
 
 # Check which rules match
 result, applied = _apply_rules(title, debug=True)
@@ -308,7 +308,7 @@ print(f"Applied rules: {applied}")
 
 **Debug:**
 ```python
-from mamfast.utils.naming import extract_series
+from Shelfr.utils.naming import extract_series
 
 series, pos = extract_series(subtitle, debug=True)
 print(f"Series: {series}, Position: {pos}")

@@ -8,7 +8,7 @@
 
 ## Integration Summary
 
-All P0 critical production-safety improvements have been successfully integrated into MAMFast. The system is now **production-ready** with full concurrency protection, idempotent operations, checkpoint-based resume, and timeout protection.
+All P0 critical production-safety improvements have been successfully integrated into Shelfr. The system is now **production-ready** with full concurrency protection, idempotent operations, checkpoint-based resume, and timeout protection.
 
 ---
 
@@ -16,29 +16,29 @@ All P0 critical production-safety improvements have been successfully integrated
 
 ### 1. ✅ Run Lock Integration (CLI)
 
-**Files Modified**: `src/mamfast/cli.py`
+**Files Modified**: `src/Shelfr/cli.py`
 
 **Changes**:
-- Added `--no-run-lock` flag to `mamfast run` command
+- Added `--no-run-lock` flag to `Shelfr run` command
 - Wrapped `cmd_run()` with `run_lock()` context manager
 - Proper error handling for "another instance running" scenario
 
 **Usage**:
 ```bash
 # Normal (safe) - enforces run lock
-mamfast run
+Shelfr run
 
 # Dangerous bypass for advanced users
-mamfast run --no-run-lock
+Shelfr run --no-run-lock
 ```
 
 **Error Message on Conflict**:
 ```
-Another MAMFast instance is already running.
-Lock file: /path/to/data/mamfast.lock
+Another Shelfr instance is already running.
+Lock file: /path/to/data/Shelfr.lock
 
 If you're sure no other instance is running, delete the lock file:
-  rm /path/to/data/mamfast.lock
+  rm /path/to/data/Shelfr.lock
 
 Or use --no-run-lock to bypass (DANGEROUS - can cause data corruption)
 ```
@@ -47,11 +47,11 @@ Or use --no-run-lock to bypass (DANGEROUS - can cause data corruption)
 
 ### 2. ✅ Checkpoint Integration (Workflow)
 
-**Files Modified**: `src/mamfast/workflow.py`
+**Files Modified**: `src/Shelfr/workflow.py`
 
 **Added Imports**:
 ```python
-from mamfast.utils.state import (
+from Shelfr.utils.state import (
     checkpoint_stage,      # NEW
     get_infohash,         # NEW
     should_skip_stage,    # NEW
@@ -123,7 +123,7 @@ if success:
 
 2. **Resume** - Next run automatically resumes:
    ```bash
-   mamfast run
+   Shelfr run
    ```
    Output:
    ```
@@ -169,7 +169,7 @@ def upload_torrent(...) -> tuple[bool, str | None]:
 
 ### 5. ✅ mkbrr Torrent Discovery (Already Fixed)
 
-**Location**: `src/mamfast/workflow.py:323`
+**Location**: `src/Shelfr/workflow.py:323`
 
 **Implementation**:
 ```python
@@ -250,11 +250,11 @@ mkbrr_result = create_torrent(
 
 **Integration Tests Needed** (Manual):
 1. **Concurrent Instance Prevention**
-   - Start `mamfast run`
+   - Start `Shelfr run`
    - Try to start second instance → should fail with clear error
 
 2. **Resume Functionality**
-   - Start `mamfast run`, kill after staging
+   - Start `Shelfr run`, kill after staging
    - Restart → should skip staging, continue from metadata
 
 3. **Idempotent Upload**
@@ -282,7 +282,7 @@ mkbrr_result = create_torrent(
 
 3. **Run** (automatic migration):
    ```bash
-   mamfast run
+   Shelfr run
    ```
    - Existing state entries gain empty checkpoints on first update
    - Infohash tracked on next successful upload
@@ -344,16 +344,16 @@ if success:
 
 ```bash
 # If stuck, check for lock file
-ls -la data/mamfast.lock
+ls -la data/Shelfr.lock
 
 # If stale (no process running), remove manually
-rm data/mamfast.lock
+rm data/Shelfr.lock
 ```
 
 ### View Checkpoints
 
 ```python
-from mamfast.utils.state import load_state
+from Shelfr.utils.state import load_state
 
 state = load_state()
 release = state["processed"]["B09GHD1R2R"]
@@ -370,7 +370,7 @@ print(release["checkpoints"])
 ### Force Re-Process Stage
 
 ```python
-from mamfast.utils.state import update_state
+from Shelfr.utils.state import update_state
 
 # Clear specific checkpoint to force re-run
 def clear_checkpoint(state):
@@ -405,14 +405,14 @@ update_state(clear_checkpoint)
 ## Files Changed
 
 ### New Files
-1. `src/mamfast/utils/torrent.py` - Bencode parser + infohash extraction
+1. `src/Shelfr/utils/torrent.py` - Bencode parser + infohash extraction
 
 ### Modified Files
-1. `src/mamfast/utils/state.py` - Run lock, state locking, checkpoints
-2. `src/mamfast/qbittorrent.py` - Idempotent upload, retry logic, infohash
-3. `src/mamfast/mkbrr.py` - Timeouts on Docker operations
-4. `src/mamfast/cli.py` - `--no-run-lock` flag, run lock integration
-5. `src/mamfast/workflow.py` - Checkpoint integration, resume logic
+1. `src/Shelfr/utils/state.py` - Run lock, state locking, checkpoints
+2. `src/Shelfr/qbittorrent.py` - Idempotent upload, retry logic, infohash
+3. `src/Shelfr/mkbrr.py` - Timeouts on Docker operations
+4. `src/Shelfr/cli.py` - `--no-run-lock` flag, run lock integration
+5. `src/Shelfr/workflow.py` - Checkpoint integration, resume logic
 6. `tests/test_*.py` - Updated for new return types
 
 ### Documentation
@@ -450,7 +450,7 @@ update_state(clear_checkpoint)
 
 ## Conclusion
 
-MAMFast is now **production-safe** with:
+Shelfr is now **production-safe** with:
 - ✅ Full concurrency protection
 - ✅ Idempotent operations (no duplicates)
 - ✅ Automatic resume on failure

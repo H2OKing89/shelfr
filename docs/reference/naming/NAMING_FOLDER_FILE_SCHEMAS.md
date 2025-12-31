@@ -1,6 +1,6 @@
 # Folder & File Naming Schemas
 
-> Output formats, truncation rules, and MAM JSON schema for MAMFast naming.
+> Output formats, truncation rules, and MAM JSON schema for Shelfr naming.
 
 ## Related Documentation
 
@@ -282,7 +282,7 @@ MAM accepts a JSON object for fast form filling on upload/request pages. This is
 | `mediaType` | int | Media type ID (1 = Audiobook) |
 | `mediaInfo` | string | MediaInfo output for audio |
 | `tags` | string | Tags/labels string |
-| `isbn` | string | ISBN field (MAMFast uses `ASIN:<asin>`) |
+| `isbn` | string | ISBN field (Shelfr uses `ASIN:<asin>`) |
 | `flags` | list of strings | Content flags (see below) |
 
 ### Series Object
@@ -305,7 +305,7 @@ MAM accepts a JSON object for fast form filling on upload/request pages. This is
 | `abridged` | Abridged content |
 | `lgbt` | LGBTQ+ themed content |
 
-### MAMFast Output Example
+### Shelfr Output Example
 
 ```json
 {
@@ -448,7 +448,7 @@ If no source provides reliable series data, the book is treated as **standalone*
 New audiobook releases (especially from publishers like Seven Seas Siren) may have incomplete metadata in Audnex for the first 1-2 weeks. When this happens:
 
 1. **Standalone treatment:** Book is processed without series info
-2. **Automatic backfill:** When Audnex later adds series metadata, `mamfast series-refresh` can update the internal cache and regenerate MAM JSON
+2. **Automatic backfill:** When Audnex later adds series metadata, `Shelfr series-refresh` can update the internal cache and regenerate MAM JSON
 3. **No torrent changes:** Live torrents and seeding files are not affected by metadata updates
 
 **Example - New Release Without Series:**
@@ -541,7 +541,7 @@ VOL_PATTERN = re.compile(
 
 ### Recommended Templates
 
-MAMFast expects specific folder/file naming from Libation. Use these templates in Libation settings:
+Shelfr expects specific folder/file naming from Libation. Use these templates in Libation settings:
 
 **Folder Template:**
 ```

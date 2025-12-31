@@ -1,6 +1,6 @@
 # Naming Rules Reference
 
-> Matching rules, phrase removal patterns, author map, and volume normalization for MAMFast.
+> Matching rules, phrase removal patterns, author map, and volume normalization for Shelfr.
 
 ## Related Documentation
 
@@ -450,6 +450,6 @@ Step 2: "The Book"
 ## See Also
 
 - [config/naming.json](/config/naming.json) - Rule definitions
-- [schemas/naming.py](/src/mamfast/schemas/naming.py) - Pydantic validation
-- [src/mamfast/utils/naming/](/src/mamfast/utils/naming/) - Implementation
+- [schemas/naming.py](/src/Shelfr/schemas/naming.py) - Pydantic validation
+- [src/Shelfr/utils/naming/](/src/Shelfr/utils/naming/) - Implementation
 - [test_naming.py](/tests/test_naming.py) - Unit tests

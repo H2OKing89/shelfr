@@ -4,8 +4,8 @@
 **Reviewer:** Claude (GitHub Copilot)
 **Files Reviewed:**
 
-- `src/mamfast/libation.py` (496 lines)
-- `src/mamfast/commands/libation.py` (1725 lines)
+- `src/Shelfr/libation.py` (496 lines)
+- `src/Shelfr/commands/libation.py` (1725 lines)
 - `tests/test_libation.py` (785 lines)
 - `tests/test_cli_libation.py` (344 lines)
 
@@ -33,7 +33,7 @@ The Libation CLI wrapper is well-designed with excellent Rich UI components and 
 
 ### User Experience
 
-1. **Default to status** - Running `mamfast libation` with no subcommand shows dashboard (novice-friendly)
+1. **Default to status** - Running `Shelfr libation` with no subcommand shows dashboard (novice-friendly)
 2. **Dry-run support** - Every command supports `--dry-run` for safe exploration
 3. **Combined workflows** - `--liberate` flag on scan for convenience
 4. **Detailed epilogs** - Every subcommand has examples in help text
@@ -50,7 +50,7 @@ The Libation CLI wrapper is well-designed with excellent Rich UI components and 
 
 ### Issue 1: LibationError Exception Not Used
 
-**Location:** `src/mamfast/libation.py` lines 157-163, `src/mamfast/commands/libation.py` various
+**Location:** `src/Shelfr/libation.py` lines 157-163, `src/Shelfr/commands/libation.py` various
 
 **Problem:** The custom `LibationError` exception exists in `exceptions.py` but is never raised. Both modules use generic `RuntimeError` instead.
 
@@ -60,7 +60,7 @@ except json.JSONDecodeError as e:
     raise RuntimeError(f"Failed to parse Libation export JSON: {e}") from e
 
 # Should be:
-from mamfast.exceptions import LibationError
+from Shelfr.exceptions import LibationError
 raise LibationError(f"Failed to parse export JSON: {e}", exit_code=1) from e
 ```
 
@@ -72,7 +72,7 @@ raise LibationError(f"Failed to parse export JSON: {e}", exit_code=1) from e
 
 ### Issue 2: Inconsistent Return Types
 
-**Location:** `src/mamfast/libation.py`
+**Location:** `src/Shelfr/libation.py`
 
 **Problem:** Two different result types for similar operations:
 
@@ -89,7 +89,7 @@ The name `ScanResult` is misleading when returned from liberate functions.
 
 ### Issue 3: Duplicate Export Operations
 
-**Location:** `src/mamfast/commands/libation.py` - `cmd_libation_liberate()`
+**Location:** `src/Shelfr/commands/libation.py` - `cmd_libation_liberate()`
 
 **Problem:** The liberate command calls `_export_library()` twice - once before liberate to check pending count, once after to show updated status. For large libraries (1000+ books), this is slow.
 
@@ -138,7 +138,7 @@ libation:
 
 ### Issue 5: Silent Container Check Failure
 
-**Location:** `src/mamfast/libation.py` lines 285-287
+**Location:** `src/Shelfr/libation.py` lines 285-287
 
 **Problem:** Container check silently returns `False` on any exception:
 
@@ -161,7 +161,7 @@ except Exception as e:
 
 ### Issue 6: Missing ASIN Validation
 
-**Location:** `src/mamfast/commands/libation.py` - argument parsers
+**Location:** `src/Shelfr/commands/libation.py` - argument parsers
 
 **Problem:** ASINs are accepted without validation. Valid Audible ASINs follow pattern `B[0-9A-Z]{9}` (10 chars starting with B).
 
@@ -191,7 +191,7 @@ liberate_parser.add_argument("--asin", type=validate_asin, ...)
 
 ### Issue 7: Unsafe getattr Usage
 
-**Location:** `src/mamfast/commands/libation.py` - multiple commands
+**Location:** `src/Shelfr/commands/libation.py` - multiple commands
 
 **Problem:** Many places use `getattr(args, "attr", default)` pattern:
 
@@ -215,7 +215,7 @@ Then access directly: `args.asin`, `args.force`
 
 ### Issue 8: Untyped Any in Dataclasses
 
-**Location:** `src/mamfast/commands/libation.py` line 261
+**Location:** `src/Shelfr/commands/libation.py` line 261
 
 **Problem:**
 
@@ -369,9 +369,9 @@ if args.json:
 
 ### Main Files
 
-- Core module: `src/mamfast/libation.py`
-- CLI commands: `src/mamfast/commands/libation.py`
-- Exception: `src/mamfast/exceptions.py` (line 388)
+- Core module: `src/Shelfr/libation.py`
+- CLI commands: `src/Shelfr/commands/libation.py`
+- Exception: `src/Shelfr/exceptions.py` (line 388)
 - Tests: `tests/test_libation.py`, `tests/test_cli_libation.py`
 
 ### Key Functions

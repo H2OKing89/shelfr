@@ -1,6 +1,6 @@
 # Naming Processing Pipeline
 
-> The full cleaning pipeline and order of operations for MAMFast naming.
+> The full cleaning pipeline and order of operations for Shelfr naming.
 
 ## Related Documentation
 
@@ -309,7 +309,7 @@ class MamPath(BaseModel):
 
 ## Function Reference
 
-### Core Functions (`mamfast.utils.naming`)
+### Core Functions (`Shelfr.utils.naming`)
 
 | Function | Purpose |
 |----------|---------|
@@ -323,7 +323,7 @@ class MamPath(BaseModel):
 ### Entry Points
 
 ```python
-from mamfast.utils.naming import build_mam_folder_name, build_mam_file_name
+from Shelfr.utils.naming import build_mam_folder_name, build_mam_file_name
 
 folder = build_mam_folder_name(
     author="Andy Weir",
@@ -349,4 +349,4 @@ file = build_mam_file_name(
 
 - [Folder & File Schemas](NAMING_FOLDER_FILE_SCHEMAS.md) - Output format details
 - [Rules Reference](NAMING_RULES.md) - Phrase removal rules
-- [src/mamfast/utils/naming/](/src/mamfast/utils/naming/) - Implementation
+- [src/Shelfr/utils/naming/](/src/Shelfr/utils/naming/) - Implementation

@@ -1,6 +1,6 @@
-# MAMFast Naming System
+# Shelfr Naming System
 
-> Quick reference guide for the MAMFast naming system. For detailed documentation, see the related docs.
+> Quick reference guide for the Shelfr naming system. For detailed documentation, see the related docs.
 
 ## Related Documentation
 
@@ -16,13 +16,13 @@
 
 ## Overview
 
-MAMFast uses a **multi-layer naming system** that transforms raw Libation/Audible data into clean, MAM-compliant folder and file names.
+Shelfr uses a **multi-layer naming system** that transforms raw Libation/Audible data into clean, MAM-compliant folder and file names.
 
 ### Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           MAMFast Naming Pipeline                           │
+│                           Shelfr Naming Pipeline                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌──────────────┐    ┌───────────────────┐    ┌──────────────────────────┐ │
@@ -104,10 +104,10 @@ file:   "Stormlight Archive vol_01 The Way of Kings (2010) (Brandon Sanderson) {
 
 | File | Purpose |
 |------|--------|
-| `src/mamfast/utils/naming/` | Core naming functions (package) |
-| `src/mamfast/models.py` | `NormalizedBook`, `MamPath` dataclasses |
+| `src/Shelfr/utils/naming/` | Core naming functions (package) |
+| `src/Shelfr/models.py` | `NormalizedBook`, `MamPath` dataclasses |
 | `config/naming.json` | Phrase removal rules, author map |
-| `src/mamfast/schemas/naming.py` | Pydantic validation for naming.json |
+| `src/Shelfr/schemas/naming.py` | Pydantic validation for naming.json |
 | `tests/test_naming.py` | Naming unit tests |
 | `tests/test_golden.py` | Golden test framework |
 | `tests/golden/` | Golden test fixtures |

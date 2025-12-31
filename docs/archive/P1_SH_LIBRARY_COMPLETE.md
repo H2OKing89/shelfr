@@ -24,7 +24,7 @@ Successfully implemented the **sh library** integration from [../implementation/
 ### 2. Command Wrapper Created
 
 **File Created:**
-- [src/mamfast/utils/cmd.py](src/mamfast/utils/cmd.py) - Unified command execution interface
+- [src/Shelfr/utils/cmd.py](src/Shelfr/utils/cmd.py) - Unified command execution interface
 
 **Key Features:**
 - `run()` - Execute commands with better error handling
@@ -35,7 +35,7 @@ Successfully implemented the **sh library** integration from [../implementation/
 
 **Example Usage:**
 ```python
-from mamfast.utils.cmd import docker, CmdError
+from Shelfr.utils.cmd import docker, CmdError
 
 # Run Docker command
 try:
@@ -50,7 +50,7 @@ except CmdError as e:
 ### 3. libation.py Migration
 
 **File Modified:**
-- [src/mamfast/libation.py](src/mamfast/libation.py)
+- [src/Shelfr/libation.py](src/Shelfr/libation.py)
 
 **Changes:**
 - Removed `subprocess` import, added `cmd.docker` and `cmd.CmdError`
@@ -74,7 +74,7 @@ if export_result.returncode != 0:
 
 **After:**
 ```python
-from mamfast.utils.cmd import docker, CmdError
+from Shelfr.utils.cmd import docker, CmdError
 
 docker(
     "exec", settings.libation_container,
@@ -92,7 +92,7 @@ docker(
 ### 4. mkbrr.py Migration
 
 **File Modified:**
-- [src/mamfast/mkbrr.py](src/mamfast/mkbrr.py)
+- [src/Shelfr/mkbrr.py](src/Shelfr/mkbrr.py)
 
 **Changes:**
 - Removed `subprocess` import, added `cmd.run`, `cmd.CmdResult`, `cmd.CmdError`
@@ -121,7 +121,7 @@ except OSError:
 
 **After:**
 ```python
-from mamfast.utils.cmd import run, CmdResult, CmdError
+from Shelfr.utils.cmd import run, CmdResult, CmdError
 
 @retry_with_backoff(retry_exceptions=(CmdError, OSError, TimeoutError))
 def _run_docker_command(cmd, timeout, capture_output=True) -> CmdResult:
@@ -167,7 +167,7 @@ else:
 
 ### New API (sh wrapper)
 ```python
-from mamfast.utils.cmd import docker, CmdError
+from Shelfr.utils.cmd import docker, CmdError
 
 try:
     result = docker("ps", "-a")
@@ -223,10 +223,10 @@ I recommend testing with:
 pip install sh>=2.0
 
 # Test import
-python3 -c "from mamfast.utils.cmd import docker, run; print('✓ Import successful')"
+python3 -c "from Shelfr.utils.cmd import docker, run; print('✓ Import successful')"
 
 # Test Docker wrapper
-python3 -c "from mamfast.utils.cmd import docker; result = docker('--version'); print(f'✓ Docker version: {result.stdout.strip()}')"
+python3 -c "from Shelfr.utils.cmd import docker; result = docker('--version'); print(f'✓ Docker version: {result.stdout.strip()}')"
 ```
 
 ### Integration Testing

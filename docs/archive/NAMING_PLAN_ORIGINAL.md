@@ -53,7 +53,7 @@
 
 ## Overview
 
-This document tracks the naming/cleaning rules for MAMFast. The goal is consistent, clean naming across:
+This document tracks the naming/cleaning rules for Shelfr. The goal is consistent, clean naming across:
 - Folder names (staging)
 - File names (staging)
 - MAM JSON output (title, subtitle, series, description)
@@ -1139,7 +1139,7 @@ Complete schema with version tracking:
 ```json
 {
   "_version": "1.1.0",
-  "_comment": "Naming rules for MAMFast. See docs/NAMING_PLAN.md for details.",
+  "_comment": "Naming rules for Shelfr. See docs/NAMING_PLAN.md for details.",
 
   "format_indicators": {
     "_comment": "Remove from titles, subtitles, series. Case-insensitive.",
@@ -1312,7 +1312,7 @@ Save raw responses from metadata fetches for analysis.
 
 ### Phase 4: Testing & Validation ✅
 - [x] Create `tests/golden/` with input/expected pairs (20 test cases)
-- [x] Add validation script (`src/mamfast/utils/validate_naming.py`)
+- [x] Add validation script (`src/Shelfr/utils/validate_naming.py`)
 - [x] Add preserve-exact drift check (in `TestGoldenPreserveExact`)
 - [x] Test against full library export (368 books, 0 issues!)
 - [x] Fixed edge cases: trailing colons, trailing commas, space before punctuation

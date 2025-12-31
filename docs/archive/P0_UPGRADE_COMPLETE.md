@@ -18,7 +18,7 @@ Successfully implemented P0 package upgrades from [../implementation/PACKAGE_UPG
 
 **Files Modified:**
 - [pyproject.toml](pyproject.toml#L25) - Added `tenacity>=8.0` dependency
-- [src/mamfast/utils/retry.py](src/mamfast/utils/retry.py) - Complete rewrite using tenacity
+- [src/Shelfr/utils/retry.py](src/Shelfr/utils/retry.py) - Complete rewrite using tenacity
 - [tests/test_retry.py](tests/test_retry.py#L16-L63) - Added new test cases
 
 **Key Features:**
@@ -65,7 +65,7 @@ def retry_with_backoff(
 
 **Verification:**
 ```bash
-$ python3 -c "from mamfast.utils.retry import retry_with_backoff; ..."
+$ python3 -c "from Shelfr.utils.retry import retry_with_backoff; ..."
 ✓ Old API works: success, called 3 times
 ✓ New API works: success, called 3 times
 ✅ Both tenacity integrations work correctly!
@@ -82,11 +82,11 @@ $ python3 -c "from mamfast.utils.retry import retry_with_backoff; ..."
 ### 2. platformdirs Integration (⭐⭐⭐⭐)
 
 **Files Created:**
-- [src/mamfast/paths.py](src/mamfast/paths.py) - New cross-platform path module
+- [src/Shelfr/paths.py](src/Shelfr/paths.py) - New cross-platform path module
 
 **Files Modified:**
 - [pyproject.toml](pyproject.toml#L26) - Added `platformdirs>=4.0` dependency
-- [src/mamfast/config.py](src/mamfast/config.py#L1025-L1036) - Updated default paths to use platformdirs
+- [src/Shelfr/config.py](src/Shelfr/config.py#L1025-L1036) - Updated default paths to use platformdirs
 - [README.md](README.md#L172-L200) - Added environment variable documentation
 
 **Key Features:**
@@ -99,26 +99,26 @@ $ python3 -c "from mamfast.utils.retry import retry_with_backoff; ..."
 
 | OS | data_dir | log_dir | cache_dir |
 |----|----------|---------|-----------|
-| **Linux** | `~/.local/share/mamfast` | `~/.local/state/mamfast/log` | `~/.cache/mamfast` |
-| **macOS** | `~/Library/Application Support/mamfast` | `~/Library/Logs/mamfast` | `~/Library/Caches/mamfast` |
-| **Windows** | `C:\Users\<user>\AppData\Local\mamfast` | `C:\Users\<user>\AppData\Local\mamfast\Logs` | `C:\Users\<user>\AppData\Local\mamfast\Cache` |
+| **Linux** | `~/.local/share/Shelfr` | `~/.local/state/Shelfr/log` | `~/.cache/Shelfr` |
+| **macOS** | `~/Library/Application Support/Shelfr` | `~/Library/Logs/Shelfr` | `~/Library/Caches/Shelfr` |
+| **Windows** | `C:\Users\<user>\AppData\Local\Shelfr` | `C:\Users\<user>\AppData\Local\Shelfr\Logs` | `C:\Users\<user>\AppData\Local\Shelfr\Cache` |
 
 **Environment Variable Overrides:**
 ```bash
 # For Unraid/Docker deployments
-export MAMFAST_DATA_DIR="/mnt/cache/appdata/mamfast/data"
-export MAMFAST_LOG_DIR="/mnt/cache/appdata/mamfast/logs"
-export MAMFAST_CACHE_DIR="/mnt/cache/appdata/mamfast/cache"
+export Shelfr_DATA_DIR="/mnt/cache/appdata/Shelfr/data"
+export Shelfr_LOG_DIR="/mnt/cache/appdata/Shelfr/logs"
+export Shelfr_CACHE_DIR="/mnt/cache/appdata/Shelfr/cache"
 ```
 
 **Verification:**
 ```bash
-$ python3 -c "from mamfast.paths import data_dir, log_dir, cache_dir; ..."
-✓ data_dir: /root/.local/share/mamfast
-✓ log_dir: /root/.local/state/mamfast/log
-✓ cache_dir: /root/.cache/mamfast
+$ python3 -c "from Shelfr.paths import data_dir, log_dir, cache_dir; ..."
+✓ data_dir: /root/.local/share/Shelfr
+✓ log_dir: /root/.local/state/Shelfr/log
+✓ cache_dir: /root/.cache/Shelfr
 
-$ MAMFAST_DATA_DIR=/tmp/test python3 -c "from mamfast.paths import data_dir; ..."
+$ Shelfr_DATA_DIR=/tmp/test python3 -c "from Shelfr.paths import data_dir; ..."
 ✓ Overridden data_dir: /tmp/test
 ```
 
@@ -141,17 +141,17 @@ $ MAMFAST_DATA_DIR=/tmp/test python3 -c "from mamfast.paths import data_dir; ...
 
 **Path resolution now respects:**
 1. Explicit `config.yaml` paths (highest priority)
-2. Environment variable overrides (`MAMFAST_DATA_DIR`, etc.)
+2. Environment variable overrides (`Shelfr_DATA_DIR`, etc.)
 3. OS-appropriate defaults via platformdirs (fallback)
 
 ### Files Using Retry Logic (Verified Working)
 
 All existing retry decorators continue to work with old parameter names:
-- [src/mamfast/qbittorrent.py](src/mamfast/qbittorrent.py#L62) - `max_attempts=3`
-- [src/mamfast/metadata.py](src/mamfast/metadata.py#L973) - `max_attempts=3`
-- [src/mamfast/mkbrr.py](src/mamfast/mkbrr.py#L66) - `max_attempts=3`
-- [src/mamfast/workflow.py](src/mamfast/workflow.py#L123) - `max_attempts=3`
-- [src/mamfast/abs/client.py](src/mamfast/abs/client.py#L249) - `max_attempts=3` (5 occurrences)
+- [src/Shelfr/qbittorrent.py](src/Shelfr/qbittorrent.py#L62) - `max_attempts=3`
+- [src/Shelfr/metadata.py](src/Shelfr/metadata.py#L973) - `max_attempts=3`
+- [src/Shelfr/mkbrr.py](src/Shelfr/mkbrr.py#L66) - `max_attempts=3`
+- [src/Shelfr/workflow.py](src/Shelfr/workflow.py#L123) - `max_attempts=3`
+- [src/Shelfr/abs/client.py](src/Shelfr/abs/client.py#L249) - `max_attempts=3` (5 occurrences)
 
 ---
 
@@ -202,8 +202,8 @@ All existing retry decorators continue to work with old parameter names:
 **Environment variables to consider:**
 ```bash
 # Add to .env or docker-compose
-MAMFAST_DATA_DIR=/mnt/cache/appdata/mamfast/data  # For state files
-MAMFAST_LOG_DIR=/mnt/cache/appdata/mamfast/logs   # For log files
+Shelfr_DATA_DIR=/mnt/cache/appdata/Shelfr/data  # For state files
+Shelfr_LOG_DIR=/mnt/cache/appdata/Shelfr/logs   # For log files
 ```
 
 ### For Developers
@@ -231,11 +231,11 @@ def legacy_network_call():
 
 **Path utilities:**
 ```python
-from mamfast.paths import data_dir, log_dir, cache_dir
+from Shelfr.paths import data_dir, log_dir, cache_dir
 
 # Get XDG-compliant paths with env var override support
 state_file = data_dir() / "processed.json"
-log_file = log_dir() / "mamfast.log"
+log_file = log_dir() / "Shelfr.log"
 cache_file = cache_dir() / "metadata.json"
 ```
 

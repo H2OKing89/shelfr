@@ -1,4 +1,4 @@
-# MAMFast Production Safety Improvements
+# Shelfr Production Safety Improvements
 
 **Date**: 2025-12-19
 **Scope**: P0 Critical Fixes for Production Readiness
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This document outlines the critical production-safety improvements made to MAMFast to address concurrency issues, state management race conditions, and idempotency gaps identified in the codebase review.
+This document outlines the critical production-safety improvements made to Shelfr to address concurrency issues, state management race conditions, and idempotency gaps identified in the codebase review.
 
 **Primary Goals**:
 1. ✅ Make side effects idempotent (no duplicates even if state tracking fails)
@@ -27,9 +27,9 @@ This document outlines the critical production-safety improvements made to MAMFa
 
 ### 1. Run Lock (Prevent Concurrent Instances)
 
-**File**: `src/mamfast/utils/state.py`
+**File**: `src/Shelfr/utils/state.py`
 
-**Problem**: Multiple MAMFast instances could run simultaneously, causing state file corruption and duplicate processing.
+**Problem**: Multiple Shelfr instances could run simultaneously, causing state file corruption and duplicate processing.
 
 **Solution**: Global run lock using `fcntl.flock` (non-blocking).
 
@@ -38,7 +38,7 @@ This document outlines the critical production-safety improvements made to MAMFa
 @contextmanager
 def run_lock(force: bool = False):
     """
-    Global run lock to prevent concurrent MAMFast instances.
+    Global run lock to prevent concurrent Shelfr instances.
 
     Raises RuntimeError if another instance is running.
     Use force=True to bypass (--no-run-lock flag).
@@ -51,7 +51,7 @@ def run_lock(force: bool = False):
 **Usage** (to be added to CLI):
 ```python
 # In workflow.py or cli.py
-from mamfast.utils.state import run_lock
+from Shelfr.utils.state import run_lock
 
 with run_lock(force=args.no_run_lock):
     full_run()
@@ -66,7 +66,7 @@ with run_lock(force=args.no_run_lock):
 
 ### 2. State File Locking (Atomic Read-Modify-Write)
 
-**File**: `src/mamfast/utils/state.py`
+**File**: `src/Shelfr/utils/state.py`
 
 **Problem**: State file used read-entire-file, modify, write-entire-file pattern with no locking → lost updates.
 
@@ -106,7 +106,7 @@ def update_state(fn: Callable[[dict[str, Any]], None]) -> None:
 
 ### 3. Checkpoint Tracking (Per-Stage Progress)
 
-**File**: `src/mamfast/utils/state.py`
+**File**: `src/Shelfr/utils/state.py`
 
 **Problem**: No way to resume from last successful stage → orphaned artifacts, wasted work.
 
@@ -164,7 +164,7 @@ infohash = get_infohash(identifier)
 
 ### 4. Idempotent qBittorrent Upload
 
-**File**: `src/mamfast/qbittorrent.py`
+**File**: `src/Shelfr/qbittorrent.py`
 
 **Problem**: Re-running workflow could create duplicate torrents if state save failed after upload.
 
@@ -195,7 +195,7 @@ def upload_torrent(...) -> tuple[bool, str | None]:
     return True, infohash
 ```
 
-**New Utility**: `src/mamfast/utils/torrent.py`
+**New Utility**: `src/Shelfr/utils/torrent.py`
 - Simple bencode decoder (no external deps)
 - `extract_infohash(torrent_path)` - SHA1 of bencoded info dict
 - `get_torrent_name(torrent_path)` - Extract torrent name
@@ -209,7 +209,7 @@ def upload_torrent(...) -> tuple[bool, str | None]:
 
 ### 5. Retry Logic for Network Operations
 
-**File**: `src/mamfast/qbittorrent.py`
+**File**: `src/Shelfr/qbittorrent.py`
 
 **Problem**: Network blips caused immediate pipeline failure.
 
@@ -242,7 +242,7 @@ def get_client() -> qbittorrentapi.Client:
 
 ### 6. Timeouts for Docker Operations
 
-**Files**: `src/mamfast/mkbrr.py`
+**Files**: `src/Shelfr/mkbrr.py`
 
 **Problem**: Docker subprocess calls could hang indefinitely.
 
@@ -310,7 +310,7 @@ success, _ = upload_torrent(torrent_path)
 
 ### 1. Add Run Lock to CLI
 
-**File**: `src/mamfast/cli.py`
+**File**: `src/Shelfr/cli.py`
 
 **Change Needed**:
 ```python
@@ -322,7 +322,7 @@ parser.add_argument(
 )
 
 # Wrap pipeline execution
-from mamfast.utils.state import run_lock
+from Shelfr.utils.state import run_lock
 
 with run_lock(force=args.no_run_lock):
     full_run(...)
@@ -332,11 +332,11 @@ with run_lock(force=args.no_run_lock):
 
 ### 2. Update Workflow to Use Checkpoints
 
-**File**: `src/mamfast/workflow.py`
+**File**: `src/Shelfr/workflow.py`
 
 **Changes Needed**:
 ```python
-from mamfast.utils.state import checkpoint_stage, should_skip_stage, get_infohash
+from Shelfr.utils.state import checkpoint_stage, should_skip_stage, get_infohash
 
 def process_single_release(release: AudiobookRelease):
     # Check if already uploaded
@@ -369,7 +369,7 @@ def process_single_release(release: AudiobookRelease):
 
 ### 3. Fix mkbrr Torrent Discovery Race
 
-**File**: `src/mamfast/mkbrr.py`
+**File**: `src/Shelfr/mkbrr.py`
 
 **Problem**: Uses `mtime` to find newest torrent → race condition.
 
@@ -445,11 +445,11 @@ def create_torrent(content_path: Path, ...) -> MkbrrResult:
 ## Files Modified
 
 ### New Files
-1. `src/mamfast/utils/torrent.py` - Bencode parser + infohash extraction
+1. `src/Shelfr/utils/torrent.py` - Bencode parser + infohash extraction
 2. `PRODUCTION_SAFETY_IMPROVEMENTS.md` - This document
 
 ### Modified Files
-1. `src/mamfast/utils/state.py`
+1. `src/Shelfr/utils/state.py`
    - Added `run_lock()` context manager
    - Added `_locked_state_file()` context manager
    - Added `update_state()` primary API
@@ -457,14 +457,14 @@ def create_torrent(content_path: Path, ...) -> MkbrrResult:
    - Migrated `mark_processed()`, `mark_failed()`, `clear_failed()` to use `update_state()`
    - Added infohash tracking to state schema
 
-2. `src/mamfast/qbittorrent.py`
+2. `src/Shelfr/qbittorrent.py`
    - Added `extract_infohash()` import
    - Added `@retry_with_backoff` to `get_client()`
    - Changed `upload_torrent()` return type: `bool` → `tuple[bool, str | None]`
    - Added idempotency check (check infohash exists before upload)
    - Returns infohash for state tracking
 
-3. `src/mamfast/mkbrr.py`
+3. `src/Shelfr/mkbrr.py`
    - Added 300s timeout to `create_torrent()`
    - Added 30s timeout to `inspect_torrent()`
    - Added 60s timeout to `check_torrent()`
@@ -523,15 +523,15 @@ def create_torrent(content_path: Path, ...) -> MkbrrResult:
 ### P3 - Nice-to-Have
 1. **Parallel Processing** - Process multiple releases concurrently (with proper locking)
 2. **Metrics/Telemetry** - Track success rates, error counts
-3. **Health Check Command** - `mamfast health --fix` to repair state
+3. **Health Check Command** - `Shelfr health --fix` to repair state
 
 ---
 
 ## Conclusion
 
-**Before**: MAMFast was a well-designed pipeline with a critical Achilles' heel - state management race conditions made it unsafe for production use beyond single-instance personal workflows.
+**Before**: Shelfr was a well-designed pipeline with a critical Achilles' heel - state management race conditions made it unsafe for production use beyond single-instance personal workflows.
 
-**After**: With run locks, state file locking, checkpoint tracking, idempotent uploads, and timeout protection, MAMFast is now **production-safe** for single-instance deployments with a clear path to multi-instance support via SQLite migration.
+**After**: With run locks, state file locking, checkpoint tracking, idempotent uploads, and timeout protection, Shelfr is now **production-safe** for single-instance deployments with a clear path to multi-instance support via SQLite migration.
 
 **Grade Improvement**: B+ → **A-** (pending integration testing)
 

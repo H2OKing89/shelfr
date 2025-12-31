@@ -79,12 +79,12 @@ shelfr abs resolve-asins  # ✅ Works
 
 ### Files Modified
 
-- `src/mamfast/cli_argparse.py`
+- `src/Shelfr/cli_argparse.py`
 
 ### Deprecation Status
 
 - ✅ Deprecation banner shows when argparse is imported: `"cli_argparse is deprecated and will be removed in v2.0"`
-- ✅ Deprecation warning in main() entry point: `"⚠️ This argparse CLI is deprecated. Use 'mamfast' instead."`
+- ✅ Deprecation warning in main() entry point: `"⚠️ This argparse CLI is deprecated. Use 'Shelfr' instead."`
 - ✅ Timeline documented: v2.0
 - ✅ Tests marked with deprecation docstrings
 - ✅ All functionality preserved (calls same handlers as Typer)
@@ -138,11 +138,11 @@ shelfr abs resolve-asins  # ✅ Works
 
 **Commands Updated**:
 
-- ✅ `mamfast libation liberate --yes` — Already had it
-- ✅ `mamfast libation redownload --yes` — Already had it
-- ✅ `mamfast libation set-status --yes` — Already had it
-- ✅ `mamfast libation convert --yes` — Already had it
-- ✅ `mamfast abs orphans --cleanup-all --yes` — **Added in this session**
+- ✅ `Shelfr libation liberate --yes` — Already had it
+- ✅ `Shelfr libation redownload --yes` — Already had it
+- ✅ `Shelfr libation set-status --yes` — Already had it
+- ✅ `Shelfr libation convert --yes` — Already had it
+- ✅ `Shelfr abs orphans --cleanup-all --yes` — **Added in this session**
 
 **Validation**:
 
@@ -157,13 +157,13 @@ shelfr abs resolve-asins  # ✅ Works
 
 **New Alias**:
 
-- ✅ `mamfast doctor` → `mamfast check` (hidden, added in this session)
+- ✅ `Shelfr doctor` → `Shelfr check` (hidden, added in this session)
 
 **Existing Aliases** (verified):
 
-- ✅ `mamfast dupes` → `mamfast check-duplicates` (hidden)
-- ✅ `mamfast lint` → `mamfast validate-config` (hidden)
-- ✅ `mamfast suspicious` → `mamfast check-suspicious` (hidden)
+- ✅ `Shelfr dupes` → `Shelfr check-duplicates` (hidden)
+- ✅ `Shelfr lint` → `Shelfr validate-config` (hidden)
+- ✅ `Shelfr suspicious` → `Shelfr check-suspicious` (hidden)
 
 **Validation**:
 
@@ -171,7 +171,7 @@ shelfr abs resolve-asins  # ✅ Works
 app.command("doctor", hidden=True)(check)  # Line 206 in diagnostics.py
 ```
 
-✅ Alias works: `mamfast doctor --help` shows check command
+✅ Alias works: `Shelfr doctor --help` shows check command
 
 ---
 
@@ -179,12 +179,12 @@ app.command("doctor", hidden=True)(check)  # Line 206 in diagnostics.py
 
 | Criterion | Status | Evidence |
 | --- | --- | --- |
-| `mamfast --help` output unchanged | ✅ | Tested |
+| `Shelfr --help` output unchanged | ✅ | Tested |
 | Command import time < 200ms | ✅ | Measured |
 | All tests pass | ✅ | 2,132 tests passing |
 | CLI files under 400 lines | ✅ | Verified |
 | ABS commands use `abs <verb>` | ✅ | Tested |
-| `mamfast --dry-run abs import` works | ✅ | Verified |
+| `Shelfr --dry-run abs import` works | ✅ | Verified |
 | Argparse shows deprecation | ✅ | Verified |
 | All handlers split into packages | ✅ | Verified |
 | `--yes` flag on confirmation prompts | ✅ | Verified |

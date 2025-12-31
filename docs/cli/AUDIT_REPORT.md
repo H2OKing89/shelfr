@@ -212,7 +212,7 @@ Commands consistently return:
 
 ### Phase 1 - ASIN Validation (P0)
 
-1. Create `src/mamfast/utils/validation.py` with shared `validate_asin()`
+1. Create `src/Shelfr/utils/validation.py` with shared `validate_asin()`
 2. Apply to all `--asin` arguments in `cli.py`
 3. Apply to positional `asin` arguments where format matters
 
@@ -238,7 +238,7 @@ Commands consistently return:
 ## Appendix: Full Command Tree
 
 ```text
-mamfast
+Shelfr
 ├── Global Options:
 │   ├── -h, --help
 │   ├── -V, --version
@@ -310,10 +310,10 @@ mamfast
 
 | File | Changes |
 |------|---------|
-| `src/mamfast/cli.py` | **New Typer CLI** with Rich markup, organized command groups, ASIN callbacks |
-| `src/mamfast/cli_argparse.py` | **Preserved argparse CLI** for backwards compatibility and tests |
-| `src/mamfast/utils/validation.py` | Shared `validate_asin()` + `is_valid_asin()` |
-| `src/mamfast/commands/libation.py` | Import validation from shared module, UX improvements |
+| `src/Shelfr/cli.py` | **New Typer CLI** with Rich markup, organized command groups, ASIN callbacks |
+| `src/Shelfr/cli_argparse.py` | **Preserved argparse CLI** for backwards compatibility and tests |
+| `src/Shelfr/utils/validation.py` | Shared `validate_asin()` + `is_valid_asin()` |
+| `src/Shelfr/commands/libation.py` | Import validation from shared module, UX improvements |
 | `pyproject.toml` | Added `typer>=0.12.0` dependency |
 | `tests/test_cli_typer.py` | **New tests** for Typer CLI using CliRunner |
 | `tests/test_input_validation.py` | **New tests** for ASIN validation module |
@@ -323,7 +323,7 @@ mamfast
 ## Architecture After Migration
 
 ```text
-mamfast (entrypoint)
+Shelfr (entrypoint)
     │
     ├── cli.py (Typer)          ← Main CLI, beautiful Rich output
     │   ├── app                  ← Typer app instance

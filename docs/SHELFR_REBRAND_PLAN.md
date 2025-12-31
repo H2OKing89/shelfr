@@ -2,7 +2,7 @@
 
 **Date**: December 2025
 **Status**: ✅ Phase 1 Complete
-**Scope**: Rebrand `mamfast` → `shelfr` + future CLI restructure
+**Scope**: Rebrand `Shelfr` → `shelfr` + future CLI restructure
 
 ---
 
@@ -12,7 +12,7 @@ The project has evolved from a simple MAM upload script (`mam_tool`) into a comp
 
 **Rebrand happens in two phases:**
 
-1. **Phase 1: Simple Rebrand** — ✅ COMPLETE - Renamed `mamfast` → `shelfr`
+1. **Phase 1: Simple Rebrand** — ✅ COMPLETE - Renamed `Shelfr` → `shelfr`
 2. **Phase 2: Suite Restructure** — Reorganize commands into domain-focused sub-apps (future)
 
 ---
@@ -23,9 +23,9 @@ The project has evolved from a simple MAM upload script (`mam_tool`) into a comp
 
 | Before | After |
 |--------|-------|
-| `mamfast` | `shelfr` |
-| `src/mamfast/` | `src/shelfr/` |
-| `from mamfast import ...` | `from shelfr import ...` |
+| `Shelfr` | `shelfr` |
+| `src/Shelfr/` | `src/shelfr/` |
+| `from Shelfr import ...` | `from shelfr import ...` |
 
 ### What Stayed the Same
 
@@ -33,7 +33,7 @@ The project has evolved from a simple MAM upload script (`mam_tool`) into a comp
 - All functionality
 - Config file format (`config/config.yaml`)
 - State file format (`data/processed.json`)
-- Config keys like `mamfast_managed` (backward compat)
+- Config keys like `Shelfr_managed` (backward compat)
 
 ### Rebrand Checklist
 
@@ -45,12 +45,12 @@ The project has evolved from a simple MAM upload script (`mam_tool`) into a comp
 
 #### Package
 
-- [x] Rename `src/mamfast/` → `src/shelfr/`
+- [x] Rename `src/Shelfr/` → `src/shelfr/`
 - [x] Update `pyproject.toml`:
   - [x] `name = "shelfr"`
   - [x] `[project.scripts]` entry point
   - [x] Update all internal references
-- [x] Update all internal imports (`from mamfast.` → `from shelfr.`)
+- [x] Update all internal imports (`from Shelfr.` → `from shelfr.`)
 - [x] Update Jinja2 PackageLoader reference
 
 #### CLI
@@ -58,7 +58,7 @@ The project has evolved from a simple MAM upload script (`mam_tool`) into a comp
 - [x] Update CLI app name in `cli/_app.py`
 - [x] Update help text and epilogs
 - [x] Update version display
-- [x] Add `mamfast` as deprecated alias (entry point in pyproject.toml)
+- [x] Add `Shelfr` as deprecated alias (entry point in pyproject.toml)
 
 #### Documentation
 
@@ -71,14 +71,14 @@ The project has evolved from a simple MAM upload script (`mam_tool`) into a comp
 #### Tests
 
 - [x] Update test imports
-- [x] Update mock patch strings referencing "mamfast"
+- [x] Update mock patch strings referencing "Shelfr"
 - [x] Verify all 2,124 tests pass
 
 #### Config
 
 - [x] Keep `config/config.yaml` format (no changes needed)
-- [x] Keep backward compat config keys (`mamfast_managed`, etc.)
-- [ ] Update example config comments if they mention "mamfast"
+- [x] Keep backward compat config keys (`Shelfr_managed`, etc.)
+- [ ] Update example config comments if they mention "Shelfr"
 
 ---
 
@@ -121,7 +121,7 @@ See [CLI_ARCHITECTURE.md](cli/CLI_ARCHITECTURE.md) for:
 
 ### Phase 1: Rebrand (✅ Complete)
 
-1. ✅ Package rename (`mamfast` → `shelfr`)
+1. ✅ Package rename (`Shelfr` → `shelfr`)
 2. ✅ Update all imports and references
 3. ✅ Documentation and README updates
 4. ✅ Testing and release
