@@ -29,14 +29,14 @@ try:
     PROMPT_TOOLKIT_AVAILABLE = True
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
-    PromptSession = None  # type: ignore[misc, assignment]
-    KeyBindings = None  # type: ignore[misc, assignment]
-    Style = None  # type: ignore[misc, assignment]
+    PromptSession: Any = None
+    KeyBindings: Any = None
+    Style: Any = None
 
 # Check if pygments is available for syntax highlighting
 try:
     from prompt_toolkit.lexers import PygmentsLexer
-    from pygments.lexers import (  # type: ignore[import-untyped]
+    from pygments.lexers import (
         JsonLexer,
         MarkdownLexer,
         YamlLexer,
@@ -45,10 +45,10 @@ try:
     PYGMENTS_AVAILABLE = True
 except ImportError:
     PYGMENTS_AVAILABLE = False
-    PygmentsLexer = None  # type: ignore[assignment, misc]
-    YamlLexer = None
-    JsonLexer = None
-    MarkdownLexer = None
+    PygmentsLexer: Any = None
+    YamlLexer: Any = None
+    JsonLexer: Any = None
+    MarkdownLexer: Any = None
 
 
 class MiniEditorError(Exception):
@@ -197,7 +197,7 @@ def mini_edit(
     )
 
     try:
-        result = session.prompt(default=initial_content)
+        result: str | None = session.prompt(default=initial_content)
         return result
     except (EOFError, KeyboardInterrupt):
         return None

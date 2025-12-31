@@ -37,8 +37,18 @@ try:
     TEXTUAL_AVAILABLE = True
 except ImportError:
     TEXTUAL_AVAILABLE = False
-    # Create stub for type checking
-    App = object  # type: ignore[misc, assignment]
+    # Stubs for when textual is not installed
+    App: Any = object
+    on: Any = None
+    ComposeResult: Any = None
+    Binding: Any = None
+    Vertical: Any = None
+    reactive: Any = None
+    DirectoryTree: Any = None
+    Footer: Any = None
+    Header: Any = None
+    Static: Any = None
+    TextArea: Any = None
 
 
 # File extensions we support editing
