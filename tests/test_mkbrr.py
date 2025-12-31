@@ -2181,3 +2181,340 @@ class TestParseTorrentFile:
 
         assert info.name == "test"
         assert "does not have .torrent extension" in caplog.text
+
+
+class TestParseInspectOutput:
+    """Tests for parse_inspect_output text parser."""
+
+    def test_parse_basic_output(self) -> None:
+        """Parse minimal inspect output with required fields."""
+        from shelfr.mkbrr import parse_inspect_output
+
+        stdout = """
+Torrent info:
+  Name:         My.Audiobook.2024
+  Hash:         a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  Size:         1.5 GiB
+  Piece length: 1 MiB
+  Pieces:       1536
+"""
+        info = parse_inspect_output(stdout)
+
+        assert info.name == "My.Audiobook.2024"
+        assert info.info_hash == "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+        assert info.size == int(1.5 * 1024**3)
+        assert info.piece_length == 1024**2
+        assert info.piece_count == 1536
+
+    def test_parse_full_output(self) -> None:
+        """Parse complete inspect output with all optional fields."""
+        from shelfr.mkbrr import parse_inspect_output
+
+        stdout = """
+Torrent info:
+  Name:         Complete.Audiobook.2024
+  Hash:         abcdef0123456789abcdef0123456789abcdef01
+  Size:         2.5 GiB
+  Piece length: 2 MiB
+  Pieces:       1280
+  Magnet:       magnet:?xt=urn:btih:abcdef01...
+  Tracker:      https://tracker.example.com/announce
+  Private:      yes
+  Source:       MAM
+  Comment:      Test comment
+  Created by:   mkbrr 1.5.0
+  Created on:   2024-01-15 10:30:45 UTC
+  Files:        15
+"""
+        info = parse_inspect_output(stdout)
+
+        assert info.name == "Complete.Audiobook.2024"
+        assert info.info_hash == "abcdef0123456789abcdef0123456789abcdef01"
+        assert info.size == int(2.5 * 1024**3)
+        assert info.piece_length == 2 * 1024**2
+        assert info.piece_count == 1280
+        assert info.private is True
+        assert info.source == "MAM"
+        assert info.comment == "Test comment"
+        assert info.created_by == "mkbrr 1.5.0"
+        assert info.trackers == ["https://tracker.example.com/announce"]
+        assert info.extra_fields == {"_parsed_file_count": 15}
+
+    def test_parse_multiple_trackers(self) -> None:
+        """Parse output with multiple tracker tiers."""
+        from shelfr.mkbrr import parse_inspect_output
+
+        stdout = """
+Torrent info:
+  Name:         Multi.Tracker.Test
+  Hash:         1234567890abcdef1234567890abcdef12345678
+  Size:         100 MiB
+  Piece length: 256 KiB
+  Pieces:       400
+  Trackers:
+    https://tracker1.example.com/announce
+    https://tracker2.example.com/announce
+    https://tracker3.example.com/announce
+"""
+        info = parse_inspect_output(stdout)
+
+        assert len(info.trackers) == 3
+        assert "https://tracker1.example.com/announce" in info.trackers
+        assert "https://tracker2.example.com/announce" in info.trackers
+
+    def test_parse_web_seeds(self) -> None:
+        """Parse output with web seeds."""
+        from shelfr.mkbrr import parse_inspect_output
+
+        stdout = """
+Torrent info:
+  Name:         WebSeeds.Test
+  Hash:         0123456789abcdef0123456789abcdef01234567
+  Size:         50 MiB
+  Piece length: 256 KiB
+  Pieces:       200
+  Web seeds:
+    https://seed1.example.com/files/test
+    https://seed2.example.com/files/test
+"""
+        info = parse_inspect_output(stdout)
+
+        assert len(info.web_seeds) == 2
+        assert "https://seed1.example.com/files/test" in info.web_seeds
+
+    def test_parse_with_ansi_codes(self) -> None:
+        """Parse output containing ANSI color codes."""
+        from shelfr.mkbrr import parse_inspect_output
+
+        stdout = """
+\x1b[35mTorrent info:\x1b[0m
+  \x1b[36mName:\x1b[0m         \x1b[32mAnsi.Test.2024\x1b[0m
+  \x1b[36mHash:\x1b[0m         fedcba9876543210fedcba9876543210fedcba98
+  \x1b[36mSize:\x1b[0m         500 MiB
+  \x1b[36mPiece length:\x1b[0m 512 KiB
+  \x1b[36mPieces:\x1b[0m       1000
+"""
+        info = parse_inspect_output(stdout)
+
+        assert info.name == "Ansi.Test.2024"
+        assert info.info_hash == "fedcba9876543210fedcba9876543210fedcba98"
+
+    def test_parse_private_false(self) -> None:
+        """Parse output without Private field (defaults to False)."""
+        from shelfr.mkbrr import parse_inspect_output
+
+        stdout = """
+Torrent info:
+  Name:         Public.Torrent
+  Hash:         0000000000000000000000000000000000000000
+  Size:         100 MiB
+  Piece length: 256 KiB
+  Pieces:       400
+"""
+        info = parse_inspect_output(stdout)
+        assert info.private is False
+
+    def test_missing_required_name_raises(self) -> None:
+        """Raise ValueError when Name is missing."""
+        import pytest
+
+        from shelfr.mkbrr import parse_inspect_output
+
+        stdout = """
+Torrent info:
+  Hash:         a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  Size:         1 GiB
+"""
+        with pytest.raises(ValueError, match="missing Name or Hash"):
+            parse_inspect_output(stdout)
+
+    def test_missing_required_hash_raises(self) -> None:
+        """Raise ValueError when Hash is missing."""
+        import pytest
+
+        from shelfr.mkbrr import parse_inspect_output
+
+        stdout = """
+Torrent info:
+  Name:         Test.Torrent
+  Size:         1 GiB
+"""
+        with pytest.raises(ValueError, match="missing Name or Hash"):
+            parse_inspect_output(stdout)
+
+    def test_parse_size_formats(self) -> None:
+        """Handle various size format strings."""
+        from shelfr.mkbrr import _parse_size_string
+
+        assert _parse_size_string("1.5 GiB") == int(1.5 * 1024**3)
+        assert _parse_size_string("500 MiB") == 500 * 1024**2
+        assert _parse_size_string("256 KiB") == 256 * 1024
+        assert _parse_size_string("1234567") == 1234567
+        assert _parse_size_string("2.5GB") == int(2.5 * 1024**3)
+        assert _parse_size_string(None) == 0
+        assert _parse_size_string("") == 0
+
+
+class TestParseCheckOutput:
+    """Tests for parse_check_output text parser."""
+
+    def test_parse_full_output(self) -> None:
+        """Parse complete check output with all fields."""
+        from shelfr.mkbrr import parse_check_output
+
+        stdout = """
+Verifying:
+  Torrent file: /path/to/test.torrent
+  Content: /path/to/content
+
+  Completion:     100.00%
+  Good pieces:    1536
+  Bad pieces:     0
+  Missing files:  0
+  Check time:     2.34s
+"""
+        result = parse_check_output(stdout)
+
+        assert result.percent_complete == 100.00
+        assert result.good_pieces == 1536
+        assert result.bad_pieces == 0
+        assert result.total_pieces == 1536
+        assert result.missing_files == []
+        assert result.check_time_seconds == 2.34
+        assert result.valid is True
+
+    def test_parse_incomplete_torrent(self) -> None:
+        """Parse check output for incomplete torrent."""
+        from shelfr.mkbrr import parse_check_output
+
+        stdout = """
+  Completion:     75.50%
+  Good pieces:    1200
+  Bad pieces:     50
+  Missing files:  2
+  Check time:     5.67s
+"""
+        result = parse_check_output(stdout)
+
+        assert result.percent_complete == 75.50
+        assert result.good_pieces == 1200
+        assert result.bad_pieces == 50
+        assert result.total_pieces == 1250
+        assert result.valid is False
+
+    def test_parse_quiet_mode(self) -> None:
+        """Parse quiet mode output (percentage only)."""
+        from shelfr.mkbrr import parse_check_output
+
+        stdout = "99.50%\n"
+        result = parse_check_output(stdout)
+
+        assert result.percent_complete == 99.50
+        assert result.valid is False
+
+    def test_parse_quiet_mode_100_percent(self) -> None:
+        """Parse quiet mode output at 100%."""
+        from shelfr.mkbrr import parse_check_output
+
+        stdout = "100.00%"
+        result = parse_check_output(stdout)
+
+        assert result.percent_complete == 100.00
+        assert result.valid is True
+
+    def test_parse_with_ansi_codes(self) -> None:
+        """Parse check output with ANSI color codes."""
+        from shelfr.mkbrr import parse_check_output
+
+        stdout = """
+\x1b[32mVerifying:\x1b[0m
+  \x1b[36mCompletion:\x1b[0m     \x1b[32m100.00%\x1b[0m
+  \x1b[36mGood pieces:\x1b[0m    500
+  \x1b[36mBad pieces:\x1b[0m     0
+  \x1b[36mCheck time:\x1b[0m     1.5s
+"""
+        result = parse_check_output(stdout)
+
+        assert result.percent_complete == 100.00
+        assert result.good_pieces == 500
+        assert result.bad_pieces == 0
+
+    def test_missing_completion_raises(self) -> None:
+        """Raise ValueError when Completion is missing."""
+        import pytest
+
+        from shelfr.mkbrr import parse_check_output
+
+        stdout = """
+  Good pieces:    100
+  Bad pieces:     0
+"""
+        with pytest.raises(ValueError, match="missing Completion"):
+            parse_check_output(stdout)
+
+    def test_parse_duration_formats(self) -> None:
+        """Handle various duration format strings."""
+        from shelfr.mkbrr import _parse_duration_string
+
+        assert _parse_duration_string("1.23s") == 1.23
+        assert _parse_duration_string("500ms") == 0.5
+        assert _parse_duration_string("2m30s") == 150.0
+        assert _parse_duration_string("1h2m3s") == 3723.0
+        assert _parse_duration_string(None) is None
+        assert _parse_duration_string("") is None
+
+    def test_valid_logic(self) -> None:
+        """Verify valid flag logic."""
+        from shelfr.mkbrr import parse_check_output
+
+        # Valid: 100%, no bad pieces, no missing files
+        stdout1 = """
+  Completion:     100.00%
+  Good pieces:    100
+  Bad pieces:     0
+  Missing files:  0
+"""
+        assert parse_check_output(stdout1).valid is True
+
+        # Not valid: 100% but has bad pieces
+        stdout2 = """
+  Completion:     100.00%
+  Good pieces:    98
+  Bad pieces:     2
+  Missing files:  0
+"""
+        assert parse_check_output(stdout2).valid is False
+
+        # Not valid: 100% but has missing files
+        stdout3 = """
+  Completion:     100.00%
+  Good pieces:    100
+  Bad pieces:     0
+  Missing files:  1
+"""
+        assert parse_check_output(stdout3).valid is False
+
+
+class TestStripAnsiCodes:
+    """Tests for ANSI code stripping helper."""
+
+    def test_strip_basic_codes(self) -> None:
+        """Strip basic color codes."""
+        from shelfr.mkbrr import _strip_ansi_codes
+
+        text = "\x1b[32mgreen\x1b[0m \x1b[31mred\x1b[0m"
+        assert _strip_ansi_codes(text) == "green red"
+
+    def test_strip_complex_codes(self) -> None:
+        """Strip codes with multiple parameters."""
+        from shelfr.mkbrr import _strip_ansi_codes
+
+        text = "\x1b[1;32;40mBold green on black\x1b[0m"
+        assert _strip_ansi_codes(text) == "Bold green on black"
+
+    def test_no_codes(self) -> None:
+        """Handle text without ANSI codes."""
+        from shelfr.mkbrr import _strip_ansi_codes
+
+        text = "plain text"
+        assert _strip_ansi_codes(text) == "plain text"
