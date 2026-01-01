@@ -9,6 +9,7 @@
 ## Executive Summary
 
 This plan upgrades `processed.json` state management for production reliability:
+
 - Atomic writes with `fsync()` to survive crashes
 - Backup rotation for recovery
 - Full test coverage for checkpoint/resume logic
@@ -48,6 +49,7 @@ os.replace(temp_file, state_file)
 ```
 
 #### `_load_state_unsafe()` improvements:
+
 ```python
 # Try main file first
 if state_file.exists():
@@ -80,6 +82,7 @@ raise StateCorruptionError(
 ```
 
 ### Acceptance Criteria
+
 - [ ] Interrupted write never leaves partial JSON
 - [ ] Corrupt JSON produces helpful error with recovery steps
 - [ ] `.bak` is preserved before each write
@@ -90,6 +93,7 @@ raise StateCorruptionError(
 ## Step 1: Add Tests for Checkpoint/Resume Logic
 
 ### Current State
+
 - Zero test coverage for:
   - `checkpoint_stage()`
   - `get_checkpoint()`
@@ -133,6 +137,7 @@ class TestLegacyEntries:
 ```
 
 ### Acceptance Criteria
+
 - [ ] All checkpoint functions have test coverage
 - [ ] Legacy entries (missing fields) don't crash anything
 
@@ -141,6 +146,7 @@ class TestLegacyEntries:
 ## Step 2: Fix or Remove `retry_count`
 
 ### Current State
+
 - `retry_count: int = 0` exists in `FailedRelease` schema
 - **Never incremented anywhere** - dead code
 
@@ -163,6 +169,7 @@ class FailedRelease(BaseModel):
 ```
 
 Update `mark_failed()`:
+
 ```python
 def mark_failed(release: AudiobookRelease, error: str, error_type: str | None = None) -> None:
     def _mark(state: dict[str, Any]) -> None:
@@ -182,6 +189,7 @@ def mark_failed(release: AudiobookRelease, error: str, error_type: str | None = 
 ```
 
 ### Acceptance Criteria
+
 - [ ] `retry_count` increments on each failure
 - [ ] `first_failed_at` preserved across retries
 - [ ] `error_type` captured for debugging
@@ -191,9 +199,11 @@ def mark_failed(release: AudiobookRelease, error: str, error_type: str | None = 
 ## Step 3: Status-Aware `find_stale_entries()`
 
 ### Problem
+
 After ABS import, staging_dir is expected to disappear. "Missing path" isn't always stale.
 
 ### Solution
+
 Path requirements vary by status:
 
 ```python
@@ -230,6 +240,7 @@ def find_stale_entries() -> list[tuple[str, str, str]]:
 ```
 
 ### Acceptance Criteria
+
 - [ ] `state prune` does NOT delete valid entries just because files moved after completion
 - [ ] Only flags entries where required-for-status paths are missing
 
@@ -250,6 +261,7 @@ shelfr state export [--output FILE]
 ### Implementation
 
 #### `shelfr state list`
+
 - Default: show counts + most recent 20 entries
 - `--failed`: only failed entries
 - `--processed`: only processed entries
@@ -257,22 +269,26 @@ shelfr state export [--output FILE]
 - `--json`: machine-readable output
 
 #### `shelfr state prune`
+
 - Shows what would be removed
 - Respects `--dry-run`
 - `--stale-only` (default): entries with missing required paths
 - `--failed-older-than 30d`: optional TTL cleanup
 
 #### `shelfr state retry <ASIN>`
+
 - Remove from failed (allows re-processing)
 - Reset retry_count
 - Print "not found" and exit 0 if missing
 
 #### `shelfr state clear <ASIN>`
+
 - Remove from processed (force full re-run)
 - Also remove checkpoints
 - Print "not found" and exit 0 if missing
 
 ### Acceptance Criteria
+
 - [ ] All actions use `shelfr.console` helpers
 - [ ] `--dry-run` respected for mutating actions
 - [ ] "not found" is graceful (not an error)
@@ -282,6 +298,7 @@ shelfr state export [--output FILE]
 ## Step 5: Status Transition Validation
 
 ### Problem
+
 Nothing prevents jumping from DISCOVERED → TORRENT_CREATED if code gets called out of order.
 
 ### Solution
@@ -310,10 +327,12 @@ def validate_transition(current: ReleaseStatus, new: ReleaseStatus) -> None:
 ```
 
 Enforce in `checkpoint_stage()` and `mark_processed()`:
+
 - Look up current status from state
 - Validate before writing
 
 ### Acceptance Criteria
+
 - [ ] Illegal transitions raise clear error
 - [ ] Same-status writes allowed (idempotent)
 
@@ -322,6 +341,7 @@ Enforce in `checkpoint_stage()` and `mark_processed()`:
 ## Step 6: Schema Migration Scaffolding
 
 ### Current State
+
 - `version: int = 1` exists but unused
 
 ### Solution (Minimal Investment)
@@ -366,6 +386,7 @@ def _migrate_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
 Call `_migrate_state()` in `_load_state_unsafe()` after parsing.
 
 ### Acceptance Criteria
+
 - [ ] Old v1 files auto-migrate on load
 - [ ] Future migrations have clear pattern to follow
 
@@ -386,14 +407,17 @@ Call `_migrate_state()` in `_load_state_unsafe()` after parsing.
 ## Edge Cases to Handle
 
 ### Duplicate Keys / Identity Drift
+
 - `state clear <ASIN>` prints "not found" and exits 0 if missing
 - Future: consider `--by-infohash` for torrent-based lookup
 
 ### Cross-Platform Locking
+
 - **Decision**: Keep `fcntl.flock()` (Linux-only)
 - Document in CONTRIBUTING.md that concurrent runs only supported on Linux
 - If Windows/macOS support needed later, consider `filelock` package
 
 ### Failed Entry TTL
+
 - **Default**: Keep forever (audit trail)
 - **Optional**: `state prune --failed-older-than 30d`

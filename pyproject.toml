@@ -130,3 +130,19 @@ filterwarnings = [
     # when testing CLI --help, these coroutines are never awaited (harmless)
     "ignore:coroutine 'DirectoryTree.watch_path' was never awaited:RuntimeWarning",
 ]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "samples", "scripts"]
+skips = [
+    "B101",  # assert_used - we use asserts intentionally in tests and validators
+    "B110",  # try_except_pass - intentional for non-critical fallbacks
+    "B113",  # request_without_timeout - false positive (we do have timeouts)
+    "B108",  # hardcoded_tmp_directory - intentional for container temp files
+    "B311",  # random - not used for security, just UI variety
+    "B324",  # hashlib weak - SHA1/MD5 used for non-security purposes (torrent info hash)
+    "B404",  # import_subprocess - we need subprocess for Docker/shell commands
+    "B405",  # import_xml - XML from trusted local files only
+    "B603",  # subprocess_without_shell_equals_true - intentional for security
+    "B607",  # start_process_with_partial_path - trusted binaries (mediainfo, etc.)
+    "B701",  # jinja2_autoescape_false - generating BBCode, not HTML
+]

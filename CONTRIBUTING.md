@@ -21,6 +21,7 @@ pre-commit run --all-files
 ```
 
 This runs:
+
 - **ruff** - Linting and import sorting
 - **ruff-format** - Code formatting
 - **mypy** - Type checking
@@ -124,6 +125,7 @@ feat: add retry logic for Audnex API calls
 ```
 
 Prefixes:
+
 - `feat:` - New feature
 - `fix:` - Bug fix
 - `docs:` - Documentation only

@@ -8,11 +8,11 @@
 
 > **Critical:** Python won't allow both `metadata.py` and `metadata/` to coexist.
 
-- [ ] Create `src/shelfr/metadata/` directory
-- [ ] Move `metadata.py` → `metadata/__init__.py` (contents unchanged)
-- [ ] Update any internal imports that referenced `metadata.py` as a module (no behavior change)
-- [ ] Verify import still works: `python -c "import shelfr.metadata; print(shelfr.metadata.__file__)"`
-- [ ] Run full test suite
+- [x] Create `src/shelfr/metadata/` directory
+- [x] Move `metadata.py` → `metadata/__init__.py` (contents unchanged)
+- [x] Update any internal imports that referenced `metadata.py` as a module (no behavior change)
+- [x] Verify import still works: `python -c "import shelfr.metadata; print(shelfr.metadata.__file__)"`
+- [x] Run full test suite
 
 **Why separate phase?** This is pure scaffolding — no behavior change, no refactoring, just enabling the package structure. Ship this first before any extraction.
 
@@ -26,17 +26,17 @@
 
 > MediaInfo is the cleanest extraction: no network, no state, pure functions.
 
-- [ ] Create `metadata/models.py` with shared `Chapter` dataclass
+- [x] Create `metadata/models.py` with shared `Chapter` dataclass
   - **Note:** Distinct from root-level `shelfr.models` (which holds `AudiobookRelease`, `NormalizedBook`, etc.)
   - Import as `from shelfr.metadata.models import Chapter` to avoid ambiguity
   - Verify after creation: `python -c "from shelfr.metadata.models import Chapter; from shelfr.models import AudiobookRelease"`
-- [ ] Create `metadata/mediainfo/__init__.py` + `extractor.py` with:
+- [x] Create `metadata/mediainfo/__init__.py` + `extractor.py` with:
   - `AudioFormat` dataclass (MediaInfo-specific, stays here)
   - `detect_audio_format()`, `detect_audio_format_from_file()`
   - `run_mediainfo()`, `save_mediainfo_json()`
   - `_parse_chapters_from_mediainfo()`, `_extract_audio_info()`
-- [ ] Update `metadata/__init__.py` to re-export from new location
-- [ ] Run tests
+- [x] Update `metadata/__init__.py` to re-export from new location
+- [x] Run tests
 
 **Test Migration:**
 
@@ -188,8 +188,8 @@
 
 | Phase | Status | Notes |
 | --- | --- | --- |
-| Phase 0 | ⏳ Not Started | Package scaffolding |
-| Phase 1 | ⏳ Not Started | MediaInfo (leaf module) |
+| Phase 0 | ✅ Complete | Package scaffolding (PR #66) |
+| Phase 1 | ✅ Complete | MediaInfo extraction (PR #66) |
 | Phase 2 | ⏳ Not Started | Formatting (presentation) |
 | Phase 3 | ⏳ Not Started | Audnex client |
 | Phase 4 | ⏳ Not Started | MAM (depends on above) |

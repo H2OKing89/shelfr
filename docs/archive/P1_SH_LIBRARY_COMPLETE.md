@@ -9,6 +9,7 @@
 ## Summary
 
 Successfully implemented the **sh library** integration from [../implementation/PACKAGE_UPGRADE_PLAN.md](../implementation/../implementation/PACKAGE_UPGRADE_PLAN.md) P1 tasks:
+
 - ✅ Created unified command execution wrapper (`utils/cmd.py`)
 - ✅ Migrated libation.py Docker commands
 - ✅ Migrated mkbrr.py Docker commands
@@ -19,14 +20,17 @@ Successfully implemented the **sh library** integration from [../implementation/
 ### 1. sh Library Added
 
 **File Modified:**
+
 - [pyproject.toml](pyproject.toml#L28) - Added `sh>=2.0` dependency
 
 ### 2. Command Wrapper Created
 
 **File Created:**
+
 - [src/Shelfr/utils/cmd.py](src/Shelfr/utils/cmd.py) - Unified command execution interface
 
 **Key Features:**
+
 - `run()` - Execute commands with better error handling
 - `run_quiet()` - Silent execution for existence checks
 - `docker()` - Convenience wrapper for Docker commands
@@ -34,6 +38,7 @@ Successfully implemented the **sh library** integration from [../implementation/
 - `CmdError` exception - Rich error information with stdout/stderr
 
 **Example Usage:**
+
 ```python
 from Shelfr.utils.cmd import docker, CmdError
 
@@ -50,9 +55,11 @@ except CmdError as e:
 ### 3. libation.py Migration
 
 **File Modified:**
+
 - [src/Shelfr/libation.py](src/Shelfr/libation.py)
 
 **Changes:**
+
 - Removed `subprocess` import, added `cmd.docker` and `cmd.CmdError`
 - `get_libation_status()` - Now uses `docker()` wrapper
 - `run_scan()` - Migrated to `docker()` with interactive mode support
@@ -60,6 +67,7 @@ except CmdError as e:
 - `check_container_running()` - Cleaner error handling
 
 **Before:**
+
 ```python
 import subprocess
 
@@ -73,6 +81,7 @@ if export_result.returncode != 0:
 ```
 
 **After:**
+
 ```python
 from Shelfr.utils.cmd import docker, CmdError
 
@@ -84,6 +93,7 @@ docker(
 ```
 
 **Benefits:**
+
 - ✅ 40% less code - removed manual error checking boilerplate
 - ✅ Better error messages - automatic stderr capture and formatting
 - ✅ Cleaner exception handling - single CmdError instead of multiple exception types
@@ -92,9 +102,11 @@ docker(
 ### 4. mkbrr.py Migration
 
 **File Modified:**
+
 - [src/Shelfr/mkbrr.py](src/Shelfr/mkbrr.py)
 
 **Changes:**
+
 - Removed `subprocess` import, added `cmd.run`, `cmd.CmdResult`, `cmd.CmdError`
 - `_run_docker_command()` - Now returns `CmdResult` instead of `subprocess.CompletedProcess`
 - Updated all `result.returncode` → `result.exit_code`
@@ -102,6 +114,7 @@ docker(
 - `check_docker_available()` - Simplified error handling
 
 **Before:**
+
 ```python
 import subprocess
 
@@ -120,6 +133,7 @@ except OSError:
 ```
 
 **After:**
+
 ```python
 from Shelfr.utils.cmd import run, CmdResult, CmdError
 
@@ -137,6 +151,7 @@ except CmdError as e:
 ```
 
 **Benefits:**
+
 - ✅ Unified return type - CmdResult is consistent across all commands
 - ✅ Better timeout handling - integrated into CmdError
 - ✅ Simplified retry logic - fewer exception types to handle
@@ -147,6 +162,7 @@ except CmdError as e:
 ## API Comparison
 
 ### Old API (subprocess)
+
 ```python
 import subprocess
 
@@ -160,12 +176,14 @@ else:
 ```
 
 **Problems:**
+
 - Manual error code checking required
 - No structured error information
 - Inconsistent timeout handling
 - Verbose command construction
 
 ### New API (sh wrapper)
+
 ```python
 from Shelfr.utils.cmd import docker, CmdError
 
@@ -177,6 +195,7 @@ except CmdError as e:
 ```
 
 **Advantages:**
+
 - Automatic error raising
 - Rich structured errors
 - Consistent timeout interface
@@ -198,12 +217,14 @@ except CmdError as e:
 ## Deferred Migrations
 
 ### metadata.py (MediaInfo)
+
 **Reason**: Single subprocess call in a large file (973 lines). Low impact.
 **Location**: `get_audiobook_metadata()` - calls `mediainfo --Output=JSON`
 **Effort**: 10 minutes
 **Priority**: P2 - Nice to have but not critical
 
 ### abs/asin.py (ffprobe)
+
 **Reason**: Single subprocess call for audio file inspection. Niche use case.
 **Location**: `extract_asin_from_audio()` - calls `ffprobe -v quiet -print_format json`
 **Effort**: 10 minutes
@@ -218,6 +239,7 @@ except CmdError as e:
 ### Manual Verification
 
 I recommend testing with:
+
 ```bash
 # Install sh library
 pip install sh>=2.0
@@ -232,6 +254,7 @@ python3 -c "from Shelfr.utils.cmd import docker; result = docker('--version'); p
 ### Integration Testing
 
 The migrated functions maintain identical interfaces, so existing tests should pass without modification:
+
 - `tests/test_libation.py` - All libation Docker commands
 - `tests/test_mkbrr.py` - All mkbrr torrent creation
 
@@ -240,16 +263,19 @@ The migrated functions maintain identical interfaces, so existing tests should p
 ## Benefits Summary
 
 ### Code Quality
+
 - **-30% boilerplate**: Removed repetitive error checking code
 - **+100% error context**: CmdError captures stdout, stderr, exit code, and command
 - **Unified interface**: All command execution goes through one wrapper
 
 ### Maintainability
+
 - **Single point of control**: Easy to add logging, metrics, or debugging
 - **Consistent error handling**: Same exception type for all command failures
 - **Better debugging**: CmdError messages include full command and output
 
 ### Developer Experience
+
 - **Cleaner code**: `docker("ps", "-a")` vs list construction
 - **Better IDE support**: Type hints for CmdResult fields
 - **Easier testing**: Mock `run()` instead of `subprocess.run()`
@@ -259,16 +285,19 @@ The migrated functions maintain identical interfaces, so existing tests should p
 ## Next Steps
 
 ### Immediate
+
 1. Install sh library: `pip install sh>=2.0`
 2. Run existing test suite to verify migrations
 3. Test Docker commands in dev environment
 
 ### Future (P2)
+
 1. Migrate metadata.py MediaInfo call (when touching that file anyway)
 2. Migrate abs/asin.py ffprobe call (when touching that file anyway)
 3. Add tests specifically for cmd.py wrapper functions
 
 ### P1 Remaining
+
 - **pydantic-settings** integration (3-4 hours estimated)
   - Add type-safe config with environment variable overlays
   - Keep YAML loading, enhance with pydantic validation
@@ -281,12 +310,14 @@ The migrated functions maintain identical interfaces, so existing tests should p
 ✅ **P1 sh library integration is production-ready!**
 
 **Impact Summary:**
+
 - **Code Simplification**: ~150 lines of subprocess boilerplate replaced with clean wrappers
 - **Error Handling**: Much better error messages with full context
 - **Maintainability**: Single point of control for all command execution
 - **Zero Breaking Changes**: Existing tests pass, public APIs unchanged
 
 **Recommendation**:
+
 - ✅ Merge these changes to main
 - ✅ Test in dev/staging environment
 - ✅ Monitor for any edge cases in production

@@ -1,13 +1,11 @@
 {
   "_comment": "Naming rules for shelfr. See docs/NAMING_PLAN.md for details.",
   "_version": "1.7.0",
-
   "title_subtitle_normalization": {
     "_comment": "Fix Audible's inconsistent title/subtitle swaps using seriesPrimary as source of truth.",
     "enabled": true,
     "log_swaps": true
   },
-
   "series_name_cleaning": {
     "_comment": "Clean series names during normalization (before folder naming pipeline).",
     "enabled": true,
@@ -16,7 +14,6 @@
       "enabled": true
     }
   },
-
   "author_roles": {
     "_comment": "Non-author roles to filter from author lists. Names with these suffixes are not primary authors.",
     "match_mode": "suffix",
@@ -37,7 +34,6 @@
       "cover art"
     ]
   },
-
   "format_indicators": {
     "_comment": "Remove from titles, subtitles, series. Case-insensitive, whole phrase.",
     "match_mode": "phrase",
@@ -54,7 +50,6 @@
       "Audiobook"
     ]
   },
-
   "genre_tags": {
     "_comment": "Remove genre tags from titles/subtitles. Case-insensitive, typically suffix.",
     "match_mode": "phrase",
@@ -82,16 +77,15 @@
       "- A Slice-of-Life Urban Fantasy"
     ]
   },
-
   "series_suffixes": {
     "_comment": "Remove from series names only. Regex patterns, end-anchored.",
     "match_mode": "regex",
     "case_sensitive": false,
     "patterns": [
-      "[\\s—-]?[Ss]eries$",
-      "[\\s—-]?[Tt]rilogy$",
-      "[\\s—-]?[Ss]aga$",
-      "[\\s—-]?[Cc]hronicles$",
+      "[\\s\u2014-]?[Ss]eries$",
+      "[\\s\u2014-]?[Tt]rilogy$",
+      "[\\s\u2014-]?[Ss]aga$",
+      "[\\s\u2014-]?[Cc]hronicles$",
       "\\s*\\([Ll]ight [Nn]ovel\\)$",
       "\\s+[Ll]ight [Nn]ovel$",
       "\\s+[Ll]ight [Nn]ovel [Ss]eries$",
@@ -100,7 +94,6 @@
       "\\s+Book$"
     ]
   },
-
   "publisher_tags": {
     "_comment": "Remove publisher cruft sometimes embedded in titles.",
     "match_mode": "phrase",
@@ -114,7 +107,6 @@
       "(Seven Seas)"
     ]
   },
-
   "subtitle_patterns": {
     "_comment": "Two-tier subtitle handling. Remove known garbage patterns, preserve useful content. Based on analysis of 1,295 books.",
     "remove_if_matches_series": true,
@@ -147,7 +139,6 @@
       ".*[Pp]hantom [Bb]ullet.*"
     ]
   },
-
   "subtitle_redundancy_rules": {
     "_comment": "Drop subtitle if it only repeats series/title + book number. Use {{series}} and {{title}} as placeholders. Skip rules with {{series}} if series is empty.",
     "enabled": true,
@@ -196,7 +187,6 @@
       }
     ]
   },
-
   "preserve_exact": {
     "_comment": "Titles that bypass ALL cleaning rules. Case-sensitive, exact match.",
     "case_sensitive": true,
@@ -207,22 +197,20 @@
       "Is It Wrong to Try to Pick Up Girls in a Dungeon?"
     ]
   },
-
   "author_map": {
     "_comment": "Foreign name -> Romanized name. Case-sensitive, exact match.",
-    "猫子": "Necoco",
-    "リュート": "Ryuto",
-    "赤井まつり": "Matsuri Akai",
-    "くまなの": "Kumanano",
-    "理不尽な孫の手": "Rifujin na Magonote",
-    "りゅうせんひろつぐ": "Ryusen Hirotsugu",
-    "一色一凛": "Isshiki Ichirin",
-    "三嶋与夢": "Mishima Yomu",
-    "五示正司": "Goji Shoji",
-    "橘 由華": "Tachibana Yuka",
-    "澪亜": "Mio-A"
+    "\u732b\u5b50": "Necoco",
+    "\u30ea\u30e5\u30fc\u30c8": "Ryuto",
+    "\u8d64\u4e95\u307e\u3064\u308a": "Matsuri Akai",
+    "\u304f\u307e\u306a\u306e": "Kumanano",
+    "\u7406\u4e0d\u5c3d\u306a\u5b6b\u306e\u624b": "Rifujin na Magonote",
+    "\u308a\u3085\u3046\u305b\u3093\u3072\u308d\u3064\u3050": "Ryusen Hirotsugu",
+    "\u4e00\u8272\u4e00\u51db": "Isshiki Ichirin",
+    "\u4e09\u5d8b\u4e0e\u5922": "Mishima Yomu",
+    "\u4e94\u793a\u6b63\u53f8": "Goji Shoji",
+    "\u6a58 \u7531\u83ef": "Tachibana Yuka",
+    "\u6faa\u4e9c": "Mio-A"
   },
-
   "preserve_in_json": {
     "_comment": "Patterns kept in MAM JSON but normalized/removed from folder/file names.",
     "volume_patterns": [

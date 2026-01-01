@@ -5,6 +5,7 @@ shelfr automates audiobook uploads to MAM: Libation discovery → staging (hardl
 ## CLI (CRITICAL)
 
 Global flags go BEFORE subcommand:
+
 - ✅ `shelfr --dry-run abs import`
 - ❌ `shelfr abs import --dry-run` (subcommands don't define their own)
 
