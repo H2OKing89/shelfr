@@ -20,7 +20,7 @@
 
 - Async HTTP/2 with SSL
 - Rate limited: 10 requests/sec to Audnex
-- Last updated: Dec 28 17:37
+- Last updated: See git history for this file
 
 ---
 
