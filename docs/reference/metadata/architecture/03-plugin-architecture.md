@@ -323,11 +323,12 @@ class MetadataAggregator:
             merge_strategy: How to resolve conflicts
                 - "priority": Use highest-priority provider's value
                 - "confidence": Use highest-confidence value per field
-            required_identifiers: At least one must be present to fetch
+            required_identifiers: At least one must be present to fetch.
+                None means no requirement (useful for local-only operations).
         """
         self.registry = registry or default_registry
         self.merge_strategy = merge_strategy
-        self.required_identifiers = required_identifiers or {"asin"}
+        self.required_identifiers = required_identifiers  # None = no requirement
     
     async def fetch_all(
         self,
@@ -344,7 +345,7 @@ class MetadataAggregator:
         1. Run local providers first (cheap, parallelized)
         2. Run network providers only if required_fields still missing
         """
-        # Validate identifiers early (config says we need at least one)
+        # Validate identifiers early (if required_identifiers is set)
         if self.required_identifiers and not (self.required_identifiers & set(ctx.ids.keys())):
             raise ValueError(f"Missing required identifiers: {sorted(self.required_identifiers)}")
         
