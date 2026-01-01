@@ -1277,9 +1277,22 @@ class TestSaveJson:
             output_path = Path(tmpdir) / "mediainfo.json"
             data = {"media": {"track": []}}
 
-            save_mediainfo_json(data, output_path)
+            # Mock settings for permission fixing
+            mock_settings = MagicMock()
+            mock_settings.target_uid = 99
+            mock_settings.target_gid = 100
+
+            with (
+                patch(
+                    "shelfr.metadata.mediainfo.extractor.get_settings",
+                    return_value=mock_settings,
+                ),
+                patch("shelfr.metadata.mediainfo.extractor.fix_ownership") as mock_fix,
+            ):
+                save_mediainfo_json(data, output_path)
 
             assert output_path.exists()
+            mock_fix.assert_called_once_with(output_path, 99, 100)
 
     def test_save_mam_json(self):
         """Test saving MAM JSON."""

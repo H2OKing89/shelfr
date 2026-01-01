@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from shelfr.config import get_settings
+from shelfr.utils.permissions import fix_ownership
 from shelfr.utils.retry import SUBPROCESS_EXCEPTIONS, retry_with_backoff
 
 if TYPE_CHECKING:
@@ -206,21 +207,21 @@ def detect_audio_format(mediainfo_data: dict[str, Any] | None) -> AudioFormat | 
     dynamic_objects_str = extra.get("NumberOfDynamicObjects")
 
     is_dolby_atmos = any(
-        [
+        (
             format_commercial and "Dolby Atmos" in format_commercial,
             "JOC" in format_additional,  # Joint Object Coding = Atmos
             codec_id == "ec-3" and dynamic_objects_str,  # E-AC-3 with objects
-        ]
+        )
     )
 
     # Detect xHE-AAC (USAC - Unified Speech and Audio Coding)
     # MediaInfo reports this as "USAC" format or codec_id "mp4a-40-42"
     is_xhe_aac = any(
-        [
+        (
             codec == "USAC",
             codec_id == "mp4a-40-42",  # xHE-AAC codec ID
             "xHE-AAC" in (format_commercial or ""),
-        ]
+        )
     )
 
     # Parse dynamic objects count
@@ -339,9 +340,11 @@ def run_mediainfo(file_path: Path) -> dict[str, Any] | None:
 
 def save_mediainfo_json(data: dict[str, Any], output_path: Path) -> None:
     """Write MediaInfo data to JSON file."""
+    settings = get_settings()
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    logger.debug(f"Saved MediaInfo to: {output_path}")
+    fix_ownership(output_path, settings.target_uid, settings.target_gid)
+    logger.info(f"Saved MediaInfo to: {output_path}")
 
 
 # =============================================================================
@@ -434,8 +437,8 @@ def _parse_chapters_from_mediainfo(mediainfo_data: dict[str, Any]) -> list[Chapt
                     )
                 break
 
-    except Exception as e:
-        logger.warning(f"Failed to parse chapters from mediainfo: {e}")
+    except (KeyError, TypeError, ValueError) as e:
+        logger.warning(f"Failed to parse chapters from mediainfo: {type(e).__name__}: {e}")
 
     return chapters
 
@@ -504,7 +507,7 @@ def _extract_audio_info(
                 if channels:
                     info["channels"] = channels
 
-    except Exception as e:
-        logger.warning(f"Failed to extract audio info from mediainfo: {e}")
+    except (KeyError, TypeError, ValueError) as e:
+        logger.warning(f"Failed to extract audio info from mediainfo: {type(e).__name__}: {e}")
 
     return info
