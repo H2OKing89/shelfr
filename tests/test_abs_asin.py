@@ -1081,6 +1081,85 @@ class TestMatchSearchResults:
         assert match is not None
         assert match.asin == "B08G9PRS1K"
 
+    def test_volume_bonus_breaks_ties(self) -> None:
+        """Volume bonus should break ties when title scores are equal.
+
+        Regression test for bug where Vol. 1 was selected instead of Vol. 5
+        because the volume bonus was being capped at 1.0 during comparison.
+        See: https://github.com/H2OKing89/shelfr/issues/XXX
+        """
+        from shelfr.abs.asin import match_search_results
+
+        # Simulate the exact scenario from the bug:
+        # Searching for "Vol. 5" should match Vol. 5, not Vol. 1
+        title_base = "Even Dogs Go to Other Worlds: Life in Another World with My Beloved Hound"
+        results = [
+            {
+                "title": f"{title_base}, Vol. 1",
+                "author": "Ryuuou",
+                "asin": "B0BLF1WPFP",
+                "language": "English",
+            },
+            {
+                "title": f"{title_base}, Vol. 5",
+                "author": "Ryuuou",
+                "asin": "B0FQQCPG65",
+                "language": "English",
+            },
+            {
+                "title": f"{title_base}, Vol. 4",
+                "author": "Ryuuou",
+                "asin": "B0DD55R3C8",
+                "language": "English",
+            },
+        ]
+
+        # Search for Vol. 5 - should match Vol. 5, not Vol. 1
+        search_title = title_base.replace(":", "") + ", Vol. 5"  # Without colon
+        match = match_search_results(
+            results,
+            search_title,
+            folder_author="Unknown",
+        )
+        assert match is not None
+        assert match.asin == "B0FQQCPG65", f"Expected Vol. 5 ASIN, got {match.asin}"
+        assert "Vol. 5" in match.title
+
+    def test_volume_bonus_across_series(self) -> None:
+        """Volume matching should work for various volume formats."""
+        from shelfr.abs.asin import match_search_results
+
+        results = [
+            {
+                "title": "Series Name Vol. 1",
+                "author": "Author",
+                "asin": "B0AAAAAA01",
+                "language": "English",
+            },
+            {
+                "title": "Series Name Vol. 2",
+                "author": "Author",
+                "asin": "B0AAAAAA02",
+                "language": "English",
+            },
+            {
+                "title": "Series Name Vol. 3",
+                "author": "Author",
+                "asin": "B0AAAAAA03",
+                "language": "English",
+            },
+        ]
+
+        # Searching for Vol. 2 should match Vol. 2
+        match = match_search_results(results, "Series Name Vol. 2", "Author")
+        assert match is not None
+        assert match.asin == "B0AAAAAA02"
+
+        # Searching for Vol. 3 should match Vol. 3
+        match = match_search_results(results, "Series Name Vol. 3", "Author")
+        assert match is not None
+        assert match.asin == "B0AAAAAA03"
+
 
 class TestResolveAsinViaAbsSearch:
     """Tests for resolve_asin_via_abs_search()."""

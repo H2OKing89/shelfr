@@ -921,25 +921,28 @@ def match_search_results(
         # Bonus for English (if preferred)
         if prefer_english and result_language and result_language.lower() == "english":
             combined_score *= 1.05  # 5% bonus
-            combined_score = min(combined_score, 1.0)  # Cap at 1.0
+            # Note: Don't cap here - we need the full score for comparison
+            # to allow volume bonus to break ties
 
         # Penalty for non-English (to avoid Spanish translations, etc.)
         if prefer_english and result_language and result_language.lower() not in ("english", ""):
             combined_score *= 0.8  # 20% penalty
 
-        # Ensure score is in valid range
-        combined_score = max(0.0, min(1.0, combined_score))
+        # Keep raw score for comparison (allows volume bonus to break ties)
+        # but cap the displayed/stored confidence at 1.0
+        comparison_score = combined_score
+        display_confidence = max(0.0, min(1.0, combined_score))
 
         logger.debug(
             f"Match candidate: {result_title!r} by {result_author!r} "
             f"(ASIN={result_asin}, lang={result_language}, "
-            f"vol={result_volume}, score={combined_score:.2f}, "
+            f"vol={result_volume}, score={comparison_score:.2f}, "
             f"title_norm={title_score_norm:.2f}, title_core={title_score_core:.2f}, "
             f"vol_bonus={volume_match_bonus:+.2f})"
         )
 
-        if combined_score > best_score:
-            best_score = combined_score
+        if comparison_score > best_score:
+            best_score = comparison_score
 
             # Extract series info
             series_name = None
@@ -954,7 +957,7 @@ def match_search_results(
                 asin=result_asin,
                 title=result_title,
                 author=result_author,
-                confidence=combined_score,
+                confidence=display_confidence,  # Use capped value for stored confidence
                 language=result_language,
                 series=series_name,
                 sequence=series_seq_str,
