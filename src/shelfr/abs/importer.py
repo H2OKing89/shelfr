@@ -1836,11 +1836,8 @@ def import_single(
 
         try:
             canonical = CanonicalMetadata.from_audnex(audnex_data)
-            if dry_run:
-                logger.info("[DRY RUN] Would generate metadata.opf in %s", target_path)
-            else:
-                opf_path = write_opf(canonical, target_path)
-                logger.info("Generated metadata.opf: %s", opf_path.name)
+            opf_path = write_opf(canonical, target_path)
+            logger.info("Generated metadata.opf: %s", opf_path.name)
         except Exception as e:
             logger.warning("Failed to generate metadata.opf for %s: %s", asin, e)
 

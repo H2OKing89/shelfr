@@ -245,36 +245,11 @@ class OPFMetadata(BaseModel):
             creators.append(OPFCreator(name=name, role="aut"))
 
         # Add translators/illustrators with proper MARC roles
+        from shelfr.opf.helpers import detect_role_from_name
+
         for author in meta.authors:
             if is_author_role(author.name):
-                name = author.name
-                # Determine role from name suffix
-                name_lower = name.lower()
-                if "translator" in name_lower:
-                    role = "trl"
-                    # Clean the name
-                    import re
-
-                    clean_name = re.sub(
-                        r"\s*-?\s*translator[s]?\s*$", "", name, flags=re.IGNORECASE
-                    ).strip()
-                elif "illustrator" in name_lower:
-                    role = "ill"
-                    import re
-
-                    clean_name = re.sub(
-                        r"\s*-?\s*illustrator[s]?\s*$", "", name, flags=re.IGNORECASE
-                    ).strip()
-                elif "editor" in name_lower:
-                    role = "edt"
-                    import re
-
-                    clean_name = re.sub(
-                        r"\s*-?\s*editor[s]?\s*$", "", name, flags=re.IGNORECASE
-                    ).strip()
-                else:
-                    role = "ctb"  # Contributor
-                    clean_name = name
+                clean_name, role = detect_role_from_name(author.name)
                 creators.append(OPFCreator(name=clean_name, role=role))
 
         # Add narrators

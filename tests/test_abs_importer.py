@@ -2631,5 +2631,12 @@ class TestOPFSidecarGeneration:
         assert result.status == "success"
 
         # In dry_run, nothing should be moved/created
-        # The target_path exists but files aren't actually there
+        # Staging folder should still exist (not moved)
         assert folder.exists(), "Staging folder should still exist in dry_run"
+
+        # Target path should NOT be created in dry-run
+        if result.target_path:
+            assert not result.target_path.exists(), "Target path should NOT be created in dry_run"
+            # metadata.opf should NOT be written in dry-run
+            opf_path = result.target_path / "metadata.opf"
+            assert not opf_path.exists(), "metadata.opf should NOT be created in dry_run"

@@ -6,6 +6,7 @@ Centralizes common operations like config loading and name cleaning.
 
 from __future__ import annotations
 
+import logging
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -13,6 +14,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from shelfr.config import NamingConfig
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -34,8 +37,8 @@ def get_naming_config() -> NamingConfig | None:
         for config_dir in [Path.cwd(), Path(__file__).parent.parent.parent.parent]:
             if (config_dir / "config" / "naming.json").exists():
                 return _load_naming_config(config_dir)
-    except Exception:
-        pass
+    except (OSError, ValueError, KeyError) as e:
+        logger.debug("Failed to load naming config: %s", e)
     return None
 
 

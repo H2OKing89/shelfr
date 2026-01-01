@@ -214,6 +214,9 @@ LANGUAGE_TO_ISO: dict[str, str] = {
 # Default language if unknown
 DEFAULT_LANGUAGE = "eng"
 
+# Pre-computed set of valid ISO codes for validation
+_VALID_ISO_CODES: frozenset[str] = frozenset(LANGUAGE_TO_ISO.values())
+
 
 def to_iso_language(language: str | None) -> str:
     """
@@ -242,7 +245,7 @@ def to_iso_language(language: str | None) -> str:
 
 def is_valid_iso_language(code: str) -> bool:
     """Check if a code is a valid ISO 639-2/B language code."""
-    return code.lower() in set(LANGUAGE_TO_ISO.values())
+    return code.lower() in _VALID_ISO_CODES
 
 
 # MARC relator codes for OPF roles

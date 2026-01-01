@@ -125,7 +125,7 @@ def wizard_command() -> None:
     """
     from shelfr.wizard import run_wizard
 
-    run_wizard()
+    raise SystemExit(run_wizard())
 
 
 # =============================================================================

@@ -14,11 +14,11 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from rich import box
 from rich.console import Console, Group
@@ -30,9 +30,6 @@ from rich.text import Text
 
 from shelfr.ui import SHELFR_THEME
 from shelfr.ui.icons import get_icons
-
-if TYPE_CHECKING:
-    pass
 
 # Optional: prompt_toolkit for path history
 try:
@@ -229,8 +226,6 @@ def run_shelfr_command(cmd: list[str], extra_args: list[str] | None = None) -> i
 
     # Preserve color output by ensuring TTY is passed through
     # and setting FORCE_COLOR for tools that respect it
-    import os
-
     env = os.environ.copy()
     env["FORCE_COLOR"] = "1"
     env["CLICOLOR_FORCE"] = "1"

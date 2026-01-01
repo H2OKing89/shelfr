@@ -146,7 +146,9 @@ class OPFGenerator:
         Returns:
             Path to the written file
         """
-        if path.is_dir():
+        # Detect directory intent: existing dir, or no suffix (assume dir)
+        if path.is_dir() or (not path.exists() and not path.suffix):
+            path.mkdir(parents=True, exist_ok=True)
             file_path = path / filename
         else:
             file_path = path

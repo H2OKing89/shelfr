@@ -543,8 +543,9 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                                 except ValueError:
                                     pass  # Can't make relative path; skip adding file to tree
 
-                        # Show OPF sidecar preview (dry-run only, when enabled)
-                        if args.dry_run and import_settings.generate_opf_sidecar:
+                        # Show OPF sidecar preview (dry-run only, when enabled and ASIN present)
+                        # OPF generation requires audnex data which requires ASIN
+                        if args.dry_run and import_settings.generate_opf_sidecar and r.asin:
                             console.print(
                                 "    [green]+ metadata.opf[/green] [dim](would be generated)[/dim]"
                             )

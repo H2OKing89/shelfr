@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -20,6 +21,20 @@ from shelfr.opf import (
     to_iso_language,
     write_opf,
 )
+
+# =============================================================================
+# Test Helpers
+# =============================================================================
+
+
+def strip_xml_declaration(xml_str: str) -> str:
+    """Remove XML declaration for ET.fromstring compatibility.
+
+    The XML declaration (<?xml ...?>) must be stripped before parsing
+    with ElementTree.fromstring() in some cases.
+    """
+    return re.sub(r"^<\?xml[^?]*\?>\s*", "", xml_str, count=1)
+
 
 # =============================================================================
 # Test Data - Sample Audnexus Response
@@ -365,7 +380,7 @@ class TestOPFGenerator:
         xml_str = generate_opf(meta)
 
         # Verify structure
-        root = ET.fromstring(xml_str.split("\n", 1)[1])  # Skip declaration
+        root = ET.fromstring(strip_xml_declaration(xml_str))
         assert root.tag == "package"
         assert root.get("version") == "2.0"
 
@@ -378,9 +393,8 @@ class TestOPFGenerator:
         meta = CanonicalMetadata.from_audnex(SAMPLE_AUDNEX_RESPONSE)
         xml_str = generate_opf(meta)
 
-        # Should parse without error (skip declaration line)
-        xml_content = xml_str.split("\n", 1)[1]
-        root = ET.fromstring(xml_content)
+        # Should parse without error
+        root = ET.fromstring(strip_xml_declaration(xml_str))
 
         # Check namespaces
         assert "http://www.idpf.org/2007/opf" in root.tag or root.tag == "package"
@@ -408,8 +422,7 @@ class TestOPFGenerator:
         xml_str = generate_opf(meta)
 
         # Should be valid XML (not raising parsing error)
-        xml_content = xml_str.split("\n", 1)[1]
-        ET.fromstring(xml_content)
+        ET.fromstring(strip_xml_declaration(xml_str))
 
         # Ampersand should be escaped
         assert "&amp;" in xml_str or "Book &amp; Other" in xml_str
@@ -529,8 +542,7 @@ class TestEndToEnd:
 
         # Should produce valid XML
         content = output_path.read_text()
-        xml_content = content.split("\n", 1)[1]
-        ET.fromstring(xml_content)  # Should not raise
+        ET.fromstring(strip_xml_declaration(content))  # Should not raise
 
         assert "<dc:title>Unknown Book</dc:title>" in content
         assert "<dc:language>eng</dc:language>" in content
