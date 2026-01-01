@@ -5,7 +5,7 @@
 ## Related Documentation
 
 | Document | Description |
-|----------|-------------|
+| --- | --- |
 | [Audnex Normalization](./NAMING_AUDNEX_NORMALIZATION.md) | How Audible metadata is normalized |
 | [Processing Pipeline](./NAMING_PIPELINE.md) | Full cleaning pipeline and order |
 | [Folder & File Schemas](./NAMING_FOLDER_FILE_SCHEMAS.md) | Output formats, truncation, MAM JSON |
@@ -20,7 +20,7 @@ Shelfr uses a **multi-layer naming system** that transforms raw Libation/Audible
 
 ### Architecture Diagram
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           Shelfr Naming Pipeline                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -42,7 +42,7 @@ Shelfr uses a **multi-layer naming system** that transforms raw Libation/Audible
 ### Key Concepts
 
 | Concept | Description |
-|---------|-------------|
+| --- | --- |
 | **Audnex Normalization** | Fixes Audible's title/subtitle swaps using `seriesPrimary` |
 | **NormalizedBook** | Dataclass holding corrected title/subtitle/series/arc |
 | **MamPath** | Tracks 225-char path compliance with truncation metadata |
@@ -56,7 +56,8 @@ Shelfr uses a **multi-layer naming system** that transforms raw Libation/Audible
 ### Input → Output Example
 
 **Libation Raw Data:**
-```
+
+```yaml
 title: "Project Hail Mary (Unabridged)"
 subtitle: null
 seriesPrimary: null
@@ -64,7 +65,8 @@ authors: ["Andy Weir"]
 ```
 
 **After Normalization & Cleaning:**
-```
+
+```yaml
 folder: "Project Hail Mary (2021) (Andy Weir) {ASIN.B08G9PRS1K} [H2OKing]"
 file:   "Project Hail Mary (2021) (Andy Weir) {ASIN.B08G9PRS1K}.m4b"
 ```
@@ -72,7 +74,8 @@ file:   "Project Hail Mary (2021) (Andy Weir) {ASIN.B08G9PRS1K}.m4b"
 ### Series Example
 
 **Libation Raw Data:**
-```
+
+```yaml
 title: "The Way of Kings"
 subtitle: null
 seriesPrimary: {"name": "Stormlight Archive", "position": "1"}
@@ -80,7 +83,8 @@ authors: ["Brandon Sanderson"]
 ```
 
 **After Normalization & Cleaning:**
-```
+
+```yaml
 folder: "Stormlight Archive vol_01 The Way of Kings (2010) (Brandon Sanderson) {ASIN.B003ZWFO7E} [H2OKing]"
 file:   "Stormlight Archive vol_01 The Way of Kings (2010) (Brandon Sanderson) {ASIN.B003ZWFO7E}.m4b"
 ```
@@ -90,7 +94,7 @@ file:   "Stormlight Archive vol_01 The Way of Kings (2010) (Brandon Sanderson) {
 ## Glossary
 
 | Term | Definition |
-|------|------------|
+| --- | --- |
 | **ASIN** | Amazon Standard Identification Number (10-char alphanumeric) |
 | **MAM** | MyAnonaMouse - private audiobook tracker |
 | **Audnex** | API service providing normalized Audible metadata |
@@ -103,7 +107,7 @@ file:   "Stormlight Archive vol_01 The Way of Kings (2010) (Brandon Sanderson) {
 ## File Locations
 
 | File | Purpose |
-|------|--------|
+| --- | --- |
 | `src/Shelfr/utils/naming/` | Core naming functions (package) |
 | `src/Shelfr/models.py` | `NormalizedBook`, `MamPath` dataclasses |
 | `config/naming.json` | Phrase removal rules, author map |

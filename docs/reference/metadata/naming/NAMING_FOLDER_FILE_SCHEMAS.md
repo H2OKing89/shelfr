@@ -5,7 +5,7 @@
 ## Related Documentation
 
 | Document | Description |
-|----------|-------------|
+| --- | --- |
 | [Naming Overview](./NAMING.md) | Quick reference and architecture |
 | [Processing Pipeline](./NAMING_PIPELINE.md) | Full cleaning pipeline |
 | [Rules Reference](./NAMING_RULES.md) | Matching rules and phrase removal |
@@ -19,7 +19,7 @@
 ### What Gets Cleaned
 
 | Field | Cleaning Applied |
-|-------|------------------|
+| --- | --- |
 | **Title** | `filter_title()` - removes "(Unabridged)", "A Novel", "Light Novel", format indicators, genre tags |
 | **Authors** | `filter_authors()` - removes translators, illustrators, editors; `transliterate_text()` for Japanese names |
 | **Narrators** | `transliterate_text()` for Japanese/foreign names |
@@ -30,14 +30,16 @@
 ### Example
 
 **Raw Audnex Data:**
-```
+
+```json
 title: "I'm the Evil Lord of an Intergalactic Empire!, Vol. 5"
 subtitle: "Light Novel"
 authors: ["Yomu Mishima"]
 ```
 
 **After Cleaning (folder, JSON, AND description):**
-```
+
+```json
 title: "I'm the Evil Lord of an Intergalactic Empire!, Vol. 5"
 subtitle: (filtered out - redundant)
 description header: "I'm the Evil Lord of an Intergalactic Empire!, Vol. 5"
@@ -52,19 +54,21 @@ See [Rules Reference](./NAMING_RULES.md) for the full list of phrase removal pat
 ### Standard Format
 
 **Series books:**
-```
+
+```text
 {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
 ```
 
 **Standalone books:**
-```
+
+```text
 {Title} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
 ```
 
 ### Components
 
 | Component | Required | Format | Example |
-|-----------|----------|--------|---------|
+| --- | --- | --- | --- |
 | `series` | No | Series name for series books | `Stormlight Archive` |
 | `vol_NN` | No | Zero-padded volume number | `vol_01`, `vol_12` |
 | `arc` | No | Arc/subtitle name | `Aincrad` |
@@ -77,17 +81,20 @@ See [Rules Reference](./NAMING_RULES.md) for the full list of phrase removal pat
 ### Examples
 
 **Standalone Book:**
-```
+
+```text
 Project Hail Mary (2021) (Andy Weir) {ASIN.B08G9PRS1K} [H2OKing]
 ```
 
 **Series Book:**
-```
+
+```text
 Stormlight Archive vol_01 The Way of Kings (2010) (Brandon Sanderson) {ASIN.B003ZWFO7E} [H2OKing]
 ```
 
 **Series with Arc:**
-```
+
+```text
 Sword Art Online vol_09 Alicization Beginning (2020) (Reki Kawahara) {ASIN.B08XXXXX} [H2OKing]
 ```
 
@@ -102,7 +109,7 @@ To disambiguate ranges, parts, and novellas, we use distinct notation shapes:
 ### Notation Types
 
 | Type | Pattern | Meaning | Example |
-|------|---------|---------|--------|
+| --- | --- | --- | --- |
 | **Single volume** | `vol_NN` | Standard volume | `vol_01`, `vol_12` |
 | **Novella/Side story** | `vol_NN.N` | Story between volumes | `vol_01.5` |
 | **Range (Publisher Pack)** | `vol_NN-NN` | Contains books N through N | `vol_01-03` |
@@ -119,32 +126,36 @@ These shapes are **mutually exclusive** and unambiguous:
 ### Parsed Fields
 
 | Pattern | `volume` | `volume_range_end` | `volume_part` |
-|---------|----------|-------------------|---------------|
+| --- | --- | --- | --- |
 | `vol_01` | 1 | - | - |
 | `vol_01.5` | 1.5 | - | - |
 | `vol_01-03` | 1 | 3 | - |
 | `vol_01p1` | 1 | - | 1 |
 
-### Examples
+### Examples (Volume Notation)
 
 **Novella/Side Story:**
-```
+
+```text
 Old Mans War vol_01.5 Questions for a Soldier (2008) (John Scalzi) {ASIN.B001D2XXXX} [H2OKing]
 ```
 
 **Split Graphic Audio (same book in parts):**
-```
+
+```text
 The Empyrean vol_01p1 Fourth Wing (2023) (Rebecca Yarros) (Graphic Audio) {ASIN.B0CKS42KQH}
 The Empyrean vol_01p2 Fourth Wing (2024) (Rebecca Yarros) (Graphic Audio) {ASIN.B0CQQ6ZV5J}
 ```
 
 **Publisher Pack (multiple books combined):**
-```
+
+```text
 Incubus vol_01-03 (2022) (Brandon Varnell) (Publisher's Pack) {ASIN.1774246848}
 ```
 
 **Standard single release:**
-```
+
+```text
 The Empyrean vol_01 Fourth Wing (2023) (Rebecca Yarros) {ASIN.B0BVD25SYT}
 ```
 
@@ -162,31 +173,36 @@ vol_(?P<base>\d+(?:\.\d+)?)
 
 ## File Naming Schema
 
-### Standard Format
+### Standard Format (Files)
 
 Same as folder name but:
+
 - No ripper tag (only on folder)
 - Includes file extension
 
 **Series books:**
-```
+
+```text
 {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN.xxxxx}.m4b
 ```
 
 **Standalone books:**
-```
+
+```text
 {Title} ({Year}) ({Author}) {ASIN.xxxxx}.m4b
 ```
 
-### Examples
+### Examples (File Names)
 
 **Standalone Book:**
-```
+
+```text
 Project Hail Mary (2021) (Andy Weir) {ASIN.B08G9PRS1K}.m4b
 ```
 
 **Series Book:**
-```
+
+```text
 Stormlight Archive vol_01 The Way of Kings (2010) (Brandon Sanderson) {ASIN.B003ZWFO7E}.m4b
 ```
 
@@ -215,20 +231,22 @@ When the combined path exceeds 225 characters:
 
 ### Truncation Format
 
-```
+```text
 {truncated_title}...[{hash}]
 ```
 
-### Example
+### Example (Truncation)
 
 **Original (280 chars):**
-```
+
+```text
 Folder: Some Author - A Very Long Series Name vol_01 - An Extremely Long Title That Contains Many Words And Just Keeps Going (2021) (Narrator) {ASIN.B0123456789}
 File: Some Author - A Very Long Series Name vol_01 - An Extremely Long Title That Contains Many Words And Just Keeps Going.m4b
 ```
 
 **Truncated (under 225 chars):**
-```
+
+```text
 Folder: Some Author - A Very Long Series Name vol_01 - An Extremely Long Title...[a1b2c3] (2021) (Narrator) {ASIN.B0123456789}
 File: Some Author - A Very Long Series Name vol_01 - An Extremely Long Title...[a1b2c3].m4b
 ```
@@ -267,7 +285,7 @@ MAM accepts a JSON object for fast form filling on upload/request pages. This is
 ### Field Reference
 
 | Field | Type | Description |
-|-------|------|-------------|
+| --- | --- | --- |
 | `title` | string | Title of the item |
 | `subtitle` | string | Subtitle of the book |
 | `authors` | list of strings | Author names |
@@ -297,7 +315,7 @@ MAM accepts a JSON object for fast form filling on upload/request pages. This is
 ### Flags
 
 | Flag | Meaning |
-|------|---------|
+| --- | --- |
 | `cLang` | Crude Language |
 | `vio` | Violence |
 | `sSex` | Some Explicit Sexual Content |
@@ -334,12 +352,13 @@ MAM accepts a JSON object for fast form filling on upload/request pages. This is
 ### Category Mapping
 
 MAM uses numeric category IDs. See the full list at:
-- https://www.myanonamouse.net/tor/json/categories.php?new
+
+- <https://www.myanonamouse.net/tor/json/categories.php?new>
 
 Common audiobook categories in `config/audiobook_categories.json`:
 
 | Genre | Category ID |
-|-------|-------------|
+| --- | --- |
 | Science Fiction | 39 |
 | Fantasy | 44 |
 | Mystery | 50 |
@@ -436,7 +455,7 @@ Series info is resolved from multiple sources to handle incomplete metadata grac
 ### Resolution Order
 
 | Priority | Source | Description | Confidence |
-|----------|--------|-------------|------------|
+| --- | --- | --- | --- |
 | 1 | **Audnex** | `seriesPrimary` from API (authoritative) | 1.0 |
 | 2 | **Libation Path** | Parse from folder structure | 0.9 |
 | 3 | **Title Heuristic** | Regex extract from title | 0.5 |
@@ -452,14 +471,16 @@ New audiobook releases (especially from publishers like Seven Seas Siren) may ha
 3. **No torrent changes:** Live torrents and seeding files are not affected by metadata updates
 
 **Example - New Release Without Series:**
-```
+
+```text
 /audiobook-import/Yomu Mishima/Im the Evil Lord of an Intergalactic Empire Vol. 5 (2025) (Yomu Mishima) {ASIN.B0G59SMBCH} [H2OKing]/
 ```
 
 Note: No series folder or `vol_XX` suffix. This is expected for brand-new releases.
 
 **Example - After Audnex Updates:**
-```
+
+```text
 /audiobook-import/Yomu Mishima/Im the Evil Lord.../Im the Evil Lord... vol_05 (2025) ...
 ```
 
@@ -517,6 +538,7 @@ def resolve_series(
 ### Title Heuristic Patterns
 
 Extract series from titles like:
+
 - `"I'm the Evil Lord of an Intergalactic Empire!, Vol. 5"` → series: base, number: 5
 - `"Black Summoner, Vol. 4"` → series: "Black Summoner", number: 4
 - `"Some Light Novel: Volume 3.5"` → series: "Some Light Novel", number: 3.5
@@ -544,19 +566,21 @@ VOL_PATTERN = re.compile(
 Shelfr expects specific folder/file naming from Libation. Use these templates in Libation settings:
 
 **Folder Template:**
-```
+
+```text
 <first author>/<if series><series>/<end if><audible title><if series> vol_<series#[00.##]><end if> (<year>) (<first author>) {ASIN.<id>} [YourTag]
 ```
 
 **File Template:**
-```
+
+```text
 <audible title><if series> vol_<series#[00.##]><end if> (<year>) (<first author>) {ASIN.<id>}
 ```
 
 ### Template Breakdown
 
 | Token | Description | Example Output |
-|-------|-------------|----------------|
+| --- | --- | --- |
 | `<first author>` | First author name | `Brandon Sanderson` |
 | `<audible title>` | Book title from Audible | `The Way of Kings` |
 | `<series>` | Series name | `The Stormlight Archive` |
@@ -568,13 +592,15 @@ Shelfr expects specific folder/file naming from Libation. Use these templates in
 ### Example Outputs
 
 **With Series:**
-```
+
+```text
 Folder: Brandon Sanderson/The Stormlight Archive/The Way of Kings vol_01 (2010) (Brandon Sanderson) {ASIN.B003ZWFO7E} [H2OKing]
 File:   The Way of Kings vol_01 (2010) (Brandon Sanderson) {ASIN.B003ZWFO7E}.m4b
 ```
 
 **Without Series:**
-```
+
+```text
 Folder: Andy Weir/Project Hail Mary (2021) (Andy Weir) {ASIN.B08G9PRS1K} [H2OKing]
 File:   Project Hail Mary (2021) (Andy Weir) {ASIN.B08G9PRS1K}.m4b
 ```

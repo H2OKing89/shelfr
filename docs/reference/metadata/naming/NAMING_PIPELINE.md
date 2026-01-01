@@ -5,7 +5,7 @@
 ## Related Documentation
 
 | Document | Description |
-|----------|-------------|
+| --- | --- |
 | [Naming Overview](./NAMING.md) | Quick reference and architecture |
 | [Audnex Normalization](./NAMING_AUDNEX_NORMALIZATION.md) | Metadata normalization |
 | [Rules Reference](./NAMING_RULES.md) | Matching rules and phrase removal |
@@ -14,7 +14,7 @@
 
 ## Pipeline Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        Full Naming Pipeline                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -117,7 +117,7 @@ title = "Project Hail Mary"
 **Phrase Categories (from `naming.json`):**
 
 | Category | Examples |
-|----------|----------|
+| --- | --- |
 | `edition_markers` | "(Unabridged)", "[Dramatized Adaptation]" |
 | `marketing_phrases` | "A Novel", "An Audiobook Original" |
 | `format_indicators` | "(Audio Download)", "[Audible Edition]" |
@@ -223,12 +223,14 @@ def clean_title(raw_title: str) -> str:
 ### 5.1 Folder Name
 
 **Template:**
-```
+
+```text
 {author} - {series vol_XX - }{title} ({year}) {narrator} {ASIN.xxxxxxxxxx}
 ```
 
 **Examples:**
-```
+
+```text
 Andy Weir - Project Hail Mary (2021) (Ray Porter) {ASIN.B08G9PRS1K}
 Brandon Sanderson - Stormlight Archive vol_01 - The Way of Kings (2010) (Michael Kramer) {ASIN.B003ZWFO7E}
 ```
@@ -236,12 +238,14 @@ Brandon Sanderson - Stormlight Archive vol_01 - The Way of Kings (2010) (Michael
 ### 5.2 File Name
 
 **Template:**
-```
+
+```text
 {author} - {series vol_XX - }{title}.m4b
 ```
 
 **Examples:**
-```
+
+```text
 Andy Weir - Project Hail Mary.m4b
 Brandon Sanderson - Stormlight Archive vol_01 - The Way of Kings.m4b
 ```
@@ -284,7 +288,7 @@ class MamPath(BaseModel):
 ### Title Cleaning
 
 | Before | After |
-|--------|-------|
+| --- | --- |
 | `"Project Hail Mary (Unabridged)"` | `"Project Hail Mary"` |
 | `"The Martian: A Novel"` | `"The Martian"` |
 | `"Dune [Dramatized Adaptation]"` | `"Dune"` |
@@ -292,7 +296,7 @@ class MamPath(BaseModel):
 ### Author Cleaning
 
 | Before | After |
-|--------|-------|
+| --- | --- |
 | `"Stephen King writing as Richard Bachman"` | `"Stephen King"` |
 | `"J.K. Rowling"` | `"J.K. Rowling"` (unchanged) |
 | `"José García"` | `"Jose Garcia"` |
@@ -300,7 +304,7 @@ class MamPath(BaseModel):
 ### Series Cleaning
 
 | Before | After |
-|--------|-------|
+| --- | --- |
 | `"The Stormlight Archive, Book 1"` | `"Stormlight Archive"` |
 | `"Mistborn: The Original Trilogy"` | `"Mistborn"` |
 | `"A Song of Ice & Fire"` | `"A Song of Ice and Fire"` |
@@ -312,7 +316,7 @@ class MamPath(BaseModel):
 ### Core Functions (`Shelfr.utils.naming`)
 
 | Function | Purpose |
-|----------|---------|
+| --- | --- |
 | `build_mam_folder_name()` | Build complete folder name |
 | `build_mam_file_name()` | Build complete file name |
 | `clean_title()` | Apply all title cleaning |

@@ -5,7 +5,7 @@
 ## Related Documentation
 
 | Document | Description |
-|----------|-------------|
+| --- | --- |
 | [Naming Overview](./NAMING.md) | Quick reference and architecture |
 | [Processing Pipeline](./NAMING_PIPELINE.md) | Full cleaning pipeline |
 | [Rules Reference](./NAMING_RULES.md) | Matching rules |
@@ -19,6 +19,7 @@
 **Goal:** Basic naming pipeline with Pydantic validation
 
 **Completed:**
+
 - [x] `NormalizedBook` model in `models.py`
 - [x] `MamPath` model with truncation tracking
 - [x] Basic `clean_title()` function
@@ -30,6 +31,7 @@
 **Goal:** Automatic metadata normalization from Audnex API
 
 **Completed:**
+
 - [x] Title/subtitle swap detection
 - [x] Series extraction from multiple patterns
 - [x] Series position normalization (zero-padding)
@@ -41,6 +43,7 @@
 **Goal:** Comprehensive removal of marketing text
 
 **Completed:**
+
 - [x] Edition markers (Unabridged, Dramatized, etc.)
 - [x] Marketing phrases (A Novel, A Thriller, etc.)
 - [x] Format indicators (Audio Download, etc.)
@@ -52,6 +55,7 @@
 **Goal:** Cross-platform filename safety
 
 **Completed:**
+
 - [x] pathvalidate integration
 - [x] Unicode normalization (NFC)
 - [x] Japanese transliteration (kanji → romaji)
@@ -63,6 +67,7 @@
 **Goal:** Handle MAM's 225-character path limit
 
 **Completed:**
+
 - [x] Length calculation for full path
 - [x] Smart truncation (preserve author, ASIN, series)
 - [x] Hash suffix for uniqueness
@@ -73,6 +78,7 @@
 **Goal:** Regression testing with real-world examples
 
 **Completed:**
+
 - [x] Golden test framework in `test_golden.py`
 - [x] Input fixtures: `golden/naming_inputs.json`
 - [x] Expected fixtures: `golden/naming_expected.json`
@@ -84,7 +90,7 @@
 
 ### Test Levels
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Testing Pyramid                              │
 ├─────────────────────────────────────────────────────────────────┤
@@ -187,7 +193,7 @@ def test_full_naming_pipeline():
 ### Coverage Goals
 
 | Module | Target | Current |
-|--------|--------|---------|
+| --- | --- | --- |
 | `utils/naming/` | 95% | 94% |
 | `models.py` (naming) | 90% | 92% |
 | `schemas/naming.py` | 100% | 100% |
@@ -215,6 +221,7 @@ pytest tests/test_normalization.py -v
 ### Adding a New Phrase Rule
 
 1. **Edit `config/naming.json`:**
+
    ```json
    {
      "edition_markers": [
@@ -225,12 +232,14 @@ pytest tests/test_normalization.py -v
    ```
 
 2. **Add unit test:**
+
    ```python
    def test_new_marker_removal():
        assert clean_title("Book (New Marker)") == "Book"
    ```
 
 3. **Add golden test case:**
+
    ```json
    // naming_inputs.json
    {"id": "new_marker", "title": "Book (New Marker)", ...}
@@ -240,6 +249,7 @@ pytest tests/test_normalization.py -v
    ```
 
 4. **Run tests:**
+
    ```bash
    pytest tests/test_naming.py tests/test_golden.py -v
    ```
@@ -247,6 +257,7 @@ pytest tests/test_normalization.py -v
 ### Adding Author Mapping
 
 1. **Edit `config/naming.json`:**
+
    ```json
    {
      "author_map": {
@@ -256,6 +267,7 @@ pytest tests/test_normalization.py -v
    ```
 
 2. **Add test:**
+
    ```python
    def test_author_mapping():
        assert map_author("Author Alias") == "Canonical Name"
@@ -264,6 +276,7 @@ pytest tests/test_normalization.py -v
 ### Adding Series Pattern
 
 1. **Edit `config/naming.json`:**
+
    ```json
    {
      "series_patterns": [
@@ -274,6 +287,7 @@ pytest tests/test_normalization.py -v
    ```
 
 2. **Add test:**
+
    ```python
    def test_episode_pattern():
        series, pos = extract_series("Show Episode 5")
@@ -292,6 +306,7 @@ pytest tests/test_normalization.py -v
 **Symptom:** Marketing text remains in title
 
 **Debug:**
+
 ```python
 from Shelfr.utils.naming import clean_title, _apply_rules
 
@@ -307,6 +322,7 @@ print(f"Applied rules: {applied}")
 **Symptom:** Series info not extracted
 
 **Debug:**
+
 ```python
 from Shelfr.utils.naming import extract_series
 
@@ -321,6 +337,7 @@ print(f"Series: {series}, Position: {pos}")
 **Symptom:** MamPath exceeds 225 chars
 
 **Debug:**
+
 ```python
 mam_path = build_mam_path(release, metadata)
 print(f"Length: {mam_path.path_length}")

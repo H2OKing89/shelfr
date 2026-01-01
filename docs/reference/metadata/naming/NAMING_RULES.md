@@ -5,7 +5,7 @@
 ## Related Documentation
 
 | Document | Description |
-|----------|-------------|
+| --- | --- |
 | [Naming Overview](./NAMING.md) | Quick reference and architecture |
 | [Processing Pipeline](./NAMING_PIPELINE.md) | Full cleaning pipeline |
 | [Folder & File Schemas](./NAMING_FOLDER_FILE_SCHEMAS.md) | Output formats |
@@ -58,7 +58,7 @@ Remove edition and format indicators:
 **Examples:**
 
 | Input | Output |
-|-------|--------|
+| --- | --- |
 | `Project Hail Mary (Unabridged)` | `Project Hail Mary` |
 | `Dune [Dramatized Adaptation]` | `Dune` |
 | `The Stand (Unabridged)` | `The Stand` |
@@ -87,7 +87,7 @@ Remove common marketing text:
 **Examples:**
 
 | Input | Output |
-|-------|--------|
+| --- | --- |
 | `The Martian: A Novel` | `The Martian` |
 | `Gone Girl: A Thriller` | `Gone Girl` |
 | `An Audiobook Original: The Story` | `The Story` |
@@ -127,7 +127,7 @@ Remove embedded narrator credits:
 **Examples:**
 
 | Input | Output |
-|-------|--------|
+| --- | --- |
 | `The Book, Narrated by John Smith` | `The Book` |
 | `Title - Read by Jane Doe` | `Title` |
 
@@ -162,7 +162,7 @@ re.IGNORECASE  # Applied to all patterns
 
 Some phrases chain together:
 
-```
+```text
 Input:  "The Book: A Novel (Unabridged)"
 Step 1: "The Book: A Novel"  (edition marker removed)
 Step 2: "The Book"           (marketing phrase removed)
@@ -188,16 +188,16 @@ Map author name variations to canonical forms:
 }
 ```
 
-### Matching Rules
+### Author Matching Rules
 
 1. **Exact Match**: Check full string first
 2. **Pattern Match**: Check for "writing as" pattern
 3. **Passthrough**: If no match, return unchanged
 
-### Examples
+### Examples (Literal Match)
 
 | Input | Output |
-|-------|--------|
+| --- | --- |
 | `Stephen King writing as Richard Bachman` | `Stephen King` |
 | `Stephen King` | `Stephen King` |
 | `Richard Bachman` | `Richard Bachman` (no map) |
@@ -316,10 +316,10 @@ def normalize_position(position: str) -> str:
 
 See [Folder & File Schemas](./NAMING_FOLDER_FILE_SCHEMAS.md#volume-notation) for the canonical volume notation spec.
 
-### Examples
+### Examples (Volume)
 
 | Input | Output | Use Case |
-|-------|--------|----------|
+| --- | --- | --- |
 | `1` | `vol_01` | Standard volume |
 | `12` | `vol_12` | Double-digit volume |
 | `1.5` | `vol_01.5` | Novella/side story |

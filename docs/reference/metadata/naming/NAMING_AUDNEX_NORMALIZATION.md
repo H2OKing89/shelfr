@@ -5,7 +5,7 @@
 ## Related Documentation
 
 | Document | Description |
-|----------|-------------|
+| --- | --- |
 | [Naming Overview](./NAMING.md) | Quick reference and architecture |
 | [Processing Pipeline](./NAMING_PIPELINE.md) | Full cleaning pipeline |
 | [Folder & File Schemas](./NAMING_FOLDER_FILE_SCHEMAS.md) | Output formats |
