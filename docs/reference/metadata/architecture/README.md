@@ -42,7 +42,7 @@ The current metadata handling is **fragmented across 8+ files** with significant
 
 **The single most important rule:** Data flows in one direction through well-defined stages.
 
-```
+```bash
 ┌──────────────┐     ┌────────────┐     ┌───────────────────┐     ┌───────────┐     ┌───────────┐
 │  Providers   │────▶│ Aggregator │────▶│ CanonicalMetadata │────▶│ Cleaning  │────▶│ Exporters │
 │ (fetch data) │     │  (merge)   │     │ (single truth)    │     │(normalize)│     │ (output)  │
@@ -56,7 +56,7 @@ The current metadata handling is **fragmented across 8+ files** with significant
 | **Cleaning** | Raw CanonicalMetadata | Normalized CanonicalMetadata | Single entrypoint: `normalize_canonical()` |
 | **Exporters** | Clean CanonicalMetadata | OPF, JSON, etc. | Assume input is already clean |
 
-**Critical:** Exporters should NEVER clean fields themselves. All normalization happens in one place.
+**Critical invariant:** Exporters should NEVER clean fields themselves. All normalization happens in one place (`cleaning.py`). This prevents duplicate logic, inconsistent behavior, and bugs where "OPF cleans differently than JSON."
 
 ---
 
