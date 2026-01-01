@@ -52,8 +52,8 @@ class TestFetchAudnexBook:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result, region = fetch_audnex_book("B09TEST123")
 
@@ -78,8 +78,8 @@ class TestFetchAudnexBook:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result, region = fetch_audnex_book("INVALID_ASIN")
 
@@ -119,8 +119,8 @@ class TestFetchAudnexBook:
         mock_client.__exit__ = MagicMock(return_value=False)
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result, region = fetch_audnex_book("B09TEST123")
 
@@ -145,8 +145,8 @@ class TestFetchAudnexBook:
         mock_client.__exit__ = MagicMock(return_value=False)
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result, region = fetch_audnex_book("B09TEST123", region="uk")
 
@@ -181,8 +181,8 @@ class TestFetchAudnexAuthor:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_author("B001H6KJPW")
 
@@ -207,8 +207,8 @@ class TestFetchAudnexAuthor:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_author("INVALID_ASIN")
 
@@ -231,8 +231,8 @@ class TestFetchAudnexAuthor:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_author("B001H6KJPW")
 
@@ -257,8 +257,8 @@ class TestFetchAudnexAuthor:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_author("B001H6KJPW")
 
@@ -293,8 +293,8 @@ class TestFetchAudnexAuthor:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_author("B001H6KJPW")
 
@@ -341,8 +341,8 @@ class TestFetchAudnexChapters:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_chapters("B09TEST123")
 
@@ -370,8 +370,8 @@ class TestFetchAudnexChapters:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client", return_value=mock_client),
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client", return_value=mock_client),
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             result = fetch_audnex_chapters("INVALID_ASIN")
 
@@ -1354,8 +1354,8 @@ class TestFetchAudnexEdgeCases:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client") as mock_client_class,
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client") as mock_client_class,
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
@@ -1378,8 +1378,8 @@ class TestFetchAudnexEdgeCases:
         mock_settings.audnex.regions = ["us"]
 
         with (
-            patch("httpx.Client") as mock_client_class,
-            patch("shelfr.metadata.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.audnex.client.httpx.Client") as mock_client_class,
+            patch("shelfr.metadata.audnex.client.get_settings", return_value=mock_settings),
         ):
             mock_client = MagicMock()
             mock_client.__enter__ = MagicMock(return_value=mock_client)
