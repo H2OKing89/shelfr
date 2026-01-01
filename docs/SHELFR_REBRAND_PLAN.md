@@ -110,6 +110,7 @@ After the rebrand stabilizes, reorganize commands into a domain-focused suite.
 | `doctor` | Health & diagnostics | Future |
 
 See [CLI_ARCHITECTURE.md](cli/CLI_ARCHITECTURE.md) for:
+
 - Full current and planned command structure
 - Sub-app details and implementation status
 - Guidelines for adding new commands

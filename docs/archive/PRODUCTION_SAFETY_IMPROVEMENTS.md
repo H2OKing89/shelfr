@@ -11,6 +11,7 @@
 This document outlines the critical production-safety improvements made to Shelfr to address concurrency issues, state management race conditions, and idempotency gaps identified in the codebase review.
 
 **Primary Goals**:
+
 1. ✅ Make side effects idempotent (no duplicates even if state tracking fails)
 2. ✅ Add run lock + state file locking for concurrency safety
 3. ✅ Add checkpoint tracking for partial failure recovery
@@ -18,6 +19,7 @@ This document outlines the critical production-safety improvements made to Shelf
 5. ⏳ Add workflow resume logic (next step)
 
 **Production Readiness Before/After**:
+
 - **Before**: ❌ Unsafe for concurrent use, data corruption risk, orphaned artifacts
 - **After**: ✅ Safe for single-instance with --no-run-lock escape hatch, idempotent uploads, checkpoint-based resume
 
@@ -34,6 +36,7 @@ This document outlines the critical production-safety improvements made to Shelf
 **Solution**: Global run lock using `fcntl.flock` (non-blocking).
 
 **Implementation**:
+
 ```python
 @contextmanager
 def run_lock(force: bool = False):
@@ -49,6 +52,7 @@ def run_lock(force: bool = False):
 ```
 
 **Usage** (to be added to CLI):
+
 ```python
 # In workflow.py or cli.py
 from Shelfr.utils.state import run_lock
@@ -58,6 +62,7 @@ with run_lock(force=args.no_run_lock):
 ```
 
 **Benefits**:
+
 - Prevents state file race conditions
 - Clear error message if lock held
 - Escape hatch for advanced users (--no-run-lock)
@@ -73,6 +78,7 @@ with run_lock(force=args.no_run_lock):
 **Solution**: `fcntl.flock` around all state modifications with new `update_state()` API.
 
 **Implementation**:
+
 ```python
 def update_state(fn: Callable[[dict[str, Any]], None]) -> None:
     """
@@ -93,11 +99,13 @@ def update_state(fn: Callable[[dict[str, Any]], None]) -> None:
 ```
 
 **Migration Path**:
+
 - `mark_processed()`, `mark_failed()`, `clear_failed()` migrated to `update_state()`
 - Old `load_state()` / `save_state()` still work (with locking) for backward compat
 - Deprecated `save_state()` in favor of `update_state()` for modifications
 
 **Benefits**:
+
 - Atomic read-modify-write (no lost updates)
 - Works across processes (not just threads)
 - Separate `.lock` file avoids issues with atomic rename
@@ -113,6 +121,7 @@ def update_state(fn: Callable[[dict[str, Any]], None]) -> None:
 **Solution**: Track per-stage completion timestamps + infohash for idempotent checks.
 
 **New State Schema**:
+
 ```json
 {
   "version": 1,
@@ -138,6 +147,7 @@ def update_state(fn: Callable[[dict[str, Any]], None]) -> None:
 ```
 
 **New API**:
+
 ```python
 # Record stage completion
 checkpoint_stage(release, "staged")
@@ -156,6 +166,7 @@ infohash = get_infohash(identifier)
 ```
 
 **Benefits**:
+
 - Resume capability (skip completed stages)
 - Idempotent upload checks (via infohash)
 - Artifact existence validation
@@ -171,6 +182,7 @@ infohash = get_infohash(identifier)
 **Solution**: Extract infohash, check if torrent already exists before uploading.
 
 **Implementation**:
+
 ```python
 def upload_torrent(...) -> tuple[bool, str | None]:
     """
@@ -196,11 +208,13 @@ def upload_torrent(...) -> tuple[bool, str | None]:
 ```
 
 **New Utility**: `src/Shelfr/utils/torrent.py`
+
 - Simple bencode decoder (no external deps)
 - `extract_infohash(torrent_path)` - SHA1 of bencoded info dict
 - `get_torrent_name(torrent_path)` - Extract torrent name
 
 **Benefits**:
+
 - **Critical**: Prevents duplicate torrents even if state tracking fails
 - Acts like a "payment processor" - check first, then transact
 - Returns infohash for state tracking
@@ -216,6 +230,7 @@ def upload_torrent(...) -> tuple[bool, str | None]:
 **Solution**: Apply `@retry_with_backoff` decorator to qBittorrent operations.
 
 **Implementation**:
+
 ```python
 @retry_with_backoff(
     max_attempts=3,
@@ -234,6 +249,7 @@ def get_client() -> qbittorrentapi.Client:
 ```
 
 **Benefits**:
+
 - Resilient to temporary network issues
 - Exponential backoff prevents hammering
 - Auth failures not retried (fail-fast for config errors)
@@ -249,12 +265,14 @@ def get_client() -> qbittorrentapi.Client:
 **Solution**: Add timeout parameter to all `subprocess.run()` calls.
 
 **Timeouts Added**:
+
 - `create_torrent()`: 300s (5 min - large audiobooks)
 - `inspect_torrent()`: 30s (fast inspection)
 - `check_torrent()`: 60s (verification)
 - `check_docker_available()`: 5s (quick check)
 
 **Implementation**:
+
 ```python
 result = subprocess.run(
     cmd,
@@ -270,6 +288,7 @@ except subprocess.TimeoutExpired:
 ```
 
 **Benefits**:
+
 - Prevents "zombie" processes
 - Clear error messages on timeout
 - Fail-fast instead of hanging forever
@@ -281,18 +300,21 @@ except subprocess.TimeoutExpired:
 ### `upload_torrent()` Return Type Changed
 
 **Before**:
+
 ```python
 def upload_torrent(...) -> bool:
     return True  # or False
 ```
 
 **After**:
+
 ```python
 def upload_torrent(...) -> tuple[bool, str | None]:
     return True, infohash  # or False, infohash
 ```
 
 **Migration**:
+
 ```python
 # Old code (will break)
 success = upload_torrent(torrent_path)
@@ -306,13 +328,14 @@ success, _ = upload_torrent(torrent_path)
 
 ---
 
-##Next Steps (Integration Required)
+## Next Steps (Integration Required)
 
 ### 1. Add Run Lock to CLI
 
 **File**: `src/Shelfr/cli.py`
 
 **Change Needed**:
+
 ```python
 # Add --no-run-lock flag to relevant commands
 parser.add_argument(
@@ -335,6 +358,7 @@ with run_lock(force=args.no_run_lock):
 **File**: `src/Shelfr/workflow.py`
 
 **Changes Needed**:
+
 ```python
 from Shelfr.utils.state import checkpoint_stage, should_skip_stage, get_infohash
 
@@ -376,6 +400,7 @@ def process_single_release(release: AudiobookRelease):
 **Solution**: Output to per-release temp directory.
 
 **Change Needed**:
+
 ```python
 def create_torrent(content_path: Path, ...) -> MkbrrResult:
     # Create per-release output directory
@@ -445,10 +470,12 @@ def create_torrent(content_path: Path, ...) -> MkbrrResult:
 ## Files Modified
 
 ### New Files
+
 1. `src/Shelfr/utils/torrent.py` - Bencode parser + infohash extraction
 2. `PRODUCTION_SAFETY_IMPROVEMENTS.md` - This document
 
 ### Modified Files
+
 1. `src/Shelfr/utils/state.py`
    - Added `run_lock()` context manager
    - Added `_locked_state_file()` context manager
@@ -476,10 +503,12 @@ def create_torrent(content_path: Path, ...) -> MkbrrResult:
 ## Backward Compatibility
 
 ### State File
+
 - ✅ **Backward compatible**: Old state files work (checkpoints optional)
 - ✅ **Forward compatible**: New fields ignored by old code
 
 ### API Changes
+
 - ❌ **BREAKING**: `upload_torrent()` return type changed (`bool` → `tuple[bool, str | None]`)
   - **Fix**: Update all call sites to unpack tuple
   - **Search**: `grep -r "upload_torrent(" src/`
@@ -511,16 +540,19 @@ def create_torrent(content_path: Path, ...) -> MkbrrResult:
 ## Future Work (Post-P0)
 
 ### P1 - High Priority
+
 1. **Exception Hierarchy** - Typed exceptions instead of generic RuntimeError
 2. **Configuration DI** - Remove `get_settings()` singleton, pass explicitly
 3. **Connection Pooling** - Reuse qBittorrent client connection
 
 ### P2 - Medium Priority
+
 1. **SQLite Migration** - Replace JSON with SQLite for better concurrency
 2. **Circuit Breaker** - Fail-fast if Audnex API down
 3. **Caching** - Cache Audnex API responses
 
 ### P3 - Nice-to-Have
+
 1. **Parallel Processing** - Process multiple releases concurrently (with proper locking)
 2. **Metrics/Telemetry** - Track success rates, error counts
 3. **Health Check Command** - `Shelfr health --fix` to repair state
@@ -536,6 +568,7 @@ def create_torrent(content_path: Path, ...) -> MkbrrResult:
 **Grade Improvement**: B+ → **A-** (pending integration testing)
 
 **Risk Reduction**:
+
 - Data corruption: **High → Low**
 - Duplicate torrents: **Medium → None** (idempotent uploads)
 - Orphaned artifacts: **Medium → Low** (checkpoint-based resume)

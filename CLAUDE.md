@@ -7,6 +7,7 @@ This document provides AI assistants with essential context about the Shelfr cod
 **Major changes since last update (2025-12-03)**:
 
 ### 🆕 Audiobookshelf Integration
+
 - **New `abs/` module**: Complete ABS API integration for post-upload workflow
 - **Import workflow**: Move staged audiobooks into ABS library with duplicate detection
 - **Rename tool**: Bulk rename existing ABS library items to MAM conventions
@@ -15,6 +16,7 @@ This document provides AI assistants with essential context about the Shelfr cod
 - **ASIN indexing**: Fast in-memory ASIN index for duplicate detection (~200ms build)
 
 ### 🏗️ Architecture Improvements
+
 - **Command reorganization**: Split `cli.py` into organized modules (`commands/`)
   - `core.py` - Main workflow commands
   - `abs.py` - Audiobookshelf integration
@@ -26,6 +28,7 @@ This document provides AI assistants with essential context about the Shelfr cod
 - **Naming refactoring**: Split monolithic `naming.py` into focused modules
 
 ### 📦 Package Upgrades
+
 - **tenacity**: Replaced custom retry logic with industry-standard library
 - **sh library**: Better subprocess execution (replacing raw `subprocess`)
 - **platformdirs**: Cross-platform directory handling
@@ -33,11 +36,13 @@ This document provides AI assistants with essential context about the Shelfr cod
 - **pydantic-settings**: Environment-based configuration
 
 ### 🔧 State Management
+
 - **Schema v2**: Enhanced state file format with atomic writes
 - **Migration support**: Automatic v1 → v2 migration
 - **Validation**: Comprehensive validation with helpful error messages
 
 ### 📚 Documentation
+
 - **Reorganized docs/**: Moved technical docs to `docs/` directory
 - **ABS documentation**: Extensive guides in `docs/audiobookshelf/`
 - **Archive directory**: Completed implementation reports in `docs/archive/`
@@ -47,6 +52,7 @@ This document provides AI assistants with essential context about the Shelfr cod
 **Shelfr** is a Python-based automation tool for preparing and uploading audiobooks to MyAnonaMouse (MAM). It orchestrates a complete pipeline from Libation audiobook library discovery to torrent creation and qBittorrent upload.
 
 **Key Purpose**: Automate the tedious workflow of:
+
 1. Discovering audiobooks in Libation library
 2. Staging files with MAM-compliant naming (≤225 chars)
 3. Fetching metadata from Audnex API and MediaInfo
@@ -54,6 +60,7 @@ This document provides AI assistants with essential context about the Shelfr cod
 5. Uploading to qBittorrent with proper categories/tags
 
 **Technology Stack**:
+
 - Python 3.11+ (strict type checking with mypy)
 - Pydantic 2.0+ for data validation and schemas (including pydantic-settings)
 - pathvalidate for robust filename sanitization
@@ -230,6 +237,7 @@ Libation Scan → Discovery → Staging → Metadata → Torrent → Upload → 
 ```
 
 Each stage is represented by `ReleaseStatus` enum values:
+
 - `DISCOVERED` - Found in Libation library
 - `STAGED` - Files hardlinked to staging directory
 - `METADATA_FETCHED` - Audnex + MediaInfo complete
@@ -276,6 +284,7 @@ class AudiobookRelease:
 ```
 
 **Key Properties**:
+
 - `display_name` - Human-readable name for logging: "Author - Title"
 - `safe_dirname` - Filesystem-safe directory name with sanitized characters
 
@@ -321,6 +330,7 @@ class MamPath:
 ```
 
 **Key Property**:
+
 - `over_limit` - Returns True if path exceeds 225 characters
 
 ### Configuration System (config.py)
@@ -332,11 +342,13 @@ Configuration is loaded from **three sources** with clear precedence:
 3. **`config/categories.json`** - MAM genre → category ID mappings
 
 **Configuration precedence for environment vars**:
+
 ```
 config.yaml environment section > .env file > hardcoded defaults
 ```
 
 **Critical Settings Classes**:
+
 - `PathsConfig` - File paths (library_root, seed_root, torrent_output, state_file, log_file)
 - `MamConfig` - MAM compliance (max_filename_length: 225, allowed_extensions)
 - `QBittorrentConfig` - qBittorrent settings + credentials
@@ -345,6 +357,7 @@ config.yaml environment section > .env file > hardcoded defaults
 - `FiltersConfig` - Title filtering, author mapping, Japanese transliteration
 
 **Path Resolution Rules**:
+
 - Absolute paths used as-is
 - Relative paths in config.yaml resolved relative to **project root** (parent of config/)
 
@@ -365,6 +378,7 @@ class ProcessedState:
 ```
 
 Functions:
+
 - `is_processed(asin: str) -> bool` - Check if ASIN already processed
 - `mark_processed(release: AudiobookRelease)` - Save successful completion
 - `mark_failed(release: AudiobookRelease)` - Record failure
@@ -386,6 +400,7 @@ def network_operation():
 ```
 
 **Key Features**:
+
 - Configurable max retries and delay
 - Exponential backoff with jitter
 - Specific exception filtering
@@ -411,6 +426,7 @@ def call_external_api():
 ```
 
 **States**:
+
 - `CLOSED` - Normal operation
 - `OPEN` - Too many failures, reject all calls
 - `HALF_OPEN` - Testing if service recovered
@@ -444,10 +460,12 @@ ShelfrError (base)
 ```
 
 **All exceptions include**:
+
 - `message` - Human-readable error
 - `details` - Structured metadata for logging
 
 **Example**:
+
 ```python
 from Shelfr.exceptions import MetadataError, AudnexError
 
@@ -466,6 +484,7 @@ except AudnexError as e:
 **Pydantic 2.0+ is used for comprehensive data validation** throughout the codebase:
 
 **Configuration Validation** (`schemas/config.py`):
+
 - `ConfigSchema` - Main configuration YAML structure
 - `PathsSchema` - File path validation with existence checks
 - `MamSchema` - MAM compliance settings
@@ -478,6 +497,7 @@ except AudnexError as e:
 - `EnvironmentSchema` - Environment variable validation
 
 **Audnex API Validation** (`schemas/audnex.py`):
+
 - `AudnexBook` - Book metadata from Audnex API
 - `AudnexAuthor` - Author information
 - `AudnexSeries` - Series metadata
@@ -486,14 +506,17 @@ except AudnexError as e:
 - `AudnexChaptersResponse` - Chapters API response
 
 **State Management** (`schemas/state.py`):
+
 - `ProcessedRelease` - Successfully processed release tracking
 - `FailedRelease` - Failed release tracking
 - `ProcessedState` - Complete state file structure
 
 **Naming Conventions** (`schemas/naming.py`):
+
 - `NamingSchema` - Naming rules and patterns validation
 
 **Validation Functions**:
+
 ```python
 from Shelfr.schemas import validate_config_yaml, validate_audnex_book
 
@@ -505,6 +528,7 @@ book = validate_audnex_book(api_response)
 ```
 
 **Benefits**:
+
 - Early error detection with clear error messages
 - Type safety at runtime
 - Automatic data coercion where appropriate
@@ -515,12 +539,14 @@ book = validate_audnex_book(api_response)
 **pathvalidate library** provides robust, cross-platform filename sanitization:
 
 **Key Features**:
+
 - Validates filenames across Windows, macOS, Linux
 - Handles Unicode normalization
 - Sanitizes invalid characters per platform
 - Respects MAM's 225-character path limit
 
 **Usage**:
+
 ```python
 from pathvalidate import sanitize_filename
 
@@ -533,6 +559,7 @@ safe_name = sanitize_filename(
 ```
 
 **Integration Points**:
+
 - `utils/naming.py` - Filename sanitization with MAM compliance
 - `utils/validate_naming.py` - Naming validation utilities
 - `hardlinker.py` - File staging with validated names
@@ -542,6 +569,7 @@ safe_name = sanitize_filename(
 **NEW: Post-upload workflow** for importing MAM-prepared audiobooks into your Audiobookshelf library.
 
 **Architecture**:
+
 - **ABS API as source of truth**: Uses Audiobookshelf API to discover existing books
 - **In-memory ASIN indexing**: Fast duplicate detection (~200ms to build, ~1µs per lookup)
 - **MAM folder parsing**: Extracts metadata from staging folder names
@@ -551,6 +579,7 @@ safe_name = sanitize_filename(
 **Key Modules**:
 
 1. **`abs/client.py`** - Audiobookshelf API client
+
    ```python
    class AbsClient:
        def get_libraries() -> list[AbsLibrary]
@@ -559,6 +588,7 @@ safe_name = sanitize_filename(
    ```
 
 2. **`abs/asin.py`** - ASIN extraction and in-memory indexing
+
    ```python
    def build_asin_index(items: list[AbsLibraryItem]) -> dict[str, AsinEntry]
    def extract_asin(text: str) -> str | None
@@ -567,6 +597,7 @@ safe_name = sanitize_filename(
    ```
 
 3. **`abs/importer.py`** - Import workflow
+
    ```python
    def discover_staged_books(staging_dir: Path) -> list[ParsedFolderName]
    def import_single(source: Path, target: Path) -> ImportResult
@@ -574,12 +605,14 @@ safe_name = sanitize_filename(
    ```
 
 4. **`abs/rename.py`** - Bulk rename tool for existing ABS library
+
    ```python
    def discover_rename_candidates(client: AbsClient, library_id: str) -> list[RenameCandidate]
    def run_rename_pipeline(client: AbsClient, library_id: str, dry_run: bool) -> RenameSummary
    ```
 
 5. **`abs/cleanup.py`** - Post-import cleanup (delete/archive source)
+
    ```python
    def cleanup_source(source_path: Path, strategy: CleanupStrategy) -> CleanupResult
    def verify_seed_exists(abs_path: Path, seed_root: Path) -> bool
@@ -590,6 +623,7 @@ safe_name = sanitize_filename(
    - Compares bitrates, file formats, edition flags
 
 **CLI Commands** (`commands/abs.py`):
+
 - `Shelfr abs-init` - Test ABS connection, list libraries
 - `Shelfr abs-import` - Import staged books into ABS library
 - `Shelfr abs-check-duplicate <ASIN>` - Check if ASIN exists in library
@@ -600,6 +634,7 @@ safe_name = sanitize_filename(
 - `Shelfr abs-resolve-asins` - Find ASINs for books via search
 
 **Configuration** (`config.yaml`):
+
 ```yaml
 audiobookshelf:
   url: "http://localhost:13378"
@@ -615,6 +650,7 @@ audiobookshelf:
 ```
 
 **Integrated Workflow**:
+
 ```
 Libation → Discovery → Staging → Torrent → qBittorrent → ABS Import → ABS Cleanup
                          ↓                                    ↓
@@ -622,6 +658,7 @@ Libation → Discovery → Staging → Torrent → qBittorrent → ABS Import �
 ```
 
 **Key Features**:
+
 - **Duplicate detection**: Fast in-memory ASIN index prevents re-imports
 - **Trumping logic**: Detects when new upload is better quality
 - **Fuzzy matching**: Uses rapidfuzz for author/title matching when ASIN missing
@@ -654,12 +691,14 @@ $EDITOR config/.env config/config.yaml
 ### Pre-Commit Quality Checks
 
 **Every commit runs**:
+
 1. **ruff** - Linting + import sorting (`ruff check --fix`)
 2. **ruff-format** - Code formatting
 3. **mypy** - Strict type checking (`mypy src/`)
 4. **pytest** - Full test suite
 
 **Manual run**:
+
 ```bash
 pre-commit run --all-files
 ```
@@ -684,6 +723,7 @@ pytest -v
 ```
 
 **Test Organization**:
+
 - One test file per module (e.g., `test_discovery.py` for `discovery.py`)
 - Use classes to group related tests (e.g., `TestIsValidAsin`)
 - Use descriptive test names (e.g., `test_valid_b_prefix_asin`)
@@ -706,11 +746,13 @@ mypy src/
 ```
 
 **Ruff Configuration** (pyproject.toml):
+
 - Line length: 100 characters
 - Target: Python 3.11+
 - Selected rules: E, F, I, N, W, UP, B, C4, SIM
 
 **Mypy Configuration**:
+
 - Strict mode enabled
 - Python 3.11 target
 - Ignore missing imports for `pykakasi`
@@ -718,6 +760,7 @@ mypy src/
 ### CI/CD Pipeline
 
 **On every push/PR to main**:
+
 1. **Test Matrix** (Python 3.11, 3.12, 3.13):
    - Install dependencies
    - Lint with ruff
@@ -728,6 +771,7 @@ mypy src/
    - Run pip-audit for vulnerable dependencies
 
 **Workflows**:
+
 - `.github/workflows/ci.yml` - Main CI pipeline
 - `.github/workflows/dependency-review.yml` - Dependency security scanning
 
@@ -736,6 +780,7 @@ mypy src/
 ### Style Guidelines
 
 1. **Type Hints**: Mandatory for all function signatures
+
    ```python
    def process_release(
        release: AudiobookRelease,
@@ -747,6 +792,7 @@ mypy src/
    ```
 
 2. **Docstrings**: Required for public functions and classes
+
    ```python
    def stage_release(release: AudiobookRelease) -> Path:
        """
@@ -765,6 +811,7 @@ mypy src/
    ```
 
 3. **Imports**: Organized by ruff (stdlib → third-party → local)
+
    ```python
    from __future__ import annotations  # Always first
 
@@ -778,6 +825,7 @@ mypy src/
    ```
 
 4. **Error Handling**: Use specific exceptions
+
    ```python
    class ConfigurationError(Exception):
        """Raised when configuration is invalid."""
@@ -785,6 +833,7 @@ mypy src/
    ```
 
 5. **Path Handling**: Always use `pathlib.Path`, never string concatenation
+
    ```python
    # Good
    torrent_path = output_dir / f"{release.asin}.torrent"
@@ -794,6 +843,7 @@ mypy src/
    ```
 
 6. **Logging**: Use module-level logger
+
    ```python
    logger = logging.getLogger(__name__)
    logger.info(f"Processing {release.display_name}")
@@ -810,6 +860,7 @@ mypy src/
 ### File Organization Patterns
 
 **Module Structure**:
+
 ```python
 """Module docstring explaining purpose."""
 
@@ -845,12 +896,14 @@ def _helper_function() -> None:
 ### Critical Security Rules
 
 **NEVER commit these to Git**:
+
 - `config/.env` - Contains QB credentials
 - `config/config.yaml` - May contain user-specific paths or secrets
 - `data/processed.json` - State file with ASINs
 - `logs/*.log` - May contain sensitive data
 
 **Gitignored by default**:
+
 - `.env` (anywhere)
 - `config/config.yaml`
 - `config/.env`
@@ -860,22 +913,26 @@ def _helper_function() -> None:
 ### Configuration File Security
 
 **Template Files** (committed):
+
 - `.env.example` - Template showing required env vars (no values)
 - `config.yaml.example` - Template showing structure (no secrets)
 
 **User Files** (gitignored):
+
 - `config/.env` - Actual secrets
 - `config/config.yaml` - Actual configuration
 
 ### Sensitive Data Handling
 
 **Always validate URLs**:
+
 ```python
 if not url.startswith(("http://", "https://")):
     raise ConfigurationError(f"{field_name} must start with http:// or https://")
 ```
 
 **Never log credentials**:
+
 ```python
 # Good
 logger.info(f"Connecting to qBittorrent at {settings.qbittorrent.host}")
@@ -898,6 +955,7 @@ logger.debug(f"QB password: {settings.qbittorrent.password}")  # NEVER DO THIS
    - `commands/diagnostics.py` - Analysis and validation
 
 2. **Create command function** in the chosen module:
+
    ```python
    def cmd_yourcommand(args: argparse.Namespace, settings: Settings) -> int:
        """Command implementation."""
@@ -910,6 +968,7 @@ logger.debug(f"QB password: {settings.qbittorrent.password}")  # NEVER DO THIS
    ```
 
 3. **Export from `commands/__init__.py`**:
+
    ```python
    from Shelfr.commands.yourmodule import cmd_yourcommand
 
@@ -920,6 +979,7 @@ logger.debug(f"QB password: {settings.qbittorrent.password}")  # NEVER DO THIS
    ```
 
 4. **Register in `cli.py`**: Add subparser in `build_parser()`
+
    ```python
    yourcommand_parser = subparsers.add_parser(
        "yourcommand",
@@ -973,6 +1033,7 @@ logger.debug(f"QB password: {settings.qbittorrent.password}")  # NEVER DO THIS
    - Add circuit breaker if needed
 
 3. **Add CLI command** in `commands/abs.py`:
+
    ```python
    def cmd_abs_yourfeature(args: argparse.Namespace, settings: Settings) -> int:
        """Your ABS feature."""
@@ -1004,6 +1065,7 @@ logger.debug(f"QB password: {settings.qbittorrent.password}")  # NEVER DO THIS
 
 1. **Create schema** in appropriate `schemas/*.py` file
 2. **Define Pydantic model** with Field validators
+
    ```python
    from pydantic import BaseModel, Field, field_validator
 
@@ -1018,6 +1080,7 @@ logger.debug(f"QB password: {settings.qbittorrent.password}")  # NEVER DO THIS
                raise ValueError("Name cannot be empty")
            return v.strip()
    ```
+
 3. **Export from `schemas/__init__.py`**
 4. **Add validation function** if needed (e.g., `validate_myschema()`)
 5. **Add comprehensive tests** in `tests/test_*_schema.py`
@@ -1083,6 +1146,7 @@ def temp_library():
 ### MAM Filename Length Limit
 
 **CRITICAL**: MAM enforces a 225-character limit on filenames
+
 - `max_filename_length` in config (default: 225)
 - `utils/naming.py` handles truncation with `truncate_to_max_length()`
 - Always test with long author/title combinations
@@ -1090,11 +1154,13 @@ def temp_library():
 ### Docker Path Mapping
 
 **Host vs. Container paths** must be correctly mapped:
+
 - `utils/paths.py` provides `host_to_container_path()` and reverse
 - mkbrr runs in Docker, needs container paths
 - qBittorrent needs host paths for seeding
 
 Example:
+
 ```python
 # Host path
 host_path = Path("/mnt/user/data/seedvault/audiobooks/release")
@@ -1106,6 +1172,7 @@ container_path = "/data/seedvault/audiobooks/release"
 ### Japanese Name Transliteration
 
 **pykakasi** is used for Japanese → Romaji conversion:
+
 - `utils/naming.py` - `transliterate_japanese_text()`
 - Only applies if `filters.transliterate_japanese = True`
 - Author mapping in config takes precedence over auto-transliteration
@@ -1113,6 +1180,7 @@ container_path = "/data/seedvault/audiobooks/release"
 ### State File Concurrency
 
 **`data/processed.json` is not thread-safe**:
+
 - Current implementation uses simple file I/O
 - Do NOT run multiple instances simultaneously
 - Future: Consider using SQLite or file locking
@@ -1120,6 +1188,7 @@ container_path = "/data/seedvault/audiobooks/release"
 ### Hardlinking Requirements
 
 **Hardlinks require same filesystem**:
+
 - `library_root` and `seed_root` must be on same mount
 - Falls back to copying if hardlink fails (slow!)
 - Check logs for "Created hardlink" vs "Copied file"
@@ -1127,6 +1196,7 @@ container_path = "/data/seedvault/audiobooks/release"
 ### ASIN as Primary Key
 
 **ASIN is the canonical identifier**:
+
 - 10 alphanumeric characters (e.g., `B09GHD1R2R`)
 - Used for deduplication in state tracking
 - Some releases may lack ASIN (fallback: folder name)
@@ -1134,10 +1204,12 @@ container_path = "/data/seedvault/audiobooks/release"
 ### Pydantic Validation Strictness
 
 **Pydantic validation is strict by default**:
+
 - All schemas validate data at runtime
 - Invalid data raises `ValidationError` with detailed messages
 - Validation happens at configuration load, API response parsing, and state file reads
 - **Always catch ValidationError** when parsing external data:
+
   ```python
   from pydantic import ValidationError
 
@@ -1147,12 +1219,14 @@ container_path = "/data/seedvault/audiobooks/release"
       logger.error(f"Invalid configuration: {e}")
       # Handle error gracefully
   ```
+
 - **Test with invalid data** to ensure error handling works
 - **Validation errors are user-facing** - ensure messages are helpful
 
 ### pathvalidate Sanitization
 
 **pathvalidate sanitization differs from manual sanitization**:
+
 - Uses platform-specific rules (Windows, macOS, Linux, universal)
 - Handles reserved filenames (CON, PRN, AUX on Windows)
 - Validates max path lengths per platform
@@ -1162,6 +1236,7 @@ container_path = "/data/seedvault/audiobooks/release"
 ### State File Schema v2
 
 **State tracking now uses versioned schemas**:
+
 - **v1 schema** (legacy): Simple flat structure
 - **v2 schema** (current): Enhanced with validation, metadata
   - Atomic writes with `.tmp` files
@@ -1170,6 +1245,7 @@ container_path = "/data/seedvault/audiobooks/release"
   - Migration path from v1 → v2
 
 **Important**:
+
 ```python
 # State file automatically migrates from v1 to v2 on first write
 from Shelfr.utils.state import load_state, save_state
@@ -1180,6 +1256,7 @@ save_state(state, state_file)  # Saves as v2 with atomic write
 ```
 
 **Schema validation** (`schemas/state.py`):
+
 - `ProcessedStateV1` - Legacy schema
 - `ProcessedStateV2` - Current schema with validation
 - `ProcessedRelease` - Individual release entry
@@ -1188,6 +1265,7 @@ save_state(state, state_file)  # Saves as v2 with atomic write
 ### Naming System Refactoring
 
 **Naming logic split into focused modules**:
+
 - **Old**: Monolithic `utils/naming.py` (~1000+ lines)
 - **New**: Organized modules in `utils/naming/`:
   - `authors.py` - Author name processing (transliteration, mapping)
@@ -1200,6 +1278,7 @@ save_state(state, state_file)  # Saves as v2 with atomic write
   - `constants.py` - Naming constants and patterns
 
 **When working with naming**:
+
 - Import from `Shelfr.utils.naming` (not submodules directly)
 - Use `generate_mam_path()` for MAM-compliant paths
 - Use `normalize_audnex_metadata()` for Audnex data
@@ -1208,6 +1287,7 @@ save_state(state, state_file)  # Saves as v2 with atomic write
 ### Subprocess Execution
 
 **Use `sh` library instead of `subprocess`**:
+
 ```python
 # Old (deprecated)
 import subprocess
@@ -1221,6 +1301,7 @@ result = run(["docker", "ps"], capture_output=True)
 ```
 
 **Benefits**:
+
 - Cleaner API
 - Better error messages
 - Automatic logging
@@ -1229,6 +1310,7 @@ result = run(["docker", "ps"], capture_output=True)
 ### Fuzzy Matching
 
 **Use `rapidfuzz` for author/title matching**:
+
 ```python
 from Shelfr.utils.fuzzy import fuzzy_match_author, fuzzy_match_title
 
@@ -1237,6 +1319,7 @@ is_match = score >= 90.0  # Threshold for matching
 ```
 
 **Use cases**:
+
 - Matching ABS items without ASIN to staged books
 - Detecting duplicates with slightly different metadata
 - Author name normalization
@@ -1260,6 +1343,7 @@ is_match = score >= 90.0  # Threshold for matching
 ```
 
 **Types**:
+
 - `feat:` - New feature
 - `fix:` - Bug fix
 - `docs:` - Documentation only
@@ -1269,6 +1353,7 @@ is_match = score >= 90.0  # Threshold for matching
 - `ci:` - CI/CD changes
 
 **Example**:
+
 ```
 feat: add retry logic for Audnex API calls
 
@@ -1393,6 +1478,7 @@ Shelfr -c /path/to/config.yaml run  # Custom config
 ## Resources & Documentation
 
 ### Root-Level Documentation
+
 - **User Guide**: README.md
 - **Contributing**: CONTRIBUTING.md
 - **Security**: SECURITY.md
@@ -1400,6 +1486,7 @@ Shelfr -c /path/to/config.yaml run  # Custom config
 - **AI Assistant Guide**: CLAUDE.md (this file)
 
 ### Technical Documentation (`docs/`)
+
 - **Overview**: docs/README.md
 - **ABS Integration**: docs/audiobookshelf/
   - AUDIOBOOKSHELF_IMPORT.md - Import workflow guide
@@ -1423,6 +1510,7 @@ Shelfr -c /path/to/config.yaml run  # Custom config
   - docs/VALIDATION_PLAN.md - Input validation enhancements
 
 ### CI/CD
+
 - `.github/workflows/ci.yml` - Main CI pipeline
 - `.github/workflows/dependency-review.yml` - Security scanning
 

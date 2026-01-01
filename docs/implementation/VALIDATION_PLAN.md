@@ -245,12 +245,14 @@ shelfr check --services-only
 ### Health Checks
 
 #### Configuration Checks ✅
+
 - [x] Config file exists and is valid YAML
 - [x] All required fields present (libation_container, docker_bin)
 - [x] UID/GID are valid
 - [x] qBittorrent host configured
 
 #### Path Checks ✅
+
 - [x] `library_root` exists and is readable
 - [x] `seed_root` exists and is writable
 - [x] `torrent_output` exists and is writable
@@ -258,6 +260,7 @@ shelfr check --services-only
 - [x] State file directory is writable
 
 #### Service Checks ✅
+
 - [x] Docker daemon running
 - [x] mkbrr container image available
 - [x] Libation container exists
@@ -266,6 +269,7 @@ shelfr check --services-only
 - [x] Audnex API reachable
 
 #### Categories Check ✅
+
 - [x] `categories.json` loaded with genre mappings
 - [x] All category IDs are integers
 
@@ -401,24 +405,29 @@ Duration:       2m 34s
 ## 8. Implementation Priority
 
 ### Phase 1: Foundation ✅ COMPLETE
+
 1. ✅ **Health Check Command** - `shelfr check` validates environment setup
 2. ✅ **Dry Run Mode** - `shelfr --dry-run run` simulates full pipeline
 3. ✅ **Basic Validation Framework** - `ValidationCheck`, `ValidationResult` classes
 
 ### Phase 2: Testing ✅ COMPLETE
+
 4. ✅ **Unit Tests** - 655 tests covering all modules
 5. ✅ **Integration Tests** - 15 tests for end-to-end scenarios
 
 ### Phase 3: Runtime Validation ✅ COMPLETE
+
 6. ✅ **Discovery Validation** - `DiscoveryValidation` class validates ASIN, M4B, cover, duplicates
 7. ✅ **Metadata Validation** - `MetadataValidation` class validates fields, authors, narrators, runtime
 8. ✅ **Pre-Upload Validation** - `PreUploadValidation` class validates torrent, staging, filename length
 
 ### Phase 4: Advanced ✅ COMPLETE
+
 9. ✅ **Chapter Integrity Checks** - `ChapterIntegrityChecker` detects Libation-style bugs
 10. ✅ **Detailed Reporting** - `ValidationReport` with JSON export via `shelfr validate --json`
 
 ### Phase 5: Safety & Hardening ✅ PARTIAL (Utilities Complete, Advanced TODO)
+
 11. ✅ **Path Traversal Protection** - `is_safe_path()` validates paths stay within allowed roots
 12. ✅ **Filename Sanitization** - `sanitize_path_component()` removes `../`, null bytes, etc.
 13. ✅ **Checksum Computation** - `compute_file_checksum()` for MD5/SHA256 verification
@@ -428,6 +437,7 @@ Duration:       2m 34s
 17. 📋 **Circuit Breaker** - Auto-disable failing services (future enhancement)
 
 ### Phase 6: Naming Validation ✅ COMPLETE
+
 18. ✅ **Filename Length Check** - `PreUploadValidation._check_filename_length()` validates 225 char limit
 19. ✅ **Title/Series/Subtitle Cleaning** - 112 tests in `test_naming.py` covering all cleaning rules
 20. ✅ **Audnex Normalization** - 20 tests in `test_normalization.py` for title/subtitle swap detection

@@ -54,6 +54,7 @@
 ## Overview
 
 This document tracks the naming/cleaning rules for Shelfr. The goal is consistent, clean naming across:
+
 - Folder names (staging)
 - File names (staging)
 - MAM JSON output (title, subtitle, series, description)
@@ -64,7 +65,6 @@ This document tracks the naming/cleaning rules for Shelfr. The goal is consisten
 
 ### Separate Naming Config (`config/naming.json`)
 
-
 Instead of cluttering the main `config.yaml`, naming rules will live in a dedicated JSON file:
 
 ```
@@ -74,6 +74,7 @@ config/
 ```
 
 **Benefits:**
+
 - Easier to share/update naming rules independently
 - Can add lots of entries without cluttering main config
 - JSON is easier for programmatic updates
@@ -246,6 +247,7 @@ def clean_series_name(series_name: str | None, title: str | None = None) -> str 
 ```
 
 **Impact analysis from 1,272 real library samples:**
+
 | Pattern | Books Affected |
 |---------|---------------|
 | " Series" suffix | 87 |
@@ -284,6 +286,7 @@ Or in `naming.json`:
 ### Test Fixtures
 
 Golden test data is available in `tests/fixtures/audnex_normalization_samples.json`:
+
 - **correct_mapping**: 5 SAO volumes with correct title/subtitle (no swap needed)
 - **swapped_mapping**: 6 real examples where Audnex has title/subtitle swapped
 - **no_series**: Standalone books without series data
@@ -363,12 +366,14 @@ Steps 1-7 are the per-field cleaning pipeline (after normalization):
 ```
 
 > **Field scope:** The pipeline is applied per field. Some steps are no-ops depending on the field:
+>
 > - `author_map` → only for authors/narrators
 > - `series_suffixes` → only for series
 > - `vol/book handling` → only for title/series/folders/files (not authors)
 > - `phrase removal` → not applied to description
 
 **Step 7 Cleanup details:**
+
 - Remove double/triple spaces → single space
 - Trim leading/trailing whitespace
 - Remove dangling punctuation (e.g., trailing `,`, `:`, `-`)
@@ -376,6 +381,7 @@ Steps 1-7 are the per-field cleaning pipeline (after normalization):
 - Remove empty parentheses `()` or brackets `[]` left after phrase removal
 
 **Example transformation:**
+
 ```
 Input:  "Overlord (Light Novel), Vol. 3"
 Step 4: "Overlord, Vol. 3"           (removed format indicator)
@@ -409,6 +415,7 @@ Step 7: "Overlord vol_03"            (no changes needed)
 ## Folder & File Naming Schemas
 
 > **Scope Note:** This section documents two different naming contexts:
+>
 > 1. **Audiobookshelf Library** - 3-level nesting for personal library organization (future feature)
 > 2. **MAM/Torrent Staging** - Flat folder structure for uploads
 
@@ -428,26 +435,31 @@ The personal audiobook library uses a 3-level nesting hierarchy optimized for Au
 ```
 
 **Level 1: Author Folder**
+
 - Format: `{First} {Last}` or `{Single Name}`
 - Examples: `Reki Kawahara`, `Brandon Sanderson`, `Actus`
 
 **Level 2: Series Folder**
+
 - Format: `{Series Name}` (cleaned, no suffixes)
 - For standalone books: `{Series}` is the book title
 - Examples: `Sword Art Online`, `Skyward`, `Project Hail Mary`
 
 **Level 3: Book Folder**
+
 - Format varies by book type (see below)
 - **Standalone exception:** For standalone books, there is **no separate book folder** – files live directly under `{Author}/{Title}/`
 
 ### Book Folder Schema (Audiobookshelf)
 
 #### Series Books (with arc/subtitle)
+
 ```
 {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
 ```
 
 **Real examples from library:**
+
 ```
 Sword Art Online vol_01 Aincrad (2021) (Reki Kawahara) {ASIN.1975337182}
 Sword Art Online vol_03 Fairy Dance (2021) (Reki Kawahara) {ASIN.B09MJK5V9M}
@@ -456,11 +468,13 @@ Mushoku Tensei - Jobless Reincarnation vol_28 A Journey of Two Lifetimes (2025) 
 ```
 
 #### Series Books (no arc/subtitle)
+
 ```
 {Series} vol_{NN} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
 ```
 
 **Real examples:**
+
 ```
 Skyward vol_01 (2018) (Brandon Sanderson) {ASIN.B07H7Q5D3M}
 Mushoku Tensei - Jobless Reincarnation vol_01 (2023) (Rifujin na Magonote) {ASIN.B0CJWTXLPJ} [H2OKing]
@@ -468,11 +482,13 @@ Mushoku Tensei - Redundant Reincarnation vol_02 (2025) (Rifujin na Magonote) {AS
 ```
 
 #### Standalone Books
+
 ```
 {Title}
 ```
 
 **Real examples:**
+
 ```
 Project Hail Mary/
 └── Project Hail Mary.m4b    (files directly in series-level folder)
@@ -493,6 +509,7 @@ Project Hail Mary/
 ### Ripper Tag
 
 The `[{Tag}]` component identifies who ripped/uploaded the audiobook. This is:
+
 - **Optional** - only added if configured
 - **Configurable** - set your tag in `config.yaml`
 - **Position** - always last, after ASIN
@@ -515,12 +532,14 @@ File name matches folder name with extension (but **without** the ripper tag):
 > **Note:** The ripper tag `[{Tag}]` is only on the **folder name**, not the file name. This keeps the m4b filename cleaner while still crediting the ripper in the folder structure.
 
 **Real examples:**
+
 ```
 Sword Art Online vol_01 Aincrad (2021) (Reki Kawahara) {ASIN.1975337182}.m4b
 Mushoku Tensei - Jobless Reincarnation vol_27 Recollections (2024) (Rifujin na Magonote) {ASIN.B0DP3CQC6N}.m4b
 ```
 
 For multi-file audiobooks (rare):
+
 ```
 {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN.xxxxx} - Part {N}.m4b
 ```
@@ -530,6 +549,7 @@ For multi-file audiobooks (rare):
 > These examples show the **Audiobookshelf library organization** structure, NOT the MAM torrent staging paths. MAM uploads use flat folder structure per the MAM upload requirements.
 
 **Series book with arc and ripper tag:**
+
 ```
 /audiobooks/Rifujin na Magonote/Mushoku Tensei - Jobless Reincarnation/Mushoku Tensei - Jobless Reincarnation vol_27 Recollections (2024) (Rifujin na Magonote) {ASIN.B0DP3CQC6N} [H2OKing]/
 ├── Mushoku Tensei - Jobless Reincarnation vol_27 Recollections (2024) (Rifujin na Magonote) {ASIN.B0DP3CQC6N}.m4b
@@ -539,6 +559,7 @@ For multi-file audiobooks (rare):
 ```
 
 **Series book without arc (with ripper tag):**
+
 ```
 /audiobooks/Rifujin na Magonote/Mushoku Tensei - Jobless Reincarnation/Mushoku Tensei - Jobless Reincarnation vol_01 (2023) (Rifujin na Magonote) {ASIN.B0CJWTXLPJ} [H2OKing]/
 ├── Mushoku Tensei - Jobless Reincarnation vol_01 (2023) (Rifujin na Magonote) {ASIN.B0CJWTXLPJ}.m4b
@@ -549,6 +570,7 @@ For multi-file audiobooks (rare):
 ```
 
 **Series book (no ripper tag):**
+
 ```
 /audiobooks/Reki Kawahara/Sword Art Online/Sword Art Online vol_03 Fairy Dance (2021) (Reki Kawahara) {ASIN.B09MJK5V9M}/
 ├── Sword Art Online vol_03 Fairy Dance (2021) (Reki Kawahara) {ASIN.B09MJK5V9M}.m4b
@@ -557,6 +579,7 @@ For multi-file audiobooks (rare):
 ```
 
 **Standalone book:**
+
 ```
 /audiobooks/Andy Weir/Project Hail Mary/
 ├── Project Hail Mary.m4b
@@ -588,6 +611,7 @@ MAM torrent staging uses a **flat folder structure** (no Author/Series nesting) 
 | Purpose | Long-term organization | Temporary upload staging |
 
 **MAM staging example:**
+
 ```
 /staging/Mushoku Tensei - Jobless Reincarnation vol_27 Recollections (2024) (Rifujin na Magonote) {ASIN.B0DP3CQC6N} [H2OKing]/
 ├── Mushoku Tensei - Jobless Reincarnation vol_27 Recollections (2024) (Rifujin na Magonote) {ASIN.B0DP3CQC6N}.m4b
@@ -614,6 +638,7 @@ MAM torrent staging uses a **flat folder structure** (no Author/Series nesting) 
 **Why full path matters:** MAM validates the torrent's internal path structure. The path `folder/filename.m4b` must be ≤225 chars total.
 
 **Path structure:**
+
 ```
 {Folder Name} [Tag]/
 └── {Filename}.m4b
@@ -628,12 +653,14 @@ Trapped in a Dating Sim vol_01 ... [H2OKing]/Trapped in a Dating Sim vol_01 ....
 #### Truncation Examples
 
 **Example 1: Long series name with all components (fits)**
+
 ```
 Sword Art Online vol_16 Alicization Exploding (2025) (Reki Kawahara) {ASIN.B0DK9TS6D9} [H2OKing]
 └─ 95 chars ✅ OK
 ```
 
 **Example 2: Very long series + arc that exceeds 225 chars**
+
 ```
 Input (240 chars):
 The Extraordinarily Long Light Novel Series Name That Just Keeps Going vol_12 The Equally Long Arc Subtitle Name (2025) (Author With A Very Long Name Indeed) {ASIN.B0ABC12345} [H2OKing]
@@ -649,6 +676,7 @@ The Extraordinarily Long Light Novel Series Name That Just Keeps Going vol_12 (2
 ```
 
 **Example 3: Extreme case - series name alone is too long**
+
 ```
 Input:
 The Most Ridiculously Extraordinarily Impossibly Long Light Novel Series Name That Someone Actually Published vol_01 {ASIN.B0XYZ98765}
@@ -659,6 +687,7 @@ The Most Ridiculously Extraordinarily Impossibly Long Light Novel Series Na... v
 ```
 
 **Example 4: Standalone book (no series)**
+
 ```
 Schema: {Title} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
 
@@ -675,6 +704,7 @@ These examples come from actual `samples/library_full.json` data:
 **Example A: "I Parry Everything" Series (Light Novel with extremely long series name)**
 
 Source metadata:
+
 ```
 Title:  "I Parry Everything: What Do You Mean I'm the Strongest? I'm Not Even an Adventurer Yet!, Volume 2"
 Series: "What Do You Mean I'm the Strongest? I'm Not Even an Adventurer Yet!"
@@ -684,11 +714,13 @@ Year:   2025
 ```
 
 Expected raw folder (230+ chars - exceeds 225 limit):
+
 ```
 What Do You Mean I'm the Strongest? I'm Not Even an Adventurer Yet! vol_02 (2025) (Nabeshiki) {ASIN.B0F259867P} [H2OKing]
 ```
 
 Actual result (120 chars ✅):
+
 ```
 What Do You Mean I'm the Strongest I'm Not Even an Adventurer Yet! vol_02 (2025) (Nabeshiki) {ASIN.B0F259867P} [H2OKing]
 ```
@@ -698,6 +730,7 @@ What Do You Mean I'm the Strongest I'm Not Even an Adventurer Yet! vol_02 (2025)
 **Example B: "Campfire Cooking" Series (Long but fits)**
 
 Source metadata:
+
 ```
 Title:  "Campfire Cooking in Another World with My Absurd Skill: Vol. 3"
 Series: "Campfire Cooking in Another World with My Absurd Skill"
@@ -707,6 +740,7 @@ Year:   2021
 ```
 
 Actual result (109 chars ✅):
+
 ```
 Campfire Cooking in Another World with My Absurd Skill vol_03 (2021) (Ren Eguchi) {ASIN.B0CL5FYFPS} [H2OKing]
 ```
@@ -714,6 +748,7 @@ Campfire Cooking in Another World with My Absurd Skill vol_03 (2021) (Ren Eguchi
 **Example C: "Space Mercenary" Series (Subtitle in series name)**
 
 Source metadata:
+
 ```
 Title:  "Reborn as a Space Mercenary: I Woke Up Piloting the Strongest Starship!, Vol. 10"
 Series: "Reborn as a Space Mercenary: I Woke Up Piloting the Strongest Starship!"
@@ -723,6 +758,7 @@ Year:   2024
 ```
 
 Actual result (122 chars ✅):
+
 ```
 Reborn as a Space Mercenary - I Woke Up Piloting the Strongest Starship! vol_10 (2024) (Ryuto) {ASIN.B0DP1LDBYV} [H2OKing]
 ```
@@ -795,6 +831,7 @@ max=100: ...the Enchanted Realm of the ... vol_05 {ASIN.B0ABCDEFGH}  (hard trunc
 | Arc/Subtitle | In folder name | `subtitle` field |
 
 **JSON Title examples:**
+
 ```
 Sword Art Online, Vol. 3              # Series book
 Project Hail Mary                     # Standalone
@@ -824,6 +861,7 @@ Each category has specific matching behavior:
 ## Phrase Removal Rules
 
 ### Category: Format Indicators
+
 **Matching:** Case-insensitive, anywhere in string, whole phrase only
 
 ```json
@@ -843,6 +881,7 @@ Each category has specific matching behavior:
 > **Note:** Case variants (e.g., `"(light novel)"`) are NOT listed separately since matching is case-insensitive.
 
 ### Category: Genre Tags
+
 **Matching:** Case-insensitive, typically at end, whole phrase only
 
 ```json
@@ -863,6 +902,7 @@ Each category has specific matching behavior:
 ```
 
 ### Category: Series Suffixes
+
 **Matching:** Case-insensitive, end of string only, regex pattern
 
 ```json
@@ -883,6 +923,7 @@ Each category has specific matching behavior:
 ```
 
 **Examples:**
+
 - `"A Most Unlikely Hero Series"` → `"A Most Unlikely Hero"`
 - `"Kuma Kuma Kuma Bear Light Novel"` → `"Kuma Kuma Kuma Bear"`
 - `"Ascend Online [publication order]"` → `"Ascend Online"` (NEW - sorting tags)
@@ -894,16 +935,19 @@ Each category has specific matching behavior:
 When the title starts with "The {series}" but the API series name lacks the "The" prefix, the prefix is inherited from the title. This ensures consistency in folder/file naming.
 
 **Logic in `inherit_the_prefix()`:**
+
 1. If series already starts with "The", no change
 2. If title starts with "The " followed by the series name, add "The " to series
 3. Otherwise, no change
 
 **Examples:**
+
 - Title: `"The Great Cleric: Volume 1"`, Series: `"Great Cleric"` → Series becomes `"The Great Cleric"`
 - Title: `"Ascend Online"`, Series: `"Ascend Online"` → No change (title doesn't start with "The")
 - Title: `"The Stormlight Archive"`, Series: `"The Stormlight Archive"` → No change (already has "The")
 
 ### Category: Publisher Tags (NEW)
+
 **Matching:** Case-insensitive, anywhere in string
 
 ```json
@@ -919,6 +963,7 @@ When the title starts with "The {series}" but the API series name lacks the "The
 ```
 
 ### Category: Preserve Exact (NEW)
+
 **Matching:** Case-sensitive, exact full match - bypasses ALL cleaning
 
 **Scope:** When a title OR series matches an entry in `preserve_exact`, the cleaning pipeline is skipped entirely for BOTH the title AND series fields. This prevents partial cleaning from breaking intentional formatting (e.g., `Re:ZERO` shouldn't have the colon removed even when it appears in the series name).
@@ -938,6 +983,7 @@ When the title starts with "The {series}" but the API series name lacks the "The
 ```
 
 ### Category: Subtitle Patterns
+
 **Matching:** Regex-based, typically suffix position
 
 ```json
@@ -959,12 +1005,14 @@ When the title starts with "The {series}" but the API series name lacks the "The
 ```
 
 **Subtitle Strategy (Two-Tier):**
+
 1. If subtitle matches a `remove_patterns` entry → Remove entirely
 2. If subtitle matches `keep_patterns` → Preserve as-is
 3. If subtitle duplicates series name → Remove (if `remove_if_matches_series: true`)
 4. Otherwise → Keep the subtitle (preserve unknown/useful subtitles)
 
 ### Category: Subtitle Redundancy Rules (NEW)
+
 **Matching:** Dynamic regex with `{{series}}` and `{{title}}` placeholders
 
 Based on library analysis: **55 books** have subtitles that are just "Series, Book X" - pure redundancy.
@@ -1005,10 +1053,12 @@ Based on library analysis: **55 books** have subtitles that are just "Series, Bo
 ```
 
 **Action Types:**
+
 - `drop_subtitle`: Remove the entire subtitle (for rules 1-3 where the whole subtitle is redundant)
 - `strip_match`: Remove only the matching portion, keep the rest (for rule 4 where extra content may exist)
 
 **How it works:**
+
 1. At runtime, replace `{{series}}` with `re.escape(actual_series_name)`
 2. Replace `{{title}}` with `re.escape(actual_title)`
 3. **Skip rules with `{{series}}`** if series is empty/None
@@ -1018,6 +1068,7 @@ Based on library analysis: **55 books** have subtitles that are just "Series, Bo
 > **Rule design constraint:** `drop_subtitle` rules MUST use anchored patterns (`^...$`) that match the full subtitle. Partial matches should always use `strip_match` rules.
 
 **Examples:**
+
 | Title | Subtitle | Series | Action |
 |-------|----------|--------|--------|
 | `He Who Fights with Monsters 11` | `He Who Fights with Monsters, Book 11` | `He Who Fights...` | ❌ DROP (rule 1) |
@@ -1046,6 +1097,7 @@ Before transliteration, non-primary authors are filtered out using `filter_autho
 *Narrators come from separate `narrators` field in Audnex, not author list.
 
 **Role Detection Patterns (configurable in `naming.json`):**
+
 ```json
 {
   "author_roles": {
@@ -1056,6 +1108,7 @@ Before transliteration, non-primary authors are filtered out using `filter_autho
 ```
 
 **Pattern Matching:**
+
 - `Name - translator` (suffix with dash)
 - `Name (illustrator)` (parenthetical)
 - `Name, editor` (comma suffix)
@@ -1065,6 +1118,7 @@ Before transliteration, non-primary authors are filtered out using `filter_autho
 ### Translator Extraction
 
 Translators are extracted (not just filtered) for MAM metadata via `extract_translator()`:
+
 ```
 "Roman Lempert - translator" → translator="Roman Lempert"
 ```
@@ -1095,6 +1149,7 @@ Translators are extracted (not just filtered) for MAM metadata via `extract_tran
 ```
 
 **Fallback Behavior:**
+
 1. Check `author_map` for exact match → use mapped value
 2. Fuzzy match against `author_map` (threshold 85%) → use mapped value
 3. If not in map and contains Japanese → use `pykakasi` transliteration
@@ -1110,6 +1165,7 @@ Translators are extracted (not just filtered) for MAM metadata via `extract_tran
 ## Vol/Book Normalization
 
 **Detection patterns:**
+
 ```regex
 Vol\.?\s*(\d+)
 Volume\s+(\d+)
@@ -1198,23 +1254,27 @@ Complete schema with version tracking:
 To refine these rules, we collected real samples from these sources:
 
 ### 1. Export Libation Library
+
 ```bash
 docker exec Libation /libation/LibationCli export --json -p /tmp/library.json
 docker cp Libation:/tmp/library.json ./samples/library_export.json
 ```
 
 Fields to analyze:
+
 - `Title`
 - `Subtitle`
 - `SeriesNames`
 - `Description` (first 200 chars)
 
 ### 2. Existing Staging Folders
+
 ```bash
 ls /mnt/user/data/downloads/torrents/qbittorrent/seedvault/audiobooks/ > samples/existing_folders.txt
 ```
 
 ### 3. Audnex API Responses
+
 Save raw responses from metadata fetches for analysis.
 
 ---
@@ -1226,6 +1286,7 @@ Save raw responses from metadata fetches for analysis.
 **Source:** 1,295 books from Audiobookshelf API (`samples/audiobookshelf_library.json`)
 
 #### Subtitle Patterns to Clean
+
 | Pattern | Count | Action |
 |---------|-------|--------|
 | "Light Novel" (exact) | 52 | Drop subtitle entirely |
@@ -1235,6 +1296,7 @@ Save raw responses from metadata fetches for analysis.
 | Series name in subtitle | 5 | Strip series portion only |
 
 #### Title Patterns to Clean
+
 | Pattern | Count | Action |
 |---------|-------|--------|
 | `(Unabridged)` in title | 57 | Remove |
@@ -1243,6 +1305,7 @@ Save raw responses from metadata fetches for analysis.
 | `Light Novel` in title | 46 | Remove |
 
 #### Non-ASCII Content
+
 | Type | Count | Examples |
 |------|-------|----------|
 | Japanese titles | 7 | `ゴブリンスレイヤー`, `本好きの下剋上` |
@@ -1250,6 +1313,7 @@ Save raw responses from metadata fetches for analysis.
 | Smart quotes | 5 | `Harry Potter and the Philosopher's Stone` |
 
 #### Series Metadata Quality
+
 - Books with series: 1,274 (98.4%)
 - Books with ASIN: 1,284 (99.2%)
 - Books with subtitle: 743 (57.4%)
@@ -1259,6 +1323,7 @@ Save raw responses from metadata fetches for analysis.
 **Source:** 368 books from Libation export (`samples/library_full.json`)
 
 #### Title/Subtitle Overlap Analysis
+
 | Issue Type | Count | Action |
 |------------|-------|--------|
 | Series in Title | 130 | ✅ Normal - don't touch |
@@ -1273,6 +1338,7 @@ Save raw responses from metadata fetches for analysis.
 ## Implementation Phases
 
 ### Phase 1: Create naming.json Structure ✅
+
 - [x] Create `config/naming.json` schema
 - [x] Migrate existing `remove_phrases` from config.yaml
 - [x] Migrate `author_map` from config.yaml
@@ -1286,6 +1352,7 @@ Save raw responses from metadata fetches for analysis.
 - [x] Document all rule categories in NAMING_PLAN.md
 
 ### Phase 1.5: Document Folder/File Schemas ✅ (NEW)
+
 - [x] Define 3-level library nesting structure
 - [x] Document book folder schema (with/without arc)
 - [x] Document standalone book exception
@@ -1296,6 +1363,7 @@ Save raw responses from metadata fetches for analysis.
 - [x] Document real examples from library (SAO, Mushoku Tensei, Skyward)
 
 ### Phase 2: Update naming.py to Use Config ✅
+
 - [x] Refactor `filter_title()` to use `settings.naming`
 - [x] Add `filter_series()` function for series-specific cleaning
 - [x] Implement `preserve_exact` bypass logic
@@ -1303,6 +1371,7 @@ Save raw responses from metadata fetches for analysis.
 - [x] Add verbose logging for transformations (with rule IDs)
 
 ### Phase 3: Implement MAM JSON Cleaning ✅
+
 - [x] Add `filter_title()` to title field in metadata.py (with `keep_volume=True`)
 - [x] Add `filter_title()` to subtitle field (with `keep_volume=True`)
 - [x] Add `filter_series()` for series names (via `_build_series_list()`)
@@ -1311,6 +1380,7 @@ Save raw responses from metadata fetches for analysis.
 - [x] Add tests for `keep_volume` parameter (8 tests)
 
 ### Phase 4: Testing & Validation ✅
+
 - [x] Create `tests/golden/` with input/expected pairs (20 test cases)
 - [x] Add validation script (`src/Shelfr/utils/validate_naming.py`)
 - [x] Add preserve-exact drift check (in `TestGoldenPreserveExact`)
@@ -1319,12 +1389,14 @@ Save raw responses from metadata fetches for analysis.
 - [x] Added cleanup patterns for dangling punctuation (`_TRAILING_PUNCT_PATTERN`, etc.)
 
 ### Phase 5: Subtitle Handling ✅
+
 - [x] Implement two-tier subtitle strategy (remove_patterns + keep_patterns)
 - [x] Implement subtitle_redundancy_rules with {{series}}/{{title}} templates
 - [x] Test remove_if_matches_series logic
 - [x] Support both `drop_subtitle` and `strip_match` actions
 
 ### Phase 6: Folder/File Generation ✅
+
 - [x] Implement `extract_volume_number()` and `format_volume_number()`
 - [x] Implement `build_mam_folder_name()` using schema
 - [x] Implement `build_mam_file_name()` using schema
@@ -1335,6 +1407,7 @@ Save raw responses from metadata fetches for analysis.
 - [x] **Integrated into hardlinker.py** - `stage_release()` now uses `build_mam_folder_name()` and `build_mam_file_name()`
 
 ### Phase 7: Audnex Normalization ✅
+
 - [x] Created `NormalizedBook` dataclass in `models.py` with raw/display fields
 - [x] Implemented `detect_swapped_title_subtitle()` using seriesPrimary as source of truth
 - [x] Implemented `extract_arc_name()` for extracting arc from the "wrong" field
@@ -1347,6 +1420,7 @@ Save raw responses from metadata fetches for analysis.
 - [x] Verified against live Audnex API - SAO vol_16, TBATE vols 1-4, Multiverse vol_7 confirmed swapped
 
 ### Phase 8: Full Path Truncation (BUG FIX) ✅
+
 **Status:** COMPLETE
 
 **Problem discovered:** The 225-char limit applies to the **full relative path** (`folder/filename`), not individual components. Current implementation truncates folder and filename separately, which can result in paths exceeding 225 chars.
@@ -1364,18 +1438,21 @@ Save raw responses from metadata fetches for analysis.
 | Now I'm a Demon Lord! Happily Ever After... | 241 | +16 |
 
 **Example of the bug (Trapped in a Dating Sim):**
+
 ```
 Trapped in a Dating Sim vol_01 The World of Otome Games is Tough for Mobs (2024) (Yomu Mishima) {ASIN.B0DK27WWT8} [H2OKing]/Trapped in a Dating Sim vol_01 The World of Otome Games is Tough for Mobs (2024) (Yomu Mishima) {ASIN.B0DK27WWT8}.m4b
 └─ 241 chars ❌ EXCEEDS 225 by 16 chars
 ```
 
 **Example of the bug (Haunted Bookstore - worst case):**
+
 ```
 The Haunted Bookstore - Gateway to a Parallel Universe vol_01 The Spirit Daughter and the Exorcist Son (2022) (Shinobumaru) {ASIN.B09EXAMPLE1} [H2OKing]/The Haunted Bookstore - Gateway to a Parallel Universe vol_01 The Spirit Daughter and the Exorcist Son (2022) (Shinobumaru) {ASIN.B09EXAMPLE1}.m4b
 └─ 299 chars ❌ EXCEEDS 225 by 74 chars
 ```
 
 **Why the current code fails:**
+
 - `build_mam_folder_name()` truncates to 225 chars → produces ~150 char folder
 - `build_mam_file_name()` truncates to 225 chars → produces ~145 char filename
 - Combined: `150 + 1 + 145 = 296 chars` (the `/` adds 1 char)
@@ -1436,6 +1513,7 @@ class MamPath:
 ```
 
 The `dropped_components` list makes debug logging trivial:
+
 ```
 [build_mam_path] Truncated path for B0DK27WWT8: 225 chars
   - Dropped: arc, author
@@ -1476,6 +1554,7 @@ What's the absolute minimum if we drop everything optional?
 ```
 
 Shortest realistic example:
+
 ```
 X... vol_01 {ASIN.B0XXXXXXXX}
 └─ 32 chars minimum
@@ -1495,6 +1574,7 @@ if len(series) <= MIN_SERIES_LEN:
 #### Implementation
 
 **Completed:**
+
 - [x] Add `MamPath` dataclass to `models.py`
 - [x] Add `build_mam_path()` function in `naming.py` that:
   - [x] Calculates max base length upfront using the formula
@@ -1601,7 +1681,7 @@ def build_mam_path(
    - Verify final path length ≤ 225
 
 3. **Multi-file** - Same titles with `part_count=2`
-   - Verify budget accounts for ` - Part XX.m4b` (14 chars)
+   - Verify budget accounts for `- Part XX.m4b` (14 chars)
    - Verify truncation triggers earlier
 
 4. **No truncation needed** - Short series like "Overlord vol_01"
@@ -1626,7 +1706,9 @@ Phase 8 (Full Path Truncation) is required before the naming implementation is c
 ## Testing Strategy
 
 ### Golden File Tests
+
 Create `tests/golden/` directory with:
+
 - `naming_inputs.json` - Raw titles/series/authors
 - `naming_expected.json` - Expected cleaned output
 
@@ -1637,7 +1719,9 @@ Create `tests/golden/` directory with:
 ```
 
 ### Validation Script
+
 Run against full library to flag suspicious results:
+
 ```python
 # Flags:
 # - Empty result after cleaning
@@ -1652,7 +1736,9 @@ Run against full library to flag suspicious results:
 ```
 
 ### Verbose Logging Mode
+
 When `LOG_LEVEL=DEBUG`, log with consistent rule IDs:
+
 ```
 [filter_title] "Overlord (Light Novel)" -> "Overlord"
   - removed: "(Light Novel)" [format_indicators]
@@ -1690,11 +1776,14 @@ When `LOG_LEVEL=DEBUG`, log with consistent rule IDs:
 ## Future Enhancements (Nice-to-Have)
 
 ### Fuzzy Subtitle Matching (TODO)
+
 Currently subtitle redundancy rules require exact series/title match. Some edge cases (~47 books) have mismatched "The" prefix:
+
 - Subtitle: `"The F-Rank Foot Soldier Became..."`
 - Series: `"F-Rank Foot Soldier Became..."`
 
 **Proposed solution**: Use `rapidfuzz` similarity matching in `filter_subtitle()` when exact match fails:
+
 1. If subtitle contains series (exact) → apply rule
 2. Else if `similarity_ratio(subtitle_prefix, series) > 90%` → apply rule
 3. Log fuzzy matches for review
@@ -1702,7 +1791,9 @@ Currently subtitle redundancy rules require exact series/title match. Some edge 
 This would require code changes to `filter_subtitle()` in `naming.py`. Separate PR recommended.
 
 ### Context-Based Rules
+
 Eventually could extend naming.json to support context overrides:
+
 ```json
 {
   "contexts": {
@@ -1719,6 +1810,7 @@ Eventually could extend naming.json to support context overrides:
 ```
 
 ### Community Rules
+
 - Fetch remote naming.json updates
 - Merge community patterns with local overrides
 

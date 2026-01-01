@@ -31,9 +31,11 @@ shelfr mkbrr create <path> [options]
 ```
 
 **Arguments:**
+
 - `PATH` - Path to file or directory to create torrent from (required)
 
 **Options:**
+
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--preset` | `-P` | Use preset from presets.yaml |
@@ -85,9 +87,11 @@ shelfr mkbrr inspect <torrent> [options]
 ```
 
 **Arguments:**
+
 - `TORRENT` - Path to .torrent file(s) (required, multiple allowed)
 
 **Options:**
+
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--verbose` | `-v` | Show extra metadata fields |
@@ -110,6 +114,7 @@ shelfr mkbrr inspect *.torrent
 ```
 
 **Output includes:**
+
 - Name, size, piece count
 - Info hash (SHA1)
 - Trackers
@@ -127,10 +132,12 @@ shelfr mkbrr check <torrent> <content> [options]
 ```
 
 **Arguments:**
+
 - `TORRENT` - Path to .torrent file (required)
 - `CONTENT` - Path to content file/directory (required)
 
 **Options:**
+
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--verbose` | `-v` | Show bad piece indices |
@@ -151,12 +158,14 @@ shelfr mkbrr check mybook.torrent /media/audiobooks/MyBook --verbose
 ```
 
 **Output includes:**
+
 - Completion percentage
 - Good/bad piece counts
 - Missing files
 - Check time
 
 **Exit codes:**
+
 - `0` - Content matches torrent (100%, no bad pieces, no missing files)
 - `1` - Content mismatch or missing files
 
@@ -169,9 +178,11 @@ shelfr mkbrr modify <torrent> [options]
 ```
 
 **Arguments:**
+
 - `TORRENT` - Path to .torrent file(s) (required, multiple allowed)
 
 **Options:**
+
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--tracker` | `-t` | New tracker announce URL |
@@ -213,6 +224,7 @@ shelfr mkbrr presets
 ```
 
 **Example output:**
+
 ```
 Available Presets
 ┌─────────┬───────────────────────────────────────────┐
@@ -233,6 +245,7 @@ shelfr mkbrr version
 ```
 
 **Example output:**
+
 ```
 mkbrr version: 1.5.0
 ```
@@ -326,6 +339,7 @@ Error: Docker not available
 ```
 
 **Solution:** Ensure Docker is running and accessible:
+
 ```bash
 docker --version
 docker ps
@@ -346,6 +360,7 @@ Warning: No presets found
 ```
 
 **Solution:** Verify `presets.yaml` exists at the configured `host_config_dir`:
+
 ```bash
 ls -la /mnt/cache/appdata/mkbrr/presets.yaml
 ```
@@ -357,6 +372,7 @@ Error: Command timed out after 300 seconds
 ```
 
 **Solution:** Increase `timeout_seconds` in config for large content:
+
 ```yaml
 mkbrr:
   timeout_seconds: 600  # 10 minutes
