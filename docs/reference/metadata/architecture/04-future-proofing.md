@@ -357,106 +357,165 @@ class CanonicalMetadata(BaseModel):
     # metadata.custom_fields["read_date"] = "2024-01-15"
 ```
 
----
-
-## 9. Sync/Async Flexibility
-
-Some providers may need sync (file-based), others async (API):
-
-```python
-class MetadataProvider(Protocol):
-    is_async: bool = True
-    
-    # Providers implement ONE of these
-    async def fetch_async(self, identifier: str, id_type: str) -> ProviderResult: ...
-    def fetch_sync(self, identifier: str, id_type: str) -> ProviderResult: ...
-
-
-# Aggregator handles both
-class MetadataAggregator:
-    async def _call_provider(self, provider: MetadataProvider, id: str, id_type: str):
-        if provider.is_async:
-            return await provider.fetch_async(id, id_type)
-        else:
-            return await asyncio.to_thread(provider.fetch_sync, id, id_type)
-```
+> **Build now:** One-line addition, future-proofs without complexity.
 
 ---
 
-## 10. Rate Limiting Infrastructure
+## 9. Sync/Async Design
 
-Shared rate limiter per provider:
+> **Already solved.** Your current provider architecture handles this cleanly:
+> - All providers implement `async fetch()`
+> - Sync providers (MediaInfo) wrap their work with `asyncio.to_thread()` internally
+> - Aggregator doesn't care who's sync vs async
+
+**Don't** add `is_async` + dual `fetch_async`/`fetch_sync` methods — it complicates the protocol for no gain.
 
 ```python
-# metadata/ratelimit.py
-class RateLimiter:
-    """Token bucket rate limiter."""
+# This is already the correct pattern (from 03-plugin-architecture.md)
+class MediaInfoProvider:
+    async def fetch(self, ctx: LookupContext, id_type: IdType) -> ProviderResult:
+        return await asyncio.to_thread(self._fetch_sync, ctx, id_type)
     
-    def __init__(self, requests_per_second: float, burst: int = 1):
-        self.rate = requests_per_second
-        self.burst = burst
-        self._tokens = burst
-        self._last_refill = time.monotonic()
-    
-    async def acquire(self) -> None:
-        """Wait until a request can be made."""
+    def _fetch_sync(self, ctx, id_type) -> ProviderResult:
+        # Actual sync work here
         ...
-
-
-# Per-provider configuration
-RATE_LIMITS = {
-    "audnex": RateLimiter(5.0, burst=10),  # 5 req/s
-    "hardcover": RateLimiter(2.0, burst=5),  # 2 req/s
-    "goodreads": RateLimiter(1.0, burst=1),  # Very limited
-}
 ```
 
 ---
 
-## 11. Circuit Breaker Integration
+## 10. Rate Limiting & Circuit Breakers
 
-We already have `CircuitBreaker` - make it provider-aware:
+> **Architecture goal:** Treat rate limiting + circuit breakers as **composable middleware**, not global dicts.
 
 ```python
-# Each provider gets its own circuit breaker
-class ProviderCircuitBreakers:
-    _breakers: dict[str, CircuitBreaker] = {}
+# Conceptual goal (don't need to implement decorators now):
+provider = Cached(RateLimited(CircuitBroken(HardcoverProvider(...))))
+```
+
+**For now:** Use existing `CircuitBreaker` infrastructure, wire per-provider:
+
+```python
+# metadata/providers/resilience.py
+class ProviderResilience:
+    """Per-provider rate limiting + circuit breakers."""
     
-    @classmethod
-    def get(cls, provider_name: str) -> CircuitBreaker:
-        if provider_name not in cls._breakers:
-            cls._breakers[provider_name] = CircuitBreaker(
+    def __init__(self):
+        self._breakers: dict[str, CircuitBreaker] = {}
+        self._limiters: dict[str, RateLimiter] = {}
+    
+    def get_breaker(self, provider_name: str) -> CircuitBreaker:
+        if provider_name not in self._breakers:
+            self._breakers[provider_name] = CircuitBreaker(
                 failure_threshold=5,
                 recovery_timeout=60,
                 name=f"provider:{provider_name}"
             )
-        return cls._breakers[provider_name]
+        return self._breakers[provider_name]
+    
+    def get_limiter(self, provider_name: str) -> RateLimiter:
+        # Config-driven rates
+        rates = {
+            "audnex": (5.0, 10),    # 5 req/s, burst 10
+            "hardcover": (2.0, 5),  # 2 req/s, burst 5
+            "goodreads": (1.0, 1),  # 1 req/s, no burst
+        }
+        if provider_name not in self._limiters:
+            rate, burst = rates.get(provider_name, (10.0, 20))
+            self._limiters[provider_name] = RateLimiter(rate, burst)
+        return self._limiters[provider_name]
+
+
+# Usage in aggregator (adapt to your actual CircuitBreaker API)
+async def _safe_fetch(self, provider, ctx, id_type):
+    breaker = self.resilience.get_breaker(provider.name)
+    limiter = self.resilience.get_limiter(provider.name)
+    
+    await limiter.acquire()
+    async with breaker:  # Or breaker.call(...) depending on your implementation
+        return await provider.fetch(ctx, id_type)
 ```
+
+> **RateLimiter note:** If you don't already have one, `aiolimiter` is a solid off-the-shelf option, or a token bucket implementation is ~30 lines.
 
 ---
 
-## 12. Testing Infrastructure
+## 11. Testing Infrastructure
 
 Make providers easy to mock:
 
 ```python
 # metadata/providers/mock.py
-class MockProvider(MetadataProvider):
+class MockProvider:
     """Mock provider for testing."""
     
     name = "mock"
     priority = 999
+    kind = "local"
+    is_override = False
+    supports_batch = False
+    max_batch_size = 1
     
     def __init__(self, responses: dict[str, ProviderResult]):
         self.responses = responses
-        self.call_log: list[tuple[str, str]] = []
+        self.call_log: list[LookupContext] = []
     
-    async def fetch(self, identifier: str, id_type: str) -> ProviderResult:
-        self.call_log.append((identifier, id_type))
-        return self.responses.get(identifier, ProviderResult(success=False))
+    def can_lookup(self, ctx: LookupContext, id_type: IdType) -> bool:
+        # Safely check if we have a response for this id_type
+        key = ctx.ids.get(id_type)
+        return key is not None and key in self.responses
+    
+    async def fetch(self, ctx: LookupContext, id_type: IdType) -> ProviderResult:
+        self.call_log.append(ctx)
+        key = ctx.ids.get(id_type, "")
+        return self.responses.get(key, ProviderResult(provider=self.name, success=False))
 
 
-# In tests:
-mock = MockProvider({"B0CJ1234": ProviderResult(success=True, data={...})})
-ProviderRegistry.register(mock)
+# In tests (instance-based registry = no leaking between tests)
+def test_aggregator_merges_correctly():
+    mock = MockProvider({
+        "B0CJ1234": ProviderResult(
+            provider="mock",
+            success=True,
+            fields={"title": "Test Book", "authors": ["Test Author"]},
+            confidence={"title": 1.0, "authors": 1.0},
+        )
+    })
+    
+    registry = ProviderRegistry()
+    registry.register(mock)
+    
+    aggregator = MetadataAggregator(registry=registry)
+    # ... test assertions
 ```
+
+> **Build now:** High value, low cost. Essential for testing the aggregator.
+
+---
+
+## 12. Implementation Priority
+
+### Build Now (low cost, high value)
+
+| Item | Effort | Why Now |
+|------|--------|---------|
+| **MockProvider** (§11) | 30 min | Essential for aggregator tests |
+| **custom_fields dict** (§8) | 5 min | One-line future-proofing |
+| **supports_batch = False** (§7) | 5 min | Add to protocol, implement later |
+| **Circuit breakers per-provider** (§10) | 1 hr | Already have infrastructure |
+
+### Design For, Defer Implementation
+
+| Item | When to Build |
+|------|---------------|
+| **Exporters** (§1) | When adding 3rd output format |
+| **Caching layer** (§2) | When network calls become pain point |
+| **Batch operations** (§7) | When hitting API that supports bulk |
+| **Full provenance** (§6) | When debugging "why this value?" becomes frequent |
+
+### Likely YAGNI
+
+| Item | Alternative |
+|------|-------------|
+| **Event hooks** (§3) | Structured logging covers 80% |
+| **Field mapping YAML** (§5) | Code mappings are more debuggable |
+| **Redis cache** (§2) | File/SQLite cache sufficient for single-user tool |
