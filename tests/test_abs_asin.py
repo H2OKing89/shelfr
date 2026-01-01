@@ -1086,7 +1086,6 @@ class TestMatchSearchResults:
 
         Regression test for bug where Vol. 1 was selected instead of Vol. 5
         because the volume bonus was being capped at 1.0 during comparison.
-        See: https://github.com/H2OKing89/shelfr/issues/XXX
         """
         from shelfr.abs.asin import match_search_results
 
@@ -1126,7 +1125,7 @@ class TestMatchSearchResults:
         assert "Vol. 5" in match.title
 
     def test_volume_bonus_across_series(self) -> None:
-        """Volume matching should work for various volume formats."""
+        """Volume matching should work across multiple volumes in a series."""
         from shelfr.abs.asin import match_search_results
 
         results = [
