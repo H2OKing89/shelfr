@@ -234,14 +234,24 @@ def migrate_metadata(data: dict, from_version: str) -> CanonicalMetadata:
     # Apply migrations in order...
 ```
 
+**Best places to enforce versioning:**
+
+1. **Cache reads** — migrate old entries on read
+2. **Sidecar IO** — write `schema_version` to `metadata.json`/`.opf`
+3. **Provider sidecar readers** — migrate old sidecars → emit canonical fields
+
+Aggregator stays version-agnostic.
+
 ---
 
 ## 5. Field Mapping Configuration
 
-External config for provider → canonical field mapping (avoid hardcoding):
+> **Defer this.** Hardcoded mappings in each provider are fine until you have 5+ providers or non-developers configuring them. Nested mapping like `authors[].name` becomes a mini-language that's harder to debug than code.
+
+External config for provider → canonical field mapping (optional convenience layer):
 
 ```yaml
-# config/provider_mappings.yaml
+# config/provider_mappings.yaml (FUTURE - not required for v1)
 hardcover:
   title: title
   subtitle: subtitle
@@ -249,70 +259,85 @@ hardcover:
   series.position: series_primary.position
   authors[].name: authors[].name
   published_date: release_date  # Different field name
+```
 
-goodreads:
-  work.title: title
-  work.original_publication_year: release_date
-  authors.author[].name: authors[].name
+**If you build it later:**
+
+```python
+# JsonMappingProvider for "simple JSON API" providers
+class JsonMappingProvider(BaseProvider):
+    """Quick wins for simple APIs via config-driven mapping."""
+    
+    def __init__(self, name: str, mapping: dict[str, str], ...):
+        self.mapping = mapping
+        ...
 ```
 
 ---
 
 ## 6. Data Provenance / Audit Trail
 
-Track where every field came from (useful for debugging, corrections):
+Your `AggregatedResult` already tracks `sources[field] = provider` and `conflicts[]`. Extend it rather than adding a separate tracker:
 
 ```python
 @dataclass
 class FieldProvenance:
-    """Track origin of each metadata field."""
-    
-    field: str
-    value: Any
+    """Detailed origin info for a single field."""
     provider: str
-    fetched_at: datetime
     confidence: float
-    overridden_by: str | None = None  # If user corrected
+    fetched_at: datetime | None = None
+    cached: bool = False
 
 
-class ProvenanceTracker:
-    """Track complete history of metadata assembly."""
+@dataclass
+class AggregatedResult:
+    """Aggregated metadata from multiple providers."""
+    metadata: CanonicalMetadata
+    sources: dict[FieldName, str]           # field -> winning provider
+    provenance: dict[FieldName, list[FieldProvenance]]  # field -> all candidates (descending confidence)
+    conflicts: list[FieldConflict]          # Fields where providers disagreed
+    missing: list[FieldName]                # Fields no provider had
     
-    def __init__(self):
-        self.history: list[FieldProvenance] = []
-    
-    def record(self, field: str, value: Any, provider: str, confidence: float):
-        self.history.append(FieldProvenance(...))
-    
-    def get_source(self, field: str) -> str:
-        """Which provider supplied this field?"""
-        ...
-    
-    def export_audit_log(self) -> dict:
-        """Full provenance report for debugging."""
-        ...
+    # Timing info for debugging
+    fetched_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    provider_timings: dict[str, float] = field(default_factory=dict)  # provider -> seconds
+
+
+# Usage: debugging UI can show "why did series_name come from libation?"
+# provenance["series_name"][0] is always the winner (highest confidence)
+for candidate in result.provenance["series_name"]:
+    print(f"  {candidate.provider}: confidence={candidate.confidence}")
 ```
+
+This keeps provenance co-located with the result rather than requiring a separate tracking system.
 
 ---
 
 ## 7. Batch Operations
 
-Some APIs support bulk lookups - design for it:
+Some APIs support bulk lookups — design for it using `LookupContext`:
 
 ```python
 class MetadataProvider(Protocol):
-    # ... existing methods ...
+    # ... existing attributes ...
     
-    supports_batch: bool = False
+    supports_batch: bool = False  # Add now, default False
     max_batch_size: int = 1
     
     async def fetch_batch(
         self, 
-        identifiers: list[tuple[str, str]]  # [(id, type), ...]
+        ctxs: list[LookupContext],
+        id_type: IdType,
     ) -> list[ProviderResult]:
-        """Fetch multiple items in one request (if supported)."""
+        """Fetch multiple items in one request (if supported).
+        
+        Only network providers meaningfully implement this.
+        MediaInfo is "batch" by just running local scans in parallel.
+        """
         ...
 ```
+
+> **When to build:** Add `supports_batch` to protocol now (defaults to False). Implement when you hit an API that supports bulk lookup.
 
 ---
 
