@@ -81,7 +81,7 @@
 
 ---
 
-## 🔄 Pipeline
+## Pipeline
 
 ```mermaid
 graph LR
@@ -91,8 +91,6 @@ graph LR
     D --> E[🧲 mkbrr]
     E --> F[⬆️ qBittorrent]
     F --> G[📚 Audiobookshelf]
-    style A fill:#e1f5fe
-    style G fill:#e8f5e9
 ```
 
 <details>
@@ -111,8 +109,9 @@ graph LR
 
 ---
 
-## 📥 Installation
+## Installation
 
+> [!NOTE]
 > Repo name is `shelfr`; the app name/CLI is `shelfr`.
 
 ```bash
@@ -150,38 +149,42 @@ $EDITOR config/.env config/config.yaml
 <th>Notes</th>
 </tr>
 <tr>
-<td>🐍 Python</td>
-<td>3.11+</td>
+<td><strong>Python</strong></td>
+<td><code>3.11+</code></td>
 <td>Required</td>
 </tr>
 <tr>
-<td>🐳 Docker</td>
+<td><strong>Docker</strong></td>
 <td>Latest</td>
 <td>For Libation and mkbrr containers</td>
 </tr>
 <tr>
-<td>📥 qBittorrent</td>
-<td>4.x+</td>
+<td><strong>qBittorrent</strong></td>
+<td><code>4.x+</code></td>
 <td>With Web UI enabled</td>
 </tr>
 <tr>
-<td>🎵 mediainfo</td>
+<td><strong>mediainfo</strong></td>
 <td>Latest</td>
-<td>CLI tool for audio metadata (runs on host, not inside Docker)</td>
+<td>CLI tool for audio metadata <sup>1</sup></td>
 </tr>
 </table>
 
+<sup>1</sup> Runs on host, not inside Docker.
+
 ---
 
-## ⚙️ Configuration
+## Configuration
 
-shelfr uses layered configuration with automatic validation:
+shelfr uses layered configuration with automatic validation.
 
+> [!TIP]
 > **Precedence**: `config.yaml` > `.env` > defaults
+>
 > Put secrets in `.env`, everything else in `config.yaml`.
 
 <details>
-<summary><strong>1. 🔐 <code>config/.env</code> - Secrets Only (never commit)</strong></summary>
+<summary><strong>config/.env</strong> — Secrets only <em>(never commit)</em></summary>
 
 ```bash
 # qBittorrent credentials (REQUIRED)
@@ -198,13 +201,14 @@ Shelfr_ENV=production
 LOG_LEVEL=INFO
 ```
 
-> **Note**: Docker/Libation settings (`LIBATION_CONTAINER`, `DOCKER_BIN`, `TARGET_UID`, `TARGET_GID`)
+> [!NOTE]
+> Docker/Libation settings (`LIBATION_CONTAINER`, `DOCKER_BIN`, `TARGET_UID`, `TARGET_GID`)
 > belong in `config.yaml`'s `environment:` section, not here.
 
 </details>
 
 <details>
-<summary><strong>2. 📝 <code>config/config.yaml</code> - Paths & Settings</strong></summary>
+<summary><strong>config/config.yaml</strong> — Paths and settings</summary>
 
 ```yaml
 # Docker/Libation settings (preferred location over .env)
@@ -269,7 +273,7 @@ Naming rules control title/subtitle normalization and filtering used by the nami
 </details>
 
 <details>
-<summary><strong>3. 🗂️ <code>config/categories.json</code> - MAM Genre Mappings</strong></summary>
+<summary><strong>config/categories.json</strong> — MAM genre mappings</summary>
 
 Maps audiobook genres to MAM category IDs:
 
@@ -284,7 +288,7 @@ Maps audiobook genres to MAM category IDs:
 </details>
 
 <details>
-<summary><strong>4. 🌍 Environment Variables - XDG Path Overrides</strong></summary>
+<summary><strong>Environment variables</strong> — XDG path overrides</summary>
 
 shelfr uses XDG-compliant paths by default (via [platformdirs](https://github.com/platformdirs/platformdirs)):
 
@@ -302,13 +306,14 @@ export SHELFR_CACHE_DIR="/mnt/cache/appdata/shelfr/cache"
 export SHELFR_LOG_DIR="/mnt/cache/appdata/shelfr/logs"
 ```
 
-> **Note**: Explicitly configured paths in `config.yaml` always take precedence over environment variables.
+> [!NOTE]
+> Explicitly configured paths in `config.yaml` always take precedence over environment variables.
 
 </details>
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ### Full Pipeline
 
@@ -364,16 +369,17 @@ shelfr check-duplicates  # Find potential duplicate releases
 | `-c, --config PATH` | Custom config.yaml path |
 | `-V, --version` | Show version |
 
-> ⚠️ **Important**: Global options like `--dry-run` must come **before** the subcommand:
+> [!IMPORTANT]
+> Global options like `--dry-run` must come **before** the subcommand:
 >
 > ```bash
-> shelfr --dry-run abs import  # ✅ Correct
-> shelfr abs import --dry-run  # ❌ Won't work
+> shelfr --dry-run abs import  # Correct
+> shelfr abs import --dry-run  # Won't work
 > ```
 
 ---
 
-## 📚 Audiobookshelf Integration
+## Audiobookshelf Integration
 
 shelfr supports importing audiobooks directly to Audiobookshelf libraries with duplicate detection and quality-based replacement (trumping).
 
@@ -432,6 +438,7 @@ audiobookshelf:
 
 **Format Ranking:** m4b > m4a > opus > mp3 > flac (for audiobooks)
 
+> [!NOTE]
 > FLAC is ranked lowest because speech doesn't benefit from lossless encoding, FLAC lacks chapter support, and file sizes are significantly larger.
 
 **Trumping Decisions:**
@@ -447,7 +454,7 @@ audiobookshelf:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 shelfr uses a modular architecture with clean separation of concerns:
 
@@ -459,7 +466,7 @@ shelfr/
 │   ├── models.py               # Pydantic data models
 │   ├── workflow.py             # Pipeline orchestration
 │   │
-│   ├── commands/               # 🆕 CLI command handlers
+│   ├── commands/               # CLI command handlers
 │   │   ├── core.py             #    scan, discover, prepare, etc.
 │   │   ├── utility.py          #    status, check, validate
 │   │   ├── diagnostics.py      #    dry-run, check-duplicates
@@ -472,13 +479,13 @@ shelfr/
 │   │   └── asin.py             #    ASIN extraction/resolution
 │   │
 │   ├── utils/
-│   │   ├── naming/             # 🆕 Modular naming system
+│   │   ├── naming/             # Modular naming system
 │   │   │   ├── filters.py      #    Title/series filtering
 │   │   │   ├── mam_paths.py    #    MAM path building
 │   │   │   ├── normalization.py#    Book normalization
 │   │   │   └── ...             #    8 focused modules
-│   │   ├── cmd.py              # 🆕 sh-library subprocess wrapper
-│   │   ├── retry.py            # 🆕 tenacity-powered retries
+│   │   ├── cmd.py              # sh-library subprocess wrapper
+│   │   ├── retry.py            # tenacity-powered retries
 │   │   ├── state.py            #    State management (v2 schema)
 │   │   └── paths.py            #    Host↔container path mapping
 │   │
@@ -495,23 +502,22 @@ shelfr/
 ```
 
 <details>
-<summary><strong>Recent Architecture Improvements (December 2025)</strong></summary>
+<summary><strong>Recent Architecture Improvements</strong> (December 2025)</summary>
 
-- **CLI Split**: `cli.py` reduced from 4,100 → 820 lines via `commands/` subpackage
-- **Naming Refactor**: `naming.py` split into 9 focused modules for maintainability
-- **State Hardening**: Schema v2 with atomic writes, checkpoints, and backup recovery
-- **Production Dependencies**: Replaced custom code with battle-tested libraries:
-  - `tenacity` for retry logic with exponential backoff
-  - `platformdirs` for XDG-compliant paths
-  - `sh` library wrapper for cleaner subprocess handling
+| Area | Change |
+|------|--------|
+| **CLI Split** | `cli.py` reduced from 4,100 → 820 lines via `commands/` subpackage |
+| **Naming Refactor** | `naming.py` split into 9 focused modules for maintainability |
+| **State Hardening** | Schema v2 with atomic writes, checkpoints, and backup recovery |
+| **Production Deps** | Replaced custom code with `tenacity`, `platformdirs`, and `sh` library |
 
-  See `docs/README.md` for the documentation layout.
+See [docs/README.md](docs/README.md) for the full documentation layout.
 
 </details>
 
 ---
 
-## 🛠️ Development
+## Development
 
 ```bash
 # Install dev dependencies
@@ -567,7 +573,68 @@ repos:
 
 ---
 
-## 📄 License
+## Acknowledgments
+
+shelfr is built on top of excellent open-source projects and services:
+
+<table>
+<tr>
+<td align="center" width="140">
+<a href="https://github.com/laxamentumtech/audnexus">
+<img src="https://img.shields.io/badge/Audnex-API-8B5CF6?style=for-the-badge" alt="Audnex">
+</a>
+<br><sub>Audiobook metadata</sub>
+</td>
+<td align="center" width="140">
+<a href="https://github.com/advplyr/audiobookshelf">
+<img src="https://img.shields.io/badge/Audiobookshelf-Server-1DB954?style=for-the-badge" alt="Audiobookshelf">
+</a>
+<br><sub>Self-hosted streaming</sub>
+</td>
+<td align="center" width="140">
+<a href="https://github.com/autobrr/mkbrr">
+<img src="https://img.shields.io/badge/mkbrr-Torrents-FF6B6B?style=for-the-badge" alt="mkbrr">
+</a>
+<br><sub>Torrent creation</sub>
+</td>
+<td align="center" width="140">
+<a href="https://github.com/qbittorrent/qBittorrent">
+<img src="https://img.shields.io/badge/qBittorrent-Client-2F67BA?style=for-the-badge" alt="qBittorrent">
+</a>
+<br><sub>BitTorrent client</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+<a href="https://github.com/rmcrackan/Libation">
+<img src="https://img.shields.io/badge/Libation-Audible-F59E0B?style=for-the-badge" alt="Libation">
+</a>
+<br><sub>Audible manager</sub>
+</td>
+<td align="center">
+<a href="https://mediaarea.net/en/MediaInfo">
+<img src="https://img.shields.io/badge/MediaInfo-Analysis-00ACC1?style=for-the-badge" alt="MediaInfo">
+</a>
+<br><sub>Media analysis</sub>
+</td>
+<td align="center">
+<a href="https://github.com/pydantic/pydantic">
+<img src="https://img.shields.io/badge/Pydantic-Models-E92063?style=for-the-badge" alt="Pydantic">
+</a>
+<br><sub>Data validation</sub>
+</td>
+<td align="center">
+<a href="https://github.com/Textualize/rich">
+<img src="https://img.shields.io/badge/Rich-Terminal-9D4EDD?style=for-the-badge" alt="Rich">
+</a>
+<br><sub>Terminal formatting</sub>
+</td>
+</tr>
+</table>
+
+---
+
+## License
 
 [MIT](LICENSE) © 2024-2025
 
