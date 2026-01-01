@@ -277,11 +277,14 @@ This avoids hammering Audnex/Hardcover when a sidecar already has needed values.
 # metadata/aggregator.py
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, get_args
 
 from .providers.types import LookupContext, ProviderResult, FieldName, IdType
 from .providers.base import MetadataProvider
 from .providers.registry import ProviderRegistry, default_registry
+
+# Runtime set of all canonical fields (from Literal type)
+ALL_FIELDS: set[FieldName] = set(get_args(FieldName))
 
 
 @dataclass
@@ -309,6 +312,11 @@ class MetadataAggregator:
     1. Higher confidence score
     2. Lower provider priority (more trusted)
     3. Value quality heuristic (non-empty > empty, longer summary > shorter)
+    
+    Note: Some fields use custom merge semantics instead of scalar conflict resolution:
+    - genres: union + normalize (combine from all providers)
+    - authors/narrators: union with ordering preserved from highest-priority provider
+    - chapters: prefer single provider (Audnex > MediaInfo), not union
     """
     
     def __init__(
@@ -357,33 +365,50 @@ class MetadataAggregator:
         else:
             provider_list = self.registry.get_for_context(ctx, id_type)
         
+        # Build provider lookup for is_override check
+        provider_map = {p.name: p for p in provider_list}
+        
         # Split by kind attribute (not hardcoded names)
         local_providers = [p for p in provider_list if p.kind == "local"]
         network_providers = [p for p in provider_list if p.kind == "network"]
         
-        # Stage 1: Run local providers (cheap, can parallelize)
+        # Stage 1: Run local providers (cheap, parallelized, error-safe)
         results: list[ProviderResult] = []
         if local_providers:
-            stage1 = await asyncio.gather(*(p.fetch(ctx, id_type) for p in local_providers))
+            stage1 = await asyncio.gather(
+                *(self._safe_fetch(p, ctx, id_type) for p in local_providers)
+            )
             results.extend(stage1)
         
         # Check if we can skip network calls
         if stop_on_complete:
-            filled = self._get_filled_fields(results)
+            filled = self._get_filled_fields(results, provider_map)
             if required.issubset(filled):
-                return self._merge(results, provider_list)
+                return self._merge(results, provider_map)
         
-        # Stage 2: Run network providers
+        # Stage 2: Run network providers (also error-safe)
         for provider in network_providers:
-            result = await provider.fetch(ctx, id_type)
+            result = await self._safe_fetch(provider, ctx, id_type)
             results.append(result)
         
-        return self._merge(results, provider_list)
+        return self._merge(results, provider_map)
+    
+    async def _safe_fetch(
+        self,
+        provider: MetadataProvider,
+        ctx: LookupContext,
+        id_type: IdType,
+    ) -> ProviderResult:
+        """Fetch with error handling — one provider failure doesn't nuke the batch."""
+        try:
+            return await provider.fetch(ctx, id_type)
+        except Exception as e:
+            return ProviderResult(provider=provider.name, success=False, error=str(e))
     
     def _merge(
         self,
         results: list[ProviderResult],
-        providers: list[MetadataProvider],
+        provider_map: dict[str, MetadataProvider],
     ) -> AggregatedResult:
         """Merge multiple provider results into canonical metadata.
         
@@ -391,19 +416,28 @@ class MetadataAggregator:
         - Skip success=False results
         - Skip empty values (unless from override provider via is_override flag)
         """
-        # Build provider lookup for is_override check
-        provider_map = {p.name: p for p in providers}
         # Implementation: iterate fields, apply strategy, track conflicts
         ...
     
-    def _get_filled_fields(self, results: list[ProviderResult]) -> set[FieldName]:
-        """Get all fields that have non-empty values."""
+    def _get_filled_fields(
+        self,
+        results: list[ProviderResult],
+        provider_map: dict[str, MetadataProvider],
+    ) -> set[FieldName]:
+        """Get all fields that have values set.
+        
+        Override providers count as "filled" even for empty values
+        (user intentionally cleared the field).
+        """
         filled: set[FieldName] = set()
         for result in results:
             if not result.success:
                 continue
+            provider = provider_map.get(result.provider)
             for field, value in result.fields.items():
-                if not self._is_empty(value):
+                if provider and provider.is_override:
+                    filled.add(field)  # Override counts even if empty
+                elif not self._is_empty(value):
                     filled.add(field)
         return filled
     
@@ -437,32 +471,38 @@ class MetadataAggregator:
             (resolved_value, resolution_reason) where reason is one of:
             - "priority": priority was the deciding factor
             - "confidence": confidence score was the deciding factor
-            - "quality": tie-breaker (e.g., longer summary wins)
+            - "quality": quality heuristic broke a tie (e.g., longer summary)
         """
         if self.merge_strategy == "priority":
             # Lowest priority number wins
-            winner = min(candidates.items(), key=lambda x: x[1][2])
-            return winner[1][0], "priority"
+            provider, (value, _, _) = min(candidates.items(), key=lambda x: x[1][2])
+            return value, "priority"
         
-        # Confidence strategy with tie-breakers
-        # Track which factor actually broke the tie
-        sorted_candidates = sorted(candidates.items(), key=lambda x: (-x[1][1], x[1][2]))
+        # Confidence strategy with full tie-breaker chain
+        # Build scored list: (provider, value, confidence, priority, quality)
+        scored = []
+        for provider, (value, confidence, priority) in candidates.items():
+            quality = self._value_quality(field, value)
+            scored.append((provider, value, confidence, priority, quality))
         
-        if len(sorted_candidates) == 1:
-            return sorted_candidates[0][1][0], "confidence"
+        # Sort by: max(confidence), min(priority), max(quality)
+        scored.sort(key=lambda x: (-x[2], x[3], -x[4]))
+        winner = scored[0]
         
-        top = sorted_candidates[0]
-        second = sorted_candidates[1]
+        if len(scored) == 1:
+            return winner[1], "confidence"
         
-        # What broke the tie?
-        if top[1][1] != second[1][1]:
+        second = scored[1]
+        
+        # Determine what actually broke the tie
+        if winner[2] != second[2]:
             reason = "confidence"
-        elif top[1][2] != second[1][2]:
+        elif winner[3] != second[3]:
             reason = "priority"
         else:
             reason = "quality"
         
-        return top[1][0], reason
+        return winner[1], reason
     
     def _value_quality(self, field: FieldName, value: Any) -> int:
         """Heuristic quality score for tie-breaking."""
