@@ -122,16 +122,16 @@ See [naming/NAMING_RULES.md](naming/NAMING_RULES.md) for the full rule set.
 
 | Term | Definition |
 |------|------------|
-| **ASIN** | Amazon Standard Identification Number (10-char alphanumeric) |
-| **MAM** | MyAnonaMouse - private audiobook tracker |
 | **ABS** | Audiobookshelf - self-hosted audiobook server |
 | **Aggregator** | System component that merges and prioritizes metadata from multiple providers |
+| **ASIN** | Amazon Standard Identification Number (10-char alphanumeric) |
 | **Audnex** | API service providing normalized Audible metadata |
-| **Libation** | Desktop app for downloading Audible audiobooks |
-| **MediaInfo** | Command-line utility for extracting audio format, duration, and codec info |
-| **OPF** | Open Packaging Format - ebook/audiobook metadata standard |
-| **Sidecar** | Metadata file placed alongside audiobook files |
-| **Provider** | Module that fetches metadata from a source |
-| **Exporter** | Module that renders metadata to an output format |
 | **CanonicalMetadata** | Single source of truth for all metadata fields |
+| **Exporter** | Module that renders metadata to an output format |
+| **Libation** | Desktop app for downloading Audible audiobooks |
+| **MAM** | MyAnonaMouse - private audiobook tracker |
+| **MediaInfo** | Command-line utility for extracting audio format, duration, and codec info |
 | **NormalizedBook** | Corrected title/subtitle/series for naming |
+| **OPF** | Open Packaging Format - ebook/audiobook metadata standard |
+| **Provider** | Module that fetches metadata from a source |
+| **Sidecar** | Metadata file placed alongside audiobook files |

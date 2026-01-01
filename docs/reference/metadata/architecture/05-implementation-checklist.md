@@ -38,6 +38,11 @@
 - [ ] Update `metadata/__init__.py` to re-export from new location
 - [ ] Run tests
 
+**Test Migration:**
+- Update imports: `from metadata.mediainfo import AudioFormat` → `from shelfr.metadata.mediainfo import AudioFormat`
+- Update patch targets: `@patch("metadata.run_mediainfo")` → `@patch("shelfr.metadata.mediainfo.run_mediainfo")`
+- Verify re-exports work: tests using `from shelfr.metadata import detect_audio_format` should still pass
+
 ---
 
 ## Phase 2: Extract Formatting (Presentation Layer)
@@ -51,6 +56,11 @@
   - **Private:** `_clean_html()`
 - [ ] Update re-exports
 
+**Test Migration:**
+- Update imports: `from metadata import render_bbcode_description` → `from shelfr.metadata.formatting.bbcode import render_bbcode_description`
+- Update mocks: Replace `metadata._format_duration` patches with `shelfr.metadata.formatting.bbcode._format_duration`
+- Verify `Chapter` imports from `metadata.models` (not `mediainfo`)
+
 ---
 
 ## Phase 3: Extract Audnex Client (Network Boundary)
@@ -62,6 +72,11 @@
   - All `_fetch_audnex_*_region()` helpers
 - [ ] Keep chapters with client (shared HTTP/retry/circuit-breaker patterns)
 - [ ] Update re-exports
+
+**Test Migration:**
+- Update HTTP mocks: `@patch("metadata.httpx.get")` → `@patch("shelfr.metadata.audnex.client.httpx.get")`
+- Update circuit breaker patches to new module path
+- Test chapter parsing: `_parse_chapters_from_audnex` now in `metadata.audnex.client`
 
 ---
 
@@ -75,6 +90,11 @@
 - [ ] Create `metadata/mam/json_builder.py`:
   - `build_mam_json()`, `save_mam_json()`, `generate_mam_json_for_release()`
   - `_build_series_list()`, `_get_mediainfo_string()`
+
+**Test Migration:**
+- Update category test imports: `from metadata.mam.categories import _infer_fiction_or_nonfiction`
+- Update MAM JSON golden tests: adjust import paths to `shelfr.metadata.mam.json_builder`
+- Verify integration: MAM builder depends on mediainfo/audnex/formatting extracted in Phases 1-3
 
 ---
 
