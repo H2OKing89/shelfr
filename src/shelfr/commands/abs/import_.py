@@ -244,6 +244,17 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     elif import_settings.generate_metadata_json:
         print_info("Metadata.json generation enabled")
 
+    # Handle --opf CLI flag override
+    opf_flag = getattr(args, "opf", None)
+    if opf_flag is True:
+        import_settings = replace(import_settings, generate_opf_sidecar=True)
+        print_info("OPF sidecar generation enabled (--opf)")
+    elif opf_flag is False:
+        import_settings = replace(import_settings, generate_opf_sidecar=False)
+        print_info("OPF sidecar generation disabled (--no-opf)")
+    elif import_settings.generate_opf_sidecar:
+        print_info("OPF sidecar generation enabled (config)")
+
     if args.dry_run:
         print_dry_run(f"Would import {len(staging_folders)} book(s)")
 
@@ -328,6 +339,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                 preferred_asin_region=settings.audnex.preferred_asin_region,
                 generate_metadata_json=import_settings.generate_metadata_json,
                 metadata_json_fallback=import_settings.metadata_json_fallback,
+                generate_opf_sidecar=import_settings.generate_opf_sidecar,
                 progress_callback=progress_callback,
                 dry_run=args.dry_run,
             )
@@ -530,6 +542,28 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                                             )
                                 except ValueError:
                                     pass  # Can't make relative path; skip adding file to tree
+
+                        # Show OPF sidecar preview (dry-run only, when enabled and ASIN present)
+                        # OPF generation requires audnex data which requires ASIN
+                        if args.dry_run and import_settings.generate_opf_sidecar and r.asin:
+                            console.print(
+                                "    [green]+ metadata.opf[/green] [dim](would be generated)[/dim]"
+                            )
+                            # Add to tree data
+                            if r.target_path:
+                                try:
+                                    rel_path = r.target_path.relative_to(abs_library_root)
+                                    parts = rel_path.parts
+                                    if len(parts) >= 2:
+                                        author = parts[0]
+                                        series = parts[1] if len(parts) >= 3 else ""
+                                        folder_name = parts[-1]
+                                        if folder_name in tree_data.get(author, {}).get(series, {}):
+                                            tree_data[author][series][folder_name].append(
+                                                "metadata.opf"
+                                            )
+                                except ValueError:
+                                    pass
 
             elif r.status == "trump_replaced":
                 # Trumping: replaced existing with new (better quality)

@@ -114,6 +114,14 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             bool,
             typer.Option("--no-metadata", help="Disable metadata.json generation."),
         ] = False,
+        opf: Annotated[
+            bool,
+            typer.Option("--opf", help="Enable metadata.opf sidecar generation."),
+        ] = False,
+        no_opf: Annotated[
+            bool,
+            typer.Option("--no-opf", help="Disable metadata.opf sidecar generation."),
+        ] = False,
     ) -> None:
         """Import staged audiobooks to Audiobookshelf.
 
@@ -139,6 +147,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             cleanup_path=cleanup_path,
             no_cleanup=no_cleanup,
             no_metadata=no_metadata,
+            opf=True if opf else (False if no_opf else None),
             command="abs import",
         )
         result = cmd_abs_import(args)

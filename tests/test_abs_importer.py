@@ -2447,3 +2447,196 @@ class TestBatchImportWithCleanup:
         assert (src1 / ".shelfr_imported").exists()
         # Book2 marker does not exist
         assert not (src2 / ".shelfr_imported").exists()
+
+
+# =============================================================================
+# Tests: OPF Sidecar Generation
+# =============================================================================
+
+
+class TestOPFSidecarGeneration:
+    """Tests for metadata.opf sidecar generation during import."""
+
+    def test_opf_sidecar_generated_when_enabled(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """OPF sidecar is generated when generate_opf_sidecar=True and audnex data available."""
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        library = tmp_path / "library"
+        library.mkdir()
+
+        folder_name = (
+            "Shirtaloon - He Who Fights with Monsters vol_01 "
+            "(2021) (Heath Miller) {ASIN.B08WJ59784}"
+        )
+        folder = staging / folder_name
+        folder.mkdir()
+        (folder / "audiobook.m4b").write_text("fake audio")
+
+        # Mock audnex response
+        mock_audnex_data = {
+            "asin": "B08WJ59784",
+            "title": "He Who Fights with Monsters",
+            "authors": [{"name": "Shirtaloon"}],
+            "narrators": [{"name": "Heath Miller"}],
+            "publisherName": "Podium Audio",
+            "releaseDate": "2021-03-09T00:00:00.000Z",
+            "language": "english",
+            "description": "Test description",
+            "seriesPrimary": {"name": "He Who Fights with Monsters", "position": "1"},
+        }
+
+        def mock_fetch_audnex_book(asin: str):
+            return mock_audnex_data, "us"  # Returns (data, region) tuple
+
+        monkeypatch.setattr(
+            "shelfr.abs.importer.fetch_audnex_book",
+            mock_fetch_audnex_book,
+        )
+
+        result = import_single(
+            staging_folder=folder,
+            library_root=library,
+            asin_index={},
+            generate_metadata_json=False,  # Disable JSON to isolate OPF test
+            generate_opf_sidecar=True,
+        )
+
+        assert result.status == "success"
+        assert result.target_path is not None
+
+        # Check OPF file was generated
+        opf_path = result.target_path / "metadata.opf"
+        assert opf_path.exists(), "metadata.opf should be generated"
+
+        # Verify OPF content
+        content = opf_path.read_text()
+        assert "He Who Fights with Monsters" in content
+        assert "Shirtaloon" in content
+        assert 'opf:role="aut"' in content
+        assert 'opf:role="nrt"' in content
+        assert "calibre:series" in content
+
+    def test_opf_sidecar_not_generated_when_disabled(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """OPF sidecar is NOT generated when generate_opf_sidecar=False (default)."""
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        library = tmp_path / "library"
+        library.mkdir()
+
+        folder_name = "Author - Title (2023) (Narrator) {ASIN.B012345678}"
+        folder = staging / folder_name
+        folder.mkdir()
+        (folder / "audiobook.m4b").write_text("fake audio")
+
+        mock_audnex_data = {
+            "asin": "B012345678",
+            "title": "Title",
+            "authors": [{"name": "Author"}],
+            "narrators": [{"name": "Narrator"}],
+            "language": "english",
+        }
+
+        def mock_fetch_audnex_book(asin: str):
+            return mock_audnex_data, "us"  # Returns (data, region) tuple
+
+        monkeypatch.setattr(
+            "shelfr.abs.importer.fetch_audnex_book",
+            mock_fetch_audnex_book,
+        )
+
+        result = import_single(
+            staging_folder=folder,
+            library_root=library,
+            asin_index={},
+            generate_metadata_json=False,
+            generate_opf_sidecar=False,  # Explicitly disabled
+        )
+
+        assert result.status == "success"
+        assert result.target_path is not None
+
+        # OPF should NOT exist
+        opf_path = result.target_path / "metadata.opf"
+        assert not opf_path.exists(), "metadata.opf should NOT be generated when disabled"
+
+    def test_opf_sidecar_skipped_without_audnex_data(self, tmp_path: Path) -> None:
+        """OPF sidecar is skipped when no audnex data available (no ASIN)."""
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        library = tmp_path / "library"
+        library.mkdir()
+
+        # Folder without ASIN - no audnex data will be available
+        folder_name = "Unknown Author - Unknown Book (2023)"
+        folder = staging / folder_name
+        folder.mkdir()
+        (folder / "audiobook.m4b").write_text("fake audio")
+
+        result = import_single(
+            staging_folder=folder,
+            library_root=library,
+            asin_index={},
+            generate_metadata_json=False,
+            generate_opf_sidecar=True,  # Enabled but won't generate without audnex
+            unknown_asin_policy=UnknownAsinPolicy.IMPORT,
+        )
+
+        assert result.status == "success"
+        assert result.target_path is not None
+
+        # OPF should NOT exist (no audnex data)
+        opf_path = result.target_path / "metadata.opf"
+        assert not opf_path.exists(), "metadata.opf requires audnex data"
+
+    def test_opf_sidecar_dry_run(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """OPF sidecar generation respects dry_run mode."""
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        library = tmp_path / "library"
+        library.mkdir()
+
+        folder_name = "Author - Title (2023) (Narrator) {ASIN.B012345678}"
+        folder = staging / folder_name
+        folder.mkdir()
+        (folder / "audiobook.m4b").write_text("fake audio")
+
+        mock_audnex_data = {
+            "asin": "B012345678",
+            "title": "Title",
+            "authors": [{"name": "Author"}],
+            "language": "english",
+        }
+
+        def mock_fetch_audnex_book(asin: str):
+            return mock_audnex_data, "us"  # Returns (data, region) tuple
+
+        monkeypatch.setattr(
+            "shelfr.abs.importer.fetch_audnex_book",
+            mock_fetch_audnex_book,
+        )
+
+        result = import_single(
+            staging_folder=folder,
+            library_root=library,
+            asin_index={},
+            generate_metadata_json=False,
+            generate_opf_sidecar=True,
+            dry_run=True,
+        )
+
+        assert result.status == "success"
+
+        # In dry_run, nothing should be moved/created
+        # Staging folder should still exist (not moved)
+        assert folder.exists(), "Staging folder should still exist in dry_run"
+
+        # Target path should NOT be created in dry-run
+        if result.target_path:
+            assert not result.target_path.exists(), "Target path should NOT be created in dry_run"
+            # metadata.opf should NOT be written in dry-run
+            opf_path = result.target_path / "metadata.opf"
+            assert not opf_path.exists(), "metadata.opf should NOT be created in dry_run"

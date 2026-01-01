@@ -86,7 +86,7 @@ def register_core_commands(app: typer.Typer) -> None:
 
     @app.command(rich_help_panel=CORE_COMMANDS)
     def status(ctx: typer.Context) -> None:
-        """Show processing status of all releases.
+        """Show processed pipeline releases.
 
         Displays a summary of discovered, staged, and processed releases
         with their current status in the pipeline.

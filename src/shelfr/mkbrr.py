@@ -49,6 +49,10 @@ def _docker_base_command() -> list[str]:
     - Data directory (/data)
     - Torrent output (/torrentfiles)
     - Config directory (presets.yaml)
+
+    Note: We don't use `-it` flags because the sh library used for command
+    execution doesn't properly pass through TTY, causing "input device is
+    not a TTY" errors. Colors are handled by mkbrr's auto-detection.
     """
     settings = get_settings()
     mkbrr = settings.mkbrr

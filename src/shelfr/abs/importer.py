@@ -1421,6 +1421,7 @@ def import_single(
     preferred_asin_region: str | None = None,
     generate_metadata_json: bool = True,
     metadata_json_fallback: bool = True,
+    generate_opf_sidecar: bool = False,
     dry_run: bool = False,
 ) -> ImportResult:
     """Import a single audiobook from staging to library.
@@ -1445,6 +1446,7 @@ def import_single(
             audnex returns a different region, normalizes to preferred region via ABS search.
         generate_metadata_json: If True, generate metadata.json for ABS (default True)
         metadata_json_fallback: If True, generate metadata.json even without ASIN (default True)
+        generate_opf_sidecar: If True, generate metadata.opf for ABS (default False)
         dry_run: If True, don't actually move files
 
     Returns:
@@ -1735,6 +1737,10 @@ def import_single(
         # Preview file renames
         rename_files_in_folder(staging_folder, parsed, dry_run=True)
 
+        # Preview OPF sidecar generation
+        if generate_opf_sidecar and audnex_data:
+            logger.info("[DRY RUN] Would generate metadata.opf in %s", target_path.name)
+
         # Preview cleanup (dry_run mode)
         cleanup_result: CleanupResult | None = None
         if (
@@ -1822,6 +1828,19 @@ def import_single(
             if metadata_path:
                 logger.info("Generated metadata.json (fallback): %s", metadata_path.name)
 
+    # ─────────────────────────────────────────────────────────────────────
+    # Generate metadata.opf sidecar for Audiobookshelf (OPF format)
+    # ─────────────────────────────────────────────────────────────────────
+    if generate_opf_sidecar and audnex_data:
+        from shelfr.opf import CanonicalMetadata, write_opf
+
+        try:
+            canonical = CanonicalMetadata.from_audnex(audnex_data)
+            opf_path = write_opf(canonical, target_path)
+            logger.info("Generated metadata.opf: %s", opf_path.name)
+        except Exception as e:
+            logger.warning("Failed to generate metadata.opf for %s: %s", asin, e)
+
     # Determine status based on whether trumping was involved
     if trump_decision == TrumpDecision.REPLACE_WITH_NEW:
         final_status = "trump_replaced"
@@ -1894,6 +1913,7 @@ def import_batch(
     preferred_asin_region: str | None = None,
     generate_metadata_json: bool = True,
     metadata_json_fallback: bool = True,
+    generate_opf_sidecar: bool = False,
     progress_callback: Callable[[int, int, Path], None] | None = None,
     dry_run: bool = False,
 ) -> BatchImportResult:
@@ -1919,6 +1939,7 @@ def import_batch(
             audnex returns a different region, normalizes to preferred region via ABS search.
         generate_metadata_json: If True, generate metadata.json for ABS (default True)
         metadata_json_fallback: If True, generate metadata.json even without ASIN (default True)
+        generate_opf_sidecar: If True, generate metadata.opf for ABS (default False)
         progress_callback: Optional callback(current, total, folder) for progress updates
         dry_run: If True, don't actually move files
 
@@ -1955,6 +1976,7 @@ def import_batch(
             preferred_asin_region=preferred_asin_region,
             generate_metadata_json=generate_metadata_json,
             metadata_json_fallback=metadata_json_fallback,
+            generate_opf_sidecar=generate_opf_sidecar,
             dry_run=dry_run,
         )
         batch_result.add(result)

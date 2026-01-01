@@ -236,6 +236,13 @@ audiobookshelf:
     metadata_json_fallback: true      # Generate even without ASIN (minimal data)
 
     # ───────────────────────────────────────────────────────────────────────
+    # OPF Sidecar Generation: Create Calibre-compatible metadata.opf files
+    # Audiobookshelf reads metadata.opf for additional metadata like series
+    # Uses Calibre's custom meta format for series detection
+    # ───────────────────────────────────────────────────────────────────────
+    generate_opf_sidecar: false       # Generate metadata.opf (default: off)
+
+    # ───────────────────────────────────────────────────────────────────────
     # Trumping: Quality-Based Replacement (optional)
     # See docs/audiobookshelf/TRUMPING.md for full documentation
     # ───────────────────────────────────────────────────────────────────────

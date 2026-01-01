@@ -388,6 +388,27 @@ shelfr abs cleanup           # Clean orphaned files
 shelfr abs restore           # List/restore archived books
 ```
 
+### OPF Sidecar (metadata.opf)
+
+shelfr can optionally generate a Calibre-compatible `metadata.opf` sidecar inside each imported book folder. This is useful for Audiobookshelf metadata ingestion (especially series detection via Calibre-style `meta` fields).
+
+Enable via config:
+
+```yaml
+# config/config.yaml
+audiobookshelf:
+  import:
+    generate_opf_sidecar: true
+```
+
+Or enable per-run with CLI flags:
+
+```bash
+shelfr abs import --opf         # enable
+shelfr abs import --no-opf      # disable
+shelfr --dry-run abs import --opf  # combine with global flags
+```
+
 ### Trumping (Quality-Based Replacement)
 
 When enabled, trumping automatically replaces lower-quality audiobooks with higher-quality versions:

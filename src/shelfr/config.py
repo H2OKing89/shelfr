@@ -443,6 +443,8 @@ class AudiobookshelfImportConfig:
     generate_metadata_json: bool = True
     # Generate metadata.json even without ASIN (minimal data from folder name)
     metadata_json_fallback: bool = True
+    # Generate metadata.opf sidecar for Audiobookshelf (Calibre-compatible OPF)
+    generate_opf_sidecar: bool = False
 
 
 @dataclass
@@ -1254,6 +1256,7 @@ def load_settings(
             ignore_file_extensions=abs_import_data.get("ignore_file_extensions", []),
             generate_metadata_json=abs_import_data.get("generate_metadata_json", True),
             metadata_json_fallback=abs_import_data.get("metadata_json_fallback", True),
+            generate_opf_sidecar=abs_import_data.get("generate_opf_sidecar", False),
         ),
         index_db=abs_data.get("index_db", "./data/abs_index.db"),
     )

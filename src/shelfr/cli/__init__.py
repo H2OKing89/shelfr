@@ -105,6 +105,30 @@ register_mkbrr_commands(mkbrr_app)
 
 
 # =============================================================================
+# Wizard Command (standalone - no sub-app)
+# =============================================================================
+
+
+@app.command("wizard", rich_help_panel=CORE_COMMANDS)
+def wizard_command() -> None:
+    """Interactive menu-driven CLI.
+
+    Navigate shelfr with menus instead of memorizing commands.
+    Shows command preview before execution—great for learning the CLI.
+
+    [bold cyan]Features:[/]
+      • Guided workflows for common tasks
+      • Command preview before execution
+      • Path history (with prompt_toolkit)
+
+    [dim]Press 'q' to exit.[/]
+    """
+    from shelfr.wizard import run_wizard
+
+    raise SystemExit(run_wizard())
+
+
+# =============================================================================
 # Entry Point
 # =============================================================================
 
