@@ -66,20 +66,25 @@ When multiple providers have data for the same field, use these rules:
 
 | Field Category | Priority Order | Rationale |
 |----------------|----------------|-----------|
-| **Identifiers** (ASIN, ISBN) | Audnex > ABS local > Libation | Audnex is authoritative for ASINs |
-| **Title/Subtitle/Series** | Audnex > ABS local (if trusted) > Libation | Audnex normalizes Audible's mess |
-| **Authors** | Audnex > ABS local > Libation | Audnex has author ASINs |
-| **Narrators** | MediaInfo (embedded) > Audnex > ABS local | Embedded tags are definitive |
+| **Identifiers** (ASIN, ISBN) | Audnex > abs_sidecar > Libation | Audnex is authoritative for ASINs |
+| **Title/Subtitle/Series** | Audnex > abs_sidecar (if trusted) > Libation | Audnex normalizes Audible's mess |
+| **Authors** | Audnex > abs_sidecar > Libation | Audnex has author ASINs |
+| **Narrators** | MediaInfo (embedded) > Audnex > abs_sidecar | Embedded tags are definitive |
 | **Runtime/Chapters** | MediaInfo > Audnex | MediaInfo is ground truth for audio |
 | **Cover** | Local folder > Audnex | Local may have higher-res |
 | **Genres/Tags** | Merge all sources | More is better, dedupe later |
-| **Description** | Audnex > ABS local | Audnex has full HTML descriptions |
+| **Description** | Audnex > abs_sidecar | Audnex has full HTML descriptions |
 
 **Trust levels:**
+
 - `audnex`: High (authoritative API)
 - `mediainfo`: High (ground truth for audio)
-- `abs_local`: Medium (user-corrected, may be stale)
+- `abs_sidecar`: Medium (user-corrected, may be stale)
 - `libation`: Low (folder structure, limited fields)
+
+**Override providers:** `abs_sidecar` and `private_db` may intentionally set empty values to clear bad data. The aggregator respects these clears rather than filtering them out.
+
+> **Note:** The plugin architecture implements precedence via per-provider `priority` + `confidence` scores with deterministic tie-breaking. These tables document the *default* behavior; see [Plugin Architecture](03-plugin-architecture.md) for the flexible system.
 
 ---
 
