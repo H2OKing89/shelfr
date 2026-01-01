@@ -125,8 +125,10 @@ See [naming/NAMING_RULES.md](naming/NAMING_RULES.md) for the full rule set.
 | **ASIN** | Amazon Standard Identification Number (10-char alphanumeric) |
 | **MAM** | MyAnonaMouse - private audiobook tracker |
 | **ABS** | Audiobookshelf - self-hosted audiobook server |
+| **Aggregator** | System component that merges and prioritizes metadata from multiple providers |
 | **Audnex** | API service providing normalized Audible metadata |
 | **Libation** | Desktop app for downloading Audible audiobooks |
+| **MediaInfo** | Command-line utility for extracting audio format, duration, and codec info |
 | **OPF** | Open Packaging Format - ebook/audiobook metadata standard |
 | **Sidecar** | Metadata file placed alongside audiobook files |
 | **Provider** | Module that fetches metadata from a source |
