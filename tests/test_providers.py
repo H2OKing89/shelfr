@@ -11,6 +11,7 @@ Tests cover:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -834,8 +835,6 @@ class TestMetadataAggregator:
     @pytest.mark.asyncio
     async def test_unknown_provider_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test that unknown provider names in providers list log a warning."""
-        import logging
-
         registry = ProviderRegistry()
         registry.register(MockProvider(name="known", responses={"A": {"title": "Known"}}))
 
