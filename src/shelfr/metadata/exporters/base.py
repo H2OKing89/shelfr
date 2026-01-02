@@ -59,6 +59,7 @@ class MetadataExporter(Protocol):
             Path to the written file
 
         Raises:
-            ExportError: If export fails (file write, validation, etc.)
+            shelfr.exceptions.ExportError: If export fails (file write,
+                validation, permission denied, etc.)
         """
         ...

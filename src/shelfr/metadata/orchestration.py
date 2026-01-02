@@ -24,6 +24,9 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+if TYPE_CHECKING:
+    from shelfr.metadata.providers.registry import ProviderRegistry
+
 # Import functions used by legacy orchestration
 # These are at module level to enable proper mocking in tests
 from shelfr.metadata.audnex import (
@@ -153,6 +156,7 @@ async def fetch_metadata_async(
     *,
     providers: list[str] | None = None,
     stop_on_complete: bool = True,
+    registry: ProviderRegistry | None = None,
 ) -> AggregatedResult:
     """
     Fetch metadata using the provider system.
@@ -164,6 +168,8 @@ async def fetch_metadata_async(
         ctx: Lookup context with identifiers and paths
         providers: Optional list of provider names (all if None)
         stop_on_complete: Skip network calls if required fields filled
+        registry: Optional provider registry (uses default if None).
+                  Useful for testing with custom/mock providers.
 
     Returns:
         AggregatedResult with merged fields from all providers
@@ -174,9 +180,11 @@ async def fetch_metadata_async(
         print(f"Title: {result.fields.get('title')}")
     """
     from shelfr.metadata.aggregator import MetadataAggregator
-    from shelfr.metadata.providers.registry import default_registry
+    from shelfr.metadata.providers.registry import (
+        default_registry as _default_registry,
+    )
 
-    aggregator = MetadataAggregator(registry=default_registry)
+    aggregator = MetadataAggregator(registry=registry or _default_registry)
     return await aggregator.fetch_all(
         ctx,
         providers=providers,

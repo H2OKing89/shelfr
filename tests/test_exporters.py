@@ -6,9 +6,11 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+from shelfr.exceptions import ExportError
 from shelfr.metadata.aggregator import AggregatedResult
 from shelfr.metadata.exporters import (
     JsonExporter,
@@ -408,3 +410,42 @@ class TestMetadataExporterProtocol:
         """Test protocol is runtime checkable."""
         exporter = JsonExporter()
         assert isinstance(exporter, MetadataExporter)
+
+
+class TestExportError:
+    """Tests for ExportError handling in exporters."""
+
+    @pytest.fixture
+    def exporter(self) -> JsonExporter:
+        """Create a JsonExporter instance."""
+        return JsonExporter()
+
+    @pytest.mark.asyncio
+    async def test_export_raises_export_error_on_write_failure(
+        self, exporter: JsonExporter, tmp_path: Path
+    ) -> None:
+        """Test that write failures raise ExportError."""
+        result = AggregatedResult(fields={"title": "Test"})
+
+        with patch.object(Path, "write_text", side_effect=OSError("Disk full")):
+            with pytest.raises(ExportError) as exc_info:
+                await exporter.export(result, tmp_path)
+
+            assert "Failed to write metadata.json" in str(exc_info.value)
+            assert exc_info.value.format_name == "json"
+
+    @pytest.mark.asyncio
+    async def test_export_raises_export_error_on_permission_denied(
+        self, exporter: JsonExporter, tmp_path: Path
+    ) -> None:
+        """Test that permission errors raise ExportError."""
+        result = AggregatedResult(fields={"title": "Test"})
+
+        with patch.object(Path, "write_text", side_effect=PermissionError("Permission denied")):
+            with pytest.raises(ExportError) as exc_info:
+                await exporter.export(result, tmp_path)
+
+            assert "Permission denied" in str(exc_info.value)
+            assert exc_info.value.format_name == "json"
+            # Check that it wraps the original error
+            assert exc_info.value.__cause__ is not None

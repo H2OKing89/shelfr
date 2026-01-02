@@ -177,6 +177,28 @@ class MetadataError(PipelineError):
         super().__init__(message, **kwargs)
 
 
+class ExportError(MetadataError):
+    """Metadata export failure (file write, validation, etc.)."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        format_name: str | None = None,
+        output_path: Path | str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        details = kwargs.get("details", {})
+        if format_name:
+            details["format_name"] = format_name
+        if output_path:
+            details["output_path"] = str(output_path)
+        kwargs["details"] = details
+        super().__init__(message, **kwargs)
+        self.format_name = format_name
+        self.output_path = output_path
+
+
 class TorrentError(PipelineError):
     """Torrent creation failure."""
 

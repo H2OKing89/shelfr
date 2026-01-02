@@ -203,7 +203,7 @@
 | Phase 4 | ✅ Complete | MAM extraction (categories.py + json_builder.py) |
 | Phase 5a | ✅ Complete | Schemas + Cleaning (PR #73) |
 | Phase 5b | ✅ Complete | Provider system + Aggregator |
-| Phase 5c | ⏳ Not Started | Orchestration + JSON exporter |
+| Phase 5c | ✅ Complete | Orchestration + JSON exporter (PR #75) |
 | Phase 6 | ⏳ Not Started | OPF move + deprecations |
 | Phase 7 | ⏳ Not Started | Infrastructure (optional) |
 | Future | ⏳ Not Started | As needed |

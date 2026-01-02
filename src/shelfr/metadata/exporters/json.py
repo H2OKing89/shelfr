@@ -14,6 +14,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from shelfr.exceptions import ExportError
+
 if TYPE_CHECKING:
     from shelfr.metadata.aggregator import AggregatedResult
 
@@ -55,6 +57,14 @@ class JsonExporter:
 
         Returns:
             Path to the written file
+
+        Raises:
+            ExportError: If file write fails (permission denied, disk full, etc.)
+
+        Note:
+            Uses synchronous file write (Path.write_text) which is acceptable
+            for small metadata files. For latency-sensitive scenarios with
+            large files, consider using asyncio.to_thread().
         """
         output_path = output_dir / "metadata.json"
 
@@ -62,10 +72,17 @@ class JsonExporter:
         abs_data = self._convert_to_abs_format(result)
 
         # Write with pretty formatting for readability
-        output_path.write_text(
-            json.dumps(abs_data, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        try:
+            output_path.write_text(
+                json.dumps(abs_data, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as e:
+            raise ExportError(
+                f"Failed to write metadata.json: {e}",
+                format_name=self.name,
+                output_path=output_path,
+            ) from e
 
         logger.debug("Exported metadata to %s", output_path)
         return output_path
