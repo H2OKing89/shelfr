@@ -16,7 +16,7 @@ import logging
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 
-from .base import MetadataProvider
+from .base import MetadataProvider, ProviderKind
 from .types import IdType, LookupContext
 
 logger = logging.getLogger(__name__)
@@ -55,8 +55,9 @@ class ProviderRegistry:
         Args:
             provider: Provider instance to register
 
-        Raises:
-            ValueError: If provider with same name already registered
+        Note:
+            If a provider with the same name already exists, it will be
+            overwritten and a warning will be logged.
         """
         if provider.name in self._providers:
             logger.warning("Overwriting existing provider %s with new instance", provider.name)
@@ -119,7 +120,7 @@ class ProviderRegistry:
         """
         return [p for p in self.all() if p.can_lookup(ctx, id_type)]
 
-    def get_by_kind(self, kind: str) -> list[MetadataProvider]:
+    def get_by_kind(self, kind: ProviderKind) -> list[MetadataProvider]:
         """Get all providers of a specific kind.
 
         Args:
