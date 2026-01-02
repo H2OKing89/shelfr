@@ -6,12 +6,12 @@ import json
 from pathlib import Path
 
 
-class TestAbsMetadataSchema:
-    """Tests for AbsMetadataSchema Pydantic model."""
+class TestAbsMetadataJson:
+    """Tests for AbsMetadataJson Pydantic model (used by rename module)."""
 
     def test_basic_parsing(self) -> None:
         """Test parsing basic metadata."""
-        from shelfr.abs.rename import AbsMetadataSchema
+        from shelfr.schemas.abs_metadata import AbsMetadataJson
 
         data = {
             "title": "Project Hail Mary",
@@ -20,40 +20,49 @@ class TestAbsMetadataSchema:
             "asin": "B08G9PRS1K",
             "publishedYear": "2021",
         }
-        schema = AbsMetadataSchema.model_validate(data)
+        schema = AbsMetadataJson.model_validate(data)
         assert schema.title == "Project Hail Mary"
         assert schema.authors == ["Andy Weir"]
         assert schema.asin == "B08G9PRS1K"
 
     def test_series_parsing(self) -> None:
         """Test parsing series info."""
-        from shelfr.abs.rename import AbsMetadataSchema
+        from shelfr.schemas.abs_metadata import AbsMetadataJson
 
         data = {
             "title": "The Way of Kings",
             "series": ["The Stormlight Archive #1"],
             "asin": "B003ZWFO7E",
         }
-        schema = AbsMetadataSchema.model_validate(data)
+        schema = AbsMetadataJson.model_validate(data)
         assert "The Stormlight Archive #1" in schema.series
 
     def test_missing_optional_fields(self) -> None:
         """Test that missing optional fields get defaults."""
-        from shelfr.abs.rename import AbsMetadataSchema
+        from shelfr.schemas.abs_metadata import AbsMetadataJson
 
         data = {"title": "Some Book"}
-        schema = AbsMetadataSchema.model_validate(data)
+        schema = AbsMetadataJson.model_validate(data)
         assert schema.asin is None
         assert schema.authors == []
         assert schema.series == []
 
     def test_published_year_int(self) -> None:
         """Test publishedYear as int."""
-        from shelfr.abs.rename import AbsMetadataSchema
+        from shelfr.schemas.abs_metadata import AbsMetadataJson
 
         data = {"title": "Book", "publishedYear": 2021}
-        schema = AbsMetadataSchema.model_validate(data)
-        assert schema.publishedYear == 2021
+        schema = AbsMetadataJson.model_validate(data)
+        assert schema.published_year == 2021
+
+    def test_missing_title_allowed_for_read(self) -> None:
+        """Test that missing title is allowed when reading existing metadata."""
+        from shelfr.schemas.abs_metadata import AbsMetadataJson
+
+        data = {"authors": ["Some Author"], "asin": "B0123456789"}
+        schema = AbsMetadataJson.model_validate(data)
+        assert schema.title is None
+        assert schema.authors == ["Some Author"]
 
 
 class TestParseAbsMetadata:

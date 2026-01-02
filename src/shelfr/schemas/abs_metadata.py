@@ -2,6 +2,10 @@
 
 This schema matches what Audiobookshelf reads from metadata.json files
 during library scans to populate audiobook metadata.
+
+Two modes of operation:
+- Reading (lenient): Use AbsMetadataJson with all optional fields
+- Writing (strict): Use validate_abs_metadata_for_write() which requires title
 """
 
 from __future__ import annotations
@@ -30,12 +34,16 @@ class AbsMetadataJson(BaseModel):
     """Schema for Audiobookshelf metadata.json file.
 
     This file is read by ABS during library scans to populate
-    audiobook metadata. All fields are optional except title.
+    audiobook metadata. Title is optional for reading existing files
+    (some may have incomplete metadata), but required for writing.
 
     Field names use camelCase for ABS compatibility via aliases.
+
+    For reading existing metadata.json: Use model_validate() directly
+    For writing new metadata.json: Use validate_abs_metadata_for_write()
     """
 
-    title: str
+    title: str | None = None  # Optional for reading, required for writing
     subtitle: str | None = None
     authors: list[str] = Field(default_factory=list)
     narrators: list[str] = Field(default_factory=list)
@@ -46,7 +54,7 @@ class AbsMetadataJson(BaseModel):
     # Accept ABS-style camelCase keys on input (validation_alias)
     # and emit them on output (serialization_alias).
     # With populate_by_name=True, Python code can still use snake_case field names
-    published_year: str | None = Field(
+    published_year: str | int | None = Field(
         default=None, validation_alias="publishedYear", serialization_alias="publishedYear"
     )
     published_date: str | None = Field(
@@ -96,7 +104,7 @@ class AbsMetadataJson(BaseModel):
 
 
 def validate_abs_metadata(data: dict[str, Any]) -> AbsMetadataJson:
-    """Validate metadata.json structure.
+    """Validate metadata.json structure (lenient, for reading).
 
     Args:
         data: Dictionary to validate
@@ -108,3 +116,23 @@ def validate_abs_metadata(data: dict[str, Any]) -> AbsMetadataJson:
         pydantic.ValidationError: If validation fails
     """
     return AbsMetadataJson.model_validate(data)
+
+
+def validate_abs_metadata_for_write(data: dict[str, Any]) -> AbsMetadataJson:
+    """Validate metadata.json structure for writing (strict, requires title).
+
+    Args:
+        data: Dictionary to validate
+
+    Returns:
+        Validated AbsMetadataJson model
+
+    Raises:
+        pydantic.ValidationError: If validation fails
+        ValueError: If title is missing or empty
+    """
+    model = AbsMetadataJson.model_validate(data)
+    if not model.title:
+        msg = "title is required for writing metadata.json"
+        raise ValueError(msg)
+    return model

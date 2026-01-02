@@ -56,7 +56,6 @@ from shelfr.abs.importer import (
 from shelfr.abs.paths import PathMapper, abs_path_to_host, host_path_to_abs
 from shelfr.abs.rename import (
     AbsMetadata,
-    AbsMetadataSchema,
     RenameCandidate,
     RenameResult,
     RenameStatus,
@@ -123,7 +122,6 @@ __all__ = [
     "host_path_to_abs",
     # Rename
     "AbsMetadata",
-    "AbsMetadataSchema",
     "RenameCandidate",
     "RenameResult",
     "RenameSummary",

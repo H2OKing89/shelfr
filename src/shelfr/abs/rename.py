@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 from shelfr.abs.asin import (
     is_valid_asin,
@@ -35,6 +35,7 @@ from shelfr.console import (
     print_warning,
     progress_context,
 )
+from shelfr.schemas.abs_metadata import AbsMetadataJson
 from shelfr.utils.fuzzy import is_suspicious_change, similarity_ratio
 from shelfr.utils.naming import build_mam_folder_name, format_volume_number
 from shelfr.utils.paths import safe_dirname
@@ -72,37 +73,6 @@ _EDITION_FLAG_PATTERN = re.compile(
     r"\((" + "|".join(re.escape(f) for f in EDITION_FLAGS) + r")\)",
     re.IGNORECASE,
 )
-
-
-# =============================================================================
-# Pydantic Schemas
-# =============================================================================
-
-
-class AbsMetadataSchema(BaseModel):
-    """Pydantic schema for ABS metadata.json validation.
-
-    Audiobookshelf stores a metadata.json sidecar in each book folder
-    with authoritative metadata including ASIN even when not in folder name.
-    """
-
-    title: str | None = None
-    subtitle: str | None = None
-    authors: list[str] = Field(default_factory=list)
-    narrators: list[str] = Field(default_factory=list)
-    series: list[str] = Field(default_factory=list)  # ["Series Name #N"]
-    genres: list[str] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
-    publishedYear: int | str | None = None  # noqa: N815 - ABS uses camelCase
-    publisher: str | None = None
-    asin: str | None = None
-    isbn: str | None = None
-    language: str | None = None
-    explicit: bool = False
-    abridged: bool = False
-    description: str | None = None
-
-    model_config = {"extra": "ignore"}  # ABS may add new fields
 
 
 # =============================================================================
@@ -256,8 +226,8 @@ def parse_abs_metadata(folder: Path) -> AbsMetadata | None:
         with open(meta_path, encoding="utf-8") as f:
             data = json.load(f)
 
-        # Validate with Pydantic
-        schema = AbsMetadataSchema.model_validate(data)
+        # Validate with Pydantic (using unified schema from schemas/)
+        schema = AbsMetadataJson.model_validate(data)
 
         # Parse series from "Series Name #N" format
         series_name = None
@@ -273,11 +243,11 @@ def parse_abs_metadata(folder: Path) -> AbsMetadata | None:
             else:
                 series_name = series_str
 
-        # Parse year (can be int or string)
+        # Parse year (can be int or string via published_year alias)
         year = None
-        if schema.publishedYear:
+        if schema.published_year:
             with contextlib.suppress(ValueError, TypeError):
-                year = int(schema.publishedYear)
+                year = int(schema.published_year)
 
         return AbsMetadata(
             title=schema.title,
