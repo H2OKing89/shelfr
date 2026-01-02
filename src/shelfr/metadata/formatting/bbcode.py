@@ -17,7 +17,7 @@ from jinja2 import BaseLoader, ChoiceLoader, Environment, FileSystemLoader, Pack
 
 from shelfr.config import get_settings
 from shelfr.metadata.formatting.html import html_to_bbcode
-from shelfr.metadata.mediainfo.extractor import (
+from shelfr.metadata.mediainfo import (
     _extract_audio_info,
     _format_chapter_time,
     _parse_chapters_from_mediainfo,
@@ -33,6 +33,10 @@ from shelfr.utils.naming import (
 )
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "render_bbcode_description",
+]
 
 
 # =============================================================================
@@ -295,7 +299,7 @@ def _convert_newlines_for_mam(text: str) -> str:
     # Pattern to split while keeping delimiters
     parts = re.split(r"(\[pre\]|\[/pre\])", text, flags=re.IGNORECASE)
 
-    result_parts = []
+    result_parts: list[str] = []
     inside_pre = False
 
     for part in parts:

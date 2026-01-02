@@ -67,19 +67,19 @@
 
 ## Phase 3: Extract Audnex Client (Network Boundary)
 
-- [ ] Create `metadata/audnex/client.py` with:
+- [x] Create `metadata/audnex/client.py` with:
   - `fetch_audnex_book()`, `fetch_audnex_author()`
   - `fetch_audnex_chapters()`, `_parse_chapters_from_audnex()`
   - `save_audnex_json()`
   - All `_fetch_audnex_*_region()` helpers
-- [ ] Keep chapters with client (shared HTTP/retry/circuit-breaker patterns)
-- [ ] Update re-exports
+- [x] Keep chapters with client (shared HTTP/retry/circuit-breaker patterns)
+- [x] Update re-exports
 
 **Test Migration:**
 
-- Update HTTP mocks: `@patch("metadata.httpx.get")` → `@patch("shelfr.metadata.audnex.client.httpx.get")`
-- Update circuit breaker patches to new module path
-- Test chapter parsing: `_parse_chapters_from_audnex` now in `metadata.audnex.client`
+- Update HTTP mocks: `@patch("httpx.Client")` → `@patch("shelfr.metadata.audnex.client.httpx.Client")`
+- Update settings patches: `@patch("shelfr.metadata.get_settings")` → `@patch("shelfr.metadata.audnex.client.get_settings")`
+- Test chapter parsing: `_parse_chapters_from_audnex` remains in `metadata.formatting.bbcode` (presentation layer)
 
 ---
 
@@ -190,8 +190,8 @@
 | --- | --- | --- |
 | Phase 0 | ✅ Complete | Package scaffolding (PR #66) |
 | Phase 1 | ✅ Complete | MediaInfo extraction (PR #66) |
-| Phase 2 | ✅ Complete | Formatting extraction |
-| Phase 3 | ⏳ Not Started | Audnex client |
+| Phase 2 | ✅ Complete | Formatting extraction (PR #67) |
+| Phase 3 | ✅ Complete | Audnex client extraction |
 | Phase 4 | ⏳ Not Started | MAM (depends on above) |
 | Phase 5a | ⏳ Not Started | Schemas + Cleaning |
 | Phase 5b | ⏳ Not Started | Provider system + Aggregator |
