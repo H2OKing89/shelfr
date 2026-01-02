@@ -30,8 +30,8 @@
 
 | File | Lines | Purpose | Overlaps With |
 | --- | --- | --- | --- |
-| `schemas/audnex.py` | 158 | Audnex API validation | - |
-| `schemas/abs_metadata.py` | 111 | ABS metadata.json validation | `abs/rename.py` |
+| `schemas/audnex.py` | ~150 | Audnex API validation | - |
+| `schemas/abs_metadata.py` | ~130 | ABS metadata.json validation | ✅ Single source |
 | `schemas/abs.py` | 357 | ABS API schemas | - |
 | `schemas/naming.py` | 269 | Naming config schemas | `config.py` |
 
@@ -39,13 +39,15 @@
 
 | File | Key Classes/Functions | Metadata Role |
 | --- | --- | --- |
-| `abs/rename.py` | `AbsMetadataSchema`, `AbsMetadata` dataclass | **Duplicate** of `schemas/abs_metadata.py` |
+| `abs/rename.py` | `parse_abs_metadata()`, `AbsMetadata` dataclass | ✅ Uses `AbsMetadataJson` from schemas |
 | `abs/asin.py` | ASIN extraction/resolution | Uses metadata.json |
 | `abs/importer.py` | Import logic, calls `write_opf()` | Coordinates metadata |
 
 ---
 
 ## 2. Duplicate Definitions Found
+
+> **Status (Phase 7 Complete):** Most duplicates have been resolved. See notes below.
 
 ### 2.1 ABS JSON vs Canonical Schema (Two Layers, Currently Mixed)
 
@@ -58,31 +60,26 @@ There are two distinct concerns being conflated:
 
 **Important:** `CanonicalMetadata` is NOT an ABS schema. It should be richer than ABS JSON and exporter-driven. `CanonicalMetadata` should not be forced to match ABS JSON; exporters map canonical → ABS.
 
-**Current state (problematic):**
+**✅ RESOLVED (Phase 7):**
 
 **ABS Output Schema: `schemas/abs_metadata.py` → `AbsMetadataJson`**
 
 ```python
 class AbsMetadataJson(BaseModel):
-    title: str
+    title: str | None = None  # Optional for reading existing metadata
     subtitle: str | None = None
     authors: list[str] = Field(default_factory=list)
-    # ... with published_year/published_date aliases
+    published_year: str | int | None = Field(default=None, validation_alias="publishedYear")
     chapters: list[AbsChapter] = Field(default_factory=list)
+
+# For writing, use validate_abs_metadata_for_write() to ensure title is present
 ```
 
-**ABS Compat Schema (DUPLICATE, should die): `abs/rename.py` → `AbsMetadataSchema`**
+**~~ABS Compat Schema (DUPLICATE, should die): `abs/rename.py` → `AbsMetadataSchema`~~**
 
-```python
-class AbsMetadataSchema(BaseModel):
-    title: str | None = None  # Different! Optional here
-    subtitle: str | None = None
-    authors: list[str] = Field(default_factory=list)
-    # ... NO chapters, NO published_date
-    publishedYear: int | str | None = None  # Different naming!
-```
+✅ **REMOVED in Phase 7.** Now uses `AbsMetadataJson` from `schemas/abs_metadata.py`.
 
-**Canonical Schema (NOT ABS): `opf/schemas.py` → `CanonicalMetadata`**
+**Canonical Schema: `metadata/schemas/canonical.py` → `CanonicalMetadata`**
 
 ```python
 class CanonicalMetadata(BaseModel):
@@ -94,7 +91,9 @@ class CanonicalMetadata(BaseModel):
 
 ### 2.2 Person/Author Schema (2 versions)
 
-**Version 1: `opf/schemas.py` → `Person`**
+> **Status:** Cannot be unified due to circular import constraints. See note below.
+
+**Version 1: `metadata/schemas/canonical.py` → `Person`** (canonical, single source of truth)
 
 ```python
 class Person(BaseModel):
@@ -102,19 +101,24 @@ class Person(BaseModel):
     asin: str | None = None
 ```
 
-**Version 2: `schemas/audnex.py` → `AudnexAuthor`**
+**Version 2: `schemas/audnex.py` → `AudnexAuthor`** (API parsing layer)
 
 ```python
 class AudnexAuthor(BaseModel):
-    asin: str | None = None
     name: str
+    asin: str | None = None
 ```
 
-**Identical!** Should be unified.
+**Structurally identical** but kept separate due to circular import:
+`schemas/audnex.py` → `metadata/schemas/canonical.py` → `metadata/__init__.py` → providers → `schemas/audnex.py`
+
+`AudnexAuthor` is documented as equivalent to `Person`. Use canonical `Person` for internal processing.
 
 ### 2.3 Series Schema (2 versions)
 
-**Version 1: `opf/schemas.py` → `Series`**
+> **Status:** Same circular import constraint as Person/Author.
+
+**Version 1: `metadata/schemas/canonical.py` → `Series`** (canonical)
 
 ```python
 class Series(BaseModel):
@@ -123,40 +127,29 @@ class Series(BaseModel):
     asin: str | None = None
 ```
 
-**Version 2: `schemas/audnex.py` → `AudnexSeries`**
+**Version 2: `schemas/audnex.py` → `AudnexSeries`** (API parsing layer)
 
 ```python
 class AudnexSeries(BaseModel):
-    asin: str | None = None
     name: str
     position: str | None = None
+    asin: str | None = None
 ```
 
-**Identical!** Should be unified.
+**Structurally identical** but kept separate due to circular import (same as Person/Author).
 
 ### 2.4 Single Source of Truth (Target State)
 
-All shared types should live in ONE place and be imported everywhere:
+> **Status (Phase 7):** ✅ Canonical types now live in `metadata/schemas/canonical.py`.
+
+All shared types now live in ONE place:
 
 | Path | Contents |
 | --- | --- |
-| `metadata/schemas/canonical.py` | Types only: `Person`, `Series`, `Genre`, `CanonicalMetadata` |
-| `metadata/pipeline.py` | Builders/constructors: `CanonicalMetadata.from_audnex()`, merge orchestration |
+| `metadata/schemas/canonical.py` | Types: `Person`, `Series`, `Genre`, `CanonicalMetadata` |
+| `metadata/opf/schemas.py` | Re-exports canonical + OPF-specific: `OPFCreator`, `OPFMetadata`, etc. |
 
-Other schemas can COMPOSE with these shared types:
-
-```python
-# schemas/audnex.py (validation-only, composes with shared types)
-from shelfr.metadata.schemas import Person, Series
-
-class AudnexBook(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Safe: ignores extra API fields
-    asin: str
-    authors: list[Person]  # Uses shared type!
-    series: list[Series]   # Uses shared type!
-```
-
-**Composition pattern:** Shared types (`Person`, `Series`) are minimal. Use `extra="ignore"` so validation schemas don't break when APIs add fields. This eliminates schema drift risk.
+Audnex schemas (`AudnexAuthor`, `AudnexSeries`, `AudnexGenre`) remain separate due to circular imports but are documented as structurally identical to canonical types.
 
 ### 2.5 Model Layers (Why Both Pydantic and Dataclasses Exist)
 
@@ -341,20 +334,22 @@ When multiple providers have data, use deterministic precedence (prevents "whoev
 
 ## 6. Current Schema Locations
 
-> **Note:** `CanonicalMetadata` currently lives in the OPF module. Relocation to `metadata/schemas/canonical.py` is part of Phase 1 (see [Implementation Checklist](05-implementation-checklist.md)).
+> **Status (Phase 7 Complete):** Schema consolidation is done. `CanonicalMetadata` lives in `metadata/schemas/canonical.py`. OPF schemas re-export from canonical.
 
 | Schema | Location | Notes |
 | --- | --- | --- |
-| `CanonicalMetadata` | `opf/schemas.py` | ✅ Canonical (move to `metadata/schemas/` later) |
-| `OPFMetadata` | `opf/schemas.py` | ✅ OPF-specific export (move later) |
-| `Person` | `opf/schemas.py` | 🔄 Unify with `AudnexAuthor` (move to shared) |
-| `Series` | `opf/schemas.py` | 🔄 Unify with `AudnexSeries` (move to shared) |
-| `Genre` | `opf/schemas.py` | 🔄 Unify with `AudnexGenre` (move to shared) |
-| `AudnexBook` | `schemas/audnex.py` | ✅ Validation only (compose with shared types) |
-| `AudnexAuthor` | `schemas/audnex.py` | 🔄 Merge to shared `Person` |
-| `AudnexSeries` | `schemas/audnex.py` | 🔄 Merge to shared `Series` |
-| `AbsMetadataJson` | `schemas/abs_metadata.py` | ✅ ABS output schema |
-| `AbsMetadataSchema` | `abs/rename.py` | ❌ Remove, use `AbsMetadataJson` |
-| `AbsMetadata` | `abs/rename.py` | 🔄 Dataclass, keep separate |
-| `NormalizedBook` | `models.py` | ✅ Pipeline model (add `canonical` field later) |
+| `CanonicalMetadata` | `metadata/schemas/canonical.py` | ✅ Canonical (single source of truth) |
+| `Person` | `metadata/schemas/canonical.py` | ✅ Canonical |
+| `Series` | `metadata/schemas/canonical.py` | ✅ Canonical |
+| `Genre` | `metadata/schemas/canonical.py` | ✅ Canonical |
+| `OPFMetadata` | `opf/schemas.py` | ✅ OPF-specific export |
+| `OPFCreator` | `opf/schemas.py` | ✅ OPF-specific |
+| `AudnexBook` | `schemas/audnex.py` | ✅ Validation only |
+| `AudnexAuthor` | `schemas/audnex.py` | ⚠️ Identical to `Person` (circular import) |
+| `AudnexSeries` | `schemas/audnex.py` | ⚠️ Identical to `Series` (circular import) |
+| `AudnexGenre` | `schemas/audnex.py` | ⚠️ Identical to `Genre` (circular import) |
+| `AbsMetadataJson` | `schemas/abs_metadata.py` | ✅ ABS output schema (single source) |
+| ~~`AbsMetadataSchema`~~ | ~~`abs/rename.py`~~ | ❌ Removed in Phase 7 |
+| `AbsMetadata` | `abs/rename.py` | ✅ Dataclass for rename workflow |
+| `NormalizedBook` | `models.py` | ✅ Pipeline model |
 | `AudiobookRelease` | `models.py` | ✅ Pipeline model |
