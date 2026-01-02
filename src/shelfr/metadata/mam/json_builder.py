@@ -486,7 +486,11 @@ def generate_mam_json_for_release(
     Returns:
         Path to generated JSON file, or None on failure
     """
-    settings = get_settings()
+    try:
+        settings = get_settings()
+    except Exception as e:
+        logger.debug("Failed to load settings for MAM JSON generation: %s", e)
+        return None
 
     # Determine output directory
     if output_dir is None:
