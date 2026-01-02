@@ -187,7 +187,11 @@ def fetch_audnex_author(asin: str, region: str | None = None) -> dict[str, Any] 
         logger.debug(f"Fetching Audnex author: {url} (region={r})")
 
         try:
-            with httpx.Client(timeout=settings.audnex.timeout_seconds, http2=True) as client:
+            # Circuit breaker protects against cascading failures
+            with (
+                audnex_breaker,
+                httpx.Client(timeout=settings.audnex.timeout_seconds, http2=True) as client,
+            ):
                 response = client.get(url, params=params)
 
                 if response.status_code in (404, 500):
@@ -198,6 +202,10 @@ def fetch_audnex_author(asin: str, region: str | None = None) -> dict[str, Any] 
                 response.raise_for_status()
                 data: dict[str, Any] = response.json()
                 return data
+
+        except CircuitOpenError:
+            # Re-raise circuit breaker errors - caller should handle
+            raise
 
         except httpx.TimeoutException:
             # Network issue - warn since this may indicate a problem
@@ -273,7 +281,8 @@ def _fetch_audnex_chapters_region(
     logger.debug(f"Fetching Audnex chapters: {url} (region={region})")
 
     try:
-        with httpx.Client(timeout=timeout, http2=True) as client:
+        # Circuit breaker protects against cascading failures
+        with audnex_breaker, httpx.Client(timeout=timeout, http2=True) as client:
             response = client.get(url, params=params)
 
             if response.status_code == 404:
@@ -299,6 +308,10 @@ def _fetch_audnex_chapters_region(
                 )
 
             return data
+
+    except CircuitOpenError:
+        # Re-raise circuit breaker errors - caller should handle
+        raise
 
     except httpx.TimeoutException:
         # Network issue - warn since this may indicate a problem
