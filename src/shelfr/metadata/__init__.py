@@ -20,6 +20,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from shelfr.config import get_settings
+from shelfr.metadata.audnex import (
+    _fetch_audnex_book_region as _fetch_audnex_book_region,
+)
+from shelfr.metadata.audnex import (
+    _fetch_audnex_chapters_region as _fetch_audnex_chapters_region,
+)
 
 # Audnex API client - book, author, and chapter metadata
 from shelfr.metadata.audnex import (
@@ -33,12 +39,6 @@ from shelfr.metadata.audnex import (
 )
 from shelfr.metadata.audnex import (
     save_audnex_json as save_audnex_json,
-)
-from shelfr.metadata.audnex.client import (
-    _fetch_audnex_book_region as _fetch_audnex_book_region,
-)
-from shelfr.metadata.audnex.client import (
-    _fetch_audnex_chapters_region as _fetch_audnex_chapters_region,
 )
 
 # Formatting - BBCode and HTML conversion
