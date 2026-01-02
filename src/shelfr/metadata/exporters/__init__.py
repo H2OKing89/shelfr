@@ -6,9 +6,9 @@ Each exporter implements the MetadataExporter protocol.
 
 Available exporters:
 - JsonExporter: ABS metadata.json sidecar format
+- OpfExporter: OPF sidecar format (Dublin Core/EPUB)
 
 Future exporters:
-- OpfExporter: OPF sidecar format (Phase 6)
 - NfoExporter: Kodi/Plex NFO format
 """
 
@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from shelfr.metadata.exporters.base import MetadataExporter
 from shelfr.metadata.exporters.json import JsonExporter
+from shelfr.metadata.exporters.opf import OpfExporter
 
 if TYPE_CHECKING:
     pass
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
 __all__ = [
     "MetadataExporter",
     "JsonExporter",
+    "OpfExporter",
     "get_exporter",
     "list_exporters",
 ]
@@ -32,6 +34,7 @@ __all__ = [
 # Registry of available exporters
 _EXPORTERS: dict[str, type[MetadataExporter]] = {
     "json": JsonExporter,
+    "opf": OpfExporter,
 }
 
 

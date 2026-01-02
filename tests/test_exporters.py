@@ -14,6 +14,7 @@ from shelfr.exceptions import ExportError
 from shelfr.metadata.aggregator import AggregatedResult
 from shelfr.metadata.exporters import (
     JsonExporter,
+    OpfExporter,
     get_exporter,
     list_exporters,
     register_exporter,
@@ -449,3 +450,203 @@ class TestExportError:
             assert exc_info.value.format_name == "json"
             # Check that it wraps the original error
             assert exc_info.value.__cause__ is not None
+
+
+class TestOpfExporter:
+    """Tests for OpfExporter."""
+
+    @pytest.fixture
+    def exporter(self) -> OpfExporter:
+        """Create an OpfExporter instance."""
+        return OpfExporter()
+
+    def test_exporter_attributes(self, exporter: OpfExporter) -> None:
+        """Test exporter has correct attributes."""
+        assert exporter.name == "opf"
+        assert exporter.file_extension == ".opf"
+        assert "OPF" in exporter.description
+
+    @pytest.mark.asyncio
+    async def test_export_basic(self, exporter: OpfExporter, tmp_path: Path) -> None:
+        """Test basic OPF export functionality."""
+        result = AggregatedResult(
+            fields={
+                "title": "Test Book",
+                "subtitle": "A Subtitle",
+                "language": "English",
+            }
+        )
+
+        output_file = await exporter.export(result, tmp_path)
+
+        assert output_file.exists()
+        assert output_file.name == "metadata.opf"
+
+        content = output_file.read_text()
+        assert "<dc:title>Test Book</dc:title>" in content
+        assert "<dc:subtitle>A Subtitle</dc:subtitle>" in content
+
+    @pytest.mark.asyncio
+    async def test_export_with_authors(self, exporter: OpfExporter, tmp_path: Path) -> None:
+        """Test OPF export with authors."""
+        result = AggregatedResult(
+            fields={
+                "title": "Test",
+                "authors": [{"name": "Author One"}, {"name": "Author Two"}],
+                "language": "English",
+            }
+        )
+
+        output_file = await exporter.export(result, tmp_path)
+        content = output_file.read_text()
+
+        assert 'opf:role="aut"' in content
+        assert "Author One" in content
+        assert "Author Two" in content
+
+    @pytest.mark.asyncio
+    async def test_export_with_narrators(self, exporter: OpfExporter, tmp_path: Path) -> None:
+        """Test OPF export with narrators."""
+        result = AggregatedResult(
+            fields={
+                "title": "Test",
+                "narrators": ["Narrator One"],
+                "language": "English",
+            }
+        )
+
+        output_file = await exporter.export(result, tmp_path)
+        content = output_file.read_text()
+
+        assert 'opf:role="nrt"' in content
+        assert "Narrator One" in content
+
+    @pytest.mark.asyncio
+    async def test_export_with_identifiers(self, exporter: OpfExporter, tmp_path: Path) -> None:
+        """Test OPF export with ASIN and ISBN."""
+        result = AggregatedResult(
+            fields={
+                "title": "Test",
+                "asin": "B08G9PRS1K",
+                "isbn": "9780765365286",
+                "language": "English",
+            }
+        )
+
+        output_file = await exporter.export(result, tmp_path)
+        content = output_file.read_text()
+
+        assert 'opf:scheme="ASIN"' in content
+        assert "B08G9PRS1K" in content
+        assert 'opf:scheme="ISBN"' in content
+        assert "9780765365286" in content
+
+    @pytest.mark.asyncio
+    async def test_export_with_series(self, exporter: OpfExporter, tmp_path: Path) -> None:
+        """Test OPF export with series information."""
+        result = AggregatedResult(
+            fields={
+                "title": "Test",
+                "series_name": "The Stormlight Archive",
+                "series_position": "1",
+                "language": "English",
+            }
+        )
+
+        output_file = await exporter.export(result, tmp_path)
+        content = output_file.read_text()
+
+        assert 'name="calibre:series"' in content
+        assert "The Stormlight Archive" in content
+        assert 'name="calibre:series_index"' in content
+
+    @pytest.mark.asyncio
+    async def test_export_with_genres(self, exporter: OpfExporter, tmp_path: Path) -> None:
+        """Test OPF export with genres as subjects."""
+        result = AggregatedResult(
+            fields={
+                "title": "Test",
+                "genres": [{"name": "Fantasy"}, {"name": "Epic"}],
+                "language": "English",
+            }
+        )
+
+        output_file = await exporter.export(result, tmp_path)
+        content = output_file.read_text()
+
+        assert "<dc:subject>Fantasy</dc:subject>" in content
+        assert "<dc:subject>Epic</dc:subject>" in content
+
+    @pytest.mark.asyncio
+    async def test_export_language_conversion(self, exporter: OpfExporter, tmp_path: Path) -> None:
+        """Test that language is converted to ISO format."""
+        result = AggregatedResult(
+            fields={
+                "title": "Test",
+                "language": "English",
+            }
+        )
+
+        output_file = await exporter.export(result, tmp_path)
+        content = output_file.read_text()
+
+        # English should be converted to "eng" ISO code
+        assert "<dc:language>eng</dc:language>" in content
+
+    @pytest.mark.asyncio
+    async def test_export_raises_export_error_on_write_failure(
+        self, exporter: OpfExporter, tmp_path: Path
+    ) -> None:
+        """Test that write failures raise ExportError."""
+        result = AggregatedResult(fields={"title": "Test", "language": "English"})
+
+        with patch.object(Path, "write_text", side_effect=OSError("Disk full")):
+            with pytest.raises(ExportError) as exc_info:
+                await exporter.export(result, tmp_path)
+
+            assert "Failed to write metadata.opf" in str(exc_info.value)
+            assert exc_info.value.format_name == "opf"
+            # Verify original exception is preserved as __cause__
+            assert exc_info.value.__cause__ is not None
+            assert isinstance(exc_info.value.__cause__, OSError)
+
+    @pytest.mark.asyncio
+    async def test_export_raises_export_error_on_validation_failure(
+        self, exporter: OpfExporter, tmp_path: Path
+    ) -> None:
+        """Test that ValidationError during metadata conversion raises ExportError."""
+        from pydantic import ValidationError
+
+        result = AggregatedResult(fields={"title": "Test"})
+
+        # Mock _convert_to_opf_metadata to raise ValidationError
+        with patch.object(
+            exporter,
+            "_convert_to_opf_metadata",
+            side_effect=ValidationError.from_exception_data(
+                "OPFMetadata", [{"type": "missing", "loc": ("title",), "msg": "Field required"}]
+            ),
+        ):
+            with pytest.raises(ExportError) as exc_info:
+                await exporter.export(result, tmp_path)
+
+            assert "Invalid metadata for OPF export" in str(exc_info.value)
+            assert exc_info.value.format_name == "opf"
+            assert exc_info.value.__cause__ is not None
+            assert isinstance(exc_info.value.__cause__, ValidationError)
+
+
+class TestOpfExporterRegistry:
+    """Tests for exporter registry with OPF."""
+
+    def test_get_opf_exporter(self) -> None:
+        """Test getting OPF exporter from registry."""
+        exporter = get_exporter("opf")
+        assert isinstance(exporter, OpfExporter)
+        assert exporter.name == "opf"
+
+    def test_list_exporters_includes_opf(self) -> None:
+        """Test that list_exporters includes opf."""
+        exporters = list_exporters()
+        assert "opf" in exporters
+        assert "json" in exporters

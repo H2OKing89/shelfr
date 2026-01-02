@@ -1832,7 +1832,7 @@ def import_single(
     # Generate metadata.opf sidecar for Audiobookshelf (OPF format)
     # ─────────────────────────────────────────────────────────────────────
     if generate_opf_sidecar and audnex_data:
-        from shelfr.opf import CanonicalMetadata, write_opf
+        from shelfr.metadata.opf import CanonicalMetadata, write_opf
 
         try:
             canonical = CanonicalMetadata.from_audnex(audnex_data)

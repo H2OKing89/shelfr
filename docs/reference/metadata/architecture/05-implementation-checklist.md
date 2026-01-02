@@ -159,12 +159,13 @@
 
 ## Phase 6: Move OPF + Deprecations
 
-- [ ] Move `src/shelfr/opf/` → `metadata/opf/`
-- [ ] Create deprecation shim in `src/shelfr/opf/__init__.py`:
+- [x] Move `src/shelfr/opf/` → `metadata/opf/`
+- [x] Create deprecation shim in `src/shelfr/opf/__init__.py`:
   - Old import path raises `DeprecationWarning` unless `SHELFR_ENABLE_LEGACY_OPF=1`
   - In legacy mode, old import path re-exports new functions
-- [ ] Create `metadata/exporters/opf.py`:
+- [x] Create `metadata/exporters/opf.py`:
   - `OpfExporter` wrapping existing OPF generation
+- [x] Add tests for OpfExporter (12 tests)
 
 ---
 
@@ -204,7 +205,7 @@
 | Phase 5a | ✅ Complete | Schemas + Cleaning (PR #73) |
 | Phase 5b | ✅ Complete | Provider system + Aggregator |
 | Phase 5c | ✅ Complete | Orchestration + JSON exporter (PR #75) |
-| Phase 6 | ⏳ Not Started | OPF move + deprecations |
+| Phase 6 | ✅ Complete | OPF move + deprecations + OpfExporter |
 | Phase 7 | ⏳ Not Started | Infrastructure (optional) |
 | Future | ⏳ Not Started | As needed |
 

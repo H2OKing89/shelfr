@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from shelfr.opf.schemas import CanonicalMetadata, OPFMetadata
+    from shelfr.metadata.opf.schemas import CanonicalMetadata, OPFMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,7 @@ class OPFGenerator:
         Returns:
             Formatted XML string
         """
-        from shelfr.opf.schemas import OPFMetadata
+        from shelfr.metadata.opf.schemas import OPFMetadata
 
         opf_meta = OPFMetadata.from_canonical(metadata)
         return self.generate(opf_meta)
@@ -177,7 +177,7 @@ class OPFGenerator:
         Returns:
             Path to the written file
         """
-        from shelfr.opf.schemas import OPFMetadata
+        from shelfr.metadata.opf.schemas import OPFMetadata
 
         opf_meta = OPFMetadata.from_canonical(metadata)
         return self.write(opf_meta, path, filename=filename)
@@ -337,7 +337,7 @@ def generate_opf(metadata: CanonicalMetadata | OPFMetadata) -> str:
     Returns:
         Formatted XML string
     """
-    from shelfr.opf.schemas import CanonicalMetadata
+    from shelfr.metadata.opf.schemas import CanonicalMetadata
 
     generator = OPFGenerator()
     if isinstance(metadata, CanonicalMetadata):
@@ -364,7 +364,7 @@ def write_opf(
     Returns:
         Path to the written file
     """
-    from shelfr.opf.schemas import CanonicalMetadata
+    from shelfr.metadata.opf.schemas import CanonicalMetadata
 
     generator = OPFGenerator()
     if isinstance(metadata, CanonicalMetadata):
