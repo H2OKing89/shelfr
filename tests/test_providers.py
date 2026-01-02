@@ -314,11 +314,16 @@ class TestMockProvider:
         assert mock.fetch_count == 2
         assert len(mock.fetch_history) == 2
 
-    def test_reset(self) -> None:
+    @pytest.mark.asyncio
+    async def test_reset(self) -> None:
         """Test reset clears history."""
-        mock = MockProvider()
-        mock._fetch_count = 5
-        mock._fetch_history = [("ctx", "asin")]  # type: ignore[list-item]
+        mock = MockProvider(responses={"A": {"title": "Test"}})
+
+        # Populate history via public API
+        await mock.fetch(LookupContext.from_asin(asin="A"), "asin")
+        await mock.fetch(LookupContext.from_asin(asin="A"), "asin")
+        assert mock.fetch_count == 2
+        assert len(mock.fetch_history) == 2
 
         mock.reset()
 
@@ -761,9 +766,7 @@ class TestMetadataAggregator:
 
         aggregator = MetadataAggregator(registry)
         ctx = LookupContext.from_asin(asin="A")
-        result = await aggregator.fetch_all(
-            ctx, required_fields=["title"], stop_on_complete=True
-        )
+        result = await aggregator.fetch_all(ctx, required_fields=["title"], stop_on_complete=True)
 
         # Local title should be used, network not called
         assert result.fields["title"] == "Local Title"
@@ -793,9 +796,7 @@ class TestMetadataAggregator:
 
         aggregator = MetadataAggregator(registry)
         ctx = LookupContext.from_asin(asin="A")
-        result = await aggregator.fetch_all(
-            ctx, required_fields=["title"], stop_on_complete=True
-        )
+        result = await aggregator.fetch_all(ctx, required_fields=["title"], stop_on_complete=True)
 
         # Network should have been called to get title
         assert result.fields["title"] == "Network Title"
@@ -821,9 +822,7 @@ class TestMetadataAggregator:
         """Test providers parameter filters to specific providers."""
         registry = ProviderRegistry()
         registry.register(MockProvider(name="include", responses={"A": {"title": "Included"}}))
-        registry.register(
-            MockProvider(name="exclude", responses={"A": {"publisher": "Excluded"}})
-        )
+        registry.register(MockProvider(name="exclude", responses={"A": {"publisher": "Excluded"}}))
 
         aggregator = MetadataAggregator(registry)
         ctx = LookupContext.from_asin(asin="A")
