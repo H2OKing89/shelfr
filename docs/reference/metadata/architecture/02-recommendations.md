@@ -1,10 +1,28 @@
 # Recommendations & Migration Plan
 
 > Part of [Metadata Architecture Documentation](README.md)
+>
+> **Migration Status:** Phases 0-6 complete ✅ | Phase 7 in progress ⏳ | Phase 8+ planned 📋
 
 ---
 
-## 1. Phase 0: Package Scaffolding (Critical First Step)
+## Migration Progress Summary
+
+| Phase | Status | Completion |
+|-------|--------|------------|
+| Phase 0: Package Scaffolding | ✅ Complete | Merged to main |
+| Phase 1: Extract MediaInfo | ✅ Complete | Merged to main |
+| Phase 2: Extract Formatting | ✅ Complete | Merged to main |
+| Phase 3: Extract Audnex | ✅ Complete | Merged to main |
+| Phase 4: Extract MAM | ✅ Complete | Merged to main |
+| Phase 5: Schemas + Providers + Exporters | ✅ Complete | Merged to main |
+| Phase 6: Move OPF + Deprecations | ✅ Complete | Merged to main |
+| Phase 7: Cleanup & Hygiene | ⏳ In Progress | Schema consolidation done (PR #78) |
+| Phase 8: Infrastructure (future) | 📋 Planned | Cache, events, batch operations |
+
+---
+
+## 1. Phase 0: Package Scaffolding ✅ COMPLETE
 
 > **Python constraint:** You cannot have both `metadata.py` and `metadata/` directory.
 
@@ -31,7 +49,7 @@ src/shelfr/metadata/__init__.py  # Same content, now a package
 
 ---
 
-## 2. Phase 1: Extract MediaInfo (Leaf Module)
+## 2. Phase 1: Extract MediaInfo ✅ COMPLETE
 
 > Extract first because it's a **leaf module** — no network, no state, pure functions.
 
@@ -49,7 +67,7 @@ Update `metadata/__init__.py` to re-export from new location.
 
 ---
 
-## 3. Phase 2: Extract Formatting (Presentation Layer)
+## 3. Phase 2: Extract Formatting ✅ COMPLETE
 
 **Action:** Create `metadata/formatting/`
 
@@ -64,7 +82,7 @@ Also move `_format_release_date()` here (only consumer is bbcode).
 
 ---
 
-## 4. Phase 3: Extract Audnex (Network Boundary)
+## 4. Phase 3: Extract Audnex ✅ COMPLETE
 
 **Action:** Create `metadata/audnex/client.py`
 
@@ -79,9 +97,9 @@ Keep chapters with client (shared HTTP/retry/circuit-breaker patterns).
 
 ---
 
-## 5. Phase 4: Extract MAM (Depends on Above)
+## 5. Phase 4: Extract MAM ✅ COMPLETE
 
-> **Do this later** — `build_mam_json` touches everything (mediainfo, audnex, formatting).
+> ~~**Do this later**~~ — Done! `build_mam_json` now lives in organized structure.
 
 **Action:** Create `metadata/mam/`
 
@@ -94,7 +112,7 @@ metadata/mam/
 
 ---
 
-## 6. Phase 5: Schemas + Cleaning + JSON Sidecar
+## 6. Phase 5: Schemas + Provider System + Exporters ✅ COMPLETE
 
 ### 6.1 Shared Types
 
@@ -163,7 +181,7 @@ __all__ = [
 
 ---
 
-## 7. Phase 6: Move OPF + Deprecations
+## 7. Phase 6: Move OPF + Deprecations ✅ COMPLETE
 
 **Action:** Move `src/shelfr/opf/` → `metadata/opf/` with deprecation shim
 
@@ -228,20 +246,36 @@ metadata/
 
 ## 10. Recommended Shipping Order
 
-| PR | Phase | What | Why This Order |
+| PR | Phase | Status | Completion |
 | --- | --- | --- | --- |
-| 1 | Phase 0 | Package scaffolding | Enables everything else |
-| 2 | Phase 1 | MediaInfo extraction | Leaf module, zero dependencies |
-| 3 | Phase 2 | Formatting extraction | Low coupling, presentation only |
-| 4 | Phase 3 | Audnex extraction | Network boundary isolation |
-| 5 | Phase 4 | MAM extraction | Depends on above modules |
-| 6 | Phase 5 | Schemas + Cleaning + JSON | Feature: JSON sidecar |
-| 7 | Phase 6 | OPF move + deprecations | Cleanup, not urgent |
+| 1 | Phase 0 | ✅ Complete | Package scaffolding shipped |
+| 2 | Phase 1 | ✅ Complete | MediaInfo extraction shipped |
+| 3 | Phase 2 | ✅ Complete | Formatting extraction shipped |
+| 4 | Phase 3 | ✅ Complete | Audnex extraction shipped |
+| 5 | Phase 4 | ✅ Complete | MAM extraction shipped |
+| 6 | Phase 5 | ✅ Complete | Schemas + Providers + Exporters shipped |
+| 7 | Phase 6 | ✅ Complete | OPF move + deprecations shipped |
+| 8 | Phase 7 | ⏳ In Progress | Cleanup & hygiene (schema work done in PR #78) |
+| 9 | Phase 8+ | 📋 Planned | Infrastructure (cache, events, batch operations) |
 
-### Immediate Next Steps
+### Current Status: Phase 7 In Progress
 
-1. ⏳ Phase 0: `metadata.py` → `metadata/__init__.py`
-2. ⏳ Phase 1: Extract `metadata/mediainfo/extractor.py`
-3. ⏳ Phase 5: Create `metadata/models.py` (Chapter)
-4. ⏳ Phase 5: Create `metadata/json/` (JSON sidecar feature)
-5. ⏳ Continue incremental extraction
+**Completed:**
+
+- ✅ Schema consolidation (AbsMetadataSchema unified with AbsMetadataJson)
+- ✅ Strict validation enforcement on write paths
+- ✅ Tags field population with Adult flag
+
+**Remaining:**
+
+- ⏳ Documentation updates (in progress)
+- 📋 Code hygiene checks
+- 📋 **all** exports verification
+
+### Future Work: Phase 8+ (Infrastructure)
+
+1. 📋 Caching layer with schema versioning
+2. 📋 Event hooks / middleware for instrumentation
+3. 📋 Batch operations support
+4. 📋 Rate limiting + circuit breaker improvements
+5. 📋 Provider performance optimization

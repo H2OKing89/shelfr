@@ -171,25 +171,27 @@
 
 ## Phase 7: Cleanup & Hygiene
 
-> Post-migration cleanup — consolidate duplicates, update docs, remove dead code.
+> **Status:** In progress - schema consolidation complete, docs/hygiene remaining
 
 ### Schema Consolidation
 
-- [ ] Unify `AbsMetadataSchema` (`abs/rename.py`) with `AbsMetadataJson` (`schemas/abs_metadata.py`):
-  - Audit differences (optional fields, naming conventions)
-  - Migrate `abs/rename.py` to use `AbsMetadataJson`
-  - Update tests in `test_abs_rename.py`
-  - Remove duplicate `AbsMetadataSchema` class
-- [ ] Unify `AudnexAuthor` / `AudnexSeries` with `Person` / `Series` from canonical schemas:
-  - Update `schemas/audnex.py` to import from `metadata/schemas/canonical.py`
-  - Verify Audnex validation still works with shared types
+- [x] ✅ **COMPLETE** Unify `AbsMetadataSchema` (`abs/rename.py`) with `AbsMetadataJson` (`schemas/abs_metadata.py`):
+  - ✅ Audited differences (optional fields, naming conventions)
+  - ✅ Migrated `abs/rename.py` to use `AbsMetadataJson`
+  - ✅ Updated tests in `test_abs_rename.py`
+  - ✅ Removed duplicate `AbsMetadataSchema` class
+  - **Completed in:** PR #78 (Phase 7 - Schema Consolidation)
+- [x] ✅ **DEFERRED** Unify `AudnexAuthor` / `AudnexSeries` with `Person` / `Series`:
+  - **Rationale:** Circular import constraint prevents unification (see 01-current-state-audit.md § 2.2)
+  - **Documentation:** Added detailed circular import explanation to audit doc
+  - **Future work:** Can be unified after metadata package initialization refactor (Phase 8+)
 
 ### Documentation Updates
 
-- [ ] Update `01-current-state-audit.md` to reflect completed migration:
-  - Mark duplicate schemas as resolved
-  - Update file inventory with new structure
-  - Add "Migration Complete" status
+- [x] Update `01-current-state-audit.md` to reflect completed migration:
+  - ✅ Marked duplicate schemas as resolved
+  - ✅ Updated status annotations
+  - [ ] Update file inventory with new structure (if changed)
 - [ ] Update `02-recommendations.md`:
   - Mark completed phases
   - Archive or annotate historical context

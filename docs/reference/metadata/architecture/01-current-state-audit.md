@@ -47,7 +47,7 @@
 
 ## 2. Duplicate Definitions Found
 
-> **Status (Phase 7 Complete):** Most duplicates have been resolved. See notes below.
+> **Status (Phase 7):** ✅ **AbsMetadataSchema unified.** AudnexAuthor/AudnexSeries remain as documented duplicates (circular import constraint).
 
 ### 2.1 ABS JSON vs Canonical Schema (Two Layers, Currently Mixed)
 
