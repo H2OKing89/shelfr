@@ -169,7 +169,48 @@
 
 ---
 
-## Phase 7: Infrastructure (As Needed)
+## Phase 7: Cleanup & Hygiene
+
+> Post-migration cleanup — consolidate duplicates, update docs, remove dead code.
+
+### Schema Consolidation
+
+- [ ] Unify `AbsMetadataSchema` (`abs/rename.py`) with `AbsMetadataJson` (`schemas/abs_metadata.py`):
+  - Audit differences (optional fields, naming conventions)
+  - Migrate `abs/rename.py` to use `AbsMetadataJson`
+  - Update tests in `test_abs_rename.py`
+  - Remove duplicate `AbsMetadataSchema` class
+- [ ] Unify `AudnexAuthor` / `AudnexSeries` with `Person` / `Series` from canonical schemas:
+  - Update `schemas/audnex.py` to import from `metadata/schemas/canonical.py`
+  - Verify Audnex validation still works with shared types
+
+### Documentation Updates
+
+- [ ] Update `01-current-state-audit.md` to reflect completed migration:
+  - Mark duplicate schemas as resolved
+  - Update file inventory with new structure
+  - Add "Migration Complete" status
+- [ ] Update `02-recommendations.md`:
+  - Mark completed phases
+  - Archive or annotate historical context
+- [ ] Review and update `README.md` in architecture folder
+
+### Code Hygiene
+
+- [ ] Remove any unused imports in migrated files
+- [ ] Run `ruff check --fix` across metadata package
+- [ ] Verify all `__all__` exports are accurate
+- [ ] Check for any TODO/FIXME comments to address
+
+### Deprecation Tracking
+
+- [ ] Document deprecation timeline for `shelfr.opf` shim (target: v2.0)
+- [ ] Document deprecation timeline for `cli_argparse.py` (target: v2.0)
+- [ ] Add deprecation notes to CHANGELOG
+
+---
+
+## Phase 8: Infrastructure (As Needed)
 
 > These are optional enhancements — the core system works without them.
 
@@ -178,8 +219,6 @@
 - [ ] Add schema versioning to `CanonicalMetadata`
 - [ ] Per-provider rate limiting (`ProviderResilience` class)
 - [ ] Circuit breaker integration (already have infrastructure)
-
-> **Note:** If JSON sidecar needs multi-source deterministic merges (e.g., ABS override + Audnex) before Phase 5b is ready, pull Aggregator forward as needed.
 
 ---
 
@@ -205,8 +244,9 @@
 | Phase 5a | ✅ Complete | Schemas + Cleaning (PR #73) |
 | Phase 5b | ✅ Complete | Provider system + Aggregator |
 | Phase 5c | ✅ Complete | Orchestration + JSON exporter (PR #75) |
-| Phase 6 | ✅ Complete | OPF move + deprecations + OpfExporter |
-| Phase 7 | ⏳ Not Started | Infrastructure (optional) |
+| Phase 6 | ✅ Complete | OPF move + deprecations + OpfExporter (PR #76) |
+| Phase 7 | ⏳ Not Started | Cleanup & Hygiene |
+| Phase 8 | ⏳ Not Started | Infrastructure (optional) |
 | Future | ⏳ Not Started | As needed |
 
 ---
@@ -229,7 +269,10 @@ Phase 5a/5b/5c (Schemas/Providers/JSON) ←────────────�
 Phase 6 (OPF + Deprecations)
     │
     ▼
-Phase 7 (Infrastructure - optional)
+Phase 7 (Cleanup & Hygiene)
+    │
+    ▼
+Phase 8 (Infrastructure - optional)
 ```
 
 **Critical Path for JSON sidecar:** Phase 0 → Phase 5a (schemas) → Phase 5c (JSON exporter)
@@ -254,8 +297,9 @@ Phase 7 (Infrastructure - optional)
 | Phase 5a | Schema validation, cleaning idempotence |
 | Phase 5b | MockProvider, aggregator merge logic, registry, deterministic tie-breaking (same confidence → priority wins), override provider behavior (empty values), two-stage fetch short-circuit |
 | Phase 5c | Orchestration wire-through, JSON exporter golden tests |
-| Phase 6 | OPF output, JSON sidecar golden tests |
-| Phase 7 | Cache hit/miss, event emission |
+| Phase 6 | OPF output, deprecation shim behavior |
+| Phase 7 | Schema consolidation, import cleanup |
+| Phase 8 | Cache hit/miss, event emission |
 
 ### Integration Tests
 
