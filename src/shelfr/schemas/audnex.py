@@ -1,37 +1,56 @@
-"""Pydantic schemas for Audnex API response validation."""
+"""Pydantic schemas for Audnex API response validation.
+
+These schemas are used for parsing raw Audnex API responses.
+
+Note: AudnexAuthor, AudnexSeries, AudnexGenre are structurally identical to
+the canonical Person, Series, Genre in metadata.schemas.canonical. They are
+kept separate to avoid circular imports (schemas → metadata → providers → schemas).
+
+For internal processing, prefer the canonical schemas. These Audnex-prefixed
+schemas are for API response parsing only.
+"""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 
 class AudnexAuthor(BaseModel):
-    """Author/narrator from Audnex API."""
+    """Author/narrator from Audnex API.
 
-    asin: str | None = None
+    Structurally identical to metadata.schemas.canonical.Person.
+    """
+
     name: str
+    asin: str | None = None
 
     model_config = {"extra": "ignore"}
 
 
 class AudnexSeries(BaseModel):
-    """Series info from Audnex API."""
+    """Series info from Audnex API.
 
-    asin: str | None = None
+    Structurally identical to metadata.schemas.canonical.Series.
+    """
+
     name: str
     position: str | None = None
+    asin: str | None = None
 
     model_config = {"extra": "ignore"}
 
 
 class AudnexGenre(BaseModel):
-    """Genre from Audnex API."""
+    """Genre from Audnex API.
 
-    asin: str | None = None
+    Structurally identical to metadata.schemas.canonical.Genre.
+    """
+
     name: str
-    type: str | None = None
+    asin: str | None = None
+    type: Literal["genre", "tag"] | None = None
 
     model_config = {"extra": "ignore"}
 
