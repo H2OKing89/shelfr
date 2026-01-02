@@ -2,133 +2,42 @@
 Pydantic schemas for OPF metadata generation.
 
 Two-layer architecture:
-    1. CanonicalMetadata - Internal representation matching Audnexus API
+    1. CanonicalMetadata - Imported from shelfr.metadata.schemas.canonical
     2. OPFMetadata - ABS-compatible export profile
 
 This separation keeps the internal schema stable while allowing
 export format changes without affecting the canonical model.
+
+Note: Person, Genre, Series, CanonicalMetadata are re-exported from
+canonical.py for backwards compatibility. New code should import
+directly from shelfr.metadata.schemas.canonical.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
+# Import canonical schemas - single source of truth
+from shelfr.metadata.schemas.canonical import (
+    CanonicalMetadata,
+    Genre,
+    Person,
+    Series,
+)
 
-class Person(BaseModel):
-    """Author or narrator with optional ASIN identifier."""
-
-    name: str
-    asin: str | None = None
-
-    model_config = {"extra": "ignore"}
-
-
-class Genre(BaseModel):
-    """Genre or tag from Audnexus."""
-
-    name: str
-    asin: str | None = None
-    type: Literal["genre", "tag"] | None = None
-
-    model_config = {"extra": "ignore"}
-
-
-class Series(BaseModel):
-    """Series information with position."""
-
-    name: str
-    position: str | None = None
-    asin: str | None = None
-
-    model_config = {"extra": "ignore"}
-
-    @field_validator("position", mode="before")
-    @classmethod
-    def normalize_position(cls, v: str | int | float | None) -> str | None:
-        """Convert numeric positions to strings."""
-        if v is None:
-            return None
-        return str(v)
-
-
-class CanonicalMetadata(BaseModel):
-    """
-    Canonical audiobook metadata schema.
-
-    This is the internal representation that matches the Audnexus API response.
-    Use this model for long-term storage and validation.
-
-    All fields follow Audnexus naming conventions for easy mapping.
-    """
-
-    # Required fields
-    asin: str
-    title: str
-    authors: list[Person] = Field(default_factory=list)
-    description: str = ""
-    format_type: str = Field(default="unabridged", alias="formatType")
-    language: str = "english"
-    publisher_name: str = Field(default="", alias="publisherName")
-    rating: str = ""
-    region: Literal["au", "ca", "de", "es", "fr", "in", "it", "jp", "us", "uk"] = "us"
-    release_date: str | datetime | None = Field(default=None, alias="releaseDate")
-    runtime_length_min: int | None = Field(default=None, alias="runtimeLengthMin")
-    summary: str = ""
-
-    # Optional fields
-    copyright: int | None = None
-    genres: list[Genre] = Field(default_factory=list)
-    image: str | None = None
-    is_adult: bool = Field(default=False, alias="isAdult")
-    isbn: str | None = None
-    literature_type: str | None = Field(default=None, alias="literatureType")
-    narrators: list[Person] = Field(default_factory=list)
-    series_primary: Series | None = Field(default=None, alias="seriesPrimary")
-    series_secondary: Series | None = Field(default=None, alias="seriesSecondary")
-    subtitle: str | None = None
-
-    model_config = {"extra": "ignore", "populate_by_name": True}
-
-    @classmethod
-    def from_audnex(cls, data: dict[str, object]) -> CanonicalMetadata:
-        """Create from raw Audnexus API response."""
-        return cls.model_validate(data)
-
-    @property
-    def release_year(self) -> int | None:
-        """Extract year from release_date."""
-        if not self.release_date:
-            return None
-        if isinstance(self.release_date, datetime):
-            return self.release_date.year
-        # Parse ISO date string
-        try:
-            return int(self.release_date[:4])
-        except (ValueError, IndexError):
-            return None
-
-    @property
-    def release_date_iso(self) -> str | None:
-        """Get release date in ISO format (YYYY-MM-DD)."""
-        if not self.release_date:
-            return None
-        if isinstance(self.release_date, datetime):
-            return self.release_date.strftime("%Y-%m-%d")
-        # Assume already ISO-like, extract date portion
-        return self.release_date[:10] if len(self.release_date) >= 10 else self.release_date
-
-    def get_all_genres(self) -> list[str]:
-        """Get deduplicated genre/tag names."""
-        seen: set[str] = set()
-        result: list[str] = []
-        for g in self.genres:
-            if g.name not in seen:
-                seen.add(g.name)
-                result.append(g.name)
-        return result
+# Re-export for backwards compatibility
+__all__ = [
+    "CanonicalMetadata",
+    "Genre",
+    "OPFCreator",
+    "OPFIdentifier",
+    "OPFMetadata",
+    "OPFSeries",
+    "Person",
+    "Series",
+]
 
 
 class OPFCreator(BaseModel):
