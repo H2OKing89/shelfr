@@ -11,7 +11,6 @@ Tests cover:
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from unittest.mock import patch
 
@@ -274,55 +273,46 @@ class TestMockProvider:
         assert mock.can_lookup(ctx, "asin") is True
         assert mock.can_lookup(ctx, "isbn") is False
 
-    def test_fetch_returns_configured_response(self) -> None:
+    @pytest.mark.asyncio
+    async def test_fetch_returns_configured_response(self) -> None:
         """Test fetch returns configured response."""
-
-        async def run_test() -> None:
-            mock = MockProvider(
-                responses={
-                    "B08G9PRS1K": {
-                        "title": "The Way of Kings",
-                        "authors": [{"name": "Brandon Sanderson"}],
-                    }
+        mock = MockProvider(
+            responses={
+                "B08G9PRS1K": {
+                    "title": "The Way of Kings",
+                    "authors": [{"name": "Brandon Sanderson"}],
                 }
-            )
-            ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+            }
+        )
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
 
-            result = await mock.fetch(ctx, "asin")
+        result = await mock.fetch(ctx, "asin")
 
-            assert result.success is True
-            assert result.fields["title"] == "The Way of Kings"
-            assert result.fields["authors"] == [{"name": "Brandon Sanderson"}]
+        assert result.success is True
+        assert result.fields["title"] == "The Way of Kings"
+        assert result.fields["authors"] == [{"name": "Brandon Sanderson"}]
 
-        asyncio.run(run_test())
-
-    def test_fetch_returns_error(self) -> None:
+    @pytest.mark.asyncio
+    async def test_fetch_returns_error(self) -> None:
         """Test fetch returns configured error."""
+        mock = MockProvider(errors={"BAD_ASIN": "Not found"})
+        ctx = LookupContext.from_asin(asin="BAD_ASIN")
 
-        async def run_test() -> None:
-            mock = MockProvider(errors={"BAD_ASIN": "Not found"})
-            ctx = LookupContext.from_asin(asin="BAD_ASIN")
+        result = await mock.fetch(ctx, "asin")
 
-            result = await mock.fetch(ctx, "asin")
+        assert result.success is False
+        assert result.error == "Not found"
 
-            assert result.success is False
-            assert result.error == "Not found"
-
-        asyncio.run(run_test())
-
-    def test_fetch_tracks_history(self) -> None:
+    @pytest.mark.asyncio
+    async def test_fetch_tracks_history(self) -> None:
         """Test fetch tracks call history."""
+        mock = MockProvider(responses={"A": {"title": "A"}, "B": {"title": "B"}})
 
-        async def run_test() -> None:
-            mock = MockProvider(responses={"A": {"title": "A"}, "B": {"title": "B"}})
+        await mock.fetch(LookupContext.from_asin(asin="A"), "asin")
+        await mock.fetch(LookupContext.from_asin(asin="B"), "asin")
 
-            await mock.fetch(LookupContext.from_asin(asin="A"), "asin")
-            await mock.fetch(LookupContext.from_asin(asin="B"), "asin")
-
-            assert mock.fetch_count == 2
-            assert len(mock.fetch_history) == 2
-
-        asyncio.run(run_test())
+        assert mock.fetch_count == 2
+        assert len(mock.fetch_history) == 2
 
     def test_reset(self) -> None:
         """Test reset clears history."""
@@ -371,131 +361,116 @@ class TestAudnexProvider:
 
         assert provider.can_lookup(ctx, "isbn") is False
 
-    def test_fetch_maps_audnex_response(self) -> None:
+    @pytest.mark.asyncio
+    async def test_fetch_maps_audnex_response(self) -> None:
         """Test fetch correctly maps Audnex API response."""
+        provider = AudnexProvider()
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
 
-        async def run_test() -> None:
-            provider = AudnexProvider()
-            ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+        mock_response = {
+            "title": "The Way of Kings",
+            "subtitle": "Book One of the Stormlight Archive",
+            "authors": [{"name": "Brandon Sanderson", "asin": "B001IGFHW6"}],
+            "narrators": [{"name": "Michael Kramer"}, {"name": "Kate Reading"}],
+            "seriesPrimary": {"name": "Stormlight Archive", "position": "1"},
+            "description": "<p>Epic fantasy...</p>",
+            "publisherName": "Tor Books",
+            "releaseDate": "2010-08-31",
+            "language": "english",
+            "genres": [{"name": "Fantasy", "asin": "G123"}],
+            "image": "https://example.com/cover.jpg",
+            "runtimeLengthMin": 2700,
+        }
 
-            mock_response = {
-                "title": "The Way of Kings",
-                "subtitle": "Book One of the Stormlight Archive",
-                "authors": [{"name": "Brandon Sanderson", "asin": "B001IGFHW6"}],
-                "narrators": [{"name": "Michael Kramer"}, {"name": "Kate Reading"}],
-                "seriesPrimary": {"name": "Stormlight Archive", "position": "1"},
-                "description": "<p>Epic fantasy...</p>",
-                "publisherName": "Tor Books",
-                "releaseDate": "2010-08-31",
-                "language": "english",
-                "genres": [{"name": "Fantasy", "asin": "G123"}],
-                "image": "https://example.com/cover.jpg",
-                "runtimeLengthMin": 2700,
-            }
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            result = await provider.fetch(ctx, "asin")
 
-            with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
-                mock_fetch.return_value = (mock_response, "us")
-                result = await provider.fetch(ctx, "asin")
+        assert result.success is True
+        assert result.fields["title"] == "The Way of Kings"
+        assert result.fields["subtitle"] == "Book One of the Stormlight Archive"
+        assert result.fields["authors"] == [{"name": "Brandon Sanderson", "asin": "B001IGFHW6"}]
+        assert len(result.fields["narrators"]) == 2
+        assert result.fields["series_name"] == "Stormlight Archive"
+        assert result.fields["series_position"] == "1"
+        assert result.fields["publisher"] == "Tor Books"
+        assert result.fields["duration_seconds"] == 2700 * 60
 
-            assert result.success is True
-            assert result.fields["title"] == "The Way of Kings"
-            assert result.fields["subtitle"] == "Book One of the Stormlight Archive"
-            assert result.fields["authors"] == [{"name": "Brandon Sanderson", "asin": "B001IGFHW6"}]
-            assert len(result.fields["narrators"]) == 2
-            assert result.fields["series_name"] == "Stormlight Archive"
-            assert result.fields["series_position"] == "1"
-            assert result.fields["publisher"] == "Tor Books"
-            assert result.fields["duration_seconds"] == 2700 * 60
-
-        asyncio.run(run_test())
-
-    def test_fetch_not_found(self) -> None:
+    @pytest.mark.asyncio
+    async def test_fetch_not_found(self) -> None:
         """Test fetch returns failure when ASIN not found."""
+        provider = AudnexProvider()
+        # Use valid ASIN format that doesn't exist
+        ctx = LookupContext.from_asin(asin="B000000000")
 
-        async def run_test() -> None:
-            provider = AudnexProvider()
-            # Use valid ASIN format that doesn't exist
-            ctx = LookupContext.from_asin(asin="B000000000")
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (None, None)
+            result = await provider.fetch(ctx, "asin")
 
-            with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
-                mock_fetch.return_value = (None, None)
-                result = await provider.fetch(ctx, "asin")
+        assert result.success is False
+        assert result.error is not None
+        assert "not found" in result.error.lower()
 
-            assert result.success is False
-            assert result.error is not None
-            assert "not found" in result.error.lower()
-
-        asyncio.run(run_test())
-
-    def test_fetch_invalid_asin_format(self) -> None:
+    @pytest.mark.asyncio
+    async def test_fetch_invalid_asin_format(self) -> None:
         """Test fetch rejects invalid ASIN format."""
+        provider = AudnexProvider()
 
-        async def run_test() -> None:
-            provider = AudnexProvider()
+        # Too short
+        ctx = LookupContext.from_asin(asin="B08G9")
+        result = await provider.fetch(ctx, "asin")
+        assert result.success is False
+        assert "Invalid ASIN format" in result.error
 
-            # Too short
-            ctx = LookupContext.from_asin(asin="B08G9")
-            result = await provider.fetch(ctx, "asin")
-            assert result.success is False
-            assert "Invalid ASIN format" in result.error
+        # Invalid characters (lowercase)
+        ctx = LookupContext.from_asin(asin="b08g9prs1k")
+        result = await provider.fetch(ctx, "asin")
+        assert result.success is False
+        assert "Invalid ASIN format" in result.error
 
-            # Invalid characters (lowercase)
-            ctx = LookupContext.from_asin(asin="b08g9prs1k")
-            result = await provider.fetch(ctx, "asin")
-            assert result.success is False
-            assert "Invalid ASIN format" in result.error
+        # Too long
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K1")
+        result = await provider.fetch(ctx, "asin")
+        assert result.success is False
+        assert "Invalid ASIN format" in result.error
 
-            # Too long
-            ctx = LookupContext.from_asin(asin="B08G9PRS1K1")
-            result = await provider.fetch(ctx, "asin")
-            assert result.success is False
-            assert "Invalid ASIN format" in result.error
-
-        asyncio.run(run_test())
-
-    def test_fetch_preserves_is_adult_false(self) -> None:
+    @pytest.mark.asyncio
+    async def test_fetch_preserves_is_adult_false(self) -> None:
         """Test is_adult=False is preserved, not skipped."""
+        provider = AudnexProvider()
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
 
-        async def run_test() -> None:
-            provider = AudnexProvider()
-            ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+        mock_response = {
+            "title": "Kids Book",
+            "isAdult": False,  # Explicitly non-adult
+        }
 
-            mock_response = {
-                "title": "Kids Book",
-                "isAdult": False,  # Explicitly non-adult
-            }
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            result = await provider.fetch(ctx, "asin")
 
-            with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
-                mock_fetch.return_value = (mock_response, "us")
-                result = await provider.fetch(ctx, "asin")
+        assert result.success is True
+        assert "is_adult" in result.fields
+        assert result.fields["is_adult"] is False
 
-            assert result.success is True
-            assert "is_adult" in result.fields
-            assert result.fields["is_adult"] is False
-
-        asyncio.run(run_test())
-
-    def test_fetch_preserves_is_adult_true(self) -> None:
+    @pytest.mark.asyncio
+    async def test_fetch_preserves_is_adult_true(self) -> None:
         """Test is_adult=True is also preserved."""
+        provider = AudnexProvider()
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
 
-        async def run_test() -> None:
-            provider = AudnexProvider()
-            ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+        mock_response = {
+            "title": "Adult Book",
+            "isAdult": True,
+        }
 
-            mock_response = {
-                "title": "Adult Book",
-                "isAdult": True,
-            }
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            result = await provider.fetch(ctx, "asin")
 
-            with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
-                mock_fetch.return_value = (mock_response, "us")
-                result = await provider.fetch(ctx, "asin")
-
-            assert result.success is True
-            assert "is_adult" in result.fields
-            assert result.fields["is_adult"] is True
-
-        asyncio.run(run_test())
+        assert result.success is True
+        assert "is_adult" in result.fields
+        assert result.fields["is_adult"] is True
 
 
 # =============================================================================
@@ -506,432 +481,388 @@ class TestAudnexProvider:
 class TestMetadataAggregator:
     """Tests for MetadataAggregator."""
 
-    def test_single_provider(self) -> None:
+    @pytest.mark.asyncio
+    async def test_single_provider(self) -> None:
         """Test aggregation with single provider."""
-
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(
-                MockProvider(
-                    name="test",
-                    responses={
-                        "B08G9PRS1K": {
-                            "title": "Test Book",
-                            "authors": [{"name": "Test Author"}],
-                        }
-                    },
-                )
+        registry = ProviderRegistry()
+        registry.register(
+            MockProvider(
+                name="test",
+                responses={
+                    "B08G9PRS1K": {
+                        "title": "Test Book",
+                        "authors": [{"name": "Test Author"}],
+                    }
+                },
             )
+        )
 
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="B08G9PRS1K")
-            result = await aggregator.fetch_all(ctx)
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+        result = await aggregator.fetch_all(ctx)
 
-            assert result.fields["title"] == "Test Book"
-            assert result.sources["title"] == "test"
-            assert len(result.conflicts) == 0
+        assert result.fields["title"] == "Test Book"
+        assert result.sources["title"] == "test"
+        assert len(result.conflicts) == 0
 
-        asyncio.run(run_test())
-
-    def test_multiple_providers_no_conflict(self) -> None:
+    @pytest.mark.asyncio
+    async def test_multiple_providers_no_conflict(self) -> None:
         """Test aggregation with multiple providers providing different fields."""
-
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(
-                MockProvider(name="provider_a", priority=10, responses={"A": {"title": "Book A"}})
+        registry = ProviderRegistry()
+        registry.register(
+            MockProvider(name="provider_a", priority=10, responses={"A": {"title": "Book A"}})
+        )
+        registry.register(
+            MockProvider(
+                name="provider_b", priority=20, responses={"A": {"publisher": "Publisher B"}}
             )
-            registry.register(
-                MockProvider(
-                    name="provider_b", priority=20, responses={"A": {"publisher": "Publisher B"}}
-                )
-            )
+        )
 
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="A")
-            # stop_on_complete=False to ensure both providers contribute
-            result = await aggregator.fetch_all(ctx, stop_on_complete=False)
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="A")
+        # stop_on_complete=False to ensure both providers contribute
+        result = await aggregator.fetch_all(ctx, stop_on_complete=False)
 
-            assert result.fields["title"] == "Book A"
-            assert result.fields["publisher"] == "Publisher B"
-            assert result.sources["title"] == "provider_a"
-            assert result.sources["publisher"] == "provider_b"
+        assert result.fields["title"] == "Book A"
+        assert result.fields["publisher"] == "Publisher B"
+        assert result.sources["title"] == "provider_a"
+        assert result.sources["publisher"] == "provider_b"
 
-        asyncio.run(run_test())
-
-    def test_conflict_resolution_by_confidence(self) -> None:
+    @pytest.mark.asyncio
+    async def test_conflict_resolution_by_confidence(self) -> None:
         """Test conflict resolved by confidence score."""
-
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(
-                MockProvider(
-                    name="low_conf",
-                    priority=10,
-                    responses={"A": {"title": "Wrong Title"}},
-                    confidences={"A": {"title": 0.5}},
-                )
+        registry = ProviderRegistry()
+        registry.register(
+            MockProvider(
+                name="low_conf",
+                priority=10,
+                responses={"A": {"title": "Wrong Title"}},
+                confidences={"A": {"title": 0.5}},
             )
-            registry.register(
-                MockProvider(
-                    name="high_conf",
-                    priority=20,
-                    responses={"A": {"title": "Correct Title"}},
-                    confidences={"A": {"title": 0.9}},
-                )
+        )
+        registry.register(
+            MockProvider(
+                name="high_conf",
+                priority=20,
+                responses={"A": {"title": "Correct Title"}},
+                confidences={"A": {"title": 0.9}},
             )
+        )
 
-            aggregator = MetadataAggregator(registry, merge_strategy="confidence")
-            ctx = LookupContext.from_asin(asin="A")
-            # stop_on_complete=False to ensure both providers are queried
-            result = await aggregator.fetch_all(ctx, stop_on_complete=False)
+        aggregator = MetadataAggregator(registry, merge_strategy="confidence")
+        ctx = LookupContext.from_asin(asin="A")
+        # stop_on_complete=False to ensure both providers are queried
+        result = await aggregator.fetch_all(ctx, stop_on_complete=False)
 
-            assert result.fields["title"] == "Correct Title"
-            assert len(result.conflicts) == 1
-            assert result.conflicts[0].resolution_reason == "confidence"
-            # Verify source is correctly attributed to the winning provider
-            assert result.sources["title"] == "high_conf"
+        assert result.fields["title"] == "Correct Title"
+        assert len(result.conflicts) == 1
+        assert result.conflicts[0].resolution_reason == "confidence"
+        # Verify source is correctly attributed to the winning provider
+        assert result.sources["title"] == "high_conf"
 
-        asyncio.run(run_test())
-
-    def test_source_attribution_with_identical_values(self) -> None:
+    @pytest.mark.asyncio
+    async def test_source_attribution_with_identical_values(self) -> None:
         """Test source correctly attributed when multiple providers have same value.
 
         Regression test: ensures the winning provider (by confidence) is attributed
         even when multiple providers have identical values.
         """
-
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            # Both providers return the same value "Same Title"
-            registry.register(
-                MockProvider(
-                    name="provider_a",
-                    priority=10,  # Higher priority (lower number)
-                    responses={"A": {"title": "Same Title"}},
-                    confidences={"A": {"title": 0.5}},  # Lower confidence
-                )
+        registry = ProviderRegistry()
+        # Both providers return the same value "Same Title"
+        registry.register(
+            MockProvider(
+                name="provider_a",
+                priority=10,  # Higher priority (lower number)
+                responses={"A": {"title": "Same Title"}},
+                confidences={"A": {"title": 0.5}},  # Lower confidence
             )
-            registry.register(
-                MockProvider(
-                    name="provider_b",
-                    priority=20,  # Lower priority
-                    responses={"A": {"title": "Same Title"}},  # Same value!
-                    confidences={"A": {"title": 0.9}},  # Higher confidence
-                )
+        )
+        registry.register(
+            MockProvider(
+                name="provider_b",
+                priority=20,  # Lower priority
+                responses={"A": {"title": "Same Title"}},  # Same value!
+                confidences={"A": {"title": 0.9}},  # Higher confidence
             )
+        )
 
-            aggregator = MetadataAggregator(registry, merge_strategy="confidence")
-            ctx = LookupContext.from_asin(asin="A")
-            result = await aggregator.fetch_all(ctx, stop_on_complete=False)
+        aggregator = MetadataAggregator(registry, merge_strategy="confidence")
+        ctx = LookupContext.from_asin(asin="A")
+        result = await aggregator.fetch_all(ctx, stop_on_complete=False)
 
-            assert result.fields["title"] == "Same Title"
-            # provider_b should win due to higher confidence, even though
-            # provider_a has higher priority and would be found first in a loop
-            assert result.sources["title"] == "provider_b"
-            assert result.conflicts[0].resolution_reason == "confidence"
+        assert result.fields["title"] == "Same Title"
+        # provider_b should win due to higher confidence, even though
+        # provider_a has higher priority and would be found first in a loop
+        assert result.sources["title"] == "provider_b"
+        assert result.conflicts[0].resolution_reason == "confidence"
 
-        asyncio.run(run_test())
-
-    def test_conflict_resolution_by_priority(self) -> None:
+    @pytest.mark.asyncio
+    async def test_conflict_resolution_by_priority(self) -> None:
         """Test conflict resolved by priority when confidences equal."""
-
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(
-                MockProvider(
-                    name="high_priority",
-                    priority=10,
-                    responses={"A": {"title": "Priority Title"}},
-                )
+        registry = ProviderRegistry()
+        registry.register(
+            MockProvider(
+                name="high_priority",
+                priority=10,
+                responses={"A": {"title": "Priority Title"}},
             )
-            registry.register(
-                MockProvider(
-                    name="low_priority",
-                    priority=50,
-                    responses={"A": {"title": "Other Title"}},
-                )
+        )
+        registry.register(
+            MockProvider(
+                name="low_priority",
+                priority=50,
+                responses={"A": {"title": "Other Title"}},
             )
+        )
 
-            aggregator = MetadataAggregator(registry, merge_strategy="confidence")
-            ctx = LookupContext.from_asin(asin="A")
-            # stop_on_complete=False to ensure both providers are queried
-            result = await aggregator.fetch_all(ctx, stop_on_complete=False)
+        aggregator = MetadataAggregator(registry, merge_strategy="confidence")
+        ctx = LookupContext.from_asin(asin="A")
+        # stop_on_complete=False to ensure both providers are queried
+        result = await aggregator.fetch_all(ctx, stop_on_complete=False)
 
-            assert result.fields["title"] == "Priority Title"
-            assert result.sources["title"] == "high_priority"
+        assert result.fields["title"] == "Priority Title"
+        assert result.sources["title"] == "high_priority"
 
-        asyncio.run(run_test())
-
-    def test_priority_strategy(self) -> None:
+    @pytest.mark.asyncio
+    async def test_priority_strategy(self) -> None:
         """Test merge_strategy='priority' ignores confidence."""
-
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(
-                MockProvider(
-                    name="high_priority",
-                    priority=10,
-                    responses={"A": {"title": "Priority Wins"}},
-                    confidences={"A": {"title": 0.1}},  # Low confidence
-                )
+        registry = ProviderRegistry()
+        registry.register(
+            MockProvider(
+                name="high_priority",
+                priority=10,
+                responses={"A": {"title": "Priority Wins"}},
+                confidences={"A": {"title": 0.1}},  # Low confidence
             )
-            registry.register(
-                MockProvider(
-                    name="high_conf",
-                    priority=50,
-                    responses={"A": {"title": "Should Lose"}},
-                    confidences={"A": {"title": 0.99}},  # High confidence
-                )
+        )
+        registry.register(
+            MockProvider(
+                name="high_conf",
+                priority=50,
+                responses={"A": {"title": "Should Lose"}},
+                confidences={"A": {"title": 0.99}},  # High confidence
             )
+        )
 
-            aggregator = MetadataAggregator(registry, merge_strategy="priority")
-            ctx = LookupContext.from_asin(asin="A")
-            # stop_on_complete=False to ensure both providers are queried
-            result = await aggregator.fetch_all(ctx, stop_on_complete=False)
+        aggregator = MetadataAggregator(registry, merge_strategy="priority")
+        ctx = LookupContext.from_asin(asin="A")
+        # stop_on_complete=False to ensure both providers are queried
+        result = await aggregator.fetch_all(ctx, stop_on_complete=False)
 
-            assert result.fields["title"] == "Priority Wins"
+        assert result.fields["title"] == "Priority Wins"
 
-        asyncio.run(run_test())
-
-    def test_skips_empty_values(self) -> None:
+    @pytest.mark.asyncio
+    async def test_skips_empty_values(self) -> None:
         """Test empty values are skipped unless from override provider."""
-
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(
-                MockProvider(
-                    name="empty",
-                    priority=10,
-                    responses={"A": {"title": "", "publisher": "Real Publisher"}},
-                )
+        registry = ProviderRegistry()
+        registry.register(
+            MockProvider(
+                name="empty",
+                priority=10,
+                responses={"A": {"title": "", "publisher": "Real Publisher"}},
             )
-            registry.register(
-                MockProvider(
-                    name="real",
-                    priority=50,
-                    responses={"A": {"title": "Real Title"}},
-                )
+        )
+        registry.register(
+            MockProvider(
+                name="real",
+                priority=50,
+                responses={"A": {"title": "Real Title"}},
             )
+        )
 
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="A")
-            # stop_on_complete=False to ensure both providers are queried
-            result = await aggregator.fetch_all(ctx, stop_on_complete=False)
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="A")
+        # stop_on_complete=False to ensure both providers are queried
+        result = await aggregator.fetch_all(ctx, stop_on_complete=False)
 
-            # Empty title from high-priority provider should be skipped
-            assert result.fields["title"] == "Real Title"
-            # Non-empty publisher from high-priority should be used
-            assert result.fields["publisher"] == "Real Publisher"
+        # Empty title from high-priority provider should be skipped
+        assert result.fields["title"] == "Real Title"
+        # Non-empty publisher from high-priority should be used
+        assert result.fields["publisher"] == "Real Publisher"
 
-        asyncio.run(run_test())
-
-    def test_override_provider_can_set_empty(self) -> None:
+    @pytest.mark.asyncio
+    async def test_override_provider_can_set_empty(self) -> None:
         """Test override provider can intentionally set empty values."""
-
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(
-                MockProvider(
-                    name="override",
-                    priority=10,
-                    is_override=True,
-                    responses={"A": {"title": ""}},  # Intentionally clearing
-                )
+        registry = ProviderRegistry()
+        registry.register(
+            MockProvider(
+                name="override",
+                priority=10,
+                is_override=True,
+                responses={"A": {"title": ""}},  # Intentionally clearing
             )
-            registry.register(
-                MockProvider(
-                    name="normal",
-                    priority=50,
-                    responses={"A": {"title": "Should Be Cleared"}},
-                )
+        )
+        registry.register(
+            MockProvider(
+                name="normal",
+                priority=50,
+                responses={"A": {"title": "Should Be Cleared"}},
             )
+        )
 
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="A")
-            # stop_on_complete=False to ensure both providers are queried
-            result = await aggregator.fetch_all(ctx, stop_on_complete=False)
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="A")
+        # stop_on_complete=False to ensure both providers are queried
+        result = await aggregator.fetch_all(ctx, stop_on_complete=False)
 
-            # Override provider's empty value should win
-            assert result.fields["title"] == ""
+        # Override provider's empty value should win
+        assert result.fields["title"] == ""
 
-        asyncio.run(run_test())
-
-    def test_provider_failure_isolated(self) -> None:
+    @pytest.mark.asyncio
+    async def test_provider_failure_isolated(self) -> None:
         """Test one provider failure doesn't affect others."""
-
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(
-                MockProvider(
-                    name="failing",
-                    priority=10,
-                    errors={"A": "Connection failed"},
-                )
+        registry = ProviderRegistry()
+        registry.register(
+            MockProvider(
+                name="failing",
+                priority=10,
+                errors={"A": "Connection failed"},
             )
-            registry.register(
-                MockProvider(
-                    name="working",
-                    priority=50,
-                    responses={"A": {"title": "Success"}},
-                )
+        )
+        registry.register(
+            MockProvider(
+                name="working",
+                priority=50,
+                responses={"A": {"title": "Success"}},
             )
+        )
 
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="A")
-            # stop_on_complete=False to ensure all providers are queried
-            result = await aggregator.fetch_all(ctx, stop_on_complete=False)
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="A")
+        # stop_on_complete=False to ensure all providers are queried
+        result = await aggregator.fetch_all(ctx, stop_on_complete=False)
 
-            assert result.fields["title"] == "Success"
-            assert "failing" in result.errors
-            assert result.errors["failing"] == "Connection failed"
+        assert result.fields["title"] == "Success"
+        assert "failing" in result.errors
+        assert result.errors["failing"] == "Connection failed"
 
-        asyncio.run(run_test())
-
-    def test_two_stage_fetch_local_first(self) -> None:
+    @pytest.mark.asyncio
+    async def test_two_stage_fetch_local_first(self) -> None:
         """Test local providers run first in two-stage fetch."""
+        registry = ProviderRegistry()
 
-        async def run_test() -> None:
-            registry = ProviderRegistry()
+        # Local provider (should run first)
+        local = MockProvider(
+            name="local",
+            priority=50,
+            kind="local",
+            responses={"A": {"title": "Local Title"}},
+        )
+        registry.register(local)
 
-            # Local provider (should run first)
-            local = MockProvider(
-                name="local",
-                priority=50,
-                kind="local",
-                responses={"A": {"title": "Local Title"}},
-            )
-            registry.register(local)
+        # Network provider (should not run if local fills required fields)
+        network = MockProvider(
+            name="network",
+            priority=10,
+            kind="network",
+            responses={"A": {"title": "Network Title", "publisher": "Network Pub"}},
+        )
+        registry.register(network)
 
-            # Network provider (should not run if local fills required fields)
-            network = MockProvider(
-                name="network",
-                priority=10,
-                kind="network",
-                responses={"A": {"title": "Network Title", "publisher": "Network Pub"}},
-            )
-            registry.register(network)
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="A")
+        result = await aggregator.fetch_all(
+            ctx, required_fields=["title"], stop_on_complete=True
+        )
 
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="A")
-            result = await aggregator.fetch_all(
-                ctx, required_fields=["title"], stop_on_complete=True
-            )
+        # Local title should be used, network not called
+        assert result.fields["title"] == "Local Title"
+        assert network.fetch_count == 0
+        assert "publisher" not in result.fields
 
-            # Local title should be used, network not called
-            assert result.fields["title"] == "Local Title"
-            assert network.fetch_count == 0
-            assert "publisher" not in result.fields
-
-        asyncio.run(run_test())
-
-    def test_two_stage_fetch_network_when_needed(self) -> None:
+    @pytest.mark.asyncio
+    async def test_two_stage_fetch_network_when_needed(self) -> None:
         """Test network providers run when local doesn't fill required fields."""
+        registry = ProviderRegistry()
 
-        async def run_test() -> None:
-            registry = ProviderRegistry()
+        local = MockProvider(
+            name="local",
+            priority=50,
+            kind="local",
+            responses={"A": {"publisher": "Local Pub"}},  # No title
+        )
+        registry.register(local)
 
-            local = MockProvider(
-                name="local",
-                priority=50,
-                kind="local",
-                responses={"A": {"publisher": "Local Pub"}},  # No title
-            )
-            registry.register(local)
+        network = MockProvider(
+            name="network",
+            priority=10,
+            kind="network",
+            responses={"A": {"title": "Network Title"}},
+        )
+        registry.register(network)
 
-            network = MockProvider(
-                name="network",
-                priority=10,
-                kind="network",
-                responses={"A": {"title": "Network Title"}},
-            )
-            registry.register(network)
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="A")
+        result = await aggregator.fetch_all(
+            ctx, required_fields=["title"], stop_on_complete=True
+        )
 
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="A")
-            result = await aggregator.fetch_all(
-                ctx, required_fields=["title"], stop_on_complete=True
-            )
+        # Network should have been called to get title
+        assert result.fields["title"] == "Network Title"
+        assert network.fetch_count == 1
 
-            # Network should have been called to get title
-            assert result.fields["title"] == "Network Title"
-            assert network.fetch_count == 1
-
-        asyncio.run(run_test())
-
-    def test_tracks_missing_fields(self) -> None:
+    @pytest.mark.asyncio
+    async def test_tracks_missing_fields(self) -> None:
         """Test missing fields are tracked."""
+        registry = ProviderRegistry()
+        registry.register(MockProvider(name="test", responses={"A": {"title": "Test"}}))
 
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(MockProvider(name="test", responses={"A": {"title": "Test"}}))
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="A")
+        result = await aggregator.fetch_all(ctx)
 
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="A")
-            result = await aggregator.fetch_all(ctx)
+        # All fields except title should be in missing
+        assert "title" not in result.missing
+        assert "authors" in result.missing
+        assert "publisher" in result.missing
 
-            # All fields except title should be in missing
-            assert "title" not in result.missing
-            assert "authors" in result.missing
-            assert "publisher" in result.missing
-
-        asyncio.run(run_test())
-
-    def test_specific_providers_filter(self) -> None:
+    @pytest.mark.asyncio
+    async def test_specific_providers_filter(self) -> None:
         """Test providers parameter filters to specific providers."""
+        registry = ProviderRegistry()
+        registry.register(MockProvider(name="include", responses={"A": {"title": "Included"}}))
+        registry.register(
+            MockProvider(name="exclude", responses={"A": {"publisher": "Excluded"}})
+        )
 
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(MockProvider(name="include", responses={"A": {"title": "Included"}}))
-            registry.register(
-                MockProvider(name="exclude", responses={"A": {"publisher": "Excluded"}})
-            )
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="A")
+        result = await aggregator.fetch_all(ctx, providers=["include"])
 
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="A")
-            result = await aggregator.fetch_all(ctx, providers=["include"])
+        assert result.fields["title"] == "Included"
+        assert "publisher" not in result.fields
 
-            assert result.fields["title"] == "Included"
-            assert "publisher" not in result.fields
-
-        asyncio.run(run_test())
-
-    def test_unknown_provider_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+    @pytest.mark.asyncio
+    async def test_unknown_provider_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test that unknown provider names in providers list log a warning."""
         import logging
 
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            registry.register(MockProvider(name="known", responses={"A": {"title": "Known"}}))
+        registry = ProviderRegistry()
+        registry.register(MockProvider(name="known", responses={"A": {"title": "Known"}}))
 
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="A")
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="A")
 
-            with caplog.at_level(logging.WARNING):
-                result = await aggregator.fetch_all(ctx, providers=["known", "typo_provider"])
+        with caplog.at_level(logging.WARNING):
+            result = await aggregator.fetch_all(ctx, providers=["known", "typo_provider"])
 
-            # Should still work with the known provider
-            assert result.fields["title"] == "Known"
-
-        asyncio.run(run_test())
+        # Should still work with the known provider
+        assert result.fields["title"] == "Known"
 
         # Verify warning was logged for the unknown provider
         assert any("typo_provider" in record.message for record in caplog.records)
         assert any("not found" in record.message for record in caplog.records)
 
-    def test_no_providers_returns_empty(self) -> None:
+    @pytest.mark.asyncio
+    async def test_no_providers_returns_empty(self) -> None:
         """Test empty registry returns result with all fields missing."""
+        registry = ProviderRegistry()
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="A")
+        result = await aggregator.fetch_all(ctx)
 
-        async def run_test() -> None:
-            registry = ProviderRegistry()
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="A")
-            result = await aggregator.fetch_all(ctx)
-
-            assert len(result.fields) == 0
-            assert len(result.missing) > 0
-
-        asyncio.run(run_test())
+        assert len(result.fields) == 0
+        assert len(result.missing) > 0
 
 
 # =============================================================================
@@ -942,58 +873,55 @@ class TestMetadataAggregator:
 class TestProviderIntegration:
     """Integration tests for the provider system."""
 
-    def test_full_workflow(self) -> None:
+    @pytest.mark.asyncio
+    async def test_full_workflow(self) -> None:
         """Test typical workflow: register providers, fetch, merge."""
+        # Set up registry
+        registry = ProviderRegistry()
 
-        async def run_test() -> None:
-            # Set up registry
-            registry = ProviderRegistry()
-
-            # Simulated Audnex-like provider
-            registry.register(
-                MockProvider(
-                    name="audnex",
-                    priority=10,
-                    kind="network",
-                    responses={
-                        "B08G9PRS1K": {
-                            "title": "The Way of Kings",
-                            "authors": [{"name": "Brandon Sanderson"}],
-                            "series_name": "Stormlight Archive",
-                        }
-                    },
-                )
+        # Simulated Audnex-like provider
+        registry.register(
+            MockProvider(
+                name="audnex",
+                priority=10,
+                kind="network",
+                responses={
+                    "B08G9PRS1K": {
+                        "title": "The Way of Kings",
+                        "authors": [{"name": "Brandon Sanderson"}],
+                        "series_name": "Stormlight Archive",
+                    }
+                },
             )
+        )
 
-            # Simulated MediaInfo-like provider (local)
-            registry.register(
-                MockProvider(
-                    name="mediainfo",
-                    priority=20,
-                    kind="local",
-                    responses={
-                        "B08G9PRS1K": {
-                            "duration_seconds": 162000,
-                            "codec": "AAC",
-                            "bitrate": 128,
-                        }
-                    },
-                )
+        # Simulated MediaInfo-like provider (local)
+        registry.register(
+            MockProvider(
+                name="mediainfo",
+                priority=20,
+                kind="local",
+                responses={
+                    "B08G9PRS1K": {
+                        "duration_seconds": 162000,
+                        "codec": "AAC",
+                        "bitrate": 128,
+                    }
+                },
             )
+        )
 
-            # Fetch and aggregate
-            aggregator = MetadataAggregator(registry)
-            ctx = LookupContext.from_asin(asin="B08G9PRS1K")
-            result = await aggregator.fetch_all(ctx, stop_on_complete=False)
+        # Fetch and aggregate
+        aggregator = MetadataAggregator(registry)
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+        result = await aggregator.fetch_all(ctx, stop_on_complete=False)
 
-            # Verify merged result
-            assert result.fields["title"] == "The Way of Kings"
-            assert result.fields["authors"] == [{"name": "Brandon Sanderson"}]
-            assert result.fields["duration_seconds"] == 162000
-            assert result.fields["codec"] == "AAC"
+        # Verify merged result
+        assert result.fields["title"] == "The Way of Kings"
+        assert result.fields["authors"] == [{"name": "Brandon Sanderson"}]
+        assert result.fields["duration_seconds"] == 162000
+        assert result.fields["codec"] == "AAC"
 
-            # Verify sources
-            assert result.sources["title"] == "audnex"
-            assert result.sources["duration_seconds"] == "mediainfo"
-
-        asyncio.run(run_test())
+        # Verify sources
+        assert result.sources["title"] == "audnex"
+        assert result.sources["duration_seconds"] == "mediainfo"
