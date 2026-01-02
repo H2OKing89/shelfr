@@ -978,7 +978,10 @@ class TestBuildMamJsonCleaning:
 
         with (
             patch("shelfr.metadata.render_bbcode_description", return_value=""),
-            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch(
+                "shelfr.metadata.mam.json_builder.get_settings",
+                return_value=self._get_mock_settings(),
+            ),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -999,7 +1002,10 @@ class TestBuildMamJsonCleaning:
 
         with (
             patch("shelfr.metadata.render_bbcode_description", return_value=""),
-            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch(
+                "shelfr.metadata.mam.json_builder.get_settings",
+                return_value=self._get_mock_settings(),
+            ),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1018,7 +1024,10 @@ class TestBuildMamJsonCleaning:
 
         with (
             patch("shelfr.metadata.render_bbcode_description", return_value=""),
-            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch(
+                "shelfr.metadata.mam.json_builder.get_settings",
+                return_value=self._get_mock_settings(),
+            ),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1039,7 +1048,10 @@ class TestBuildMamJsonCleaning:
 
         with (
             patch("shelfr.metadata.render_bbcode_description", return_value=""),
-            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch(
+                "shelfr.metadata.mam.json_builder.get_settings",
+                return_value=self._get_mock_settings(),
+            ),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1059,7 +1071,10 @@ class TestBuildMamJsonCleaning:
 
         with (
             patch("shelfr.metadata.render_bbcode_description", return_value=""),
-            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch(
+                "shelfr.metadata.mam.json_builder.get_settings",
+                return_value=self._get_mock_settings(),
+            ),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1082,7 +1097,10 @@ class TestBuildMamJsonCleaning:
 
         with (
             patch("shelfr.metadata.render_bbcode_description", return_value=""),
-            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch(
+                "shelfr.metadata.mam.json_builder.get_settings",
+                return_value=self._get_mock_settings(),
+            ),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1107,7 +1125,10 @@ class TestBuildMamJsonCleaning:
 
         with (
             patch("shelfr.metadata.render_bbcode_description", return_value=""),
-            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch(
+                "shelfr.metadata.mam.json_builder.get_settings",
+                return_value=self._get_mock_settings(),
+            ),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1129,7 +1150,10 @@ class TestBuildMamJsonCleaning:
 
         with (
             patch("shelfr.metadata.render_bbcode_description", return_value=""),
-            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch(
+                "shelfr.metadata.mam.json_builder.get_settings",
+                return_value=self._get_mock_settings(),
+            ),
         ):
             result = build_mam_json(release, audnex_data={})
 
@@ -1154,7 +1178,10 @@ class TestBuildMamJsonCleaning:
 
         with (
             patch("shelfr.metadata.render_bbcode_description", return_value=""),
-            patch("shelfr.metadata.get_settings", return_value=self._get_mock_settings()),
+            patch(
+                "shelfr.metadata.mam.json_builder.get_settings",
+                return_value=self._get_mock_settings(),
+            ),
         ):
             result = build_mam_json(release, audnex_data=audnex)
 
@@ -1306,8 +1333,8 @@ class TestSaveJson:
             mock_settings.target_gid = 100
 
             with (
-                patch("shelfr.metadata.get_settings", return_value=mock_settings),
-                patch("shelfr.metadata.fix_ownership") as mock_fix,
+                patch("shelfr.metadata.mam.json_builder.get_settings", return_value=mock_settings),
+                patch("shelfr.metadata.mam.json_builder.fix_ownership") as mock_fix,
             ):
                 save_mam_json(data, output_path)
 
@@ -1565,7 +1592,7 @@ class TestGetAudiobookCategory:
         }
         mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Fantasy"}]}
             result = _get_audiobook_category(data, is_fiction=True)
 
@@ -1581,7 +1608,7 @@ class TestGetAudiobookCategory:
         }
         mock_settings.categories.audiobook_defaults = {"nonfiction": "Audiobooks - General Non-Fic"}
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Biography"}]}
             result = _get_audiobook_category(data, is_fiction=False)
 
@@ -1598,7 +1625,7 @@ class TestGetAudiobookCategory:
         }
         mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             # Horror should win because it comes first in the map
             data = {"genres": [{"name": "Horror"}, {"name": "Thriller"}]}
             result = _get_audiobook_category(data, is_fiction=True)
@@ -1615,7 +1642,7 @@ class TestGetAudiobookCategory:
         }
         mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Obscure Genre"}]}
             result = _get_audiobook_category(data, is_fiction=True)
 
@@ -1631,7 +1658,7 @@ class TestGetAudiobookCategory:
         }
         mock_settings.categories.audiobook_defaults = {"nonfiction": "Audiobooks - General Non-Fic"}
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Obscure Genre"}]}
             result = _get_audiobook_category(data, is_fiction=False)
 
@@ -1645,7 +1672,7 @@ class TestGetAudiobookCategory:
         mock_settings.categories.audiobook_fiction_map = {}
         mock_settings.categories.audiobook_defaults = {"fiction": "Audiobooks - General Fiction"}
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Fantasy"}]}
             result = _get_audiobook_category(data, is_fiction=True)
 
@@ -1659,7 +1686,7 @@ class TestGetAudiobookCategory:
         mock_settings.categories.audiobook_fiction_map = {}
         mock_settings.categories.audiobook_defaults = {}  # Empty!
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             data = {"genres": [{"name": "Fantasy"}]}
             result = _get_audiobook_category(data, is_fiction=True)
 
@@ -1689,7 +1716,10 @@ class TestBuildMamJsonCategory:
             "genres": [{"name": "Fantasy"}],
         }
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with (
+            patch("shelfr.metadata.mam.json_builder.get_settings", return_value=mock_settings),
+            patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings),
+        ):
             result = build_mam_json(release, audnex_data=audnex_data)
 
         assert "category" in result
@@ -2027,7 +2057,7 @@ class TestMapGenresToCategories:
             "science fiction": 45,
         }
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([{"name": "Fantasy"}])
 
         assert result == [13]
@@ -2040,7 +2070,7 @@ class TestMapGenresToCategories:
             "science fiction": 45,
         }
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([{"name": "Science Fiction & Fantasy"}])
 
         # Should map to both Science Fiction (45) and Fantasy (13)
@@ -2055,7 +2085,7 @@ class TestMapGenresToCategories:
             "fantasy": 13,
         }
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([{"name": "Literature & Fiction, Fantasy"}])
 
         # Should map to both Literary Fiction (57) and Fantasy (13)
@@ -2070,7 +2100,7 @@ class TestMapGenresToCategories:
             "high fantasy": 13,
         }
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories(
                 [
                     {"name": "Fantasy"},
@@ -2083,24 +2113,53 @@ class TestMapGenresToCategories:
         assert result == [13]
 
     def test_partial_match_fallback(self):
-        """Falls back to partial matching when no exact/split match."""
+        """Falls back to word-boundary matching when no exact/split match."""
         mock_settings = MagicMock()
         mock_settings.categories.genre_map = {
             "thriller": 51,
         }
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([{"name": "Psychological Thriller"}])
 
-        # Partial match should find "thriller"
+        # Word-boundary match should find "thriller"
         assert result == [51]
+
+    def test_partial_match_no_false_positives(self):
+        """Short keys should not match via substring (e.g., 'art' in 'artificial')."""
+        mock_settings = MagicMock()
+        # Short keys (<4 chars) should be skipped in fallback to prevent false positives
+        mock_settings.categories.genre_map = {
+            "art": 99,  # Should NOT match "Artificial Intelligence"
+        }
+
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
+            result = _map_genres_to_categories([{"name": "Artificial Intelligence"}])
+
+        # "art" should NOT match "Artificial" - prevents false positive
+        assert result == []
+
+    def test_partial_match_respects_word_boundaries(self):
+        """Fallback matching should use word boundaries, not substring."""
+        mock_settings = MagicMock()
+        mock_settings.categories.genre_map = {
+            "action": 50,  # Should NOT match "faction" or "transaction"
+            "crime": 51,
+        }
+
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
+            # "faction" contains "action" as substring but not as word
+            result = _map_genres_to_categories([{"name": "Political Faction Drama"}])
+
+        # Should NOT match "action" - word boundary prevents false positive
+        assert result == []
 
     def test_empty_genres_returns_empty(self):
         """Empty genres list returns empty categories."""
         mock_settings = MagicMock()
         mock_settings.categories.genre_map = {"fantasy": 13}
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([])
 
         assert result == []
@@ -2110,7 +2169,7 @@ class TestMapGenresToCategories:
         mock_settings = MagicMock()
         mock_settings.categories.genre_map = {"fantasy": 13}
 
-        with patch("shelfr.metadata.get_settings", return_value=mock_settings):
+        with patch("shelfr.metadata.mam.categories.get_settings", return_value=mock_settings):
             result = _map_genres_to_categories([{"name": "Audiobook"}])
 
         assert result == []

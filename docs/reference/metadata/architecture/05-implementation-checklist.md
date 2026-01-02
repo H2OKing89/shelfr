@@ -87,12 +87,15 @@
 
 > Do this later — `build_mam_json` touches everything (mediainfo, audnex, formatting).
 
-- [ ] Create `metadata/mam/categories.py`:
+- [x] Create `metadata/mam/categories.py`:
   - `FICTION_GENRE_KEYWORDS`, `NONFICTION_GENRE_KEYWORDS`
   - `_infer_fiction_or_nonfiction()`, `_get_audiobook_category()`, `_map_genres_to_categories()`
-- [ ] Create `metadata/mam/json_builder.py`:
+- [x] Create `metadata/mam/json_builder.py`:
   - `build_mam_json()`, `save_mam_json()`, `generate_mam_json_for_release()`
   - `_build_series_list()`, `_get_mediainfo_string()`
+- [x] Update `metadata/__init__.py` to re-export from new location
+- [x] Update test patch paths (`shelfr.metadata.mam.json_builder.get_settings`, `shelfr.metadata.mam.categories.get_settings`)
+- [x] Run tests
 
 **Test Migration:**
 
@@ -191,8 +194,8 @@
 | Phase 0 | ✅ Complete | Package scaffolding (PR #66) |
 | Phase 1 | ✅ Complete | MediaInfo extraction (PR #66) |
 | Phase 2 | ✅ Complete | Formatting extraction (PR #67) |
-| Phase 3 | ✅ Complete | Audnex client extraction |
-| Phase 4 | ⏳ Not Started | MAM (depends on above) |
+| Phase 3 | ✅ Complete | Audnex client extraction (PR #68) |
+| Phase 4 | ✅ Complete | MAM extraction (categories.py + json_builder.py) |
 | Phase 5a | ⏳ Not Started | Schemas + Cleaning |
 | Phase 5b | ⏳ Not Started | Provider system + Aggregator |
 | Phase 5c | ⏳ Not Started | Orchestration + JSON exporter |
