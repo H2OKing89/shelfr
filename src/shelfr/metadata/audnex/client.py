@@ -391,6 +391,13 @@ def fetch_audnex_chapters(asin: str, region: str | None = None) -> dict[str, Any
 
 def save_audnex_json(data: dict[str, Any], output_path: Path) -> None:
     """Write Audnex metadata to JSON file."""
+    from shelfr.utils.permissions import fix_ownership
+
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+
+    # Fix ownership to target UID:GID (e.g., Unraid's nobody:users)
+    settings = get_settings()
+    fix_ownership(output_path, settings.target_uid, settings.target_gid)
+
     logger.debug(f"Saved Audnex metadata to: {output_path}")
