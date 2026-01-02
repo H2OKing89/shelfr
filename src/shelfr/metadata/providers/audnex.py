@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any
 
 from ..audnex.client import fetch_audnex_book
@@ -64,6 +65,10 @@ class AudnexProvider:
         """
         if id_type != "asin" or not ctx.asin:
             return ProviderResult.failure(self.name, "ASIN required for Audnex lookup")
+
+        # Validate ASIN format (10 alphanumeric characters)
+        if not re.match(r"^[A-Z0-9]{10}$", ctx.asin):
+            return ProviderResult.failure(self.name, f"Invalid ASIN format: {ctx.asin}")
 
         try:
             # Run sync HTTP call in thread pool
@@ -135,7 +140,9 @@ class AudnexProvider:
             result.set_field("format_type", format_type)
         if literature_type := data.get("literatureType"):
             result.set_field("literature_type", literature_type)
-        if is_adult := data.get("isAdult"):
+        # Use explicit None check to preserve False values
+        is_adult = data.get("isAdult")
+        if is_adult is not None:
             result.set_field("is_adult", is_adult)
 
         # Genres - convert to list of dicts

@@ -414,7 +414,8 @@ class TestAudnexProvider:
 
         async def run_test() -> None:
             provider = AudnexProvider()
-            ctx = LookupContext.from_asin(asin="NONEXISTENT")
+            # Use valid ASIN format that doesn't exist
+            ctx = LookupContext.from_asin(asin="B000000000")
 
             with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
                 mock_fetch.return_value = (None, None)
@@ -423,6 +424,76 @@ class TestAudnexProvider:
             assert result.success is False
             assert result.error is not None
             assert "not found" in result.error.lower()
+
+        asyncio.run(run_test())
+
+    def test_fetch_invalid_asin_format(self) -> None:
+        """Test fetch rejects invalid ASIN format."""
+
+        async def run_test() -> None:
+            provider = AudnexProvider()
+
+            # Too short
+            ctx = LookupContext.from_asin(asin="B08G9")
+            result = await provider.fetch(ctx, "asin")
+            assert result.success is False
+            assert "Invalid ASIN format" in result.error
+
+            # Invalid characters (lowercase)
+            ctx = LookupContext.from_asin(asin="b08g9prs1k")
+            result = await provider.fetch(ctx, "asin")
+            assert result.success is False
+            assert "Invalid ASIN format" in result.error
+
+            # Too long
+            ctx = LookupContext.from_asin(asin="B08G9PRS1K1")
+            result = await provider.fetch(ctx, "asin")
+            assert result.success is False
+            assert "Invalid ASIN format" in result.error
+
+        asyncio.run(run_test())
+
+    def test_fetch_preserves_is_adult_false(self) -> None:
+        """Test is_adult=False is preserved, not skipped."""
+
+        async def run_test() -> None:
+            provider = AudnexProvider()
+            ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+            mock_response = {
+                "title": "Kids Book",
+                "isAdult": False,  # Explicitly non-adult
+            }
+
+            with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+                mock_fetch.return_value = (mock_response, "us")
+                result = await provider.fetch(ctx, "asin")
+
+            assert result.success is True
+            assert "is_adult" in result.fields
+            assert result.fields["is_adult"] is False
+
+        asyncio.run(run_test())
+
+    def test_fetch_preserves_is_adult_true(self) -> None:
+        """Test is_adult=True is also preserved."""
+
+        async def run_test() -> None:
+            provider = AudnexProvider()
+            ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+            mock_response = {
+                "title": "Adult Book",
+                "isAdult": True,
+            }
+
+            with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+                mock_fetch.return_value = (mock_response, "us")
+                result = await provider.fetch(ctx, "asin")
+
+            assert result.success is True
+            assert "is_adult" in result.fields
+            assert result.fields["is_adult"] is True
 
         asyncio.run(run_test())
 
