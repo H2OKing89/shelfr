@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import os
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
 
-from shelfr.opf import (
+# Enable legacy OPF imports to suppress deprecation warnings in tests
+os.environ["SHELFR_ENABLE_LEGACY_OPF"] = "1"
+
+from shelfr.metadata.opf import (
     CanonicalMetadata,
     Genre,
     OPFGenerator,
@@ -558,7 +562,7 @@ class TestHelperFunctions:
 
     def test_clean_role_from_name(self) -> None:
         """Remove role suffix from name."""
-        from shelfr.opf import clean_role_from_name
+        from shelfr.metadata.opf import clean_role_from_name
 
         assert clean_role_from_name("John Smith - translator", "translator") == "John Smith"
         assert clean_role_from_name("John Smith-translator", "translator") == "John Smith"
@@ -568,7 +572,7 @@ class TestHelperFunctions:
 
     def test_detect_role_from_name(self) -> None:
         """Detect MARC role from name suffix."""
-        from shelfr.opf import detect_role_from_name
+        from shelfr.metadata.opf import detect_role_from_name
 
         assert detect_role_from_name("John Smith - translator") == ("John Smith", "trl")
         assert detect_role_from_name("Jane Doe - illustrator") == ("Jane Doe", "ill")
@@ -577,7 +581,7 @@ class TestHelperFunctions:
 
     def test_name_to_file_as(self) -> None:
         """Convert name to filing format."""
-        from shelfr.opf import name_to_file_as
+        from shelfr.metadata.opf import name_to_file_as
 
         assert name_to_file_as("Brandon Sanderson") == "Sanderson, Brandon"
         assert name_to_file_as("J.R.R. Tolkien") == "Tolkien, J.R.R."

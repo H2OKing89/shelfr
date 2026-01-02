@@ -209,8 +209,8 @@ class OPFMetadata(BaseModel):
         - Series uses Calibre meta format with filter_series applied
         - Custom fields preserved in custom_meta
         """
-        from shelfr.opf.helpers import get_naming_config
-        from shelfr.opf.mappings import to_iso_language
+        from shelfr.metadata.opf.helpers import get_naming_config
+        from shelfr.metadata.opf.mappings import to_iso_language
         from shelfr.utils.naming import (
             filter_authors,
             filter_series,
@@ -245,7 +245,7 @@ class OPFMetadata(BaseModel):
             creators.append(OPFCreator(name=name, role="aut"))
 
         # Add translators/illustrators with proper MARC roles
-        from shelfr.opf.helpers import detect_role_from_name
+        from shelfr.metadata.opf.helpers import detect_role_from_name
 
         for author in meta.authors:
             if is_author_role(author.name):
