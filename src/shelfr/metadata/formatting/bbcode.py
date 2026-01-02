@@ -36,9 +36,6 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "render_bbcode_description",
-    "_convert_newlines_for_mam",
-    "_format_release_date",
-    "_parse_chapters_from_audnex",
 ]
 
 
