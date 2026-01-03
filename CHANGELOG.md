@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Phase 7 Cleanup & Hygiene complete** - Documentation and code hygiene tasks finished
+  - Updated architecture documentation to reflect completed migration
+  - Verified `__all__` exports in facade modules
+  - Confirmed no unused imports in metadata/abs packages
+
+### Deprecated
+
+- **`shelfr.opf`** - Use `shelfr.metadata.opf` instead (removal target: v2.0)
+  - Set `SHELFR_ENABLE_LEGACY_OPF=1` to suppress deprecation warning
+  - Deprecated in Phase 6; will be removed in v2.0
+
+- **`shelfr.cli_argparse`** - Use Typer CLI via `shelfr` command instead (removal target: v2.0)
+  - Deprecated legacy argparse-based CLI
+  - Preserved for backward compatibility with existing scripts
+
+### Changed
+
 - **Configurable signature/branding in MAM descriptions** - New `description.show_signature` config option
   - User template overrides in `config/templates/` (gitignored)
   - Package default signature can be customized without git conflicts
@@ -45,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Configuration validation
   - Atomic state file writes
 
-### Changed
+### Changed <!-- unreleased -->
 
 - **Streamlined CLI** - Removed individual step commands from main CLI
   - Removed: `Shelfr scan`, `Shelfr discover`, `Shelfr torrent`, `Shelfr upload`, `Shelfr metadata`

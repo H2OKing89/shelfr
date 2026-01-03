@@ -1,7 +1,7 @@
 # Metadata Architecture Documentation
 
-> **Date:** January 1, 2026
-> **Status:** Audit Complete - Refactor Recommended
+> **Date:** January 2, 2026
+> **Status:** Migration Complete ✅ — Phases 0-7 shipped
 > **Related:** [JSON Sidecar Discovery](../../../implementation/json-sidecar-discovery.md) | [Naming System](../naming/NAMING.md)
 
 ---
@@ -24,17 +24,18 @@ This folder contains the comprehensive metadata architecture documentation for s
 
 ## Executive Summary
 
-The current metadata handling is **fragmented across 8+ files** with significant code duplication, unclear boundaries, and overlapping schemas. A refactor into a unified `src/shelfr/metadata/` package is recommended before adding JSON sidecar support.
+The metadata package has been fully refactored into a unified `src/shelfr/metadata/` package with clean architecture. The original 2040-line god module has been decomposed into focused submodules.
 
-### Key Issues
+### Migration Complete ✅
 
-| Issue | Severity | Impact |
-| --- | --- | --- |
-| `metadata.py` is 2040 lines (god module) | 🔴 High | Hard to maintain, test, navigate |
-| 3+ duplicate schema definitions | 🔴 High | Risk of drift, confusion |
-| OPF module isolated from main metadata | 🟡 Medium | Can't share cleaners/helpers |
-| No unified data flow | 🟡 Medium | Each feature reinvents transformations |
-| Naming config scattered | 🟡 Medium | `opf/helpers.py` vs `utils/naming.py` |
+| Achievement | Status |
+| --- | --- |
+| God module decomposed | ✅ `metadata.py` → `metadata/` package |
+| Duplicate schemas unified | ✅ `AbsMetadataSchema` → `AbsMetadataJson` |
+| Provider system implemented | ✅ Pluggable, deterministic merging |
+| Exporter system implemented | ✅ JSON + OPF exporters |
+| OPF module integrated | ✅ Moved to `metadata/opf/` |
+| Deprecation shims in place | ✅ `shelfr.opf` → `shelfr.metadata.opf` |
 
 ---
 
@@ -118,9 +119,9 @@ await build_sidecars(book_path, asin="B08G9PRS1K", formats=["opf", "json"])
 
 ---
 
-## Target Module Structure
+## Current Module Structure
 
-> This is the **end-state target** — it arrives through phases. See [Implementation Checklist](05-implementation-checklist.md) for the incremental path.
+> This is the **current architecture** — achieved through phases 0-7. See [Implementation Checklist](05-implementation-checklist.md) for history.
 
 ```bash
 src/shelfr/metadata/
@@ -236,11 +237,14 @@ See [Implementation Checklist](05-implementation-checklist.md) for the detailed 
 
 ## File Size Summary
 
-| Current Location | Lines | Status |
+| Location | Lines | Status |
 | --- | --- | --- |
-| `metadata.py` | 2,040 | 🔴 Too large, split needed |
-| `opf/` (total) | ~1,234 | 🟢 Well-structured |
-| `schemas/*.py` | ~400 | 🟡 OK but duplicates |
-| `abs/rename.py` | 1,145 | 🟡 Has schema duplicate |
-| `models.py` | 316 | 🟢 OK |
-| **Total metadata-related** | **~5,135** | Mix of good and problematic |
+| `metadata/` (total package) | ~6,100 | 🟢 Well-organized |
+| `metadata/schemas/` | ~260 | 🟢 Canonical types |
+| `metadata/providers/` | ~650 | 🟢 Provider system |
+| `metadata/exporters/` | ~400 | 🟢 Exporter system |
+| `metadata/opf/` | ~1,200 | 🟢 OPF generation |
+| `schemas/*.py` | ~960 | 🟢 Validation schemas |
+| `abs/` | ~1,800 | 🟢 ABS integration |
+| `models.py` | ~320 | 🟢 Pipeline models |
+| **Total metadata-related** | **~11,690** | 🟢 Clean architecture |

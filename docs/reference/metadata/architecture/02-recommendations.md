@@ -2,7 +2,7 @@
 
 > Part of [Metadata Architecture Documentation](README.md)
 >
-> **Migration Status:** Phases 0-6 complete ✅ | Phase 7 in progress ⏳ | Phase 8+ planned 📋
+> **Migration Status:** Phases 0-7 complete ✅ | Phase 8+ planned 📋
 
 ---
 
@@ -17,7 +17,7 @@
 | Phase 4: Extract MAM | ✅ Complete | Merged to main |
 | Phase 5: Schemas + Providers + Exporters | ✅ Complete | Merged to main |
 | Phase 6: Move OPF + Deprecations | ✅ Complete | Merged to main |
-| Phase 7 | ⏳ In Progress | Cleanup & Hygiene (schema consolidation done in PR #78) |  
+| Phase 7: Cleanup & Hygiene | ✅ Complete | Schema consolidation (PR #78), docs/hygiene (PR #79) |
 | Phase 8: Infrastructure (future) | 📋 Planned | Cache, events, batch operations |
 
 ---
@@ -255,22 +255,20 @@ metadata/
 | 5 | Phase 4 | ✅ Complete | MAM extraction shipped |
 | 6 | Phase 5 | ✅ Complete | Schemas + Providers + Exporters shipped |
 | 7 | Phase 6 | ✅ Complete | OPF move + deprecations shipped |
-| 8 | Phase 7 | ⏳ In Progress | Cleanup & hygiene (schema work done in PR #78) |
+| 8 | Phase 7 | ✅ Complete | Cleanup & hygiene shipped |
 | 9 | Phase 8+ | 📋 Planned | Infrastructure (cache, events, batch operations) |
 
-### Current Status: Phase 7 In Progress
+### Current Status: Phase 7 Complete ✅
 
-**Completed:**
+**All Phase 7 tasks completed:**
 
-- ✅ Schema consolidation (AbsMetadataSchema unified with AbsMetadataJson)
+- ✅ Schema consolidation (AbsMetadataSchema unified with AbsMetadataJson in PR #78)
 - ✅ Strict validation enforcement on write paths
 - ✅ Tags field population with Adult flag
-
-**Remaining:**
-
-- ⏳ Documentation updates (in progress)
-- 📋 Code hygiene checks
-- 📋 **all** exports verification
+- ✅ Documentation updates (file inventory, recommendations)
+- ✅ Code hygiene checks (ruff, unused imports)
+- ✅ `__all__` exports verification
+- ✅ Deprecation timeline documented
 
 ### Future Work: Phase 8+ (Infrastructure)
 

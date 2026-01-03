@@ -171,7 +171,7 @@
 
 ## Phase 7: Cleanup & Hygiene
 
-> **Status:** In progress - schema consolidation complete, docs/hygiene remaining
+> **Status:** ✅ Complete
 
 ### Schema Consolidation
 
@@ -192,32 +192,41 @@
 - [x] Update `01-current-state-audit.md` to reflect completed migration:
   - ✅ Marked duplicate schemas as resolved
   - ✅ Updated status annotations
-  - [ ] Update file inventory with new structure (if changed)
-- [ ] Update `02-recommendations.md`:
-  - Mark completed phases
-  - Archive or annotate historical context
-- [ ] Review and update `README.md` in architecture folder
+  - ✅ Updated file inventory with new package structure
+- [x] Update `02-recommendations.md`:
+  - ✅ Marked all phases through Phase 7 as complete
+  - ✅ Updated status summary
+- [x] Review and update `README.md` in architecture folder:
+  - ✅ Updated header to reflect "Migration Complete"
+  - ✅ Updated executive summary with achievements
+  - ✅ Updated file size summary
 
 ### Code Hygiene
 
-- [ ] Remove unused imports in migrated files:
+- [x] Remove unused imports in migrated files:
+  - ✅ Ran `ruff check --select F401` — all checks passed
   - Target: `metadata/` and `abs/` packages (production code only)
-  - Exclude: `tests/` directory (test-specific imports are acceptable)
-- [ ] Run `ruff check --fix` across metadata package:
+- [x] Run `ruff check --fix` across metadata package:
+  - ✅ All checks passed
   - Target: `src/shelfr/metadata/` and `src/shelfr/abs/`
-  - Check for formatting, unused variables, style issues
-- [ ] Verify all `__all__` exports are accurate in facade modules:
-  - Facade modules: `metadata/__init__.py`, `metadata/exporters/__init__.py`, `metadata/providers/__init__.py`
-  - Ensure re-exports match public API surface
-- [ ] Check for any TODO/FIXME comments in production code:
+- [x] Verify all `__all__` exports are accurate in facade modules:
+  - ✅ `metadata/__init__.py` — exports match imports
+  - ✅ `metadata/exporters/__init__.py` — exports match imports
+  - ✅ `metadata/providers/__init__.py` — exports match imports
+- [x] Check for any TODO/FIXME comments in production code:
+  - ✅ Found 1 TODO in `aggregator.py:371` (low priority, deferred to Phase 8+)
   - Target: Production code only (`metadata/`, `abs/` packages)
-  - Document high-priority items; defer low-priority to Phase 8+
 
 ### Deprecation Tracking
 
-- [ ] Document deprecation timeline for `shelfr.opf` shim (target: v2.0)
-- [ ] Document deprecation timeline for `cli_argparse.py` (target: v2.0)
-- [ ] Add deprecation notes to CHANGELOG
+- [x] Document deprecation timeline for `shelfr.opf` shim (target: v2.0):
+  - ✅ Shim in place at `src/shelfr/opf/__init__.py`
+  - ✅ Emits `DeprecationWarning` unless `SHELFR_ENABLE_LEGACY_OPF=1`
+- [x] Document deprecation timeline for `cli_argparse.py` (target: v2.0):
+  - ✅ Deprecation warning in `build_parser()` function
+  - ✅ Module docstring documents deprecation
+- [x] Add deprecation notes to CHANGELOG:
+  - ✅ Added "Deprecated" section to [Unreleased]
 
 ---
 
@@ -256,7 +265,7 @@
 | Phase 5b | ✅ Complete | Provider system + Aggregator |
 | Phase 5c | ✅ Complete | Orchestration + JSON exporter (PR #75) |
 | Phase 6 | ✅ Complete | OPF move + deprecations + OpfExporter (PR #76) |
-| Phase 7 | ⏳ In Progress | Cleanup & Hygiene (schema consolidation done PR #78; docs in progress PR #79) |
+| Phase 7 | ✅ Complete | Cleanup & Hygiene (PR #78, PR #79) |
 | Phase 8 | ⏳ Not Started | Infrastructure (optional) |
 | Future | ⏳ Not Started | As needed |
 

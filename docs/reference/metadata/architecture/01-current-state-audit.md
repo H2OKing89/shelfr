@@ -6,42 +6,59 @@
 
 ## 1. Current File Inventory
 
-### 1.1 Core Metadata Files
+> **Status (Phase 7):** ✅ Migration complete. The god module `metadata.py` has been fully decomposed into a well-organized package.
 
-| File | Lines | Purpose | Issues |
-| --- | --- | --- | --- |
-| `metadata.py` | **2040** | Audnex API, MediaInfo, BBCode, MAM JSON | God module, does too much |
-| `models.py` | 316 | Core dataclasses (`AudiobookRelease`, `NormalizedBook`) | OK, but mixed concerns |
-| `discovery.py` | ~200 | Libation folder parsing, `LibationMetadata` | OK |
-
-### 1.2 OPF Module (New, Well-Structured)
+### 1.1 Core Metadata Package (`src/shelfr/metadata/`)
 
 | File | Lines | Purpose |
 | --- | --- | --- |
-| `opf/__init__.py` | 102 | Public API exports |
-| `opf/schemas.py` | 328 | `CanonicalMetadata`, `OPFMetadata`, `Person`, `Series` |
-| `opf/generator.py` | 373 | XML generation |
-| `opf/helpers.py` | 150 | Name cleaning, role detection |
-| `opf/mappings.py` | 281 | Language ISO codes, MARC relators |
+| `__init__.py` | ~310 | Public API facade (re-exports from submodules) |
+| `aggregator.py` | ~420 | Provider result merging, deterministic precedence |
+| `orchestration.py` | ~200 | High-level fetch/export functions |
+| `cleaning.py` | ~100 | Facade over utils/naming cleaning functions |
+| `models.py` | ~50 | Shared `Chapter` dataclass |
 
-**Total OPF:** ~1,234 lines (well-organized, modular)
+### 1.2 Metadata Subpackages
 
-### 1.3 Schema Definitions (schemas/ directory)
-
-| File | Lines | Purpose | Overlaps With |
-| --- | --- | --- | --- |
-| `schemas/audnex.py` | ~150 | Audnex API validation | - |
-| `schemas/abs_metadata.py` | ~130 | ABS metadata.json validation | ✅ Single source |
-| `schemas/abs.py` | 357 | ABS API schemas | - |
-| `schemas/naming.py` | 269 | Naming config schemas | `config.py` |
-
-### 1.4 ABS Module (abs/ directory)
-
-| File | Key Classes/Functions | Metadata Role |
+| Package | Files | Purpose |
 | --- | --- | --- |
-| `abs/rename.py` | `parse_abs_metadata()`, `AbsMetadata` dataclass | ✅ Uses `AbsMetadataJson` from schemas |
-| `abs/asin.py` | ASIN extraction/resolution | Uses metadata.json |
-| `abs/importer.py` | Import logic, calls `write_opf()` | Coordinates metadata |
+| `schemas/` | `canonical.py`, `__init__.py` | `CanonicalMetadata`, `Person`, `Series`, `Genre` |
+| `providers/` | `base.py`, `types.py`, `registry.py`, `audnex.py`, `mock.py` | Pluggable provider system |
+| `exporters/` | `base.py`, `json.py`, `opf.py` | Output format exporters (JSON, OPF) |
+| `audnex/` | `client.py`, `__init__.py` | Audnex API client |
+| `mediainfo/` | `extractor.py`, `__init__.py` | MediaInfo extraction, `AudioFormat` |
+| `formatting/` | `bbcode.py`, `html.py`, `__init__.py` | BBCode/HTML conversion |
+| `mam/` | `categories.py`, `json_builder.py` | MAM fast-fillout JSON builder |
+| `opf/` | `generator.py`, `schemas.py`, `helpers.py`, `mappings.py` | OPF sidecar generation |
+
+**Total metadata package:** ~6,100 lines (well-organized, modular)
+
+### 1.3 Core Models (`src/shelfr/`)
+
+| File | Lines | Purpose | Status |
+| --- | --- | --- | --- |
+| `models.py` | ~320 | `AudiobookRelease`, `NormalizedBook`, `MamPath` | ✅ Pipeline models |
+| `discovery.py` | ~200 | Libation folder parsing, `LibationMetadata` | ✅ OK |
+
+### 1.4 Schema Definitions (`src/shelfr/schemas/`)
+
+| File | Lines | Purpose | Status |
+| --- | --- | --- | --- |
+| `audnex.py` | ~150 | Audnex API validation | ✅ Validation boundary |
+| `abs_metadata.py` | ~180 | ABS metadata.json validation | ✅ Single source |
+| `abs.py` | ~360 | ABS API schemas | ✅ OK |
+| `naming.py` | ~270 | Naming config schemas | ✅ OK |
+
+### 1.5 ABS Module (`src/shelfr/abs/`)
+
+| File | Key Classes/Functions | Status |
+| --- | --- | --- |
+| `rename.py` | `parse_abs_metadata()`, `AbsMetadata` | ✅ Uses `AbsMetadataJson` |
+| `asin.py` | ASIN extraction/resolution | ✅ OK |
+| `importer.py` | Import logic, coordinates metadata | ✅ OK |
+| `metadata_builder.py` | Metadata construction | ✅ OK |
+| `client.py` | ABS API client | ✅ OK |
+| `paths.py`, `cleanup.py`, `trumping.py` | Path handling, cleanup, trumping | ✅ OK |
 
 ---
 
