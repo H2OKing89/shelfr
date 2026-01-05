@@ -232,13 +232,196 @@
 
 ## Phase 8: Infrastructure (As Needed)
 
-> These are optional enhancements — the core system works without them.
+> **Status:** ✅ Tier 1 Complete (Infrastructure) | ⚠️ Production Integration Pending
+>
+> **What's done:** Cache + rate limiting implemented and tested (22 tests passing)
+> **What's needed:** Wire provider system into production workflow (follow-up PR)
+>
+> These are optional enhancements — the core system works without them. Prioritize by ROI.
 
-- [ ] Implement `MetadataCache` with `FileCache` default
-- [ ] Implement `MetadataEvents` hook system
-- [ ] Add schema versioning to `CanonicalMetadata`
-- [ ] Per-provider rate limiting (`ProviderResilience` class)
-- [ ] Circuit breaker integration (already have infrastructure)
+### ROI Analysis: Recommended Implementation Order
+
+#### Tier 1: High ROI (Ship First) 🏆
+
+**1. Caching Layer** — Estimated effort: 2-4 hours | **ROI: 100-300x speedup** ✅ **COMPLETE**
+
+- [x] Create `metadata/cache.py` with `MetadataCache` protocol
+- [x] Implement `FileCache` (JSON-based, ~50 lines)
+- [x] Add schema-versioned cache keys (auto-invalidate on `CanonicalMetadata` changes)
+- [x] Integrate cache into `AudnexProvider.fetch()`
+- [x] Add cache config: TTL (default 30 days), max size, location
+
+**Business case:**
+
+- Network fetch: 1-3 seconds per book (Audnex API)
+- Cached fetch: <10ms per book (disk read)
+- **Massive time savings on re-runs, testing, corrections**
+- Survives network outages and API downtime
+- Reduces API rate limit risk
+
+**Implementation notes:**
+
+- Cache key format: `{schema_version}:{provider}:{id_type}:{identifier}:{region}`
+- Store `CachedResult` dataclass (includes `fetched_at`, `confidence`, `fields`)
+- Atomic writes to avoid corruption on crashes
+
+**2. Per-Provider Rate Limiting** — Estimated effort: 1-2 hours | **ROI: Prevents API bans** ✅ **COMPLETE**
+
+- [x] Add `aiolimiter` dependency
+- [x] ~~Create `metadata/providers/resilience.py` with `ProviderResilience` class~~ (integrated directly into AudnexProvider)
+- [x] Integrate rate limiter into `AudnexProvider` (default: 10 req/sec)
+- [x] Add rate limit config per provider
+
+**Business case:**
+
+- Good API citizenship (prevents bans)
+- Protects against accidental hammering during batch processing
+- Completes resilience story (already have circuit breakers)
+
+**Implementation notes:**
+
+- Use `aiolimiter.AsyncLimiter` (token bucket algorithm)
+- Config: `providers.audnex.rate_limit.max_rate = 10` (requests per second)
+- Wrap `fetch()` calls with rate limiter context
+
+---
+
+#### Tier 2: Medium ROI (Build When Needed)
+
+**3. Schema Versioning** — Estimated effort: 2-3 hours | **ROI: Future-proofs cache and migrations**
+
+- [ ] Add `schema_version` field to `CanonicalMetadata`
+- [ ] Create `metadata/schemas/versioning.py` with `SCHEMA_VERSION` constant
+- [ ] Implement version migration helpers for old cached data
+- [ ] Update cache read path to auto-migrate old versions
+
+**Business case:**
+
+- When `CanonicalMetadata` changes, old cached data becomes invalid
+- Version-aware cache auto-invalidates outdated entries
+- Enables gradual schema evolution without breaking changes
+
+**Build when:** Adding/changing fields in `CanonicalMetadata`
+
+**4. Performance Optimization (Two-Stage Fetch)** — Estimated effort: 1-2 hours | **ROI: Faster when locals have data**
+
+- [ ] Audit current aggregator implementation of two-stage fetch
+- [ ] Add timing metrics per provider (`provider_timings` in `AggregatedResult`)
+- [ ] Optimize parallel execution of network providers
+- [ ] Add logging for fetch performance analysis
+
+**Business case:**
+
+- Skip slow network calls if local providers (ABS sidecar, MediaInfo) have needed fields
+- Useful when `stop_on_complete=True` and locals already have title/author/etc.
+
+**Build when:** Batch processing becomes slow despite caching
+
+---
+
+#### Tier 3: Low ROI (Defer or Skip)
+
+**5. Event Hooks / Middleware** — Estimated effort: 3-4 hours | **ROI: Debugging/alerts only**
+
+- [ ] Create `metadata/events.py` with `EventBus` class
+- [ ] Add event emission points in aggregator (conflicts, errors, overrides)
+- [ ] Optional: Discord/webhook integrations for alerts
+
+**Business case:**
+
+- Structured logging covers 80% of use cases
+- Only needed for external integrations (alerts, monitoring)
+
+**Build when:** You actually need Discord alerts or monitoring webhooks
+
+**YAGNI:** Likely unnecessary for single-user tool
+
+**6. Batch Operations Support** — Estimated effort: 4-6 hours | **ROI: Only if API supports bulk**
+
+- [ ] Add `supports_batch` + `fetch_batch()` to `MetadataProvider` protocol
+- [ ] Update aggregator to use batch fetch when available
+- [ ] Implement batch support in providers that offer it
+
+**Business case:**
+
+- Useful for APIs that support bulk lookups (e.g., pass 10 ASINs at once)
+- **Problem:** Audnex doesn't support bulk queries (one ASIN per request)
+
+**Build when:** Adding a provider with bulk API support (Hardcover, Goodreads)
+
+**7. Data Provenance Enhancement** — Estimated effort: 2-3 hours | **ROI: Debugging tool only**
+
+- [ ] Extend `AggregatedResult.provenance` with detailed field history
+- [ ] Add UI/logging to show "why did this field win?"
+- [ ] Track confidence scores and conflict resolution reasoning
+
+**Business case:**
+
+- Helpful for debugging aggregation rules
+- Current `sources` dict + `conflicts` list already provide basic provenance
+
+**Build when:** Debugging "why this value?" becomes frequent
+
+---
+
+### Recommended Phase 8 MVP (Total: 3-6 hours)
+
+**Ship as "Phase 8 Tier 1 Complete":** ✅
+
+1. ✅ Caching layer (FileCache + AudnexProvider integration) - **22 tests passing**
+2. ✅ Rate limiting (aiolimiter + AudnexProvider)
+
+**Status:** Infrastructure implemented and tested. Ready to use once production workflow switches to provider system.
+
+**Production Integration Status:** ⚠️ **Pending**
+
+The cache and rate limiting are fully implemented in `AudnexProvider`, but the production code path still uses the legacy `fetch_audnex_book()` function directly, bypassing the provider system.
+
+**Current production flow:**
+
+```python
+# commands/mam.py → metadata/__init__.py
+fetch_all_metadata()
+  → fetch_all_metadata_legacy()
+    → fetch_audnex_book()  # Legacy - NO cache, NO rate limiting
+```
+
+**Where cache/rate limiting live (tested, not used yet):**
+
+```python
+AudnexProvider.fetch()  # HAS cache + rate limiting, fully tested
+```
+
+**Next Step (Phase 8.5 - Production Integration):**
+
+- [ ] Update `fetch_all_metadata_legacy()` to use provider system internally
+- [ ] Or: Add cache/rate limiting directly to legacy `fetch_audnex_book()`
+- [ ] Estimated effort: 2-4 hours
+
+**Defer to future phases:**
+
+- Schema versioning (add when cache needs migration)
+- Performance optimization (add when caching isn't enough)
+- Events, batch ops, provenance (add when actually needed)
+
+**Why this scope is correct:**
+
+- Solves biggest real-world bottleneck (slow network fetches)
+- Low implementation risk (well-understood patterns)
+- Infrastructure validated by comprehensive test suite
+- Foundation for future work (cache enables offline operation)
+- Clean separation: infrastructure vs production integration
+
+---
+
+### Testing Strategy for Phase 8
+
+| Component | Test Focus |
+| --- | --- |
+| **FileCache** | Cache hit/miss, TTL expiration, schema versioning, atomic writes, disk I/O errors |
+| **Rate Limiting** | Request throttling, burst handling, config-driven limits |
+| **Schema Versioning** | Migration from old versions, version mismatch detection |
+| **Integration** | Cached provider results, rate-limited network calls, end-to-end timing |
 
 ---
 
@@ -266,7 +449,7 @@
 | Phase 5c | ✅ Complete | Orchestration + JSON exporter (PR #75) |
 | Phase 6 | ✅ Complete | OPF move + deprecations + OpfExporter (PR #76) |
 | Phase 7 | ✅ Complete | Cleanup & Hygiene (PR #78, PR #79) |
-| Phase 8 | ⏳ Not Started | Infrastructure (optional) |
+| Phase 8 | ✅ Tier 1 Complete | Infrastructure (cache + rate limiting) - Production integration pending |
 | Future | ⏳ Not Started | As needed |
 
 ---

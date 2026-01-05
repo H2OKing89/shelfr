@@ -18,6 +18,7 @@ from unittest.mock import patch
 import pytest
 
 from shelfr.metadata.aggregator import MetadataAggregator
+from shelfr.metadata.cache import NoOpCache
 from shelfr.metadata.providers import (
     AudnexProvider,
     LookupContext,
@@ -443,7 +444,7 @@ class TestAudnexProvider:
     @pytest.mark.asyncio
     async def test_fetch_preserves_is_adult_false(self) -> None:
         """Test is_adult=False is preserved, not skipped."""
-        provider = AudnexProvider()
+        provider = AudnexProvider(cache=NoOpCache())
         ctx = LookupContext.from_asin(asin="B08G9PRS1K")
 
         mock_response = {
@@ -462,7 +463,7 @@ class TestAudnexProvider:
     @pytest.mark.asyncio
     async def test_fetch_preserves_is_adult_true(self) -> None:
         """Test is_adult=True is also preserved."""
-        provider = AudnexProvider()
+        provider = AudnexProvider(cache=NoOpCache())
         ctx = LookupContext.from_asin(asin="B08G9PRS1K")
 
         mock_response = {

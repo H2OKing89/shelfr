@@ -6,6 +6,7 @@ This validates the YAML structure at load time before converting to dataclasses.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
@@ -138,6 +139,13 @@ class AudnexSchema(BaseModel):
     # to find the preferred region's ASIN. Set to null/None to disable.
     # Valid: us, uk, au, ca, de, es, fr, in, it, jp, or null
     preferred_asin_region: str | None = Field(default=DEFAULT_ASIN_REGION)
+    # Rate limiting: maximum requests per second (default 10.0)
+    rate_limit: float = Field(
+        default=10.0,
+        ge=0.1,
+        le=100.0,
+        description="Maximum requests per second to Audnex API",
+    )
 
     @field_validator("base_url")
     @classmethod
@@ -577,6 +585,43 @@ class LibationSchema(BaseModel):
         return v
 
 
+class CacheSchema(BaseModel):
+    """Metadata cache settings."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable metadata caching (recommended for performance)",
+    )
+    cache_dir: str = Field(
+        default="~/.cache/shelfr/metadata",
+        description="Directory for cache files (uses ~ expansion)",
+    )
+    ttl_days: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        description="Cache time-to-live in days (default: 30 days)",
+    )
+
+    @field_validator("cache_dir", mode="before")
+    @classmethod
+    def resolve_cache_dir(cls, v: str | None) -> str:
+        """Resolve cache_dir with ~ expansion and platform defaults.
+
+        Uses platform-appropriate defaults from paths.cache_dir() when
+        the value equals the hardcoded default or is None, allowing user
+        overrides while respecting SHELFR_CACHE_DIR environment variable.
+        """
+        from shelfr.paths import cache_dir as get_platform_cache_dir
+
+        # Use platform-appropriate default for None or hardcoded value
+        if v is None or v == "~/.cache/shelfr/metadata":
+            return str(get_platform_cache_dir() / "metadata")
+
+        # Allow user overrides with ~ expansion
+        return str(Path(v).expanduser())
+
+
 class ConfigSchema(BaseModel):
     """
     Complete config.yaml schema.
@@ -595,6 +640,7 @@ class ConfigSchema(BaseModel):
     filters: FiltersSchema = Field(default_factory=FiltersSchema)
     libation: LibationSchema = Field(default_factory=LibationSchema)
     audiobookshelf: AudiobookshelfSchema = Field(default_factory=AudiobookshelfSchema)
+    cache: CacheSchema = Field(default_factory=CacheSchema)
 
     model_config = {"extra": "forbid"}  # Catch typos in config keys
 
