@@ -103,6 +103,9 @@ class CachedResult:
             True if expired, False if still valid
         """
         fetched = datetime.fromisoformat(self.fetched_at)
+        # Handle naive datetimes from legacy/corrupted cache entries
+        if fetched.tzinfo is None:
+            fetched = fetched.replace(tzinfo=UTC)
         age_seconds = (datetime.now(UTC) - fetched).total_seconds()
         return age_seconds > ttl_seconds
 
@@ -198,6 +201,25 @@ class FileCache:
         except OSError as e:
             logger.warning(f"Failed to create cache directory {cache_dir}: {e}")
             raise CacheUnavailableError(f"Cache directory unavailable: {e}") from e
+
+        # Cleanup orphaned .tmp files from crashed processes
+        self._cleanup_tmp_files()
+
+    def _cleanup_tmp_files(self) -> None:
+        """Remove orphaned .tmp files from crashed processes.
+
+        Called during __init__ to clean up temporary files that were not
+        renamed to their final .json names due to process crashes.
+        """
+        try:
+            for tmp_file in self.cache_dir.glob("*.tmp"):
+                try:
+                    tmp_file.unlink()
+                    logger.debug(f"Removed orphaned tmp file: {tmp_file.name}")
+                except OSError as e:
+                    logger.warning(f"Failed to remove tmp file {tmp_file.name}: {e}")
+        except OSError as e:
+            logger.warning(f"Failed to scan for tmp files in {self.cache_dir}: {e}")
 
     def _get_cache_path(self, key: str) -> Path:
         """Get filesystem path for cache key.
@@ -299,7 +321,6 @@ class FileCache:
         await self.invalidate_pattern("*")
 
 
-# Singleton instance for default cache (lazy-initialized)
 class NoOpCache(MetadataCache):
     """Cache that doesn't store anything - for testing."""
 
@@ -324,6 +345,7 @@ class NoOpCache(MetadataCache):
         pass
 
 
+# Singleton instance for default cache (lazy-initialized)
 _default_cache: FileCache | NoOpCache | None = None
 
 
