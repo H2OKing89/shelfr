@@ -70,7 +70,8 @@ This creates false "explicit sex" upgrades. A book marked `isAdult` might be adu
 # Audnex provides weak signals only
 audnex_mapping = {
     "isAdult": "sSex",      # At most suggestive, not explicit
-    "formatType": "abridged"  # Clean mapping, no ambiguity
+    "formatType": "abridged",  # Clean mapping, no ambiguity
+    "genres[].name contains 'LGBTQ+'": "lgbt"  # Audnex has this as genre/tag!
 }
 ```
 
@@ -126,6 +127,11 @@ The mapping file: `config/content_flags.json`
     "abridged": {
       "field": "formatType",
       "value": "abridged"
+    },
+    "lgbt": {
+      "field": "genres[].name",
+      "match": "contains 'LGBTQ' or 'LGBT'",
+      "note": "Audnex provides this as genre or tag type"
     }
   }
 }

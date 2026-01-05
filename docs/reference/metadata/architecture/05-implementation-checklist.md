@@ -630,7 +630,8 @@ Missing: crude language, violence, sexual content granularity, LGBT themes.
 - [ ] Update `AudnexProvider._map_to_result()` to map Audnex data to `content_flags`
   - Map `isAdult=True` → `["sSex"]` (weak signal - suggestive, not explicit)
   - Map `formatType="abridged"` → `["abridged"]`
-  - Document what Audnex does NOT provide (language, violence, LGBT)
+  - Map `genres[].name` containing `"LGBTQ+"` or `"LGBT"` → `["lgbt"]`
+  - Document what Audnex does NOT provide (crude language, violence)
 - [ ] Add note about manual override mechanisms for flags Audnex doesn't detect
 
 **9.4: Tests** — Estimated effort: 1 hour

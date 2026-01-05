@@ -212,14 +212,24 @@ class AudnexProvider:
             result.set_field("is_adult", is_adult)
 
         # Content flags - infer from Audnex data
-        # Note: Audnex doesn't provide cLang, vio, or lgbt data - those require manual override
+        # Note: Audnex doesn't provide cLang or vio data - those require manual override
         # IMPORTANT: isAdult is a weak signal - map to sSex (suggestive), NOT eSex (explicit)
         # See docs/reference/metadata/architecture/07-content-flags.md for rationale
-        content_flags = []
+        content_flags: list[str] = []
         if is_adult:
             content_flags.append("sSex")  # Weak signal: at most suggestive, never explicit
         if format_type and format_type.lower() == "abridged":
             content_flags.append("abridged")
+
+        # Check genres for LGBTQ+ tag (Audnex provides this as genre/tag)
+        if genres := data.get("genres"):
+            for genre in genres:
+                genre_name = genre.get("name", "").lower()
+                if "lgbtq" in genre_name or "lgbt" in genre_name:
+                    if "lgbt" not in content_flags:
+                        content_flags.append("lgbt")
+                    break
+
         if content_flags:
             result.set_field("content_flags", content_flags)
 
