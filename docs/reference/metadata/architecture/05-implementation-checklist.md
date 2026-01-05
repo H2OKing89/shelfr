@@ -381,6 +381,36 @@
 
 ---
 
+### Phase 8.5: Production Integration ✅ COMPLETE
+
+> **Status:** ✅ Complete | **Code Verified:** 2026-01-05
+
+**What was done:**
+
+- [x] Updated `orchestration.fetch_metadata_legacy()` to use `AudnexProvider` (Option A: sync wrapper)
+- [x] Added `use_cache` parameter to `fetch_metadata_legacy()`, `fetch_all_metadata_legacy()`, `fetch_metadata()`
+- [x] Added `--no-cache` global CLI flag to disable caching
+- [x] Wired `use_cache` through `workflow.py` → `process_single_release()` → `full_run()`
+- [x] Updated `RuntimeContext` and `ArgsNamespace` to propagate `no_cache` flag
+
+**Implementation details:**
+
+- `_fetch_audnex_with_provider()` wraps `AudnexProvider.fetch()` for sync use
+- Uses `asyncio.run()` when no event loop running, ThreadPoolExecutor when inside async context
+- Cache is enabled by default; use `shelfr --no-cache run` to bypass
+- All 2552 tests passing
+
+**Files modified:**
+
+- `orchestration.py` — Added `_fetch_audnex_with_provider()` and `use_cache` parameter
+- `metadata/__init__.py` — Added `use_cache` to public API
+- `workflow.py` — Propagated `use_cache` through pipeline
+- `cli/_app.py` — Added `--no-cache` global flag
+- `cli/_context.py` — Added `no_cache` to RuntimeContext
+- `cli/_helpers.py` — Added `no_cache` to ArgsNamespace bridge
+
+---
+
 #### Tier 2: Medium ROI (Build When Needed)
 
 **3. Schema Versioning** — Estimated effort: 2-3 hours | **ROI: Future-proofs cache and migrations**
@@ -503,6 +533,55 @@ AudnexProvider.fetch()  # HAS cache + rate limiting, fully tested
 
 ---
 
+## Phase 8.5: Production Integration Wiring
+
+> **Status:** 📋 Ready to implement
+>
+> **Prerequisite:** Phase 8 Tier 1 Complete ✅
+>
+> **Goal:** Wire the provider system (with cache + rate limiting) into production workflow.
+
+### Option A: Update Legacy Functions to Use Provider System (Recommended)
+
+**Estimated effort:** 2-4 hours
+
+- [ ] Update `fetch_metadata_legacy()` in `orchestration.py` to optionally use `AudnexProvider`
+- [ ] Add `use_provider_system: bool = False` flag (feature flag for gradual rollout)
+- [ ] Wire cache directory config from settings
+- [ ] Add integration tests for provider-based fetch path
+- [ ] Flip flag to `True` after validation
+
+**Benefits:**
+
+- Single code path eventually (provider system)
+- Cache + rate limiting automatically enabled
+- Foundation for adding more providers (MediaInfo, Libation, AbsSidecar)
+
+### Option B: Add Cache to Legacy Client (Faster but Dead-End)
+
+**Estimated effort:** 1-2 hours
+
+- [ ] Add `FileCache` integration to `fetch_audnex_book()` in `audnex/client.py`
+- [ ] Add rate limiting to legacy client
+
+**Drawbacks:**
+
+- Duplicates caching logic (provider + legacy)
+- Doesn't advance toward unified provider system
+- **Not recommended** unless urgent production need
+
+### Future Providers (After Integration)
+
+Once production integration is complete, these providers can be added:
+
+| Provider | Priority | Effort | Notes |
+| --- | --- | --- | --- |
+| `MediaInfoProvider` | Medium | 1-2h | Wrap existing `run_mediainfo()` |
+| `LibationProvider` | Low | 1-2h | Extract from discovery logic |
+| `AbsSidecarProvider` | Low | 2h | Read existing metadata.json |
+
+---
+
 ### Testing Strategy for Phase 8
 
 | Component | Test Focus |
@@ -538,8 +617,9 @@ AudnexProvider.fetch()  # HAS cache + rate limiting, fully tested
 | Phase 5c | ✅ Complete | Orchestration + JSON exporter (PR #75) |
 | Phase 6 | ✅ Complete | OPF move + deprecations + OpfExporter (PR #76) |
 | Phase 7 | ✅ Complete | Cleanup & Hygiene (PR #78, PR #79) |
-| Phase 8 | ✅ Tier 1 Complete | Infrastructure (cache + rate limiting) - Production integration pending |
-| Future | ⏳ Not Started | As needed |
+| Phase 8 | ✅ Tier 1 Complete | Infrastructure (cache + rate limiting in AudnexProvider) |
+| Phase 8.5 | 📋 Ready | Production integration wiring (connect workflow to provider system) |
+| Future | ⏳ Not Started | Additional providers, exporters, batch ops |
 
 ---
 
