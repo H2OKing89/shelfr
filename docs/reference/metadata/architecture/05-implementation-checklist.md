@@ -6,6 +6,8 @@
 
 ## Phase 0: Package Scaffolding (Do First!)
 
+> **Status:** ✅ Complete | **Code Verified:** 2026-01-05
+>
 > **Critical:** Python won't allow both `metadata.py` and `metadata/` to coexist.
 
 - [x] Create `src/shelfr/metadata/` directory
@@ -13,6 +15,11 @@
 - [x] Update any internal imports that referenced `metadata.py` as a module (no behavior change)
 - [x] Verify import still works: `python -c "import shelfr.metadata; print(shelfr.metadata.__file__)"`
 - [x] Run full test suite
+
+**Code Verification (2026-01-05):**
+
+- ✅ `src/shelfr/metadata/__init__.py` exists (~334 lines)
+- ✅ Package imports work in production
 
 **Why separate phase?** This is pure scaffolding — no behavior change, no refactoring, just enabling the package structure. Ship this first before any extraction.
 
@@ -24,6 +31,8 @@
 
 ## Phase 1: Extract MediaInfo (Leaf Module)
 
+> **Status:** ✅ Complete | **Code Verified:** 2026-01-05 | **Production Wired:** ✅ YES
+>
 > MediaInfo is the cleanest extraction: no network, no state, pure functions.
 
 - [x] Create `metadata/models.py` with shared `Chapter` dataclass
@@ -38,6 +47,13 @@
 - [x] Update `metadata/__init__.py` to re-export from new location
 - [x] Run tests
 
+**Code Verification (2026-01-05):**
+
+- ✅ `metadata/mediainfo/extractor.py` exists with `run_mediainfo()` at line 299
+- ✅ Production path: `workflow.py` → `fetch_metadata()` → `fetch_metadata_legacy()` → `run_mediainfo()`
+- ✅ `orchestration.py` line 37: `from shelfr.metadata.mediainfo import run_mediainfo`
+- ✅ `orchestration.py` line 80: `mediainfo_data = run_mediainfo(m4b_path)`
+
 **Test Migration:**
 
 - Update imports: `from metadata.mediainfo import AudioFormat` → `from shelfr.metadata.mediainfo import AudioFormat`
@@ -48,6 +64,8 @@
 
 ## Phase 2: Extract Formatting (Presentation Layer)
 
+> **Status:** ✅ Complete | **Code Verified:** 2026-01-05 | **Production Wired:** ✅ YES
+
 - [x] Create `metadata/formatting/bbcode.py`:
   - **Public:** `render_bbcode_description()`
   - **Private:** `_convert_newlines_for_mam()`, `_format_release_date()`, `_parse_chapters_from_audnex()`
@@ -56,6 +74,12 @@
   - **Public:** `html_to_bbcode()` (no underscore — used externally)
   - **Private:** `_clean_html()`
 - [x] Update re-exports
+
+**Code Verification (2026-01-05):**
+
+- ✅ `metadata/formatting/bbcode.py` exists with `render_bbcode_description()` at line 126
+- ✅ Production path: `commands/mam.py` line 132 calls `render_bbcode_description()`
+- ✅ Import verified: `from shelfr.metadata import render_bbcode_description`
 
 **Test Migration:**
 
@@ -67,6 +91,8 @@
 
 ## Phase 3: Extract Audnex Client (Network Boundary)
 
+> **Status:** ✅ Complete | **Code Verified:** 2026-01-05 | **Production Wired:** ✅ YES
+
 - [x] Create `metadata/audnex/client.py` with:
   - `fetch_audnex_book()`, `fetch_audnex_author()`
   - `fetch_audnex_chapters()`, `_parse_chapters_from_audnex()`
@@ -74,6 +100,12 @@
   - All `_fetch_audnex_*_region()` helpers
 - [x] Keep chapters with client (shared HTTP/retry/circuit-breaker patterns)
 - [x] Update re-exports
+
+**Code Verification (2026-01-05):**
+
+- ✅ `metadata/audnex/client.py` exists with `fetch_audnex_book()` at line 111
+- ✅ Production path: `orchestration.py` line 32-35 imports from `shelfr.metadata.audnex`
+- ✅ Production call: `orchestration.py` line 75: `audnex_data, _ = fetch_audnex_book(asin)`
 
 **Test Migration:**
 
@@ -85,6 +117,8 @@
 
 ## Phase 4: Extract MAM (Depends on Above)
 
+> **Status:** ✅ Complete | **Code Verified:** 2026-01-05 | **Production Wired:** ✅ YES
+>
 > Do this later — `build_mam_json` touches everything (mediainfo, audnex, formatting).
 
 - [x] Create `metadata/mam/categories.py`:
@@ -97,6 +131,12 @@
 - [x] Update test patch paths (`shelfr.metadata.mam.json_builder.get_settings`, `shelfr.metadata.mam.categories.get_settings`)
 - [x] Run tests
 
+**Code Verification (2026-01-05):**
+
+- ✅ `metadata/mam/json_builder.py` exists with `generate_mam_json_for_release()` at line 472
+- ✅ Production path: `workflow.py` line 52 imports `generate_mam_json_for_release`
+- ✅ Production call: `workflow.py` line 412: `mam_json_path = generate_mam_json_for_release(release, ...)`
+
 **Test Migration:**
 
 - Update category test imports: `from metadata.mam.categories import _infer_fiction_or_nonfiction`
@@ -107,7 +147,12 @@
 
 ## Phase 5: Schemas + Provider System + JSON Sidecar
 
+> **Status:** ✅ Complete | **Code Verified:** 2026-01-05 | **Production Wired:** ✅ YES (Phase 8.5)
+>
 > Split into sub-phases for smaller, reviewable PRs.
+>
+> **✅ Provider system now wired to production** via `_fetch_audnex_with_provider()` in orchestration.py.
+> Caching and rate limiting are active by default. Use `--no-cache` to bypass.
 
 ### Phase 5a: Schemas + Cleaning (no behavior change)
 
@@ -122,6 +167,11 @@
   - **Don't duplicate** — wrap existing functions
 - [x] Update `metadata/__init__.py` to re-export schemas and cleaning functions
 - [x] Add tests for CanonicalMetadata schema and cleaning facade
+
+**Code Verification (2026-01-05):**
+
+- ✅ `metadata/schemas/canonical.py` exists with `CanonicalMetadata`, `Person`, `Series`, `Genre`
+- ✅ `metadata/cleaning.py` exists as facade over `utils/naming`
 
 ### Phase 5b: Provider System (core architecture)
 
@@ -141,6 +191,14 @@
   - Two-stage fetch (local → network), `_safe_fetch()` error isolation
   - `_safe_fetch()` returns `ProviderResult(success=False, error=...)` on failure (never raises)
 
+**Code Verification (2026-01-05):**
+
+- ✅ `metadata/providers/audnex.py` exists with `AudnexProvider` class
+- ✅ `metadata/providers/mock.py` exists with `MockProvider` class
+- ✅ `metadata/providers/registry.py` exists with `ProviderRegistry` and `default_registry`
+- ✅ `metadata/aggregator.py` exists with `MetadataAggregator` class
+- ⚠️ **NOT in production path** - `AudnexProvider` not called from `workflow.py`
+
 ### Phase 5c: Orchestration + Exporters
 
 - [x] Create `metadata/orchestration.py`:
@@ -155,9 +213,20 @@
   - Converts aggregated fields to ABS format with proper mappings
 - [x] Add tests for orchestration and exporters (37 tests)
 
+**Code Verification (2026-01-05):**
+
+- ✅ `metadata/orchestration.py` exists with both legacy and async APIs
+- ✅ `metadata/exporters/json.py` exists with `JsonExporter` class
+- ✅ `metadata/exporters/opf.py` exists with `OpfExporter` class
+- ⚠️ **NOT in production path** - `workflow.py` line 52 imports `fetch_metadata` (facade) which calls
+  `orchestration.fetch_metadata_legacy()` which calls `audnex/client.fetch_audnex_book()` directly
+- ⚠️ Async API (`fetch_metadata_async`, `export_metadata_async`) exists but NOT called from CLI/workflow
+
 ---
 
 ## Phase 6: Move OPF + Deprecations
+
+> **Status:** ✅ Complete | **Code Verified:** 2026-01-05 | **Production Wired:** ✅ YES
 
 - [x] Move `src/shelfr/opf/` → `metadata/opf/`
 - [x] Create deprecation shim in `src/shelfr/opf/__init__.py`:
@@ -167,11 +236,17 @@
   - `OpfExporter` wrapping existing OPF generation
 - [x] Add tests for OpfExporter (12 tests)
 
+**Code Verification (2026-01-05):**
+
+- ✅ `metadata/opf/generator.py` exists with `write_opf()` function
+- ✅ `abs/importer.py` line 1835 calls `write_opf()` in production
+- ✅ Production path confirmed: `import_to_audiobookshelf()` → `write_opf()`
+
 ---
 
 ## Phase 7: Cleanup & Hygiene
 
-> **Status:** ✅ Complete
+> **Status:** ✅ Complete | **Code Verified:** 2026-01-05 | **Production Wired:** ✅ YES
 
 ### Schema Consolidation
 
@@ -182,6 +257,14 @@
   - ✅ Removed duplicate `AbsMetadataSchema` class
   - ✅ Tags field populated with Adult flag for consistency
   - **Completed in:** PR #78 (Phase 7 - Schema Consolidation, validated by `test_abs_metadata_write_validation.py` — 22 tests)
+
+**Code Verification (2026-01-05):**
+
+- ✅ `abs/rename.py` line 38: `from shelfr.schemas.abs_metadata import AbsMetadataJson`
+- ✅ `abs/rename.py` line 230: `schema = AbsMetadataJson.model_validate(data)`
+- ✅ No `class AbsMetadataSchema` found in codebase (grep verified)
+- ✅ All `abs/rename.py` validation uses unified `AbsMetadataJson` schema
+
 - [x] ✅ **DEFERRED** Unify `AudnexAuthor` / `AudnexSeries` with `Person` / `Series`:
   - **Rationale:** Circular import constraint prevents unification (see 01-current-state-audit.md § 2.2)
   - **Documentation:** Added detailed circular import explanation to audit doc
