@@ -135,7 +135,8 @@ await build_sidecars(book_path, asin="B08G9PRS1K", formats=["opf", "json"])
 src/shelfr/metadata/
 ├── __init__.py              # Public API (facade re-exports)
 ├── aggregator.py            # Merge logic (deterministic precedence)
-├── orchestration.py         # fetch_all_metadata, build_sidecars, etc.
+├── cache.py                 # Caching layer (FileCache, NoOpCache)
+├── orchestration.py         # fetch_all_metadata, fetch_metadata_async, etc.
 ├── cleaning.py              # normalize_canonical() — THE cleaning entrypoint
 ├── models.py                # Shared Chapter dataclass
 │
@@ -146,21 +147,43 @@ src/shelfr/metadata/
 │   ├── base.py              # MetadataProvider protocol
 │   ├── types.py             # LookupContext, ProviderResult, FieldName, IdType, ProviderKind
 │   ├── registry.py          # ProviderRegistry (instance-based, stable ordering)
-│   ├── audnex.py            # Primary network provider
-│   ├── mediainfo.py         # Local technical metadata
-│   ├── libation.py          # Folder structure parsing
-│   ├── abs_sidecar.py       # Read existing ABS metadata.json (override provider)
+│   ├── audnex.py            # AudnexProvider (network, with cache + rate limiting)
 │   └── mock.py              # MockProvider for tests
+│   # Future: mediainfo.py, libation.py, abs_sidecar.py (see Plugin Architecture)
 │
 ├── exporters/
 │   ├── base.py              # MetadataExporter protocol
 │   ├── json.py              # ABS metadata.json sidecar
 │   └── opf.py               # OPF sidecar (moved in Phase 6)
 │
-└── mam/                     # MAM-specific (future extraction)
-    ├── json_builder.py
-    └── categories.py
+├── audnex/                  # Audnex API client (legacy, sync)
+│   └── client.py            # fetch_audnex_book(), fetch_audnex_chapters()
+│
+├── mediainfo/               # MediaInfo extraction
+│   └── extractor.py         # run_mediainfo(), AudioFormat
+│
+├── formatting/              # BBCode/HTML conversion
+│   ├── bbcode.py            # render_bbcode_description()
+│   └── html.py              # html_to_bbcode()
+│
+├── mam/                     # MAM fast-fillout JSON
+│   ├── json_builder.py      # build_mam_json()
+│   └── categories.py        # Category inference
+│
+└── opf/                     # OPF sidecar generation
+    └── generator.py         # generate_opf()
 ```
+
+### Production Status
+
+| Component | Status | Notes |
+| --- | --- | --- |
+| **Legacy API** | ✅ Production | `fetch_metadata()`, `fetch_all_metadata()` work |
+| **Provider System** | ✅ Implemented | `AudnexProvider` with cache + rate limiting |
+| **Production Integration** | ⚠️ Pending | Legacy workflow doesn't use provider system yet |
+
+> **Note:** The async provider-based API (`fetch_metadata_async()`) is fully tested but production
+> workflow still uses legacy sync functions. See [Phase 8.5 in Implementation Checklist](05-implementation-checklist.md#phase-85-production-integration-wiring).
 
 **Key changes from original `metadata.py`:**
 
