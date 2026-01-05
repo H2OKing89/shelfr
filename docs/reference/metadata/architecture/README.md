@@ -1,7 +1,7 @@
 # Metadata Architecture Documentation
 
-> **Date:** January 2, 2026
-> **Status:** Migration Complete ✅ — Phases 0-7 shipped
+> **Date:** January 5, 2026
+> **Status:** Migration Complete ✅ — Phases 0-8 implemented | **⚠️ Phase 8.5 needed for production**
 > **Related:** [JSON Sidecar Discovery](../../../implementation/json-sidecar-discovery.md) | [Naming System](../naming/NAMING.md)
 
 ---
@@ -19,6 +19,7 @@ This folder contains the comprehensive metadata architecture documentation for s
 | [Plugin Architecture](03-plugin-architecture.md) | Provider system for extensible metadata sources |
 | [Future-Proofing](04-future-proofing.md) | Exporters, caching, events, and infrastructure |
 | [Implementation Checklist](05-implementation-checklist.md) | Actionable task list by phase |
+| [Dead Code Removal Guide](06-dead-code-removal-guide.md) | How to safely identify, deprecate, and remove unused code |
 
 ---
 
@@ -26,16 +27,23 @@ This folder contains the comprehensive metadata architecture documentation for s
 
 The metadata package has been fully refactored into a unified `src/shelfr/metadata/` package with clean architecture. The original 2040-line god module has been decomposed into focused submodules.
 
-### Migration Complete ✅
+### Migration Status
 
-| Achievement | Status |
-| --- | --- |
-| God module decomposed | ✅ `metadata.py` → `metadata/` package |
-| Duplicate schemas unified | ✅ `AbsMetadataSchema` → `AbsMetadataJson` |
-| Provider system implemented | ✅ Pluggable, deterministic merging |
-| Exporter system implemented | ✅ JSON + OPF exporters |
-| OPF module integrated | ✅ Moved to `metadata/opf/` |
-| Deprecation shims in place | ✅ `shelfr.opf` → `shelfr.metadata.opf` |
+| Achievement | Status | Production Wired |
+| --- | --- | --- |
+| God module decomposed | ✅ `metadata.py` → `metadata/` package | ✅ Yes |
+| Duplicate schemas unified | ✅ `AbsMetadataSchema` → `AbsMetadataJson` | ✅ Yes |
+| Provider system implemented | ✅ `AudnexProvider` with cache + rate limiting | ✅ Yes |
+| Exporter system implemented | ✅ JSON + OPF exporters | ⚠️ Partial |
+| OPF module integrated | ✅ Moved to `metadata/opf/` | ✅ Yes |
+| Deprecation shims in place | ✅ `shelfr.opf` → `shelfr.metadata.opf` | ✅ Yes |
+| Infrastructure (Phase 8) | ✅ Cache + rate limiting in provider | ✅ Yes |
+| Production integration | ✅ Phase 8.5 complete | ✅ Yes |
+
+> **Migration Complete!** The provider system with caching and rate limiting is now wired
+> into the production workflow. Use `shelfr --no-cache run` to bypass caching.
+>
+> **Remaining:** Exporter system (JsonExporter, OpfExporter) not yet called from workflow.
 
 ---
 

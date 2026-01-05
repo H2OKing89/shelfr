@@ -2,23 +2,30 @@
 
 > Part of [Metadata Architecture Documentation](README.md)
 >
-> **Migration Status:** Phases 0-7 complete ✅ | Phase 8+ planned 📋
+> **Migration Status:** Phases 0-8 implemented ✅ | **⚠️ Phase 8.5 needed for production wiring**
+>
+> **Code Verified:** 2026-01-05 — See [Implementation Checklist](05-implementation-checklist.md) for line-by-line verification.
 
 ---
 
 ## Migration Progress Summary
 
-| Phase | Status | Completion |
+| Phase | Status | Production Wired |
 | ------- | -------- | ------------ |
-| Phase 0: Package Scaffolding | ✅ Complete | Merged to main |
-| Phase 1: Extract MediaInfo | ✅ Complete | Merged to main |
-| Phase 2: Extract Formatting | ✅ Complete | Merged to main |
-| Phase 3: Extract Audnex | ✅ Complete | Merged to main |
-| Phase 4: Extract MAM | ✅ Complete | Merged to main |
-| Phase 5: Schemas + Providers + Exporters | ✅ Complete | Merged to main |
-| Phase 6: Move OPF + Deprecations | ✅ Complete | Merged to main |
-| Phase 7: Cleanup & Hygiene | ✅ Complete | Schema consolidation (PR #78), docs/hygiene (PR #79) |
-| Phase 8: Infrastructure (future) | 📋 Planned | Cache, events, batch operations |
+| Phase 0: Package Scaffolding | ✅ Complete | ✅ Yes |
+| Phase 1: Extract MediaInfo | ✅ Complete | ✅ Yes |
+| Phase 2: Extract Formatting | ✅ Complete | ✅ Yes |
+| Phase 3: Extract Audnex | ✅ Complete | ✅ Yes |
+| Phase 4: Extract MAM | ✅ Complete | ✅ Yes |
+| Phase 5: Schemas + Providers + Exporters | ✅ Complete | ✅ Yes (Provider) |
+| Phase 6: Move OPF + Deprecations | ✅ Complete | ✅ Yes |
+| Phase 7: Cleanup & Hygiene | ✅ Complete | ✅ Yes |
+| Phase 8: Infrastructure (Cache + Rate Limiting) | ✅ Complete | ✅ Yes |
+| Phase 8.5: Production Integration | ✅ Complete | ✅ Yes |
+
+> **✅ Migration Complete!** All phases including production integration are done.
+> The provider system with caching and rate limiting is now wired into the workflow.
+> Use `shelfr --no-cache run` to bypass caching when needed.
 
 ---
 
