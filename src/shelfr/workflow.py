@@ -138,7 +138,19 @@ def _fetch_metadata_with_retry(
     *,
     use_cache: bool = True,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
-    """Fetch metadata with retry logic for network failures."""
+    """Fetch metadata with retry logic for network failures.
+
+    Args:
+        asin: Audible ASIN for Audnex lookup (None to skip Audnex)
+        m4b_path: Path to m4b file for MediaInfo extraction (None to skip)
+        use_cache: Use provider-backed caching with rate limiting (default: True).
+            When True, uses AudnexProvider which caches responses for 30 days.
+            Set to False to force fresh API calls (e.g., --no-cache CLI flag).
+
+    Returns:
+        Tuple of (audnex_data, mediainfo_data, audnex_chapters).
+        Each element may be None if lookup failed or was skipped.
+    """
     return fetch_metadata(asin=asin, m4b_path=m4b_path, use_cache=use_cache)
 
 

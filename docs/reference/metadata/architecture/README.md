@@ -1,7 +1,7 @@
 # Metadata Architecture Documentation
 
 > **Date:** January 5, 2026
-> **Status:** Migration Complete ✅ — Phases 0-8 implemented | **⚠️ Phase 8.5 needed for production**
+> **Status:** Migration Complete ✅ — Phases 0-8.5 implemented
 > **Related:** [JSON Sidecar Discovery](../../../implementation/json-sidecar-discovery.md) | [Naming System](../naming/NAMING.md)
 
 ---
@@ -179,11 +179,12 @@ src/shelfr/metadata/
 | Component | Status | Notes |
 | --- | --- | --- |
 | **Legacy API** | ✅ Production | `fetch_metadata()`, `fetch_all_metadata()` work |
-| **Provider System** | ✅ Implemented | `AudnexProvider` with cache + rate limiting |
-| **Production Integration** | ⚠️ Pending | Legacy workflow doesn't use provider system yet |
+| **Provider System** | ✅ Production | `AudnexProvider` with cache + rate limiting |
+| **Production Integration** | ✅ Complete | Legacy workflow uses provider via `_fetch_audnex_with_provider()` |
 
-> **Note:** The async provider-based API (`fetch_metadata_async()`) is fully tested but production
-> workflow still uses legacy sync functions. See [Phase 8.5 in Implementation Checklist](05-implementation-checklist.md#phase-85-production-integration-wiring).
+> **Note:** Production workflow (`workflow.py`) now uses `AudnexProvider` with caching (30-day TTL)
+> and rate limiting (10 req/sec). Use `--no-cache` flag to bypass caching if needed.
+> See [Phase 8.5 in Implementation Checklist](05-implementation-checklist.md#phase-85-production-integration--complete).
 
 **Key changes from original `metadata.py`:**
 

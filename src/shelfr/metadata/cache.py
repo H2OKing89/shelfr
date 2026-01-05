@@ -31,7 +31,7 @@ import asyncio
 import hashlib
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -85,6 +85,7 @@ class CachedResult:
         confidence: Confidence scores per field
         fetched_at: When this was cached (ISO 8601 timestamp)
         schema_version: Schema version when cached (for migration)
+        raw_data: Original API response for backward compatibility
     """
 
     provider: str
@@ -92,6 +93,7 @@ class CachedResult:
     confidence: dict[FieldName, float]
     fetched_at: str  # ISO 8601 timestamp
     schema_version: str = SCHEMA_VERSION
+    raw_data: dict[str, Any] = field(default_factory=dict)
 
     def is_expired(self, ttl_seconds: int) -> bool:
         """Check if cache entry has expired.
@@ -125,6 +127,7 @@ class CachedResult:
             confidence=data["confidence"],
             fetched_at=data["fetched_at"],
             schema_version=data.get("schema_version", "0.0.0"),  # Legacy fallback
+            raw_data=data.get("raw_data", {}),  # Backward compat for old cache entries
         )
 
 

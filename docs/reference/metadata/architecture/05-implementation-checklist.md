@@ -315,24 +315,23 @@
 
 ## Phase 8: Infrastructure (Cache + Rate Limiting)
 
-> **Status:** ✅ Implemented | **Code Verified:** 2026-01-05 | **Production Wired:** ⚠️ NO
+> **Status:** ✅ Implemented | **Code Verified:** 2026-01-05 | **Production Wired:** ✅ YES
 >
-> **What's done:** Cache + rate limiting implemented and tested (22 tests passing)
-> **What's needed:** Wire provider system into production workflow (see Phase 8.5 below)
+> **What's done:** Cache + rate limiting implemented, tested (22 tests), and wired to production
+> **Production path:** `workflow.py` → `fetch_metadata()` → `orchestration.fetch_metadata_legacy(use_cache=True)` → `_fetch_audnex_with_provider()` → `AudnexProvider.fetch()` (cached + rate-limited)
 >
-> ⚠️ **Critical Gap:** The cache and rate limiting are implemented in `AudnexProvider.fetch()`,
-> but production workflow (`workflow.py`) calls `orchestration.fetch_metadata_legacy()` which
-> calls `audnex/client.fetch_audnex_book()` directly—bypassing the provider system entirely.
+> ✅ **Phase 8.5 Complete:** Production workflow now uses `AudnexProvider` with caching and rate limiting.
+> See [Phase 8.5 Implementation](#phase-85-production-integration--complete) for details.
 
 **Code Verification (2026-01-05):**
 
 - ✅ `metadata/cache.py` exists with `FileCache`, `NoOpCache`, `MetadataCache` protocol
 - ✅ `metadata/providers/audnex.py` line 66: calls `get_default_cache()` in `__init__`
 - ✅ `metadata/providers/audnex.py` lines 78-130: `fetch()` method uses cache
-- ⚠️ **Production path bypasses this:**
+- ✅ **Production path now uses provider:**
   - `workflow.py` line 140 → `fetch_metadata()` (facade)
-  - → `orchestration.fetch_metadata_legacy()` line 75
-  - → `audnex/client.fetch_audnex_book()` (NO cache, NO rate limiting)
+  - → `orchestration.fetch_metadata_legacy(use_cache=True)` line 139
+  - → `_fetch_audnex_with_provider()` line 53 (uses `AudnexProvider`)
 
 ### ROI Analysis: Recommended Implementation Order
 

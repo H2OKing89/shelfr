@@ -2,7 +2,7 @@
 
 > Part of [Metadata Architecture Documentation](README.md)
 >
-> **Migration Status:** Phases 0-8 implemented ✅ | **⚠️ Phase 8.5 needed for production wiring**
+> **Migration Status:** Phases 0-8.5 implemented ✅ | **Phase 8.5 complete ✅**
 >
 > **Code Verified:** 2026-01-05 — See [Implementation Checklist](05-implementation-checklist.md) for line-by-line verification.
 

@@ -49,6 +49,10 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Uses AudnexProvider with caching and rate limiting
 
+# Timeout for provider operations in seconds
+# This can be made configurable via settings in future if needed
+PROVIDER_TIMEOUT_SECONDS = 60
+
 
 def _fetch_audnex_with_provider(
     asin: str,
@@ -57,6 +61,7 @@ def _fetch_audnex_with_provider(
     """Fetch Audnex data using AudnexProvider (with caching).
 
     This is the cached path that wraps AudnexProvider.fetch() for sync use.
+    Applies consistent timeouts to both async execution paths.
 
     Args:
         asin: Audible ASIN
@@ -85,21 +90,35 @@ def _fetch_audnex_with_provider(
 
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 future = pool.submit(asyncio.run, provider.fetch(ctx, "asin"))
-                result = future.result(timeout=60)
+                result = future.result(timeout=PROVIDER_TIMEOUT_SECONDS)
         else:
-            # No running loop - safe to use asyncio.run
-            result = asyncio.run(provider.fetch(ctx, "asin"))
+            # No running loop - safe to use asyncio.run with timeout wrapper
+            async def fetch_with_timeout() -> Any:
+                return await asyncio.wait_for(
+                    provider.fetch(ctx, "asin"),
+                    timeout=PROVIDER_TIMEOUT_SECONDS,
+                )
+
+            result = asyncio.run(fetch_with_timeout())
 
         if not result.success:
             logger.debug("AudnexProvider failed: %s", result.error)
             return None, None
 
-        # The provider returns mapped fields, but we need raw Audnex format
-        # for backward compatibility. Fetch raw data directly.
-        # TODO: Once all consumers migrate to canonical fields, remove this.
-        data, actual_region = fetch_audnex_book(asin, region)
-        return data, actual_region
+        # Provider caches raw_data from fetch_audnex_book
+        # Use cached raw_data if available; this is the whole point of caching
+        raw_data = result.raw_data.get("audnex") if result.raw_data else None
+        if raw_data is not None:
+            actual_region = raw_data.get("region") or region or "us"
+            return raw_data, actual_region
 
+        # Fallback: provider succeeded but no raw data (shouldn't happen)
+        logger.warning("Provider succeeded but no raw audnex data for %s", asin)
+        return None, None
+
+    except TimeoutError:
+        logger.warning("Timeout fetching from AudnexProvider for %s", asin)
+        return None, None
     except Exception as e:
         logger.warning("Error using AudnexProvider for %s: %s", asin, e)
         return None, None

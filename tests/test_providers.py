@@ -371,7 +371,7 @@ class TestAudnexProvider:
     @pytest.mark.asyncio
     async def test_fetch_maps_audnex_response(self) -> None:
         """Test fetch correctly maps Audnex API response."""
-        provider = AudnexProvider()
+        provider = AudnexProvider(cache=NoOpCache())
         ctx = LookupContext.from_asin(asin="B08G9PRS1K")
 
         mock_response = {
