@@ -186,15 +186,22 @@ class FileCache:
 
         Args:
             cache_dir: Directory to store cache files (created if needed)
+
+        Raises:
+            CacheUnavailableError: If cache directory cannot be created
         """
         self.cache_dir = cache_dir
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.warning(f"Failed to create cache directory {cache_dir}: {e}")
+            raise CacheUnavailableError(f"Cache directory unavailable: {e}") from e
 
     def _get_cache_path(self, key: str) -> Path:
         """Get filesystem path for cache key.
 
-        Uses simple filename sanitization (replace : and / with _).
-        For very long keys, could use hash instead.
+        Uses sanitization and hash-based truncation for long keys to ensure
+        filenames stay within filesystem limits (255 chars).
 
         Args:
             key: Cache key
