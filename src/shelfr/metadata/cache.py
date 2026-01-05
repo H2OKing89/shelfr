@@ -212,14 +212,14 @@ class FileCache:
             Path to cache file
         """
         safe_key = key.replace(":", "_").replace("/", "_")
-        
+
         # Use hash for long filenames to stay within 255 char filesystem limit
         if len(safe_key) > 200:
             # Use hash with short prefix for debugging
             key_hash = hashlib.sha256(key.encode()).hexdigest()
             prefix = safe_key[:50]  # Keep first 50 chars for readability
             safe_key = f"{prefix}_{key_hash}"
-        
+
         return self.cache_dir / f"{safe_key}.json"
 
     async def get(self, key: str) -> CachedResult | None:

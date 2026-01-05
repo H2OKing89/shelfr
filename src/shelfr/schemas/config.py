@@ -607,17 +607,17 @@ class CacheSchema(BaseModel):
     @classmethod
     def resolve_cache_dir(cls, v: str) -> str:
         """Resolve cache_dir with ~ expansion and platform defaults.
-        
+
         Uses platform-appropriate defaults from paths.cache_dir() when
         the value equals the hardcoded default, allowing user overrides
         while respecting SHELFR_CACHE_DIR environment variable.
         """
         from shelfr.paths import cache_dir as get_platform_cache_dir
-        
+
         # Use platform-appropriate default for hardcoded value
         if v == "~/.cache/shelfr/metadata":
             return str(get_platform_cache_dir() / "metadata")
-        
+
         # Allow user overrides with ~ expansion
         return str(Path(v).expanduser())
 
