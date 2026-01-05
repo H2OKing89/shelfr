@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from shelfr.metadata.providers.types import FieldName, IdType
+from shelfr.paths import cache_dir as get_platform_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -314,20 +315,33 @@ class NoOpCache(MetadataCache):
         """No-op."""
         pass
 
+    async def invalidate_pattern(self, pattern: str) -> None:
+        """No-op."""
+        pass
 
-_default_cache: FileCache | None = None
+    async def clear(self) -> None:
+        """No-op."""
+        pass
 
 
-def get_default_cache() -> FileCache:
+_default_cache: FileCache | NoOpCache | None = None
+
+
+def get_default_cache() -> FileCache | NoOpCache:
     """Get default cache instance (lazy-initialized).
 
-    Uses ~/.cache/shelfr/metadata by default.
+    Uses platform-appropriate cache directory (respects SHELFR_CACHE_DIR).
+    Falls back to NoOpCache if cache directory cannot be created.
 
     Returns:
-        FileCache instance
+        FileCache instance, or NoOpCache if initialization fails
     """
     global _default_cache
     if _default_cache is None:
-        cache_dir = Path.home() / ".cache" / "shelfr" / "metadata"
-        _default_cache = FileCache(cache_dir=cache_dir)
+        cache_path = get_platform_cache_dir() / "metadata"
+        try:
+            _default_cache = FileCache(cache_dir=cache_path)
+        except CacheUnavailableError:
+            logger.warning("Falling back to NoOpCache due to cache initialization failure")
+            _default_cache = NoOpCache()
     return _default_cache
