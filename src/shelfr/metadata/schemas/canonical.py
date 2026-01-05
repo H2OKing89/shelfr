@@ -21,6 +21,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
+# Supported content classification flags
+# Designed to be platform-agnostic but starts with MAM vocabulary
+ContentFlag = Literal["cLang", "vio", "sSex", "eSex", "abridged", "lgbt"]
+
 
 class Person(BaseModel):
     """Author, narrator, or other contributor.
@@ -123,6 +127,17 @@ class CanonicalMetadata(BaseModel):
     literature_type: str | None = Field(default=None, alias="literatureType")
     format_type: str = Field(default="unabridged", alias="formatType")
     is_adult: bool = Field(default=False, alias="isAdult")
+
+    # Content flags for platform-agnostic classification (MAM, AO3, etc.)
+    content_flags: list[ContentFlag] = Field(
+        default_factory=list,
+        description=(
+            "Platform-agnostic content warnings/classification flags. "
+            "Supported values: 'cLang' (crude language), 'vio' (violence), "
+            "'sSex' (some sexual content), 'eSex' (explicit sexual content), "
+            "'abridged', 'lgbt' (LGBTQ+ themes)"
+        ),
+    )
 
     # Publication info
     publisher_name: str = Field(default="", alias="publisherName")

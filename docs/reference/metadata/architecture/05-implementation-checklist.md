@@ -197,7 +197,7 @@
 - ✅ `metadata/providers/mock.py` exists with `MockProvider` class
 - ✅ `metadata/providers/registry.py` exists with `ProviderRegistry` and `default_registry`
 - ✅ `metadata/aggregator.py` exists with `MetadataAggregator` class
-- ⚠️ **NOT in production path** - `AudnexProvider` not called from `workflow.py`
+- ✅ **NOW in production path** - `AudnexProvider` called via `_fetch_audnex_with_provider()` (Phase 8.5)
 
 ### Phase 5c: Orchestration + Exporters
 
@@ -218,9 +218,9 @@
 - ✅ `metadata/orchestration.py` exists with both legacy and async APIs
 - ✅ `metadata/exporters/json.py` exists with `JsonExporter` class
 - ✅ `metadata/exporters/opf.py` exists with `OpfExporter` class
-- ⚠️ **NOT in production path** - `workflow.py` line 52 imports `fetch_metadata` (facade) which calls
-  `orchestration.fetch_metadata_legacy()` which calls `audnex/client.fetch_audnex_book()` directly
-- ⚠️ Async API (`fetch_metadata_async`, `export_metadata_async`) exists but NOT called from CLI/workflow
+- ✅ **NOW in production path** - `workflow.py` → `fetch_metadata()` → `orchestration.fetch_metadata_legacy(use_cache=True)`
+  → `_fetch_audnex_with_provider()` → `AudnexProvider.fetch()` (Phase 8.5 complete)
+- ⚠️ Async API (`fetch_metadata_async`, `export_metadata_async`) exists but NOT called from CLI/workflow (not needed for current use case)
 
 ---
 
@@ -592,6 +592,90 @@ Once production integration is complete, these providers can be added:
 
 ---
 
+## Phase 9: Content Flags & Platform-Agnostic Metadata
+
+> **Status:** 🚧 In Progress | **Priority:** High
+>
+> **Goal:** Add platform-agnostic content classification flags to canonical schema for MAM and future platforms.
+
+### Current Gap
+
+MAM upload requires content flags (`cLang`, `vio`, `sSex`, `eSex`, `abridged`, `lgbt`), but our canonical schema only has:
+
+- `is_adult: bool` (too broad, maps to `eSex` but doesn't distinguish `sSex`)
+- `format_type: str` (only handles `abridged`)
+
+Missing: crude language, violence, sexual content granularity, LGBT themes.
+
+### Implementation Tasks
+
+**9.1: Extend Canonical Schema** — Estimated effort: 1-2 hours
+
+- [ ] Add `content_flags` field to `CanonicalMetadata` in `schemas/canonical.py`
+  - Type: `list[Literal["cLang", "vio", "sSex", "eSex", "abridged", "lgbt"]]`
+  - Default: empty list
+  - Description: Platform-agnostic content warnings/classification
+- [ ] Add validation: flags are mutually exclusive where appropriate (e.g., can't have both `sSex` and `eSex`)
+- [ ] Update example/docstring showing usage
+- [ ] Add migration note for existing data
+
+**9.2: Update MAM JSON Builder** — Estimated effort: 30 min
+
+- [ ] Update `build_mam_json()` in `mam/json_builder.py` to use `content_flags` from canonical
+- [ ] Deprecate old logic that infers from `is_adult`/`format_type` directly
+- [ ] Add backward compatibility: still populate from `is_adult` if `content_flags` is empty
+
+**9.3: Provider Integration** — Estimated effort: 1 hour
+
+- [ ] Update `AudnexProvider._map_to_result()` to map Audnex data to `content_flags`
+  - Map `isAdult=True` → `["eSex"]` (existing behavior)
+  - Map `formatType="abridged"` → `["abridged"]`
+  - Document what Audnex does NOT provide (language, violence, LGBT)
+- [ ] Add note about manual override mechanisms for flags Audnex doesn't detect
+
+**9.4: Tests** — Estimated effort: 1 hour
+
+- [ ] Test canonical schema validation (valid flags, invalid flags, duplicates)
+- [ ] Test MAM JSON generation with various flag combinations
+- [ ] Test provider mapping from Audnex data
+- [ ] Golden test updates for new field
+
+**9.5: Documentation** — Estimated effort: 30 min
+
+- [ ] Update architecture docs with content flags design
+- [ ] Document which providers populate which flags
+- [ ] Add example showing manual override workflow
+- [ ] Update CHANGELOG
+
+### Design Decisions
+
+**Why `content_flags` over separate boolean fields?**
+
+- Matches MAM API structure (list of strings)
+- Easier to extend with new flags (no schema change needed)
+- Platform-agnostic (can add AO3 warnings, MPAA ratings, etc.)
+
+**Why these specific flag names?**
+
+- Start with MAM's vocabulary for immediate use case
+- Can be aliased/mapped by exporters for other platforms
+
+**Future extensibility:**
+
+```python
+# Phase 10+: Add more platform flags as needed
+content_flags: list[Literal[
+    # MAM flags (current)
+    "cLang", "vio", "sSex", "eSex", "abridged", "lgbt",
+    # Future: AO3 archive warnings
+    "graphic-violence", "major-character-death", "underage",
+    # Future: MPAA-style ratings
+    "rated-r", "rated-pg13"
+]]
+```
+
+---
+
 ## Future (As Needed)
 
 - [ ] Hardcover provider
@@ -599,6 +683,7 @@ Once production integration is complete, these providers can be added:
 - [ ] NFO exporter
 - [ ] Batch operations
 - [ ] Custom user fields
+- [ ] Additional content classification systems (MPAA, AO3, etc.)
 
 ---
 
@@ -617,7 +702,8 @@ Once production integration is complete, these providers can be added:
 | Phase 6 | ✅ Complete | OPF move + deprecations + OpfExporter (PR #76) |
 | Phase 7 | ✅ Complete | Cleanup & Hygiene (PR #78, PR #79) |
 | Phase 8 | ✅ Tier 1 Complete | Infrastructure (cache + rate limiting in AudnexProvider) |
-| Phase 8.5 | 📋 Ready | Production integration wiring (connect workflow to provider system) |
+| Phase 8.5 | ✅ Complete | Production integration (PR #82) |
+| Phase 9 | 🚧 In Progress | Content flags for MAM & platform-agnostic metadata |
 | Future | ⏳ Not Started | Additional providers, exporters, batch ops |
 
 ---

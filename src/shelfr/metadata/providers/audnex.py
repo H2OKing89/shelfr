@@ -211,6 +211,16 @@ class AudnexProvider:
         if is_adult is not None:
             result.set_field("is_adult", is_adult)
 
+        # Content flags - infer from Audnex data
+        # Note: Audnex doesn't provide cLang, vio, or lgbt data - those require manual override
+        content_flags = []
+        if is_adult:
+            content_flags.append("eSex")
+        if format_type and format_type.lower() == "abridged":
+            content_flags.append("abridged")
+        if content_flags:
+            result.set_field("content_flags", content_flags)
+
         # Genres - convert to list of dicts
         if genres := data.get("genres"):
             genre_list = [
