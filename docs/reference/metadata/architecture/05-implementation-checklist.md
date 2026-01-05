@@ -313,14 +313,26 @@
 
 ---
 
-## Phase 8: Infrastructure (As Needed)
+## Phase 8: Infrastructure (Cache + Rate Limiting)
 
-> **Status:** ✅ Tier 1 Complete (Infrastructure) | ⚠️ Production Integration Pending
+> **Status:** ✅ Implemented | **Code Verified:** 2026-01-05 | **Production Wired:** ⚠️ NO
 >
 > **What's done:** Cache + rate limiting implemented and tested (22 tests passing)
-> **What's needed:** Wire provider system into production workflow (follow-up PR)
+> **What's needed:** Wire provider system into production workflow (see Phase 8.5 below)
 >
-> These are optional enhancements — the core system works without them. Prioritize by ROI.
+> ⚠️ **Critical Gap:** The cache and rate limiting are implemented in `AudnexProvider.fetch()`,
+> but production workflow (`workflow.py`) calls `orchestration.fetch_metadata_legacy()` which
+> calls `audnex/client.fetch_audnex_book()` directly—bypassing the provider system entirely.
+
+**Code Verification (2026-01-05):**
+
+- ✅ `metadata/cache.py` exists with `FileCache`, `NoOpCache`, `MetadataCache` protocol
+- ✅ `metadata/providers/audnex.py` line 66: calls `get_default_cache()` in `__init__`
+- ✅ `metadata/providers/audnex.py` lines 78-130: `fetch()` method uses cache
+- ⚠️ **Production path bypasses this:**
+  - `workflow.py` line 140 → `fetch_metadata()` (facade)
+  - → `orchestration.fetch_metadata_legacy()` line 75
+  - → `audnex/client.fetch_audnex_book()` (NO cache, NO rate limiting)
 
 ### ROI Analysis: Recommended Implementation Order
 
@@ -463,9 +475,9 @@ The cache and rate limiting are fully implemented in `AudnexProvider`, but the p
 **Current production flow:**
 
 ```python
-# commands/mam.py → metadata/__init__.py
-fetch_all_metadata()
-  → fetch_all_metadata_legacy()
+# workflow.py → metadata/__init__.py
+fetch_metadata()
+  → fetch_metadata_legacy()
     → fetch_audnex_book()  # Legacy - NO cache, NO rate limiting
 ```
 
@@ -474,12 +486,6 @@ fetch_all_metadata()
 ```python
 AudnexProvider.fetch()  # HAS cache + rate limiting, fully tested
 ```
-
-**Next Step (Phase 8.5 - Production Integration):**
-
-- [ ] Update `fetch_all_metadata_legacy()` to use provider system internally
-- [ ] Or: Add cache/rate limiting directly to legacy `fetch_audnex_book()`
-- [ ] Estimated effort: 2-4 hours
 
 **Defer to future phases:**
 
