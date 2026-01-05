@@ -140,7 +140,7 @@ This shim exists for backwards compatibility and will be removed in v2.0.
 Update your imports:
     # Old (deprecated)
     from shelfr.opf import write_opf
-    
+
     # New (preferred)
     from shelfr.metadata.opf import write_opf
 """
@@ -168,10 +168,10 @@ __all__ = ["write_opf", "read_opf", "OPFGenerator"]
 class OldClassName:
     """
     DEPRECATED: Use NewClassName instead.
-    
+
     This class will be removed in v2.0.
     """
-    
+
     def __init__(self, *args, **kwargs):
         warnings.warn(
             "OldClassName is deprecated. Use NewClassName instead.",
@@ -180,7 +180,7 @@ class OldClassName:
         )
         # Delegate to new class
         self._delegate = NewClassName(*args, **kwargs)
-    
+
     def __getattr__(self, name):
         return getattr(self._delegate, name)
 ```
