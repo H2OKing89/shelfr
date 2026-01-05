@@ -44,6 +44,12 @@ logger = logging.getLogger(__name__)
 SCHEMA_VERSION = "1.0.0"
 
 
+class CacheUnavailableError(Exception):
+    """Raised when cache cannot be initialized (e.g., permission denied)."""
+
+    pass
+
+
 def make_cache_key(
     provider: str,
     id_type: IdType,

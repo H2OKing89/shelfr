@@ -53,6 +53,9 @@ from shelfr.metadata.cache import (
     CachedResult as CachedResult,
 )
 from shelfr.metadata.cache import (
+    CacheUnavailableError as CacheUnavailableError,
+)
+from shelfr.metadata.cache import (
     FileCache as FileCache,
 )
 from shelfr.metadata.cache import (
