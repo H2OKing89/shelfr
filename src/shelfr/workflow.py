@@ -135,9 +135,23 @@ class PipelineResult:
 def _fetch_metadata_with_retry(
     asin: str | None,
     m4b_path: Path | None,
+    *,
+    use_cache: bool = True,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
-    """Fetch metadata with retry logic for network failures."""
-    return fetch_metadata(asin=asin, m4b_path=m4b_path)
+    """Fetch metadata with retry logic for network failures.
+
+    Args:
+        asin: Audible ASIN for Audnex lookup (None to skip Audnex)
+        m4b_path: Path to m4b file for MediaInfo extraction (None to skip)
+        use_cache: Use provider-backed caching with rate limiting (default: True).
+            When True, uses AudnexProvider which caches responses for 30 days.
+            Set to False to force fresh API calls (e.g., --no-cache CLI flag).
+
+    Returns:
+        Tuple of (audnex_data, mediainfo_data, audnex_chapters).
+        Each element may be None if lookup failed or was skipped.
+    """
+    return fetch_metadata(asin=asin, m4b_path=m4b_path, use_cache=use_cache)
 
 
 @retry_with_backoff(
@@ -170,6 +184,8 @@ def process_single_release(
     progress_callback: ProgressCallback | None = None,
     release_index: int = 0,
     release_total: int = 0,
+    *,
+    use_cache: bool = True,
 ) -> ProcessingResult:
     """
     Process a single release through the full pipeline.
@@ -188,6 +204,7 @@ def process_single_release(
         progress_callback: Optional callback for progress updates
         release_index: Current release number (1-based) for progress
         release_total: Total releases being processed
+        use_cache: Use metadata caching (default: True)
 
     Returns:
         ProcessingResult with success/failure info
@@ -289,6 +306,7 @@ def process_single_release(
                 audnex_data, mediainfo_data, audnex_chapters = _fetch_metadata_with_retry(
                     asin=release.asin,
                     m4b_path=release.main_m4b,
+                    use_cache=use_cache,
                 )
                 release.audnex_metadata = audnex_data
                 release.mediainfo_data = mediainfo_data
@@ -535,6 +553,8 @@ def full_run(
     dry_run: bool = False,
     verbose: bool = False,
     progress_callback: ProgressCallback | None = None,
+    *,
+    use_cache: bool = True,
 ) -> PipelineResult:
     """
     Run the complete pipeline from Libation scan to qBittorrent upload.
@@ -545,6 +565,7 @@ def full_run(
         dry_run: Show what would happen without making changes
         verbose: Enable verbose mode (pass through Libation progress if on TTY)
         progress_callback: Optional callback for progress updates
+        use_cache: Use metadata caching (default: True)
 
     Returns:
         PipelineResult with statistics
@@ -811,6 +832,7 @@ def full_run(
             progress_callback=progress_callback,
             release_index=i,
             release_total=len(releases),
+            use_cache=use_cache,
         )
         results.append(result)
 

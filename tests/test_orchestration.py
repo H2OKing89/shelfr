@@ -23,7 +23,7 @@ class TestFetchMetadataLegacy:
     """Tests for fetch_metadata_legacy function."""
 
     def test_fetch_with_asin_only(self) -> None:
-        """Test fetching with only ASIN provided."""
+        """Test fetching with only ASIN provided (bypassing cache)."""
         mock_audnex = {"asin": "B08G9PRS1K", "title": "Test Book"}
         mock_chapters = [{"title": "Chapter 1", "startTime": 0}]
 
@@ -37,7 +37,7 @@ class TestFetchMetadataLegacy:
                 return_value=mock_chapters,
             ),
         ):
-            audnex, mediainfo, chapters = fetch_metadata_legacy(asin="B08G9PRS1K")
+            audnex, mediainfo, chapters = fetch_metadata_legacy(asin="B08G9PRS1K", use_cache=False)
 
             assert audnex == mock_audnex
             assert mediainfo is None
@@ -61,7 +61,7 @@ class TestFetchMetadataLegacy:
             assert chapters is None
 
     def test_fetch_with_both(self, tmp_path: Path) -> None:
-        """Test fetching with both ASIN and m4b path."""
+        """Test fetching with both ASIN and m4b path (bypassing cache)."""
         m4b_file = tmp_path / "test.m4b"
         m4b_file.touch()
 
@@ -84,7 +84,7 @@ class TestFetchMetadataLegacy:
             ),
         ):
             audnex, mediainfo, chapters = fetch_metadata_legacy(
-                asin="B08G9PRS1K", m4b_path=m4b_file
+                asin="B08G9PRS1K", m4b_path=m4b_file, use_cache=False
             )
 
             assert audnex == mock_audnex
@@ -161,7 +161,7 @@ class TestFetchAllMetadataLegacy:
     """Tests for fetch_all_metadata_legacy function."""
 
     def test_fetch_without_save(self, tmp_path: Path) -> None:
-        """Test fetching without saving intermediate files."""
+        """Test fetching without saving intermediate files (bypassing cache)."""
         m4b_file = tmp_path / "test.m4b"
         m4b_file.touch()
 
@@ -190,6 +190,7 @@ class TestFetchAllMetadataLegacy:
                 m4b_path=m4b_file,
                 output_dir=tmp_path,
                 save_intermediate=False,
+                use_cache=False,
             )
 
             assert result == (mock_audnex, mock_mediainfo, mock_chapters)
@@ -197,7 +198,7 @@ class TestFetchAllMetadataLegacy:
             mock_save_mi.assert_not_called()
 
     def test_fetch_with_save(self, tmp_path: Path) -> None:
-        """Test fetching with saving intermediate files."""
+        """Test fetching with saving intermediate files (bypassing cache)."""
         m4b_file = tmp_path / "test.m4b"
         m4b_file.touch()
 
@@ -226,6 +227,7 @@ class TestFetchAllMetadataLegacy:
                 m4b_path=m4b_file,
                 output_dir=tmp_path,
                 save_intermediate=True,
+                use_cache=False,
             )
 
             assert result == (mock_audnex, mock_mediainfo, mock_chapters)

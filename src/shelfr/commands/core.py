@@ -407,11 +407,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Run lock to prevent concurrent instances
     try:
         with run_lock(force=args.no_run_lock):
+            # Check for --no-cache flag (passed from CLI via ctx.obj)
+            use_cache = not getattr(args, "no_cache", False)
             result = full_run(
                 skip_scan=args.skip_scan,
                 skip_metadata=args.skip_metadata,
                 dry_run=args.dry_run,
                 verbose=args.verbose,
+                use_cache=use_cache,
             )
     except StateLockError as e:
         set_console_quiet(False)

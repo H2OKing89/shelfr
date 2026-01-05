@@ -151,6 +151,7 @@ class ProviderResult:
         error: Error message if success=False
         cached: Whether result came from cache
         cache_age_seconds: Age of cached result if cached=True
+        raw_data: Original API response for backward compatibility
     """
 
     provider: str
@@ -160,6 +161,7 @@ class ProviderResult:
     error: str | None = None
     cached: bool = False
     cache_age_seconds: int | None = None
+    raw_data: dict[str, Any] = field(default_factory=dict)
 
     def set_field(
         self,

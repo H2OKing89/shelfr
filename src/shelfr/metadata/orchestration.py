@@ -6,20 +6,21 @@ and saving metadata. It ties together the provider system, aggregator,
 and exporters into simple, easy-to-use functions.
 
 Phase 5c: Initially a thin facade (wire-through) over existing functions.
-Later phases will migrate to full provider-based orchestration.
+Phase 8.5: Now wires AudnexProvider (with cache + rate limiting) into production.
 
 Key functions:
-- fetch_metadata_legacy(): Current implementation (sync, tuple return)
+- fetch_metadata_legacy(): Sync API with optional caching via AudnexProvider
 - fetch_all_metadata_legacy(): Current with optional save
 - save_metadata_files_legacy(): Save audnex.json and mediainfo.json
 
 Future functions (after full provider migration):
-- fetch_metadata(): Async, returns AggregatedResult
-- export_metadata(): Export to multiple formats via exporters
+- fetch_metadata_async(): Async, returns AggregatedResult (already implemented)
+- export_metadata_async(): Export to multiple formats via exporters (already implemented)
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -44,25 +45,107 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Legacy Orchestration (Phase 5c: thin facade over existing functions)
+# Provider-Based Audnex Fetching (Phase 8.5)
 # =============================================================================
-# These functions preserve the existing API while we migrate to providers.
-# They delegate to the current implementations in audnex, mediainfo modules.
+# Uses AudnexProvider with caching and rate limiting
+
+# Timeout for provider operations in seconds
+# This can be made configurable via settings in future if needed
+PROVIDER_TIMEOUT_SECONDS = 60
+
+
+def _fetch_audnex_with_provider(
+    asin: str,
+    region: str | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Fetch Audnex data using AudnexProvider (with caching).
+
+    This is the cached path that wraps AudnexProvider.fetch() for sync use.
+    Applies consistent timeouts to both async execution paths.
+
+    Args:
+        asin: Audible ASIN
+        region: Optional region override
+
+    Returns:
+        Tuple of (audnex_data, region), or (None, None) on failure
+    """
+    from shelfr.metadata.providers.audnex import AudnexProvider
+    from shelfr.metadata.providers.types import LookupContext
+
+    provider = AudnexProvider(region=region)
+    ctx = LookupContext(ids={"asin": asin})
+
+    # Run async provider in event loop
+    try:
+        # Get or create event loop
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None:
+            # We're in an async context - create a new loop in a thread
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, provider.fetch(ctx, "asin"))
+                result = future.result(timeout=PROVIDER_TIMEOUT_SECONDS)
+        else:
+            # No running loop - safe to use asyncio.run with timeout wrapper
+            async def fetch_with_timeout() -> Any:
+                return await asyncio.wait_for(
+                    provider.fetch(ctx, "asin"),
+                    timeout=PROVIDER_TIMEOUT_SECONDS,
+                )
+
+            result = asyncio.run(fetch_with_timeout())
+
+        if not result.success:
+            logger.debug("AudnexProvider failed: %s", result.error)
+            return None, None
+
+        # Provider caches raw_data from fetch_audnex_book
+        # Use cached raw_data if available; this is the whole point of caching
+        raw_data = result.raw_data.get("audnex") if result.raw_data else None
+        if raw_data is not None:
+            actual_region = raw_data.get("region") or region or "us"
+            return raw_data, actual_region
+
+        # Fallback: provider succeeded but no raw data (shouldn't happen)
+        logger.warning("Provider succeeded but no raw audnex data for %s", asin)
+        return None, None
+
+    except TimeoutError:
+        logger.warning("Timeout fetching from AudnexProvider for %s", asin)
+        return None, None
+    except Exception as e:
+        logger.warning("Error using AudnexProvider for %s: %s", asin, e)
+        return None, None
+
+
+# =============================================================================
+# Legacy Orchestration (Phase 5c: thin facade, now with caching)
+# =============================================================================
+# These functions preserve the existing API while providing caching.
 
 
 def fetch_metadata_legacy(
     asin: str | None = None,
     m4b_path: Path | None = None,
+    *,
+    use_cache: bool = True,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
     """
     Fetch Audnex book metadata, chapters, and MediaInfo without saving.
 
-    This is the legacy sync API. For the new async provider-based API,
-    use fetch_metadata() instead (once migrated).
+    This is the legacy sync API with optional caching. When use_cache=True,
+    uses AudnexProvider which provides caching and rate limiting.
 
     Args:
         asin: Audible ASIN (None to skip Audnex)
         m4b_path: Path to m4b file (None to skip MediaInfo)
+        use_cache: If True, use AudnexProvider with caching (default: True)
 
     Returns:
         Tuple of (audnex_data, mediainfo_data, audnex_chapters), any may be None on error.
@@ -72,8 +155,15 @@ def fetch_metadata_legacy(
     audnex_chapters = None
 
     if asin:
-        audnex_data, _ = fetch_audnex_book(asin)  # Region not needed here
+        if use_cache:
+            # Use provider with caching + rate limiting
+            audnex_data, _ = _fetch_audnex_with_provider(asin)
+        else:
+            # Direct fetch without caching (for --no-cache flag)
+            audnex_data, _ = fetch_audnex_book(asin)
+
         # Also fetch chapter data from Audnex (authoritative source)
+        # Note: Chapters are not cached separately (they're part of book data)
         audnex_chapters = fetch_audnex_chapters(asin)
 
     if m4b_path and m4b_path.exists():
@@ -113,12 +203,12 @@ def fetch_all_metadata_legacy(
     output_dir: Path | None = None,
     *,
     save_intermediate: bool = False,
+    use_cache: bool = True,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
     """
     Fetch Audnex book data, chapters, and MediaInfo, optionally saving intermediate files.
 
-    This is the legacy sync API. For the new async provider-based API,
-    use fetch_metadata() instead (once migrated).
+    This is the legacy sync API with optional caching.
 
     By default, this function only fetches metadata without saving files.
     Set save_intermediate=True to write audnex.json and mediainfo.json to output_dir.
@@ -128,12 +218,13 @@ def fetch_all_metadata_legacy(
         m4b_path: Path to m4b file (None to skip MediaInfo)
         output_dir: Directory to save JSON files (only used if save_intermediate=True)
         save_intermediate: If True, save audnex.json and mediainfo.json files
+        use_cache: If True, use AudnexProvider with caching (default: True)
 
     Returns:
         Tuple of (audnex_data, mediainfo_data, audnex_chapters), any may be None on error.
     """
     audnex_data, mediainfo_data, audnex_chapters = fetch_metadata_legacy(
-        asin=asin, m4b_path=m4b_path
+        asin=asin, m4b_path=m4b_path, use_cache=use_cache
     )
 
     if save_intermediate and output_dir:

@@ -113,13 +113,17 @@ class AudnexProvider:
 
             result = self._map_to_result(data, region)
 
-            # Cache successful results
+            # Store raw data for backward compatibility (orchestration needs this)
+            result.raw_data = {"audnex": data, "region": region}
+
+            # Cache successful results (including raw_data)
             if result.success:
                 cached_result = CachedResult(
                     provider=self.name,
                     fields=result.fields,
                     confidence=result.confidence,
                     fetched_at=datetime.now(UTC).isoformat(),
+                    raw_data=result.raw_data,
                 )
                 await self._cache.set(cache_key, cached_result)
 
@@ -136,11 +140,13 @@ class AudnexProvider:
             cached: Cached result from cache
 
         Returns:
-            ProviderResult with cached fields and confidence
+            ProviderResult with cached fields, confidence, and raw_data
         """
         result = ProviderResult(provider=self.name, success=True)
         result.fields = cached.fields.copy()
         result.confidence = cached.confidence.copy()
+        result.raw_data = cached.raw_data.copy() if cached.raw_data else {}
+        result.cached = True
         return result
 
     def _map_to_result(self, data: dict[str, Any], region: str | None) -> ProviderResult:

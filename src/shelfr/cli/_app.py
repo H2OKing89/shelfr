@@ -368,6 +368,13 @@ def create_main_callback(app: typer.Typer) -> None:
                 help="Show what would happen without making changes.",
             ),
         ] = False,
+        no_cache: Annotated[
+            bool,
+            typer.Option(
+                "--no-cache",
+                help="Disable metadata caching (always fetch fresh from API).",
+            ),
+        ] = False,
     ) -> None:
         """Fast MAM audiobook upload automation tool.
 
@@ -391,6 +398,7 @@ def create_main_callback(app: typer.Typer) -> None:
         ctx.obj["verbose"] = verbose
         ctx.obj["config"] = config
         ctx.obj["dry_run"] = dry_run
+        ctx.obj["no_cache"] = no_cache
 
         # Setup logging
         setup_logging(verbose, config)
