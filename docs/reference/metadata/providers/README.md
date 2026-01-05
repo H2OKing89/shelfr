@@ -8,8 +8,8 @@ This folder contains documentation for individual metadata providers - external 
 
 | Provider | Status | Priority | Data Provided |
 |----------|--------|----------|---------------|
-| [Audnex](../architecture/03-plugin-architecture.md) | ✅ Production | 70 | Title, authors, narrators, series, `isAdult`, `formatType` |
-| [Hardcover](hardcover.md) | 📋 Planned | 60 | Genres, moods, content warnings, ratings |
+| [Audnex](audnex.md) | ✅ Production | 60 | Title, authors, narrators, series, chapters, `isAdult`, `formatType` |
+| [Hardcover](hardcover.md) | 📋 Planned | 70 | Genres, moods, content warnings, ratings |
 
 ### Local Providers (File/Cache-based)
 
@@ -21,7 +21,9 @@ This folder contains documentation for individual metadata providers - external 
 
 ## Provider Priority
 
-Higher priority = checked first, wins conflicts at same confidence level.
+Higher priority = wins conflicts at same confidence level.
+
+**Precedence numbers:** Higher number = wins conflicts.
 
 ```text
 LocalFlags (95)     ← Manual overrides always win
@@ -30,10 +32,13 @@ MediaInfo (90)      ← Local file analysis
   ↓
 AbsSidecar (80)     ← Existing ABS metadata
   ↓
-Audnex (70)         ← Network: audiobook-specific
+Hardcover (70)      ← Network: rich content warnings
   ↓
-Hardcover (60)      ← Network: book metadata enrichment
+Audnex (60)         ← Network: audiobook-specific (foundation)
 ```
+
+> **Note:** Audnex is the **foundation provider** — the only source for narrator data,
+> chapter timing, and audiobook runtime. Other providers supplement, not replace.
 
 ## Adding a New Provider
 
