@@ -273,18 +273,24 @@ logger = logging.getLogger(__name__)
 def fetch_metadata(
     asin: str | None = None,
     m4b_path: Path | None = None,
+    *,
+    use_cache: bool = True,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
     """
     Fetch Audnex book metadata, chapters, and MediaInfo without saving.
 
+    Uses AudnexProvider with caching by default for faster repeated lookups
+    and rate limiting to avoid API abuse.
+
     Args:
         asin: Audible ASIN (None to skip Audnex)
         m4b_path: Path to m4b file (None to skip MediaInfo)
+        use_cache: If True, use cached provider (default: True)
 
     Returns:
         Tuple of (audnex_data, mediainfo_data, audnex_chapters), any may be None on error.
     """
-    return fetch_metadata_legacy(asin=asin, m4b_path=m4b_path)
+    return fetch_metadata_legacy(asin=asin, m4b_path=m4b_path, use_cache=use_cache)
 
 
 def save_metadata_files(
@@ -309,6 +315,7 @@ def fetch_all_metadata(
     output_dir: Path | None = None,
     *,
     save_intermediate: bool = False,
+    use_cache: bool = True,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
     """
     Fetch Audnex book data, chapters, and MediaInfo, optionally saving intermediate files.
@@ -321,6 +328,7 @@ def fetch_all_metadata(
         m4b_path: Path to m4b file (None to skip MediaInfo)
         output_dir: Directory to save JSON files (only used if save_intermediate=True)
         save_intermediate: If True, save audnex.json and mediainfo.json files
+        use_cache: If True, use cached provider (default: True)
 
     Returns:
         Tuple of (audnex_data, mediainfo_data, audnex_chapters), any may be None on error.
@@ -330,4 +338,5 @@ def fetch_all_metadata(
         m4b_path=m4b_path,
         output_dir=output_dir,
         save_intermediate=save_intermediate,
+        use_cache=use_cache,
     )
