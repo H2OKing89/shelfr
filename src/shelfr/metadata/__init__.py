@@ -48,6 +48,26 @@ from shelfr.metadata.audnex import (
     save_audnex_json as save_audnex_json,
 )
 
+# Cache - metadata caching layer
+from shelfr.metadata.cache import (
+    CachedResult as CachedResult,
+)
+from shelfr.metadata.cache import (
+    FileCache as FileCache,
+)
+from shelfr.metadata.cache import (
+    MetadataCache as MetadataCache,
+)
+from shelfr.metadata.cache import (
+    NoOpCache as NoOpCache,
+)
+from shelfr.metadata.cache import (
+    get_default_cache as get_default_cache,
+)
+from shelfr.metadata.cache import (
+    make_cache_key as make_cache_key,
+)
+
 # Cleaning facade - re-exports from utils.naming
 from shelfr.metadata.cleaning import (
     filter_author as filter_author,

@@ -10,9 +10,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from datetime import UTC, datetime
 from typing import Any
 
+from aiolimiter import AsyncLimiter
+
 from ..audnex.client import fetch_audnex_book
+from ..cache import CachedResult, MetadataCache, get_default_cache, make_cache_key
 from .base import ProviderKind
 from .types import IdType, LookupContext, ProviderResult
 
@@ -42,14 +46,27 @@ class AudnexProvider:
     kind: ProviderKind = "network"
     is_override: bool = False
 
-    def __init__(self, region: str | None = None):
+    def __init__(
+        self,
+        region: str | None = None,
+        cache: MetadataCache | None = None,
+        cache_ttl_seconds: int = 30 * 24 * 3600,  # 30 days default
+        rate_limit: float = 10.0,  # requests per second
+    ):
         """Initialize Audnex provider.
 
         Args:
             region: Optional fixed region to use. If None, uses
                     configured region fallback from settings.
+            cache: Optional cache instance. If None, uses default FileCache.
+            cache_ttl_seconds: Cache TTL in seconds (default: 30 days)
+            rate_limit: Maximum requests per second (default: 10)
         """
         self._region = region
+        self._cache = cache or get_default_cache()
+        self._cache_ttl_seconds = cache_ttl_seconds
+        # AsyncLimiter(max_rate, time_period=1.0) = max_rate requests per second
+        self._rate_limiter = AsyncLimiter(max_rate=rate_limit, time_period=1.0)
 
     def can_lookup(self, ctx: LookupContext, id_type: IdType) -> bool:
         """Check if provider can handle this lookup.
@@ -59,9 +76,10 @@ class AudnexProvider:
         return id_type == "asin" and ctx.asin is not None
 
     async def fetch(self, ctx: LookupContext, id_type: IdType) -> ProviderResult:
-        """Fetch metadata from Audnex API.
+        """Fetch metadata from Audnex API (with caching).
 
         Wraps sync HTTP client in asyncio.to_thread() to avoid blocking.
+        Checks cache first; only hits API on cache miss.
         """
         if id_type != "asin" or not ctx.asin:
             return ProviderResult.failure(self.name, "ASIN required for Audnex lookup")
@@ -70,18 +88,60 @@ class AudnexProvider:
         if not re.match(r"^[A-Z0-9]{10}$", ctx.asin):
             return ProviderResult.failure(self.name, f"Invalid ASIN format: {ctx.asin}")
 
+        # Check cache first
+        cache_key = make_cache_key(
+            provider=self.name,
+            id_type="asin",
+            identifier=ctx.asin,
+            region=self._region or "us",
+        )
+        cached = await self._cache.get(cache_key)
+        if cached and not cached.is_expired(self._cache_ttl_seconds):
+            logger.debug("Cache hit for Audnex ASIN %s", ctx.asin)
+            return self._result_from_cache(cached)
+
+        # Cache miss - fetch from API
+        logger.debug("Cache miss for Audnex ASIN %s", ctx.asin)
         try:
-            # Run sync HTTP call in thread pool
-            data, region = await asyncio.to_thread(fetch_audnex_book, ctx.asin, self._region)
+            # Apply rate limiting before making request
+            async with self._rate_limiter:
+                # Run sync HTTP call in thread pool
+                data, region = await asyncio.to_thread(fetch_audnex_book, ctx.asin, self._region)
 
             if data is None:
                 return ProviderResult.failure(self.name, f"ASIN {ctx.asin} not found in Audnex")
 
-            return self._map_to_result(data, region)
+            result = self._map_to_result(data, region)
+
+            # Cache successful results
+            if result.success:
+                cached_result = CachedResult(
+                    provider=self.name,
+                    fields=result.fields,
+                    confidence=result.confidence,
+                    fetched_at=datetime.now(UTC).isoformat(),
+                )
+                await self._cache.set(cache_key, cached_result)
+
+            return result
 
         except Exception as e:
             logger.warning("Audnex provider error for %s: %s", ctx.asin, e)
             return ProviderResult.failure(self.name, str(e))
+
+    def _result_from_cache(self, cached: CachedResult) -> ProviderResult:
+        """Reconstruct ProviderResult from cached data.
+
+        Args:
+            cached: Cached result from cache
+
+        Returns:
+            ProviderResult with cached fields and confidence
+        """
+        result = ProviderResult(provider=self.name, success=True)
+        result.fields = cached.fields.copy()
+        result.confidence = cached.confidence.copy()
+        return result
 
     def _map_to_result(self, data: dict[str, Any], region: str | None) -> ProviderResult:
         """Map Audnex API response to ProviderResult.

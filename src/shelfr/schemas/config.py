@@ -138,6 +138,13 @@ class AudnexSchema(BaseModel):
     # to find the preferred region's ASIN. Set to null/None to disable.
     # Valid: us, uk, au, ca, de, es, fr, in, it, jp, or null
     preferred_asin_region: str | None = Field(default=DEFAULT_ASIN_REGION)
+    # Rate limiting: maximum requests per second (default 10.0)
+    rate_limit: float = Field(
+        default=10.0,
+        ge=0.1,
+        le=100.0,
+        description="Maximum requests per second to Audnex API",
+    )
 
     @field_validator("base_url")
     @classmethod
@@ -577,6 +584,25 @@ class LibationSchema(BaseModel):
         return v
 
 
+class CacheSchema(BaseModel):
+    """Metadata cache settings."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable metadata caching (recommended for performance)",
+    )
+    cache_dir: str = Field(
+        default="~/.cache/shelfr/metadata",
+        description="Directory for cache files (uses ~ expansion)",
+    )
+    ttl_days: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        description="Cache time-to-live in days (default: 30 days)",
+    )
+
+
 class ConfigSchema(BaseModel):
     """
     Complete config.yaml schema.
@@ -595,6 +621,7 @@ class ConfigSchema(BaseModel):
     filters: FiltersSchema = Field(default_factory=FiltersSchema)
     libation: LibationSchema = Field(default_factory=LibationSchema)
     audiobookshelf: AudiobookshelfSchema = Field(default_factory=AudiobookshelfSchema)
+    cache: CacheSchema = Field(default_factory=CacheSchema)
 
     model_config = {"extra": "forbid"}  # Catch typos in config keys
 

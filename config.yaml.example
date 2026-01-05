@@ -149,6 +149,12 @@ audnex:
   # Valid: us, uk, au, ca, de, es, fr, in, it, jp, or null
   preferred_asin_region: us
 
+  # Rate limiting: maximum requests per second to Audnex API
+  # Default 10 req/sec is conservative for good API citizenship.
+  # Increase only if you have many concurrent operations.
+  rate_limit: 10.0
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MediaInfo (for extracting audio file metadata)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -218,6 +224,21 @@ audiobookshelf:
     # each: Scan after each book (slower but immediate)
     # batch: Scan once after all imports complete (recommended)
     trigger_scan: batch
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Metadata Cache
+# ─────────────────────────────────────────────────────────────────────────────
+cache:
+  # Enable caching for metadata providers (recommended - gives 100-300x speedup)
+  enabled: true
+
+  # Directory for cache files (uses ~ expansion, created automatically)
+  cache_dir: "~/.cache/shelfr/metadata"
+
+  # Cache TTL in days (default: 30 days)
+  # Increase for rarely-changing data, decrease for frequently updated sources
+  ttl_days: 30
+
 
     # ───────────────────────────────────────────────────────────────────────
     # ABS Search: Query Audible via ABS for books without ASIN
