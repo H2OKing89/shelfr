@@ -309,12 +309,19 @@ class FileCache:
         """
         safe_pattern = pattern.replace(":", "_").replace("/", "_")
         try:
-            for path in await asyncio.to_thread(
+            paths = await asyncio.to_thread(
                 lambda: list(self.cache_dir.glob(f"{safe_pattern}.json"))
-            ):
-                await asyncio.to_thread(path.unlink, missing_ok=True)
+            )
         except OSError as e:
             logger.warning(f"Cache invalidate pattern error for {pattern}: {e}")
+            return
+
+        # Best-effort deletion: continue on per-file errors
+        for path in paths:
+            try:
+                await asyncio.to_thread(path.unlink, missing_ok=True)
+            except OSError as e:
+                logger.warning(f"Failed to delete cache file {path} for pattern {pattern}: {e}")
 
     async def clear(self) -> None:
         """Clear entire cache directory."""
