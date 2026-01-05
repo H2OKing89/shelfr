@@ -15,19 +15,18 @@ MAM requires content flags for audiobook uploads. The challenge: no single provi
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
 │  │ LocalFlags   │  │  Hardcover   │  │   Audnex     │          │
 │  │ (manual/LLM) │  │ (warnings)   │  │ (isAdult)    │          │
-│  │  priority=95 │  │  priority=60 │  │  priority=70 │          │
+│  │ precedence=95│  │ precedence=70│  │ precedence=60│          │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
 │         │                 │                 │                   │
-│         ▼                 ▼                 ▼                   │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │              Precedence Resolution                       │   │
-│  │  Manual > Hardcover granular > Audnex broad signals     │   │
-│  └─────────────────────────────────────────────────────────┘   │
+│         │  Higher precedence wins conflicts  │                   │
+│         └─────────────────┬─────────────────┘                   │
 │                           │                                     │
 │                           ▼                                     │
 │                  content_flags: ["vio", "sSex"]                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+> **Precedence numbers:** Higher = wins conflicts. Local (95) > Hardcover (70) > Audnex (60).
 
 ## MAM Content Flags
 
@@ -64,18 +63,22 @@ Manual overrides (LocalFlags) > Hardcover warnings > Audnex signals
 
 This creates false "explicit sex" upgrades. A book marked `isAdult` might be adult for violence, language, or mature themes - not necessarily explicit sex.
 
+**Philosophy:** We map `isAdult` to `sSex` as a **weak fallback signal** — a conservative best-effort default when no better data exists. If Hardcover or LocalFlags provides more specific data, those win.
+
 **Correct mapping:**
 
 ```python
 # Audnex provides weak signals only
 audnex_mapping = {
-    "isAdult": "sSex",      # At most suggestive, not explicit
+    "isAdult": "sSex",      # Weak fallback: at most suggestive, never explicit
     "formatType": "abridged",  # Clean mapping, no ambiguity
     "genres[].name contains 'LGBTQ+'": "lgbt"  # Audnex has this as genre/tag!
 }
 ```
 
 If Hardcover later provides a more specific warning (e.g., `Sexual assault`), it upgrades to `eSex`. But Audnex alone should never trigger `eSex`.
+
+> **Note:** Internally we track `audnex_is_adult: true` as raw signal. The `sSex` mapping only applies when building final MAM flags and no higher-precedence source contradicts it.
 
 ---
 
@@ -118,6 +121,12 @@ The mapping file: `config/content_flags.json`
       "LGBTQ"
     ]
   },
+  // Design decision: Sexual violence → eSex
+  // We map "Sexual assault", "Rape" to eSex (not vio) because:
+  // - MAM users searching for "no explicit sex" expect these warnings
+  // - The sexual nature is the primary concern, violence is secondary
+  // - Better to over-warn than under-warn for sensitive content
+  // Tradeoff: some books may not have explicit sex *scenes* but severity warrants the stronger flag
   "audnex_to_mam": {
     "sSex": {
       "field": "isAdult",
@@ -173,6 +182,23 @@ Your external system exports JSONL:
 | `source` | No | `"manual"`, `"local_llm"`, `"epub_scan"` |
 | `confidence` | No | 0.0-1.0 score (optional) |
 | `evidence` | No | Human-readable justification |
+| `mode` | No | `"replace"` (default) or `"merge"` |
+| `force_add` | No | Flags to add even when merging |
+| `force_remove` | No | Flags to remove from other sources |
+
+### LocalFlags Modes
+
+| Mode | Behavior | Use Case |
+| ---- | -------- | -------- |
+| `replace` | Local flags are the **only** flags used; skip other providers | Manual corrections ("I know this is clean") |
+| `merge` | Local flags combine with other providers | LLM-derived flags that supplement API data |
+
+**Example JSONL with modes:**
+
+```jsonl
+{"book_id": "B01H0IE2RQ", "flags": ["vio"], "mode": "replace", "source": "manual", "evidence": "Confirmed clean of sexual content"}
+{"book_id": "B0797FYNDC", "flags": ["cLang"], "mode": "merge", "force_remove": ["sSex"], "source": "local_llm"}
+```
 
 ### LocalFlagsProvider Behavior
 
@@ -224,6 +250,7 @@ class FlagResolver:
         - flags: final list of MAM flags
         - sources: which provider contributed each flag
         - warnings: any resolution conflicts or missing data
+        - unmapped_warnings: Hardcover warnings not in our mapping (for coverage tracking)
         """
         result = FlagResult()
 
@@ -235,9 +262,14 @@ class FlagResolver:
         # 2. Add Hardcover warnings (unless local already set)
         if hardcover_warnings:
             for warning in hardcover_warnings:
-                mam_flag = self._map_hardcover_warning(warning)
+                # Normalize before lookup (case-insensitive, strip whitespace)
+                normalized = warning.strip().casefold()
+                mam_flag = self._map_hardcover_warning(normalized)
                 if mam_flag and mam_flag not in result.flags:
                     result.add_flag(mam_flag, source="hardcover", confidence=0.9)
+                elif not mam_flag:
+                    # Track for coverage improvement
+                    result.add_unmapped_warning(warning, source="hardcover")
 
         # 3. Add Hardcover genre signals
         if hardcover_genres:
@@ -299,6 +331,17 @@ def resolve_content_flags(release: AudiobookRelease) -> FlagResult:
 - Return resolved flags from whatever sources *did* match
 - Track "unresolved/missing" indicator for coverage reporting
 - No hard stops, just good logging + metrics
+
+### Warning Codes (Stable)
+
+| Code | Meaning | Action |
+| ---- | ------- | ------ |
+| `hardcover_no_match` | Title not found in Hardcover | Continue with Audnex only |
+| `hardcover_rate_limited` | API rate limit hit | Use cached data or skip |
+| `hardcover_error` | API error (timeout, 5xx) | Log and continue |
+| `audnex_no_match` | ASIN not in Audnex | Continue with other sources |
+| `local_parse_error` | JSONL line malformed | Skip line, log error |
+| `unmapped_warning` | Hardcover warning not in our map | Log for coverage tracking |
 
 ---
 

@@ -1,6 +1,8 @@
 # Hardcover Provider
 
-> **Status:** 📋 Planned | **Priority:** 60 | **Type:** Network Provider
+> **Status:** 📋 Planned | **Roadmap Priority:** Medium | **Type:** Network Provider
+>
+> **Resolver Precedence:** 70 (higher = wins conflicts; Local=95, Hardcover=70, Audnex=60)
 
 Hardcover is a book discovery platform with rich community-sourced metadata including genres, moods, and **content warnings** - the key data source for MAM content flags.
 
@@ -81,8 +83,9 @@ Hardcover search uses title + author fuzzy matching:
 
 ```python
 search_query = f"{title} {author}"
-match_score = rapidfuzz.fuzz.ratio(result_title, search_title)
-threshold = 0.70  # Configurable
+# Note: fuzz.ratio() returns 0-100, we normalize to 0.0-1.0
+match_score = rapidfuzz.fuzz.ratio(result_title, search_title) / 100.0
+threshold = 0.70  # Configurable (70% similarity)
 ```
 
 **Known limitations:**
