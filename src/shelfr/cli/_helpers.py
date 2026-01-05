@@ -46,6 +46,7 @@ def get_args(ctx: typer.Context, **kwargs: Any) -> ArgsNamespace:
         verbose=ctx_obj.get("verbose", False),
         config=ctx_obj.get("config", Path("config/config.yaml")),
         dry_run=ctx_obj.get("dry_run", False),
+        no_cache=ctx_obj.get("no_cache", False),
         **kwargs,
     )
     return args

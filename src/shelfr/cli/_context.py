@@ -49,6 +49,7 @@ class RuntimeContext:
     dry_run: bool = False
     verbose: bool = False
     json_output: bool = False
+    no_cache: bool = False  # Disable metadata caching (--no-cache flag)
 
     # Lazy-loaded clients (initialized on first use)
     _abs_client: AbsClient | None = field(default=None, repr=False)
@@ -148,6 +149,7 @@ def get_runtime_context(ctx_obj: object) -> RuntimeContext:
             dry_run=ctx_obj.get("dry_run", False),
             verbose=ctx_obj.get("verbose", False),
             json_output=ctx_obj.get("json_output", False),
+            no_cache=ctx_obj.get("no_cache", False),
         )
 
     raise TypeError(
