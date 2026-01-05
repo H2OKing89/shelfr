@@ -114,6 +114,11 @@ Rate Limit:       ~10 requests/second (be polite)
 Auth:             None required (public API)
 ```
 
+**Upstream API Documentation:**
+
+- [Audnex OpenAPI Spec](../../audnex/api/AUDNEXUS_SPEC.yaml) - Complete API specification
+- [Audnex README](../../audnex/api/AUDNEX_README.md) - API documentation from upstream
+
 ### Region Fallback
 
 Some ASINs are region-specific. The client tries regions in configured order:

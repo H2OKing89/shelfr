@@ -77,6 +77,10 @@ Auth:     HARDCOVER_API_KEY environment variable
 Limit:    60 requests/minute
 ```
 
+**Upstream API Documentation:**
+
+- [GraphQL Schemas](../../hardcover/api/GraphQL/Schemas/) - Hardcover GraphQL type definitions
+
 ## Matching Strategy
 
 Hardcover search uses title + author fuzzy matching:

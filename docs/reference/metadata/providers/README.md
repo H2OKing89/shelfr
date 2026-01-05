@@ -52,6 +52,18 @@ Key requirements:
 4. Add tests with mock data
 5. Document in this folder
 
+## Upstream API Documentation
+
+Fetched API docs from external services (for reference):
+
+- [Audiobookshelf API](../../audiobookshelf/api/) - ABS server API reference
+- [Audnex API](../../audnex/api/) - Audnex OpenAPI spec and README
+- [Hardcover GraphQL](../../hardcover/api/GraphQL/Schemas/) - Hardcover type schemas
+- [mkbrr CLI](../../mkbrr/) - Torrent creation tool reference
+
+> **Note:** These docs are fetched from upstream for reference. They may become stale.
+> Use `scripts/dev_tools/fetch_api_docs.py` to update them.
+
 ## Related Documentation
 
 - [Plugin Architecture](../architecture/03-plugin-architecture.md) - Provider protocol and aggregation
