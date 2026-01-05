@@ -213,9 +213,11 @@ class AudnexProvider:
 
         # Content flags - infer from Audnex data
         # Note: Audnex doesn't provide cLang, vio, or lgbt data - those require manual override
+        # IMPORTANT: isAdult is a weak signal - map to sSex (suggestive), NOT eSex (explicit)
+        # See docs/reference/metadata/architecture/07-content-flags.md for rationale
         content_flags = []
         if is_adult:
-            content_flags.append("eSex")
+            content_flags.append("sSex")  # Weak signal: at most suggestive, never explicit
         if format_type and format_type.lower() == "abridged":
             content_flags.append("abridged")
         if content_flags:

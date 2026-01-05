@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Phase 9: Content Flags & Platform-Agnostic Metadata** - Support for MAM content classification
   - Added `content_flags` field to `CanonicalMetadata` for platform-agnostic content classification
   - Supports MAM flags: `cLang`, `vio`, `sSex`, `eSex`, `abridged`, `lgbt`
-  - Audnex provider automatically maps `isAdult=True` → `["eSex"]` and `formatType="abridged"` → `["abridged"]`
+  - Audnex provider automatically maps `isAdult=True` → `["sSex"]` (weak signal, suggestive not explicit) and `formatType="abridged"` → `["abridged"]`
   - MAM JSON builder prefers explicit `content_flags`, falls back to legacy `is_adult` inference for backward compatibility
   - Designed for future platform expansion beyond MAM
 

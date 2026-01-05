@@ -628,7 +628,7 @@ Missing: crude language, violence, sexual content granularity, LGBT themes.
 **9.3: Provider Integration** — Estimated effort: 1 hour
 
 - [ ] Update `AudnexProvider._map_to_result()` to map Audnex data to `content_flags`
-  - Map `isAdult=True` → `["eSex"]` (existing behavior)
+  - Map `isAdult=True` → `["sSex"]` (weak signal - suggestive, not explicit)
   - Map `formatType="abridged"` → `["abridged"]`
   - Document what Audnex does NOT provide (language, violence, LGBT)
 - [ ] Add note about manual override mechanisms for flags Audnex doesn't detect

@@ -1,0 +1,121 @@
+# Hardcover Provider
+
+> **Status:** 📋 Planned | **Priority:** 60 | **Type:** Network Provider
+
+Hardcover is a book discovery platform with rich community-sourced metadata including genres, moods, and **content warnings** - the key data source for MAM content flags.
+
+## Data Available from Hardcover
+
+Based on exploratory enrichment script (`scripts/data_gathering/hardcover_enrich.py`):
+
+| Field | Type | Example |
+| ------- | ------ | --------- |
+| `genres` | `list[str]` | `["Fantasy", "Adventure", "Young Adult"]` |
+| `moods` | `list[str]` | `["dark", "tense", "mysterious", "Adventurous"]` |
+| `content_warnings` | `list[str]` | `["Violence", "Sexual content", "Gore"]` |
+| `tags` | `list[str]` | `["Strong Character Development", "Plot driven"]` |
+| `rating` | `float` | `4.087` |
+| `rating_count` | `int` | `1166` |
+
+### Content Warnings Vocabulary
+
+From `data/hardcover_keywords.json` (60 unique warnings observed):
+
+**Violence-related:**
+
+- `Violence`, `Gore`, `murder`, `war`, `Torture`, `Blood`, `Gun violence`, `violent imagery`
+
+**Sexual content:**
+
+- `Sexual content`, `Spicy` (mild/suggestive)
+- `Rape`, `Sexual assault`, `Sexual violence`, `sexual harassment` (explicit)
+
+**Language/Mature themes:**
+
+- `Strong language`, `Cursing`
+- `Drug use`, `Drug abuse`, `Alcohol`, `Addiction`
+
+**Death/Trauma:**
+
+- `death`, `child death`, `animal death`, `Death of parent`
+- `Grief`, `suicide`, `suicidal thoughts`
+
+**Other:**
+
+- `bullying`, `Slavery`, `Xenophobia`, `misogyny`, `Racism`
+
+## Integration Status
+
+### Current: Exploratory Data Only
+
+The `hardcover_enrich.py` script produces:
+
+- `data/hardcover_enriched_books.jsonl` - Per-book enrichment results
+- `data/hardcover_keywords.json` - Aggregated vocabulary statistics
+- `data/hardcover_search_cache.json` - Search result caching
+
+**⚠️ Important:** This exported JSON is for **schema discovery and test fixtures only**, not a production dependency.
+
+### Future: `HardcoverProvider` Plugin
+
+Production implementation will:
+
+1. Call Hardcover API directly (not rely on exported JSON)
+2. Implement `MetadataProvider` protocol
+3. Map `content_warnings` → `content_flags` per [mapping rules](07-content-flags.md#hardcover-mapping)
+4. Use FileCache with appropriate TTL (book metadata changes slowly)
+5. Respect rate limits (60 req/min)
+
+## API Details
+
+```text
+Endpoint: https://api.hardcover.app/v1/graphql
+Search:   https://api.hardcover.app/v1/search
+Auth:     HARDCOVER_API_KEY environment variable
+Limit:    60 requests/minute
+```
+
+## Matching Strategy
+
+Hardcover search uses title + author fuzzy matching:
+
+```python
+search_query = f"{title} {author}"
+match_score = rapidfuzz.fuzz.ratio(result_title, search_title)
+threshold = 0.70  # Configurable
+```
+
+**Known limitations:**
+
+- Light novels with Japanese titles may not match well
+- Series omnibuses may match wrong edition
+- Some audiobook-only releases not in Hardcover
+
+## Sample Data Structure
+
+From `hardcover_enriched_books.jsonl`:
+
+```json
+{
+  "title": "It",
+  "authors": ["Stephen King"],
+  "asin": "B01H0IE2RQ",
+  "hardcover_id": "373525",
+  "hardcover_rating": 4.087,
+  "keywords": {
+    "raw": {
+      "genres": ["Horror", "Fantasy", "Adventure"],
+      "moods": ["dark", "mysterious", "Adventurous"],
+      "content_warnings": ["misogyny", "Sexual assault", "body horror", "Depression", "bullying"],
+      "tags": ["Strong Character Development", "Diverse Characters"]
+    }
+  },
+  "search_match_score": 1.0
+}
+```
+
+## Related Documentation
+
+- [Content Flags](../architecture/07-content-flags.md) - How Hardcover warnings map to MAM flags
+- [Plugin Architecture](../architecture/03-plugin-architecture.md) - Provider protocol
+- [Enrichment Script](../../../../scripts/data_gathering/hardcover_enrich.py) - Data gathering tool
