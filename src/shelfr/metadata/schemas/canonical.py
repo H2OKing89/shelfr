@@ -156,6 +156,18 @@ class CanonicalMetadata(BaseModel):
 
     model_config = {"extra": "ignore", "populate_by_name": True}
 
+    @field_validator("content_flags")
+    @classmethod
+    def validate_mutually_exclusive_flags(cls, flags: list[str]) -> list[str]:
+        """Prevent conflicting sexual content flags.
+        
+        sSex (suggestive) and eSex (explicit) are mutually exclusive.
+        If both are present, this indicates a data conflict.
+        """
+        if "sSex" in flags and "eSex" in flags:
+            raise ValueError("Cannot have both sSex and eSex flags - they are mutually exclusive")
+        return flags
+
     @field_validator(
         "description",
         "summary",
