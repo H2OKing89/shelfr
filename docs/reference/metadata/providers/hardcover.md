@@ -85,7 +85,8 @@ Limit:    60 requests/minute
 
 **Upstream API Documentation:**
 
-- [GraphQL Schemas](../../hardcover/api/GraphQL/Schemas/) - Hardcover GraphQL type definitions
+- GraphQL API: <https://api.hardcover.app/v1/graphql> (use GraphQL introspection to explore schema)
+- Search API: <https://api.hardcover.app/v1/search>
 
 ## Matching Strategy
 
