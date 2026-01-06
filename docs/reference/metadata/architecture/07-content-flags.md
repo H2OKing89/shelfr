@@ -88,7 +88,7 @@ If Hardcover later provides a more specific warning (e.g., `Sexual assault`), it
 
 The mapping file: `config/content_flags.json`
 
-```json
+```jsonc
 {
   "hardcover_to_mam": {
     "cLang": [
