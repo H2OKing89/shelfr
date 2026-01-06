@@ -1,6 +1,6 @@
 # Content Flags Architecture
 
-> **Status:** 🚧 Design Phase | **Phase:** 9
+> **Status:** ✅ Implemented | **Phase:** 9
 
 This document defines the content flag resolution system - how shelfr determines content warnings (`cLang`, `vio`, `sSex`, `eSex`, `abridged`, `lgbt`) for MAM uploads from multiple data sources.
 

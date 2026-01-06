@@ -1,0 +1,119 @@
+{
+  "_comment": "Content flag mappings from provider signals to MAM flags. Generated from Hardcover API data (Dec 2025, 1089 books analyzed).",
+  "_version": "1.0.0",
+  "hardcover_to_mam": {
+    "cLang": [
+      "Strong language",
+      "Cursing"
+    ],
+    "vio": [
+      "Violence",
+      "Gore",
+      "murder",
+      "war",
+      "Torture",
+      "Blood",
+      "violent imagery",
+      "Gun violence",
+      "body horror",
+      "death",
+      "animal death",
+      "child death",
+      "Injury/Injury detail",
+      "Cannibalism",
+      "Genocide",
+      "Fire/Fire injury",
+      "kidnapping",
+      "Slavery",
+      "confinement"
+    ],
+    "sSex": [
+      "Sexual content",
+      "Spicy",
+      "Sexual"
+    ],
+    "eSex": [
+      "Rape",
+      "Sexual assault",
+      "Sexual violence",
+      "sexual harassment",
+      "Adult/minor relationship"
+    ],
+    "lgbt": [
+      "LGBTQ",
+      "LGBT"
+    ]
+  },
+  "hardcover_genres_to_mam": {
+    "lgbt": [
+      "LGBTQ",
+      "LGBT",
+      "Queer Fiction",
+      "Gay Fiction",
+      "Lesbian Fiction"
+    ]
+  },
+  "audnex_to_mam": {
+    "sSex": {
+      "field": "isAdult",
+      "value": true,
+      "note": "Weak signal - maps to sSex (suggestive), NEVER eSex. Case-insensitive."
+    },
+    "abridged": {
+      "field": "formatType",
+      "value": "abridged",
+      "note": "Case-insensitive match"
+    },
+    "lgbt": {
+      "field": "genres[].name",
+      "match": "contains 'LGBTQ' or 'LGBT'",
+      "note": "Case-insensitive. Audnex provides this as genre or tag type."
+    }
+  },
+  "_unmapped_warnings": {
+    "_comment": "Hardcover warnings observed but not mapped to MAM flags (no clear MAM equivalent)",
+    "emotional_not_content_flags": [
+      "Grief",
+      "Depression",
+      "Emotional abuse",
+      "Toxic friendship",
+      "Toxic relationship",
+      "misogyny",
+      "Xenophobia",
+      "Racism",
+      "Ableism",
+      "Classism",
+      "Colonisation",
+      "Hate crime",
+      "bullying",
+      "Stalking"
+    ],
+    "medical_not_content_flags": [
+      "Vomit",
+      "Medical content",
+      "Cancer",
+      "Infertility",
+      "Abortion",
+      "miscarriage",
+      "suicidal thoughts",
+      "suicide"
+    ],
+    "substance_not_content_flags": [
+      "Drug use",
+      "Drug abuse",
+      "Alcohol",
+      "Alcohol consumption",
+      "Addiction"
+    ],
+    "death_specific_mapped_to_vio": [
+      "Death of a brother",
+      "Death of parent"
+    ]
+  },
+  "_design_decisions": {
+    "sexual_violence_to_eSex": "Sexual assault, Rape \u2192 eSex (not vio). The sexual nature is primary concern for MAM filtering.",
+    "death_to_vio": "Generic 'death', 'animal death', 'child death' \u2192 vio. These indicate violent/dark content.",
+    "audnex_never_eSex": "isAdult=true \u2192 sSex only. Too many false positives for explicit upgrade.",
+    "case_insensitive": "All string matching is case-insensitive."
+  }
+}
