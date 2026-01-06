@@ -42,7 +42,7 @@ class AudnexProvider:
     """
 
     name: str = "audnex"
-    priority: int = 10
+    priority: int = 70
     kind: ProviderKind = "network"
     is_override: bool = False
 

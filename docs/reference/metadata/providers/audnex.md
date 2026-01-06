@@ -141,6 +141,7 @@ The `AudnexProvider` is fully production-ready:
 | Feature | Status |
 |---------|--------|
 | `MetadataProvider` protocol | ✅ Implemented |
+| Priority | ✅ 70 (authoritative for audiobooks) |
 | Caching (30-day TTL) | ✅ FileCache |
 | Rate limiting | ✅ 10 req/sec via AsyncLimiter |
 | Circuit breaker | ✅ Protects against cascading failures |
