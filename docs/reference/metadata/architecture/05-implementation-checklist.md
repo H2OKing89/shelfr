@@ -532,13 +532,15 @@ AudnexProvider.fetch()  # HAS cache + rate limiting, fully tested
 
 ---
 
-## Phase 8.5: Production Integration Wiring
+## Phase 8.5: Production Integration Wiring — Original Design Spec
 
-> **Status:** 📋 Ready to implement
+> **Status:** ✅ Complete (see [Phase 8.5 Summary](#phase-85-production-integration--complete) above)
 >
 > **Prerequisite:** Phase 8 Tier 1 Complete ✅
 >
 > **Goal:** Wire the provider system (with cache + rate limiting) into production workflow.
+>
+> *Note: This section preserved as historical design spec. Implementation followed Option A.*
 
 ### Option A: Update Legacy Functions to Use Provider System (Recommended)
 
@@ -618,8 +620,9 @@ Missing: crude language, violence, sexual content granularity, LGBT themes.
 **9.1: Extend Canonical Schema** — ✅ Complete
 
 - [x] Add `content_flags` field to `CanonicalMetadata` in `schemas/canonical.py`
-  - Type: `set[Literal["cLang", "vio", "sSex", "eSex", "abridged", "lgbt"]]`
-  - Default: empty set
+  - Type: `list[ContentFlag]` (where `ContentFlag = Literal["cLang", "vio", "sSex", "eSex", "abridged", "lgbt"]`)
+  - Default: empty list `[]` (via `default_factory=list`)
+  - Note: Order is not significant but may be preserved; duplicates are allowed and handled by consumers
   - Description: Platform-agnostic content warnings/classification
 - [x] Add validation: flags are mutually exclusive where appropriate (e.g., can't have both `sSex` and `eSex`)
   - Implemented: `validate_mutually_exclusive_flags` validator (lines 157-167)
@@ -783,7 +786,7 @@ Current Audnex client tries regions **sequentially** (up to 30s worst case). ASI
 | Phase 7 | ✅ Complete | Cleanup & Hygiene (PR #78, PR #79) |
 | Phase 8 | ✅ Tier 1 Complete | Infrastructure (cache + rate limiting in AudnexProvider) |
 | Phase 8.5 | ✅ Complete | Production integration (PR #82) |
-| Phase 9 | ✅ ~85% Complete (Core Ready) | Content flags (PR #83) - Core shipped, tests/CHANGELOG pending |
+| Phase 9 | ✅ Complete | Content flags (PR #83) - Core + tests shipped, CHANGELOG pending |
 | Phase 10 | 📋 Planning | Parallel region lookup + source provenance ([spec](10-parallel-region-lookup.md)) |
 | Future | ⏳ Not Started | Additional providers, exporters, batch ops |
 

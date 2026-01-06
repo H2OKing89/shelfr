@@ -951,7 +951,7 @@ literatureType: "fiction" | "nonfiction" | null
 
 From [AUDNEX_README.md](../../audnex/api/AUDNEX_README.md):
 
-> `NODE_MAX_REQUESTS`: Maximum amount of requests per 1 minute period from a single source (default 100)
+> `NODE_MAX_REQUESTS`: Maximum number of requests per 1-minute period from a single source (default 100)
 
 **Practical limits for Phase 10:**
 
