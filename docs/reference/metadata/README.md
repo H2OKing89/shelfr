@@ -27,7 +27,7 @@ Shelfr's metadata system transforms raw audiobook data from various sources into
 
 <table>
 <tr>
-<td width="50%" valign="top">
+<td width="33%" valign="top">
 
 ### Working on Naming
 
@@ -38,7 +38,7 @@ Shelfr's metadata system transforms raw audiobook data from various sources into
 3. Then → [NAMING_RULES.md](naming/NAMING_RULES.md)
 
 </td>
-<td width="50%" valign="top">
+<td width="33%" valign="top">
 
 ### Working on Architecture
 
@@ -46,6 +46,18 @@ Shelfr's metadata system transforms raw audiobook data from various sources into
 
 1. Start → [architecture/README.md](architecture/README.md)
 2. Then → [03-plugin-architecture.md](architecture/03-plugin-architecture.md)
+3. Then → [07-content-flags.md](architecture/07-content-flags.md)
+
+</td>
+<td width="34%" valign="top">
+
+### Working on Providers
+
+<sub>Hardcover, local flags, new sources</sub>
+
+1. Start → [providers/README.md](providers/README.md)
+2. Then → [providers/hardcover.md](providers/hardcover.md)
+3. Then → [07-content-flags.md](architecture/07-content-flags.md)
 
 </td>
 </tr>

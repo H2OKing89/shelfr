@@ -21,6 +21,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
+# Supported content classification flags
+# Designed to be platform-agnostic but starts with MAM vocabulary
+ContentFlag = Literal["cLang", "vio", "sSex", "eSex", "abridged", "lgbt"]
+
 
 class Person(BaseModel):
     """Author, narrator, or other contributor.
@@ -124,6 +128,17 @@ class CanonicalMetadata(BaseModel):
     format_type: str = Field(default="unabridged", alias="formatType")
     is_adult: bool = Field(default=False, alias="isAdult")
 
+    # Content flags for platform-agnostic classification (MAM, AO3, etc.)
+    content_flags: list[ContentFlag] = Field(
+        default_factory=list,
+        description=(
+            "Platform-agnostic content warnings/classification flags. "
+            "Supported values: 'cLang' (crude language), 'vio' (violence), "
+            "'sSex' (some sexual content), 'eSex' (explicit sexual content), "
+            "'abridged', 'lgbt' (LGBTQ+ themes)"
+        ),
+    )
+
     # Publication info
     publisher_name: str = Field(default="", alias="publisherName")
     release_date: str | datetime | None = Field(default=None, alias="releaseDate")
@@ -140,6 +155,18 @@ class CanonicalMetadata(BaseModel):
     rating: str = ""
 
     model_config = {"extra": "ignore", "populate_by_name": True}
+
+    @field_validator("content_flags")
+    @classmethod
+    def validate_mutually_exclusive_flags(cls, flags: list[ContentFlag]) -> list[ContentFlag]:
+        """Prevent conflicting sexual content flags.
+
+        sSex (suggestive) and eSex (explicit) are mutually exclusive.
+        If both are present, this indicates a data conflict.
+        """
+        if "sSex" in flags and "eSex" in flags:
+            raise ValueError("Cannot have both sSex and eSex flags - they are mutually exclusive")
+        return flags
 
     @field_validator(
         "description",

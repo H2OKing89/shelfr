@@ -352,7 +352,7 @@ class TestAudnexProvider:
         assert provider.name == "audnex"
         assert provider.kind == "network"
         assert provider.is_override is False
-        assert provider.priority == 10
+        assert provider.priority == 70
 
     def test_can_lookup_asin(self) -> None:
         """Test can_lookup returns True for ASIN."""
@@ -478,6 +478,170 @@ class TestAudnexProvider:
         assert result.success is True
         assert "is_adult" in result.fields
         assert result.fields["is_adult"] is True
+
+    # =========================================================================
+    # Content Flags Tests (Phase 9)
+    # =========================================================================
+
+    @pytest.mark.asyncio
+    async def test_content_flags_is_adult_maps_to_ssex(self) -> None:
+        """Test isAdult=True maps to sSex (suggestive), never eSex (explicit).
+
+        This is a critical test: Audnex's isAdult is a weak signal that should
+        only produce sSex. eSex requires more specific data from Hardcover/LocalFlags.
+        """
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        mock_response = {
+            "title": "Adult Romance",
+            "isAdult": True,
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        assert "content_flags" in result.fields
+        assert "sSex" in result.fields["content_flags"]
+        # Critical: Audnex should NEVER produce eSex
+        assert "eSex" not in result.fields["content_flags"]
+
+    @pytest.mark.asyncio
+    async def test_content_flags_abridged_format(self) -> None:
+        """Test formatType=abridged produces abridged content flag."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        mock_response = {
+            "title": "Abridged Classic",
+            "formatType": "abridged",
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        assert "content_flags" in result.fields
+        assert "abridged" in result.fields["content_flags"]
+
+    @pytest.mark.asyncio
+    async def test_content_flags_lgbt_from_genres(self) -> None:
+        """Test LGBTQ+ genre produces lgbt content flag."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        mock_response = {
+            "title": "Pride Story",
+            "genres": [
+                {"name": "Romance", "asin": "G1"},
+                {"name": "LGBTQ+", "asin": "G2"},
+            ],
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        assert "content_flags" in result.fields
+        assert "lgbt" in result.fields["content_flags"]
+
+    @pytest.mark.asyncio
+    async def test_content_flags_multiple_flags(self) -> None:
+        """Test multiple content flags from different sources."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        mock_response = {
+            "title": "Adult LGBT Abridged",
+            "isAdult": True,
+            "formatType": "abridged",
+            "genres": [{"name": "LGBT Fiction", "asin": "G1"}],
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        assert "content_flags" in result.fields
+        flags = result.fields["content_flags"]
+        assert "sSex" in flags
+        assert "abridged" in flags
+        assert "lgbt" in flags
+        # Still never eSex
+        assert "eSex" not in flags
+
+    @pytest.mark.asyncio
+    async def test_content_flags_no_flags_when_not_adult(self) -> None:
+        """Test no content_flags field when book is not adult and unabridged."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        mock_response = {
+            "title": "Kids Book",
+            "isAdult": False,
+            "formatType": "unabridged",
+            "genres": [{"name": "Children's Fiction", "asin": "G1"}],
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        # content_flags should not be set if empty
+        assert "content_flags" not in result.fields or result.fields["content_flags"] == []
+
+    @pytest.mark.asyncio
+    async def test_content_flags_type_guard_format_type(self) -> None:
+        """Test type guard handles non-string formatType gracefully."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        # Malformed response: formatType is an int instead of string
+        mock_response = {
+            "title": "Broken Metadata",
+            "formatType": 123,  # Invalid type
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            # Should not raise, should just skip the malformed field
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        # Should not produce abridged flag from invalid data
+        if "content_flags" in result.fields:
+            assert "abridged" not in result.fields["content_flags"]
+
+    @pytest.mark.asyncio
+    async def test_content_flags_type_guard_genre_name(self) -> None:
+        """Test type guard handles non-string genre name gracefully."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        # Malformed response: genre name is an int instead of string
+        mock_response = {
+            "title": "Broken Genres",
+            "genres": [
+                {"name": 123, "asin": "G1"},  # Invalid type
+                {"name": "LGBTQ+", "asin": "G2"},  # Valid
+            ],
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            # Should not raise, should skip invalid and process valid
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        # Should still pick up lgbt from valid genre
+        assert "content_flags" in result.fields
+        assert "lgbt" in result.fields["content_flags"]
 
 
 # =============================================================================

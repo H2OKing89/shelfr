@@ -6,6 +6,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from shelfr.metadata import (
     AudioFormat,
     _build_series_list,
@@ -591,24 +593,24 @@ class TestExtractAudioInfo:
 
 
 class TestCleanHtml:
-    """Tests for HTML cleaning."""
+    """Tests for HTML cleaning (deprecated function)."""
 
     def test_removes_html_tags(self):
         """Test removal of HTML tags."""
-
-        text = "<p>Hello <b>World</b></p>"
-        assert _clean_html(text) == "Hello World"
+        with pytest.warns(DeprecationWarning, match="_clean_html is deprecated"):
+            text = "<p>Hello <b>World</b></p>"
+            assert _clean_html(text) == "Hello World"
 
     def test_decodes_entities(self):
         """Test HTML entity decoding."""
-
-        text = "Tom &amp; Jerry &lt;3 &quot;Fun&quot;"
-        assert _clean_html(text) == 'Tom & Jerry <3 "Fun"'
+        with pytest.warns(DeprecationWarning, match="_clean_html is deprecated"):
+            text = "Tom &amp; Jerry &lt;3 &quot;Fun&quot;"
+            assert _clean_html(text) == 'Tom & Jerry <3 "Fun"'
 
     def test_empty_string(self):
         """Test empty string handling."""
-
-        assert _clean_html("") == ""
+        with pytest.warns(DeprecationWarning, match="_clean_html is deprecated"):
+            assert _clean_html("") == ""
 
 
 class TestHtmlToBbcode:
@@ -2346,6 +2348,83 @@ class TestCanonicalMetadataSchema:
         assert meta.rating == ""
         assert meta.format_type == "unabridged"
         assert meta.language == "english"
+
+    # =========================================================================
+    # Content Flags Tests (Phase 9)
+    # =========================================================================
+
+    def test_content_flags_valid_mam_flags(self):
+        """Test valid MAM content flags are accepted."""
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        meta = CanonicalMetadata(
+            asin="B0TEST1234",
+            title="Test Book",
+            content_flags=["cLang", "vio", "sSex", "abridged", "lgbt"],
+        )
+        assert "cLang" in meta.content_flags
+        assert "vio" in meta.content_flags
+        assert "sSex" in meta.content_flags
+        assert "abridged" in meta.content_flags
+        assert "lgbt" in meta.content_flags
+
+    def test_content_flags_empty_by_default(self):
+        """Test content_flags defaults to empty list."""
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        meta = CanonicalMetadata(asin="B0TEST1234", title="Test Book")
+        assert meta.content_flags == []
+
+    def test_content_flags_mutual_exclusivity_ssex_esex(self):
+        """Test sSex and eSex cannot coexist (mutually exclusive)."""
+        from pydantic import ValidationError
+
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        with pytest.raises(ValidationError) as exc_info:
+            CanonicalMetadata(
+                asin="B0TEST1234",
+                title="Test Book",
+                content_flags=["sSex", "eSex"],  # Invalid: both suggestive AND explicit
+            )
+        assert "mutually exclusive" in str(exc_info.value).lower()
+
+    def test_content_flags_esex_alone_valid(self):
+        """Test eSex flag alone is valid."""
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        meta = CanonicalMetadata(
+            asin="B0TEST1234",
+            title="Explicit Book",
+            content_flags=["eSex", "cLang"],
+        )
+        assert "eSex" in meta.content_flags
+        assert "sSex" not in meta.content_flags
+
+    def test_content_flags_ssex_alone_valid(self):
+        """Test sSex flag alone is valid."""
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        meta = CanonicalMetadata(
+            asin="B0TEST1234",
+            title="Suggestive Book",
+            content_flags=["sSex"],
+        )
+        assert "sSex" in meta.content_flags
+        assert "eSex" not in meta.content_flags
+
+    def test_content_flags_invalid_flag_rejected(self):
+        """Test invalid flag values are rejected by Literal type."""
+        from pydantic import ValidationError
+
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        with pytest.raises(ValidationError):
+            CanonicalMetadata(
+                asin="B0TEST1234",
+                title="Test Book",
+                content_flags=["invalid_flag"],  # Not in ContentFlag Literal
+            )
 
 
 class TestCleaningFacade:

@@ -197,7 +197,7 @@
 - ✅ `metadata/providers/mock.py` exists with `MockProvider` class
 - ✅ `metadata/providers/registry.py` exists with `ProviderRegistry` and `default_registry`
 - ✅ `metadata/aggregator.py` exists with `MetadataAggregator` class
-- ⚠️ **NOT in production path** - `AudnexProvider` not called from `workflow.py`
+- ✅ **NOW in production path** - `AudnexProvider` called via `_fetch_audnex_with_provider()` (Phase 8.5)
 
 ### Phase 5c: Orchestration + Exporters
 
@@ -218,9 +218,9 @@
 - ✅ `metadata/orchestration.py` exists with both legacy and async APIs
 - ✅ `metadata/exporters/json.py` exists with `JsonExporter` class
 - ✅ `metadata/exporters/opf.py` exists with `OpfExporter` class
-- ⚠️ **NOT in production path** - `workflow.py` line 52 imports `fetch_metadata` (facade) which calls
-  `orchestration.fetch_metadata_legacy()` which calls `audnex/client.fetch_audnex_book()` directly
-- ⚠️ Async API (`fetch_metadata_async`, `export_metadata_async`) exists but NOT called from CLI/workflow
+- ✅ **NOW in production path** - `workflow.py` → `fetch_metadata()` → `orchestration.fetch_metadata_legacy(use_cache=True)`
+  → `_fetch_audnex_with_provider()` → `AudnexProvider.fetch()` (Phase 8.5 complete)
+- ⚠️ Async API (`fetch_metadata_async`, `export_metadata_async`) exists but NOT called from CLI/workflow (not needed for current use case)
 
 ---
 
@@ -532,13 +532,15 @@ AudnexProvider.fetch()  # HAS cache + rate limiting, fully tested
 
 ---
 
-## Phase 8.5: Production Integration Wiring
+## Phase 8.5: Production Integration Wiring — Original Design Spec
 
-> **Status:** 📋 Ready to implement
+> **Status:** ✅ Complete (see [Phase 8.5 Summary](#phase-85-production-integration--complete) above)
 >
 > **Prerequisite:** Phase 8 Tier 1 Complete ✅
 >
 > **Goal:** Wire the provider system (with cache + rate limiting) into production workflow.
+>
+> *Note: This section preserved as historical design spec. Implementation followed Option A.*
 
 ### Option A: Update Legacy Functions to Use Provider System (Recommended)
 
@@ -592,6 +594,171 @@ Once production integration is complete, these providers can be added:
 
 ---
 
+## Phase 9: Content Flags & Platform-Agnostic Metadata
+
+> **Status:** ✅ Complete | **Code Verified:** 2026-01-06 | **Production Wired:** ✅ YES
+>
+> **Goal:** Add platform-agnostic content classification flags to canonical schema for MAM and future platforms.
+>
+> **What's Shipped:** Full implementation with comprehensive test coverage.
+>
+> - Core: Schema, provider, MAM builder
+> - Tests: 13 dedicated tests for content_flags
+> - Docs: Architecture, provider docs updated
+
+### Current Gap (RESOLVED ✅)
+
+MAM upload requires content flags (`cLang`, `vio`, `sSex`, `eSex`, `abridged`, `lgbt`), but our canonical schema only has:
+
+- `is_adult: bool` (too broad, maps to `eSex` but doesn't distinguish `sSex`)
+- `format_type: str` (only handles `abridged`)
+
+Missing: crude language, violence, sexual content granularity, LGBT themes.
+
+### Implementation Tasks
+
+**9.1: Extend Canonical Schema** — ✅ Complete
+
+- [x] Add `content_flags` field to `CanonicalMetadata` in `schemas/canonical.py`
+  - Type: `list[ContentFlag]` (where `ContentFlag = Literal["cLang", "vio", "sSex", "eSex", "abridged", "lgbt"]`)
+  - Default: empty list `[]` (via `default_factory=list`)
+  - Note: Order is not significant but may be preserved; duplicates are allowed and handled by consumers
+  - Description: Platform-agnostic content warnings/classification
+- [x] Add validation: flags are mutually exclusive where appropriate (e.g., can't have both `sSex` and `eSex`)
+  - Implemented: `validate_mutually_exclusive_flags` validator (lines 157-167)
+- [x] Update example/docstring showing usage
+- [x] Add migration note for existing data
+
+**Code Verification (2026-01-06):**
+
+- ✅ `schemas/canonical.py` line 136: `content_flags` field with proper Literal type
+- ✅ Field validator prevents `sSex` and `eSex` coexistence
+- ✅ Production path: `CanonicalMetadata` used by all providers and exporters
+
+**9.2: Update MAM JSON Builder** — ✅ Complete
+
+- [x] Update `build_mam_json()` in `mam/json_builder.py` to use `content_flags` from canonical
+  - Implemented: lines 420-445 check `content_flags` first
+- [x] Deprecate old logic that infers from `is_adult`/`format_type` directly
+  - Backward compatible: falls back to legacy fields if `content_flags` empty
+- [x] Add backward compatibility: still populate from `is_adult` if `content_flags` is empty
+
+**Code Verification (2026-01-06):**
+
+- ✅ `mam/json_builder.py` lines 420-445: prefers explicit `content_flags`, falls back gracefully
+- ✅ Uses `getattr()` for safer attribute access
+
+**9.3: Provider Integration** — ✅ Complete
+
+- [x] Update `AudnexProvider._map_to_result()` to map Audnex data to `content_flags`
+  - Map `isAdult=True` → `["sSex"]` (weak signal - suggestive, not explicit)
+  - Map `formatType="abridged"` → `["abridged"]`
+  - Map `genres[].name` containing `"LGBTQ+"` or `"LGBT"` → `["lgbt"]`
+  - Document what Audnex does NOT provide (crude language, violence)
+- [x] Add note about manual override mechanisms for flags Audnex doesn't detect
+- [x] Added type guards: `isinstance()` checks for `format_type` and `genre_name` (lines 221-234)
+- [x] Priority updated from 10→70 to match documentation
+
+**Code Verification (2026-01-06):**
+
+- ✅ `providers/audnex.py` lines 214-235: content flag inference with type guards
+- ✅ Production path: `orchestration.py` → `_fetch_audnex_with_provider()` → `AudnexProvider.fetch()`
+
+**9.4: Tests** — ✅ Complete
+
+- [x] Test canonical schema validation (valid flags, invalid flags, duplicates)
+  - `test_metadata.py`: 6 content_flags tests for schema validation
+- [x] Test MAM JSON generation with various flag combinations
+  - `test_providers.py`: Tests cover flag inference paths
+- [x] Test provider mapping from Audnex data
+  - `test_providers.py`: 7 content_flags tests for AudnexProvider (isAdult→sSex, abridged, lgbt, type guards)
+- [x] Golden test updates for new field
+  - Not needed: content_flags doesn't affect existing golden files
+
+**Current Test Status:**
+
+- ✅ All 2565+ tests passing (no failures, no warnings)
+- ✅ Schema validation working with mutual exclusivity checks
+- ✅ Full coverage for content_flags feature (13 dedicated tests)
+
+**9.5: Documentation** — ✅ Complete
+
+- [x] Update architecture docs with content flags design
+  - Updated: `07-content-flags.md` (fixed broken anchor, clarified shipped vs planned)
+- [x] Document which providers populate which flags
+  - Updated: `providers/audnex.md` (fixed typo, added priority field)
+  - Updated: `providers/hardcover.md` (clarified priority meanings, provenance info)
+- [x] Add example showing manual override workflow
+  - Documented in architecture files
+- [ ] Update CHANGELOG
+  - **PENDING:** Need to add Phase 9 entry to `CHANGELOG.md`
+
+### Design Decisions
+
+**Why `content_flags` over separate boolean fields?**
+
+- Matches MAM API structure (list of strings)
+- Easier to extend with new flags (no schema change needed)
+- Platform-agnostic (can add AO3 warnings, MPAA ratings, etc.)
+
+**Why these specific flag names?**
+
+- Start with MAM's vocabulary for immediate use case
+- Can be aliased/mapped by exporters for other platforms
+
+**Future extensibility:**
+
+```python
+# Phase 10+: Add more platform flags as needed
+#
+# ⚠️ Design note: content_flags are provider-scoped. When exporting to a
+# specific platform (MAM, AO3, etc.), only use flags that platform understands.
+# Exporters must map or filter flags by source/provider—don't send the mixed
+# set as-is. Future AO3 and MPAA entries shown below are separate systems that
+# require separate handling by exporters.
+content_flags: list[Literal[
+    # MAM flags (Phase 9 - shipped)
+    "cLang", "vio", "sSex", "eSex", "abridged", "lgbt",
+    # Future: AO3 archive warnings (separate tracking)
+    "graphic-violence", "major-character-death", "underage",
+    # Future: MPAA-style ratings (separate system)
+    "rated-r", "rated-pg13"
+]]
+```
+
+---
+
+## Phase 10: Parallel Region Lookup & Source Provenance
+
+> **Status:** 📋 Planning | **Priority:** High
+>
+> **Goal:** Replace sequential region fallback with parallel "race" semantics, cache winning region, and make source URLs truly platform-agnostic.
+>
+> **Full specification:** [10-parallel-region-lookup.md](10-parallel-region-lookup.md)
+
+### Problem
+
+Current Audnex client tries regions **sequentially** (up to 30s worst case). ASINs are region-locked, but we don't remember which region worked.
+
+### Solution
+
+1. **Parallel race:** Fire all regions at once, take first valid response, cancel rest (~1.5s)
+2. **Region cache:** Remember `ASIN → region` mapping for next time (single request on cache hit)
+3. **Source provenance:** Add `source_url`, `source_region`, `source_provider` to canonical schema
+4. **Platform-agnostic templates:** Use `source_url` instead of hardcoded `audible.com`
+
+### Key Tasks
+
+- [ ] **10.1:** Async `fetch_audnex_book_parallel()` with `as_completed` race pattern
+- [ ] **10.2:** `RegionCache` class (ASIN → region mapping with TTL)
+- [ ] **10.3:** Add source provenance fields to `CanonicalMetadata`
+- [ ] **10.4:** Update `AudnexProvider` to use parallel fetch + populate source fields
+- [ ] **10.5:** Update `mam_description.j2` with conditional `source_url`
+- [ ] **10.6:** Two-level concurrency limits (ASIN semaphore + rate limiting)
+- [ ] **10.7:** Observability (race logging, `shelfr audnex region-stats` command)
+
+---
+
 ## Future (As Needed)
 
 - [ ] Hardcover provider
@@ -599,6 +766,7 @@ Once production integration is complete, these providers can be added:
 - [ ] NFO exporter
 - [ ] Batch operations
 - [ ] Custom user fields
+- [ ] Additional content classification systems (MPAA, AO3, etc.)
 
 ---
 
@@ -617,7 +785,9 @@ Once production integration is complete, these providers can be added:
 | Phase 6 | ✅ Complete | OPF move + deprecations + OpfExporter (PR #76) |
 | Phase 7 | ✅ Complete | Cleanup & Hygiene (PR #78, PR #79) |
 | Phase 8 | ✅ Tier 1 Complete | Infrastructure (cache + rate limiting in AudnexProvider) |
-| Phase 8.5 | 📋 Ready | Production integration wiring (connect workflow to provider system) |
+| Phase 8.5 | ✅ Complete | Production integration (PR #82) |
+| Phase 9 | ✅ Complete | Content flags (PR #83) - Core + tests shipped, CHANGELOG pending |
+| Phase 10 | 📋 Planning | Parallel region lookup + source provenance ([spec](10-parallel-region-lookup.md)) |
 | Future | ⏳ Not Started | Additional providers, exporters, batch ops |
 
 ---
@@ -671,6 +841,7 @@ Phase 8 (Infrastructure - optional)
 | Phase 6 | OPF output, deprecation shim behavior |
 | Phase 7 | Schema consolidation, import cleanup |
 | Phase 8 | Cache hit/miss, event emission |
+| Phase 9 | Content flags (sSex, abridged, lgbt), provider extraction, mutual exclusivity |
 
 ### Integration Tests
 

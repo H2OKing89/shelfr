@@ -39,6 +39,7 @@ FieldName = Literal[
     "format_type",
     "literature_type",
     "is_adult",
+    "content_flags",
     "copyright",
     "rating",
     "isbn",

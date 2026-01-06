@@ -419,13 +419,22 @@ def build_mam_json(
     if asin:
         mam_json["isbn"] = f"ASIN:{asin}"
 
-    # Flags
+    # Flags - prefer content_flags if available, otherwise infer from legacy fields
     flags = []
-    if audnex.get("isAdult"):
-        flags.append("eSex")
-    format_type = audnex.get("formatType", "").lower()
-    if format_type == "abridged":
-        flags.append("abridged")
+
+    # Check if we have explicit content_flags (from CanonicalMetadata or manual override)
+    explicit_flags = getattr(release, "content_flags", None)
+    if explicit_flags:
+        # Use explicit flags directly
+        flags = list(explicit_flags)
+    else:
+        # Legacy inference from is_adult and format_type
+        if audnex.get("isAdult"):
+            flags.append("eSex")
+        format_type = audnex.get("formatType", "").lower()
+        if format_type == "abridged":
+            flags.append("abridged")
+
     if flags:
         mam_json["flags"] = flags
 

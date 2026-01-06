@@ -1,8 +1,8 @@
 # Metadata Architecture Documentation
 
 > **Date:** January 5, 2026
-> **Status:** Migration Complete ✅ — Phases 0-8.5 implemented
-> **Related:** [JSON Sidecar Discovery](../../../implementation/json-sidecar-discovery.md) | [Naming System](../naming/NAMING.md)
+> **Status:** Migration Complete ✅ — Phases 0-8.5 implemented, Phase 9 in progress
+> **Related:** [JSON Sidecar Discovery](../../../implementation/json-sidecar-discovery.md) | [Naming System](../naming/NAMING.md) | [Providers](../providers/README.md)
 
 ---
 
@@ -20,6 +20,8 @@ This folder contains the comprehensive metadata architecture documentation for s
 | [Future-Proofing](04-future-proofing.md) | Exporters, caching, events, and infrastructure |
 | [Implementation Checklist](05-implementation-checklist.md) | Actionable task list by phase |
 | [Dead Code Removal Guide](06-dead-code-removal-guide.md) | How to safely identify, deprecate, and remove unused code |
+| [Content Flags](07-content-flags.md) | Flag resolution for MAM content warnings |
+| [Providers](../providers/README.md) | Provider-specific documentation (Hardcover, etc.) |
 
 ---
 
