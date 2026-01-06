@@ -591,24 +591,30 @@ class TestExtractAudioInfo:
 
 
 class TestCleanHtml:
-    """Tests for HTML cleaning."""
+    """Tests for HTML cleaning (deprecated function)."""
 
     def test_removes_html_tags(self):
         """Test removal of HTML tags."""
+        import pytest
 
-        text = "<p>Hello <b>World</b></p>"
-        assert _clean_html(text) == "Hello World"
+        with pytest.warns(DeprecationWarning, match="_clean_html is deprecated"):
+            text = "<p>Hello <b>World</b></p>"
+            assert _clean_html(text) == "Hello World"
 
     def test_decodes_entities(self):
         """Test HTML entity decoding."""
+        import pytest
 
-        text = "Tom &amp; Jerry &lt;3 &quot;Fun&quot;"
-        assert _clean_html(text) == 'Tom & Jerry <3 "Fun"'
+        with pytest.warns(DeprecationWarning, match="_clean_html is deprecated"):
+            text = "Tom &amp; Jerry &lt;3 &quot;Fun&quot;"
+            assert _clean_html(text) == 'Tom & Jerry <3 "Fun"'
 
     def test_empty_string(self):
         """Test empty string handling."""
+        import pytest
 
-        assert _clean_html("") == ""
+        with pytest.warns(DeprecationWarning, match="_clean_html is deprecated"):
+            assert _clean_html("") == ""
 
 
 class TestHtmlToBbcode:

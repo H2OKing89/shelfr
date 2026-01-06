@@ -352,7 +352,7 @@ class TestAudnexProvider:
         assert provider.name == "audnex"
         assert provider.kind == "network"
         assert provider.is_override is False
-        assert provider.priority == 10
+        assert provider.priority == 70
 
     def test_can_lookup_asin(self) -> None:
         """Test can_lookup returns True for ASIN."""
