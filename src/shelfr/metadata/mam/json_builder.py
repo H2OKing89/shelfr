@@ -423,9 +423,10 @@ def build_mam_json(
     flags = []
 
     # Check if we have explicit content_flags (from CanonicalMetadata or manual override)
-    if hasattr(release, "content_flags") and release.content_flags:
+    explicit_flags = getattr(release, "content_flags", None)
+    if explicit_flags:
         # Use explicit flags directly
-        flags = list(release.content_flags)
+        flags = list(explicit_flags)
     else:
         # Legacy inference from is_adult and format_type
         if audnex.get("isAdult"):

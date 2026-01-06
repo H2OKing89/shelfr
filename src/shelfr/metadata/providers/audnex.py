@@ -218,14 +218,17 @@ class AudnexProvider:
         content_flags: list[str] = []
         if is_adult:
             content_flags.append("sSex")  # Weak signal: at most suggestive, never explicit
-        if format_type and format_type.lower() == "abridged":
+        if format_type and isinstance(format_type, str) and format_type.lower() == "abridged":
             content_flags.append("abridged")
 
         # Check genres for LGBTQ+ tag (Audnex provides this as genre/tag)
         if genres := data.get("genres"):
             for genre in genres:
-                genre_name = genre.get("name", "").lower()
-                if "lgbtq" in genre_name or "lgbt" in genre_name:
+                genre_name = genre.get("name", "")
+                if not isinstance(genre_name, str):
+                    continue
+                genre_name_lower = genre_name.lower()
+                if "lgbtq" in genre_name_lower or "lgbt" in genre_name_lower:
                     if "lgbt" not in content_flags:
                         content_flags.append("lgbt")
                     break
