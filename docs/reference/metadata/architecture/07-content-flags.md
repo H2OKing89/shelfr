@@ -352,11 +352,16 @@ def resolve_content_flags(release: AudiobookRelease) -> FlagResult:
 
 ### Phase 9.1: Core Infrastructure
 
-1. ✅ Add `content_flags` field to `CanonicalMetadata`
-2. ✅ Update `AudnexProvider` to map `isAdult` → `sSex` (not `eSex`)
-3. ✅ Update MAM JSON builder to use `content_flags`
-4. [ ] Create `config/content_flags.json` mapping file
-5. [ ] Implement `FlagResolver` class
+**Core implementation (\u2705 Shipped in PR #83):**
+
+- [x] Add `content_flags` field to `CanonicalMetadata`
+- [x] Update `AudnexProvider` to map `isAdult` \u2192 `sSex` (not `eSex`)
+- [x] Update MAM JSON builder to use `content_flags`
+
+**Design documented (ready for Phase 9.2 implementation):**
+
+- [ ] Create `config/content_flags.json` mapping file
+- [ ] Implement `FlagResolver` class
 
 ### Phase 9.2: LocalFlagsProvider
 
