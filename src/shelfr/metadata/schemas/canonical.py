@@ -160,7 +160,7 @@ class CanonicalMetadata(BaseModel):
     @classmethod
     def validate_mutually_exclusive_flags(cls, flags: list[str]) -> list[str]:
         """Prevent conflicting sexual content flags.
-        
+
         sSex (suggestive) and eSex (explicit) are mutually exclusive.
         If both are present, this indicates a data conflict.
         """
