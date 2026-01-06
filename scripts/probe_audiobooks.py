@@ -24,6 +24,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from platformdirs import user_data_dir
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import (
@@ -42,7 +43,14 @@ from rich.traceback import install as install_traceback
 install_traceback(show_locals=True, width=120)
 
 # Configuration
-AUDIOBOOK_DIR = Path(os.environ.get("AUDIOBOOK_DIR", "/mnt/user/data/audio/audiobooks"))
+# AUDIOBOOK_DIR: Set via environment variable or defaults to platformdirs user data location
+# For Unraid users: export AUDIOBOOK_DIR=/mnt/user/data/audio/audiobooks
+AUDIOBOOK_DIR = Path(
+    os.environ.get(
+        "AUDIOBOOK_DIR",
+        Path(user_data_dir("shelfr", "H2OKing89")) / "audio" / "audiobooks",
+    )
+)
 OUTPUT_FILE = Path("data/audiobook_metadata.jsonl")
 DOCKER_IMAGE = "linuxserver/ffmpeg"
 MAX_WORKERS = 12  # Optimal for Docker overhead (not CPU thread count)

@@ -159,7 +159,9 @@ Audnex exists in **two forms**:
 
 The raw client is still imported directly in some places (legacy). The provider plugin is the preferred path and what `workflow.py` uses when `use_cache=True`.
 
-**Future work:** Phase 10 will wire the aggregator to call all providers via registry, removing direct client imports.
+**Current (Phase 8.5):** `AudnexProvider` is wired and active when `use_cache=True`; `workflow.py` uses the provider while some legacy code still imports `metadata/audnex/client.py` directly.
+
+**Future work (Phase 10):** Will remove direct client imports entirely and add full multi-provider aggregation (e.g., Hardcover) via the registry.
 
 ## Sample API Response
 

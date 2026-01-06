@@ -400,7 +400,7 @@ class RegionCache:
             await self._atomic_write()
 
     async def _atomic_write(self) -> None:
-        \"\"\"Write to temp file, then atomic rename.\"\"\"
+        """Write to temp file, then atomic rename."""
         tmp = self._path.with_suffix(".tmp")
         tmp.write_text(json.dumps(self._data, default=str))
         tmp.rename(self._path)  # Atomic on POSIX
@@ -539,18 +539,18 @@ def build_audible_url(asin: str, region: str = "us") -> str:
 # providers/audnex.py
 
 class AudnexProvider:
-    \"\"\"Audnex metadata provider with shared client lifecycle.\"\"\"
+    """Audnex metadata provider with shared client lifecycle."""
 
     def __init__(self):
         self._client: AudnexClient | None = None
 
     async def startup(self) -> None:
-        \"\"\"Initialize shared client. Call once at process start.\"\"\"
+        """Initialize shared client. Call once at process start."""
         self._client = AudnexClient()
         await self._client.__aenter__()
 
     async def shutdown(self) -> None:
-        \"\"\"Close shared client. Call at process end.\"\"\"
+        """Close shared client. Call at process end."""
         if self._client:
             await self._client.__aexit__(None, None, None)
             self._client = None
@@ -893,7 +893,7 @@ Auth:     None required (public API)
 Returns book metadata for a given ASIN and region.
 
 | Parameter | In | Type | Required | Default | Description |
-| ----------- -----|------|----------|---------|-------------|
+| ----------- | ----- | ------ | ---------- | --------- | ------------- |
 | `ASIN` | path | string | ✅ | - | Audible ASIN (e.g., "B08G9PRS1K") |
 | `region` | query | enum | ❌ | `us` | Region code |
 | `seedAuthors` | query | 0\|1 | ❌ | 0 | Whether to seed authors of book |
