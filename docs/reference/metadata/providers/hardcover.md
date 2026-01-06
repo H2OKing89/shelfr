@@ -70,7 +70,7 @@ Production implementation will:
 
 1. Call Hardcover API directly (not rely on exported JSON)
 2. Implement `MetadataProvider` protocol
-3. Map `content_warnings` → `content_flags` per [mapping rules](07-content-flags.md#hardcover-mapping)
+3. Map `content_warnings` → `content_flags` per [mapping rules](../architecture/07-content-flags.md#hardcover-content-warnings--mam-flags)
 4. Use FileCache with appropriate TTL (book metadata changes slowly)
 5. Respect rate limits (60 req/min)
 

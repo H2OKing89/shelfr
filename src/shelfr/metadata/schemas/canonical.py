@@ -158,7 +158,7 @@ class CanonicalMetadata(BaseModel):
 
     @field_validator("content_flags")
     @classmethod
-    def validate_mutually_exclusive_flags(cls, flags: list[str]) -> list[str]:
+    def validate_mutually_exclusive_flags(cls, flags: list[ContentFlag]) -> list[ContentFlag]:
         """Prevent conflicting sexual content flags.
 
         sSex (suggestive) and eSex (explicit) are mutually exclusive.

@@ -203,6 +203,152 @@ The raw client is still imported directly in some places (legacy). The provider 
 | Some ASINs region-locked | May not find book on first region | Region fallback handles this |
 | No ISBN data | Can't cross-reference print editions | Use Hardcover for ISBN lookup |
 | Author ASIN sometimes missing | Can't link to author profile | Fallback to name-based matching |
+| Sequential region fallback is slow | Up to 30s worst case (10 regions) | Phase 10 parallel race (~1.5s) |
+| No region memory | Repeats full scan every lookup | Phase 10 region cache |
+| Hardcoded Audible URL | Wrong domain for non-US ASINs | Phase 10 source provenance |
+
+---
+
+## Planned: Phase 10 - Parallel Region Lookup & Source Provenance
+
+> **Status:** 📋 Planning | **Priority:** High | **Estimated Effort:** 8-12 hours
+>
+> **Full specification:** [10-parallel-region-lookup.md](../architecture/10-parallel-region-lookup.md)
+
+### Problem
+
+The current client tries regions **sequentially**:
+
+```python
+# Current behavior (slow)
+for region in ["us", "uk", "au", "ca", "de", ...]:
+    data = fetch_region(asin, region)
+    if data:
+        return data  # Stop on first success
+# Worst case: 10 regions × 1-3s each = ~30s
+```
+
+ASINs are region-locked (e.g., `B0BN2HMHZ8` only exists in US), but we don't remember which region worked.
+
+### Solution: Parallel Race + Region Cache + Source Provenance
+
+#### 1. Parallel Region Race
+
+Fire all regions simultaneously, take **first valid response**, cancel the rest:
+
+```python
+async def fetch_audnex_book_parallel(asin: str) -> tuple[dict | None, str | None]:
+    """Race all regions in parallel. ~1.5s instead of ~30s."""
+    tasks = {
+        asyncio.create_task(_fetch_region_async(asin, region))
+        for region in regions
+    }
+
+    for coro in asyncio.as_completed(tasks):
+        result = await coro
+        if result and _is_valid_response(result, asin):
+            # Cancel remaining tasks
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            return result, region
+
+    return None, None
+```
+
+**Performance improvement:** ~20x faster (1.5s vs 30s worst case)
+
+#### 2. Region Cache (ASIN → Region)
+
+Cache which region worked so subsequent lookups are single-request:
+
+```python
+# First lookup: race all regions, cache winner
+data, region = await fetch_parallel(asin)  # e.g., region="uk"
+await region_cache.set(asin, "uk")
+
+# Second lookup: try cached region first
+cached_region = await region_cache.get(asin)  # "uk"
+data = await fetch_region(asin, cached_region)  # Single request!
+```
+
+**Performance improvement:** ~10x faster on cache hit
+
+#### 3. Source Provenance Fields
+
+Add to `CanonicalMetadata` so templates can build correct URLs:
+
+```python
+class CanonicalMetadata(BaseModel):
+    # ... existing fields ...
+
+    # Source provenance (Phase 10)
+    source_provider: str | None = None   # "audnex"
+    source_region: str | None = None     # "uk"
+    source_id: str | None = None         # "B002V0QK4C"
+    source_id_type: str | None = None    # "asin"
+    source_url: str | None = None        # "https://www.audible.co.uk/pd/B002V0QK4C"
+```
+
+#### 4. Region-Correct URLs
+
+Build URLs from resolved region, not hardcoded `.com`:
+
+```python
+AUDIBLE_DOMAINS = {
+    "us": "www.audible.com",
+    "uk": "www.audible.co.uk",
+    "au": "www.audible.com.au",
+    "ca": "www.audible.ca",
+    "de": "www.audible.de",
+    "es": "www.audible.es",
+    "fr": "www.audible.fr",
+    "in": "www.audible.in",
+    "it": "www.audible.it",
+    "jp": "www.audible.co.jp",
+}
+
+def build_audible_url(asin: str, region: str = "us") -> str:
+    domain = AUDIBLE_DOMAINS.get(region, "www.audible.com")
+    return f"https://{domain}/pd/{asin}"
+```
+
+### Implementation Tasks
+
+| Phase | Task | Effort |
+|-------|------|--------|
+| 10.1 | Async `fetch_audnex_book_parallel()` with `as_completed` race | 2-3h |
+| 10.2 | `RegionCache` class (ASIN → region, JSON backend) | 1-2h |
+| 10.3 | Source provenance fields in `CanonicalMetadata` | 1h |
+| 10.4 | Update `AudnexProvider` to use parallel fetch | 1-2h |
+| 10.5 | Update `mam_description.j2` with conditional `source_url` | 30m |
+| 10.6 | Two-level concurrency limits (ASIN + rate limiting) | 1h |
+| 10.7 | Observability (`shelfr audnex region-stats` command) | 30m |
+
+### Config Changes
+
+```yaml
+# config.yaml additions
+audnex:
+  # Existing
+  regions: [us, uk, au, ca, de, es, fr, in, it, jp]
+
+  # New (Phase 10)
+  parallel_fetch: true          # Enable parallel region racing
+  region_cache_ttl_days: 90     # How long to cache ASIN → region
+  race_timeout_seconds: 10      # Max time to wait for any region
+```
+
+### ROI Summary
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Worst-case lookup | ~30s | ~1.5s |
+| Cached lookup | N/A | Single request |
+| URL accuracy | Wrong domain for non-US | 100% correct |
+| Visibility | None | Race logging + stats |
+
+---
 
 ## Related Documentation
 
@@ -210,6 +356,7 @@ The raw client is still imported directly in some places (legacy). The provider 
 - [Hardcover Provider](hardcover.md) - Supplementary content warnings
 - [Plugin Architecture](../architecture/03-plugin-architecture.md) - Provider protocol
 - [Implementation Checklist](../architecture/05-implementation-checklist.md) - Phase tracking
+- [Phase 10 Specification](../architecture/10-parallel-region-lookup.md) - Full parallel lookup design
 
 ## Source Code
 
