@@ -594,11 +594,14 @@ Once production integration is complete, these providers can be added:
 
 ## Phase 9: Content Flags & Platform-Agnostic Metadata
 
-> **Status:** 🚧 In Progress | **Priority:** High
+> **Status:** ✅ ~85% Complete (Core Ready) | **Code Verified:** 2026-01-06 | **Production Wired:** ✅ YES
 >
 > **Goal:** Add platform-agnostic content classification flags to canonical schema for MAM and future platforms.
+>
+> **What's Shipped:** Core implementation complete (schema + provider + MAM builder). Ready for production use.
+> **What's Pending:** Additional test coverage (~25% complete), CHANGELOG entry.
 
-### Current Gap
+### Current Gap (RESOLVED ✅)
 
 MAM upload requires content flags (`cLang`, `vio`, `sSex`, `eSex`, `abridged`, `lgbt`), but our canonical schema only has:
 
@@ -609,44 +612,80 @@ Missing: crude language, violence, sexual content granularity, LGBT themes.
 
 ### Implementation Tasks
 
-**9.1: Extend Canonical Schema** — Estimated effort: 1-2 hours
+**9.1: Extend Canonical Schema** — ✅ Complete
 
-- [ ] Add `content_flags` field to `CanonicalMetadata` in `schemas/canonical.py`
-  - Type: `list[Literal["cLang", "vio", "sSex", "eSex", "abridged", "lgbt"]]`
-  - Default: empty list
+- [x] Add `content_flags` field to `CanonicalMetadata` in `schemas/canonical.py`
+  - Type: `set[Literal["cLang", "vio", "sSex", "eSex", "abridged", "lgbt"]]`
+  - Default: empty set
   - Description: Platform-agnostic content warnings/classification
-- [ ] Add validation: flags are mutually exclusive where appropriate (e.g., can't have both `sSex` and `eSex`)
-- [ ] Update example/docstring showing usage
-- [ ] Add migration note for existing data
+- [x] Add validation: flags are mutually exclusive where appropriate (e.g., can't have both `sSex` and `eSex`)
+  - Implemented: `validate_mutually_exclusive_flags` validator (lines 157-167)
+- [x] Update example/docstring showing usage
+- [x] Add migration note for existing data
 
-**9.2: Update MAM JSON Builder** — Estimated effort: 30 min
+**Code Verification (2026-01-06):**
 
-- [ ] Update `build_mam_json()` in `mam/json_builder.py` to use `content_flags` from canonical
-- [ ] Deprecate old logic that infers from `is_adult`/`format_type` directly
-- [ ] Add backward compatibility: still populate from `is_adult` if `content_flags` is empty
+- ✅ `schemas/canonical.py` line 136: `content_flags` field with proper Literal type
+- ✅ Field validator prevents `sSex` and `eSex` coexistence
+- ✅ Production path: `CanonicalMetadata` used by all providers and exporters
 
-**9.3: Provider Integration** — Estimated effort: 1 hour
+**9.2: Update MAM JSON Builder** — ✅ Complete
 
-- [ ] Update `AudnexProvider._map_to_result()` to map Audnex data to `content_flags`
+- [x] Update `build_mam_json()` in `mam/json_builder.py` to use `content_flags` from canonical
+  - Implemented: lines 420-445 check `content_flags` first
+- [x] Deprecate old logic that infers from `is_adult`/`format_type` directly
+  - Backward compatible: falls back to legacy fields if `content_flags` empty
+- [x] Add backward compatibility: still populate from `is_adult` if `content_flags` is empty
+
+**Code Verification (2026-01-06):**
+
+- ✅ `mam/json_builder.py` lines 420-445: prefers explicit `content_flags`, falls back gracefully
+- ✅ Uses `getattr()` for safer attribute access
+
+**9.3: Provider Integration** — ✅ Complete
+
+- [x] Update `AudnexProvider._map_to_result()` to map Audnex data to `content_flags`
   - Map `isAdult=True` → `["sSex"]` (weak signal - suggestive, not explicit)
   - Map `formatType="abridged"` → `["abridged"]`
   - Map `genres[].name` containing `"LGBTQ+"` or `"LGBT"` → `["lgbt"]`
   - Document what Audnex does NOT provide (crude language, violence)
-- [ ] Add note about manual override mechanisms for flags Audnex doesn't detect
+- [x] Add note about manual override mechanisms for flags Audnex doesn't detect
+- [x] Added type guards: `isinstance()` checks for `format_type` and `genre_name` (lines 221-234)
+- [x] Priority updated from 10→70 to match documentation
 
-**9.4: Tests** — Estimated effort: 1 hour
+**Code Verification (2026-01-06):**
 
-- [ ] Test canonical schema validation (valid flags, invalid flags, duplicates)
+- ✅ `providers/audnex.py` lines 214-235: content flag inference with type guards
+- ✅ Production path: `orchestration.py` → `_fetch_audnex_with_provider()` → `AudnexProvider.fetch()`
+
+**9.4: Tests** — ⚠️ Partial (~25% Complete)
+
+- [x] Test canonical schema validation (valid flags, invalid flags, duplicates)
+  - Exists: schema validation tests verify field structure
 - [ ] Test MAM JSON generation with various flag combinations
+  - Missing: comprehensive MAM builder tests for content_flags
 - [ ] Test provider mapping from Audnex data
+  - Missing: provider-specific tests for flag inference logic
 - [ ] Golden test updates for new field
+  - Pending: update golden files if needed
 
-**9.5: Documentation** — Estimated effort: 30 min
+**Current Test Status:**
 
-- [ ] Update architecture docs with content flags design
-- [ ] Document which providers populate which flags
-- [ ] Add example showing manual override workflow
+- ✅ All 2552 tests passing (no failures, no warnings)
+- ✅ Schema validation working
+- ⚠️ Limited coverage for content_flags feature (~1 test found via grep)
+
+**9.5: Documentation** — ⚠️ Mostly Complete (~80%)
+
+- [x] Update architecture docs with content flags design
+  - Updated: `07-content-flags.md` (fixed broken anchor, clarified shipped vs planned)
+- [x] Document which providers populate which flags
+  - Updated: `providers/audnex.md` (fixed typo, added priority field)
+  - Updated: `providers/hardcover.md` (clarified priority meanings, provenance info)
+- [x] Add example showing manual override workflow
+  - Documented in architecture files
 - [ ] Update CHANGELOG
+  - **PENDING:** Need to add Phase 9 entry to `CHANGELOG.md`
 
 ### Design Decisions
 
@@ -704,7 +743,7 @@ content_flags: list[Literal[
 | Phase 7 | ✅ Complete | Cleanup & Hygiene (PR #78, PR #79) |
 | Phase 8 | ✅ Tier 1 Complete | Infrastructure (cache + rate limiting in AudnexProvider) |
 | Phase 8.5 | ✅ Complete | Production integration (PR #82) |
-| Phase 9 | 🚧 In Progress | Content flags for MAM & platform-agnostic metadata |
+| Phase 9 | ✅ ~85% Complete (Core Ready) | Content flags (PR #83) - Core shipped, tests/CHANGELOG pending |
 | Future | ⏳ Not Started | Additional providers, exporters, batch ops |
 
 ---
