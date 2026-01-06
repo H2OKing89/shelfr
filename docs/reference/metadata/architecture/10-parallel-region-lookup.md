@@ -2,6 +2,8 @@
 
 > **Status:** 📋 Planning | **Priority:** High
 >
+> ⚠️ **Note:** Phase 10 is planned future work. Phase 9 deliverable is content flags (see [07-content-flags.md](07-content-flags.md)). This document is included for roadmap context and architectural continuity.
+>
 > **Goal:** Replace sequential region fallback with parallel "race" semantics, cache winning region, and make source URLs truly platform-agnostic.
 
 ## Problem Statement

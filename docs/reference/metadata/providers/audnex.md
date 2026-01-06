@@ -9,7 +9,7 @@ Audnex is an **audiobook-specific** API that powers metadata for Audible ASINs. 
 ## Why Audnex is Special
 
 | Feature | Audnex | Hardcover | OpenLibrary |
-|---------|--------|-----------|-------------|
+| --------- | -------- | ----------- | ------------- |
 | Narrator data | ✅ Yes | ❌ No | ❌ No |
 | Chapter timing | ✅ Yes | ❌ No | ❌ No |
 | Audiobook runtime | ✅ Yes | ❌ No | ❌ No |
@@ -24,7 +24,7 @@ Audnex is an **audiobook-specific** API that powers metadata for Audible ASINs. 
 ### Book Endpoint: `/books/{asin}`
 
 | Field | Type | Example | Maps To |
-|-------|------|---------|---------|
+| ------- | ------ | --------- | --------- |
 | `title` | `str` | `"The Final Empire"` | `title` |
 | `subtitle` | `str \| None` | `"Mistborn, Book 1"` | `subtitle` |
 | `authors` | `list[Author]` | `[{"name": "Brandon Sanderson", "asin": "B001IGFHW6"}]` | `authors` |
@@ -39,14 +39,14 @@ Audnex is an **audiobook-specific** API that powers metadata for Audible ASINs. 
 | `language` | `str \| None` | `"english"` | `language` |
 | `image` | `str \| None` | Cover URL | `cover_url` |
 | `runtimeLengthMin` | `int \| None` | `1418` (minutes) | `duration_seconds` (×60) |
-| `formatType` | `str \| None` | `"unabridged"` or `"abridged"` | `format_type`, `content_flags` |
+| `formatType` | `str \| None` | `"unabridged"` or `"abridged"` | `format_type`, `content_flags` (case-insensitive) |
 | `isAdult` | `bool \| None` | `true` | `content_flags` (weak signal) |
 | `rating` | `str \| None` | `"4.8"` | `rating` |
 
 ### Chapters Endpoint: `/books/{asin}/chapters`
 
 | Field | Type | Description |
-|-------|------|-------------|
+| -------- | ------ | ------------- |
 | `chapters` | `list[Chapter]` | Chapter timing data |
 | `chapters[].title` | `str` | Chapter name |
 | `chapters[].lengthMs` | `int` | Duration in milliseconds |
@@ -58,7 +58,7 @@ Audnex is an **audiobook-specific** API that powers metadata for Audible ASINs. 
 ### Author Endpoint: `/authors/{asin}`
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `name` | `str` | Author name |
 | `description` | `str \| None` | Author bio |
 | `image` | `str \| None` | Author photo URL |
@@ -67,6 +67,12 @@ Audnex is an **audiobook-specific** API that powers metadata for Audible ASINs. 
 ## Content Flag Mappings
 
 Audnex provides limited content classification:
+
+**Behavior:** Content flags are **accumulated** from all applicable mappings. If `isAdult=true` AND `formatType="abridged"`, the result contains `["sSex", "abridged"]`. Flags are derived independently from each field and merged (array union). No single mapping overrides another.
+
+**Operation order:** `isAdult` → `formatType` → `genres` (deterministic evaluation)
+
+**Completeness:** Audnex flags are often incomplete (e.g., no violence, language, or explicit sex flags). Supplemental provider data (Hardcover, LocalFlags) fills gaps via aggregator merge.
 
 ```python
 audnex_to_mam = {
@@ -77,11 +83,12 @@ audnex_to_mam = {
     },
     "abridged": {
         "field": "formatType",
-        "value": "abridged"
+        "value": "abridged",
+        "note": "Case-insensitive match"
     },
     "lgbt": {
         "field": "genres[].name",
-        "match": "contains 'LGBTQ' or 'LGBT'",
+        "match": "contains 'LGBTQ' or 'LGBT' (case-insensitive)",
         "note": "Audnex provides this as genre or tag type"
     }
 }
@@ -139,7 +146,7 @@ audnex:
 The `AudnexProvider` is fully production-ready:
 
 | Feature | Status |
-|---------|--------|
+| -------- | -------- |
 | `MetadataProvider` protocol | ✅ Implemented |
 | Priority | ✅ 70 (authoritative for audiobooks) |
 | Caching (30-day TTL) | ✅ FileCache |
@@ -153,7 +160,7 @@ The `AudnexProvider` is fully production-ready:
 Audnex exists in **two forms**:
 
 | Layer | File | Purpose |
-|-------|------|---------|
+| ------- | ------ | --------- |
 | **Raw Client** | `metadata/audnex/client.py` | Direct HTTP calls, used by orchestration |
 | **Provider Plugin** | `metadata/providers/audnex.py` | Wraps client, adds cache/rate limiting |
 
@@ -199,7 +206,7 @@ The raw client is still imported directly in some places (legacy). The provider 
 ## Known Limitations
 
 | Limitation | Impact | Workaround |
-|------------|--------|------------|
+| ------------ | -------- | ------------ |
 | No content warnings vocabulary | Can't detect `cLang`, `vio`, `eSex` | Use Hardcover or LocalFlags |
 | `isAdult` is binary | No granularity between mild/extreme | Treat as weak signal only |
 | Some ASINs region-locked | May not find book on first region | Region fallback handles this |
@@ -318,7 +325,7 @@ def build_audible_url(asin: str, region: str = "us") -> str:
 ### Implementation Tasks
 
 | Phase | Task | Effort |
-|-------|------|--------|
+| ------- | ------ | -------- |
 | 10.1 | Async `fetch_audnex_book_parallel()` with `as_completed` race | 2-3h |
 | 10.2 | `RegionCache` class (ASIN → region, JSON backend) | 1-2h |
 | 10.3 | Source provenance fields in `CanonicalMetadata` | 1h |
@@ -344,7 +351,7 @@ audnex:
 ### ROI Summary
 
 | Metric | Before | After |
-|--------|--------|-------|
+| -------- | -------- | ------- |
 | Worst-case lookup | ~30s | ~1.5s |
 | Cached lookup | N/A | Single request |
 | URL accuracy | Wrong domain for non-US | 100% correct |
@@ -363,7 +370,7 @@ audnex:
 ## Source Code
 
 | File | Purpose |
-|------|---------|
+| ------ | --------- |
 | [`metadata/audnex/client.py`](../../../../src/shelfr/metadata/audnex/client.py) | Raw HTTP client |
 | [`metadata/providers/audnex.py`](../../../../src/shelfr/metadata/providers/audnex.py) | Provider plugin |
 | [`schemas/audnex.py`](../../../../src/shelfr/schemas/audnex.py) | Pydantic validation schemas |
