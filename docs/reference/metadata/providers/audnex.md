@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Production | **Roadmap Priority:** Foundation | **Type:** Network Provider
 >
-> **Resolver Precedence:** 60 (higher = wins conflicts; Local=95, Hardcover=70, Audnex=60)
+> **Resolver Precedence:** 70 (higher = wins conflicts; Local=95, Hardcover=70, Audnex=70)
 
 Audnex is an **audiobook-specific** API that powers metadata for Audible ASINs. It's the **foundation provider** for shelfr — the only source that provides narrator data, chapter timing, and audiobook runtime.
 

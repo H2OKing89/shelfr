@@ -15,7 +15,7 @@ MAM requires content flags for audiobook uploads. The challenge: no single provi
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
 │  │ LocalFlags   │  │  Hardcover   │  │   Audnex     │           │
 │  │ (manual/LLM) │  │ (warnings)   │  │ (isAdult)    │           │
-│  │ precedence=95│  │ precedence=70│  │ precedence=60│           │
+│  │ precedence=95│  │ precedence=70│  │ precedence=70│           │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘           │
 │         │                 │                 │                   │
 │         │  Higher precedence wins conflicts │                   │
