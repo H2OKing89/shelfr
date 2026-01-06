@@ -76,7 +76,7 @@ audnex_mapping = {
 }
 ```
 
-If Hardcover later provides a more specific warning (e.g., `Sexual assault`), it upgrades to `eSex`. But Audnex alone should never trigger `eSex`.
+If Hardcover later provides a more specific warning (e.g., `Sexual assault`), it upgrades to `eSex` per [mapping rules](#hardcover-content-warnings--mam-flags). But Audnex alone should never trigger `eSex`.
 
 > **Note:** Internally we track `audnex_is_adult: true` as raw signal. The `sSex` mapping only applies when building final MAM flags and no higher-precedence source contradicts it.
 
@@ -279,6 +279,9 @@ class FlagResolver:
                     result.add_flag(mam_flag, source="hardcover_genre", confidence=0.8)
 
         # 4. Add Audnex signals (lowest priority, weak signals only)
+        # Never downgrade from eSex to sSex (Audnex is weakest signal)
+        # This defensive check prevents downgrades/flip-flops when providers run
+        # in different orders or when future enhancements add eSex from a weaker provider
         if audnex_data:
             if audnex_data.get("isAdult") and "sSex" not in result.flags and "eSex" not in result.flags:
                 result.add_flag("sSex", source="audnex", confidence=0.5)

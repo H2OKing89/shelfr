@@ -73,7 +73,7 @@ audnex_to_mam = {
     "sSex": {
         "field": "isAdult",
         "value": True,
-        "note": "Weak signal - only sSex, NEVER eSex"
+        "note": "Weak signal - maps to sSex (suggestive), NEVER eSex"
     },
     "abridged": {
         "field": "formatType",
