@@ -105,14 +105,14 @@
       "Alcohol consumption",
       "Addiction"
     ],
-    "death_specific_mapped_to_vio": [
+    "death_overly_specific": [
       "Death of a brother",
       "Death of parent"
     ]
   },
   "_design_decisions": {
     "sexual_violence_to_eSex": "Sexual assault, Rape \u2192 eSex (not vio). The sexual nature is primary concern for MAM filtering.",
-    "death_to_vio": "Generic 'death', 'animal death', 'child death' \u2192 vio. These indicate violent/dark content.",
+    "death_to_vio": "Generic 'death', 'animal death', 'child death' \u2192 vio. Specific relationship-based warnings (e.g., 'Death of parent') are intentionally unmapped as overly specific.",
     "audnex_never_eSex": "isAdult=true \u2192 sSex only. Too many false positives for explicit upgrade.",
     "case_insensitive": "All string matching is case-insensitive."
   }
