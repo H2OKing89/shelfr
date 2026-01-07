@@ -50,6 +50,13 @@ FieldName = Literal[
     "bitrate",
     "channels",
     "container",
+    # Source provenance (Phase 10.3)
+    "retrieved_via",
+    "source_platform",
+    "source_region",
+    "source_id",
+    "source_id_type",
+    "source_url",
 ]
 
 

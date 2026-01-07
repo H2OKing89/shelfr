@@ -2426,6 +2426,125 @@ class TestCanonicalMetadataSchema:
                 content_flags=["invalid_flag"],  # Not in ContentFlag Literal
             )
 
+    # =========================================================================
+    # Source Provenance Tests (Phase 10.3)
+    # =========================================================================
+
+    def test_source_provenance_fields_optional(self):
+        """Test source provenance fields are optional."""
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        meta = CanonicalMetadata(asin="B0TEST1234", title="Test Book")
+        assert meta.retrieved_via is None
+        assert meta.source_platform is None
+        assert meta.source_region is None
+        assert meta.source_id is None
+        assert meta.source_id_type is None
+        assert meta.source_url is None
+
+    def test_source_provenance_all_fields_set(self):
+        """Test all source provenance fields can be set."""
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        meta = CanonicalMetadata(
+            asin="B0TEST1234",
+            title="Test Book",
+            retrieved_via="audnex",
+            source_platform="Audible",
+            source_region="uk",
+            source_id="B0TEST1234",
+            source_id_type="asin",
+            source_url="https://www.audible.co.uk/pd/B0TEST1234",
+        )
+        assert meta.retrieved_via == "audnex"
+        assert meta.source_platform == "Audible"
+        assert meta.source_region == "uk"
+        assert meta.source_id == "B0TEST1234"
+        assert meta.source_id_type == "asin"
+        assert meta.source_url == "https://www.audible.co.uk/pd/B0TEST1234"
+
+    def test_source_url_requires_source_id(self):
+        """Test source_url cannot be set without source_id."""
+        from pydantic import ValidationError
+
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        with pytest.raises(ValidationError) as exc_info:
+            CanonicalMetadata(
+                asin="B0TEST1234",
+                title="Test Book",
+                source_url="https://www.audible.com/pd/B0TEST1234",
+                # Missing source_id!
+            )
+        assert "source_url requires source_id" in str(exc_info.value)
+
+    def test_source_id_without_url_valid(self):
+        """Test source_id can be set without source_url."""
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        meta = CanonicalMetadata(
+            asin="B0TEST1234",
+            title="Test Book",
+            source_id="B0TEST1234",
+            source_id_type="asin",
+            # No source_url
+        )
+        assert meta.source_id == "B0TEST1234"
+        assert meta.source_url is None
+
+    def test_source_region_valid_values(self):
+        """Test source_region only accepts valid region codes."""
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        # All valid regions should work
+        for region in ["au", "ca", "de", "es", "fr", "in", "it", "jp", "us", "uk"]:
+            meta = CanonicalMetadata(
+                asin="B0TEST1234",
+                title="Test Book",
+                source_region=region,
+            )
+            assert meta.source_region == region
+
+    def test_source_region_invalid_rejected(self):
+        """Test invalid source_region values are rejected."""
+        from pydantic import ValidationError
+
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        with pytest.raises(ValidationError):
+            CanonicalMetadata(
+                asin="B0TEST1234",
+                title="Test Book",
+                source_region="invalid",  # Not a valid region code
+            )
+
+    def test_source_id_type_valid_values(self):
+        """Test source_id_type only accepts valid ID types."""
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        for id_type in ["asin", "isbn", "hardcover_id"]:
+            meta = CanonicalMetadata(
+                asin="B0TEST1234",
+                title="Test Book",
+                source_id="test-id",
+                source_id_type=id_type,
+            )
+            assert meta.source_id_type == id_type
+
+    def test_source_id_type_invalid_rejected(self):
+        """Test invalid source_id_type values are rejected."""
+        from pydantic import ValidationError
+
+        from shelfr.metadata.schemas import CanonicalMetadata
+
+        with pytest.raises(ValidationError):
+            CanonicalMetadata(
+                asin="B0TEST1234",
+                title="Test Book",
+                source_id="test-id",
+                source_id_type="invalid_type",  # Not a valid ID type
+            )
+
 
 class TestCleaningFacade:
     """Tests for metadata/cleaning.py facade."""
