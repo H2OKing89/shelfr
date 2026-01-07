@@ -722,18 +722,16 @@ class TestCacheSizeControl:
         """last_accessed_at is updated when entry is retrieved."""
         await small_cache.set("B08G9PRS1K", "us")
         entry = small_cache._data["B08G9PRS1K"]
+
+        # Manually backdate to ensure timestamp will change (deterministic, no sleep)
+        entry.last_accessed_at = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
         original_accessed = entry.last_accessed_at
-
-        # Small delay to ensure timestamp changes
-        import time
-
-        time.sleep(0.01)
 
         # Access the entry
         await small_cache.get("B08G9PRS1K")
 
-        # last_accessed_at should be updated
-        assert entry.last_accessed_at >= original_accessed
+        # last_accessed_at should be updated to current time (newer than backdated)
+        assert entry.last_accessed_at > original_accessed
 
     @pytest.mark.asyncio
     async def test_default_limits_are_reasonable(self, tmp_path: Path) -> None:

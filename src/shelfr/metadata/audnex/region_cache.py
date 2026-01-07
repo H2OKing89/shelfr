@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -410,8 +411,8 @@ class RegionCache:
                 json.dumps(data, indent=2, sort_keys=True),
                 encoding="utf-8",
             )
-            # Atomic rename (POSIX)
-            tmp_path.rename(self._path)
+            # Atomic replace (cross-platform: works on both POSIX and Windows)
+            os.replace(tmp_path, self._path)
         except OSError as e:
             logger.error("Failed to write region cache: %s", e)
             # Clean up temp file if it exists

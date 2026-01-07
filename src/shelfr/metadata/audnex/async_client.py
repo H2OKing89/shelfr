@@ -606,9 +606,10 @@ async def fetch_audnex_book_with_cache(
                 region,
             )
     elif cached_region:
-        # Failed with a cached region - record failure
-        # We don't know if it's 404 or transient without more context,
-        # but failure during _staged_race means the cached region didn't work
-        await cache.record_failure(asin, FailureType.NOT_FOUND)
+        # Failed with a cached region - record failure as TRANSIENT
+        # Since we don't know if it's 404 or transient, use TRANSIENT
+        # to avoid fast invalidation of potentially-correct cached regions
+        # during service outages (timeouts/5xx across all regions)
+        await cache.record_failure(asin, FailureType.TRANSIENT)
 
     return data, region
