@@ -167,6 +167,110 @@ class TestAudnexSchema:
         schema = AudnexSchema(regions=all_regions)
         assert schema.regions == all_regions
 
+    # Phase 10.6: Concurrency settings tests
+
+    def test_rate_limit_per_minute_defaults(self) -> None:
+        """Test rate_limit_per_minute has correct default."""
+        schema = AudnexSchema()
+        assert schema.rate_limit_per_minute == 90
+
+    def test_rate_limit_per_minute_bounds(self) -> None:
+        """Test rate_limit_per_minute is within bounds."""
+        with pytest.raises(ValidationError):
+            AudnexSchema(rate_limit_per_minute=5)  # Too small (min 10)
+
+        with pytest.raises(ValidationError):
+            AudnexSchema(rate_limit_per_minute=150)  # Too large (max 100)
+
+        # Valid values
+        schema = AudnexSchema(rate_limit_per_minute=60)
+        assert schema.rate_limit_per_minute == 60
+
+    def test_burst_limit_defaults(self) -> None:
+        """Test burst_limit has correct default."""
+        schema = AudnexSchema()
+        assert schema.burst_limit == 10.0
+        assert schema.burst_period == 5.0
+
+    def test_burst_limit_bounds(self) -> None:
+        """Test burst_limit is within bounds."""
+        with pytest.raises(ValidationError):
+            AudnexSchema(burst_limit=0.5)  # Too small (min 1.0)
+
+        with pytest.raises(ValidationError):
+            AudnexSchema(burst_limit=50.0)  # Too large (max 30.0)
+
+    def test_burst_period_bounds(self) -> None:
+        """Test burst_period is within bounds."""
+        with pytest.raises(ValidationError):
+            AudnexSchema(burst_period=0.5)  # Too small (min 1.0)
+
+        with pytest.raises(ValidationError):
+            AudnexSchema(burst_period=50.0)  # Too large (max 30.0)
+
+        # Valid values
+        schema = AudnexSchema(burst_period=15.0)
+        assert schema.burst_period == 15.0
+
+    def test_asin_concurrency_defaults(self) -> None:
+        """Test asin_concurrency has correct default."""
+        schema = AudnexSchema()
+        assert schema.asin_concurrency == 5
+
+    def test_asin_concurrency_bounds(self) -> None:
+        """Test asin_concurrency is within bounds."""
+        with pytest.raises(ValidationError):
+            AudnexSchema(asin_concurrency=0)  # Too small (min 1)
+
+        with pytest.raises(ValidationError):
+            AudnexSchema(asin_concurrency=25)  # Too large (max 20)
+
+        # Valid values
+        schema = AudnexSchema(asin_concurrency=10)
+        assert schema.asin_concurrency == 10
+
+    def test_legacy_rate_limit_migration(self, caplog) -> None:
+        """Test legacy rate_limit is migrated to rate_limit_per_minute."""
+        import logging
+
+        # Legacy rate_limit of 1.5/sec should become 90/min
+        with caplog.at_level(logging.WARNING):
+            schema = AudnexSchema.model_validate({"rate_limit": 1.5})
+
+            # Should have migrated the value
+            assert schema.rate_limit_per_minute == 90
+
+            # Should have logged warning about migration
+            assert len(caplog.records) == 1
+            assert "legacy" in caplog.records[0].message.lower()
+            assert "rate_limit_per_minute" in caplog.records[0].message
+
+    def test_legacy_rate_limit_ignored_when_new_present(self, caplog) -> None:
+        """Test legacy rate_limit is ignored when rate_limit_per_minute is present."""
+        import logging
+
+        # Both present - new one wins
+        with caplog.at_level(logging.WARNING):
+            schema = AudnexSchema.model_validate({"rate_limit": 2.0, "rate_limit_per_minute": 60})
+
+            # Should use the new value, not the legacy
+            assert schema.rate_limit_per_minute == 60
+
+            # Should have logged warning about conflict
+            assert len(caplog.records) == 1
+            assert "both" in caplog.records[0].message.lower()
+
+    def test_no_migration_when_only_new_field(self, caplog) -> None:
+        """Test no migration occurs when only rate_limit_per_minute is present."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            schema = AudnexSchema.model_validate({"rate_limit_per_minute": 80})
+
+            assert schema.rate_limit_per_minute == 80
+            # Should not have any log messages
+            assert len(caplog.records) == 0
+
 
 class TestFiltersSchema:
     """Tests for FiltersSchema validation."""

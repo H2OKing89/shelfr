@@ -150,6 +150,11 @@ class AudnexConfig:
     # Regions to try in order (first success wins)
     # Valid: us, uk, au, ca, de, es, fr, in, it, jp
     regions: list[str] = field(default_factory=lambda: [DEFAULT_ASIN_REGION])
+    # Phase 10.6 concurrency settings
+    rate_limit_per_minute: int = 90  # Max requests/min to Audnex API
+    burst_limit: float = 10.0  # Max requests in burst period
+    burst_period: float = 5.0  # Burst period in seconds
+    asin_concurrency: int = 5  # Max concurrent ASIN lookups for batch ops
 
 
 @dataclass
@@ -1122,6 +1127,11 @@ def load_settings(
         base_url=audnex_data.get("base_url", "https://api.audnex.us"),
         timeout_seconds=audnex_data.get("timeout_seconds", 30),
         regions=validated_regions,
+        # Phase 10.6 concurrency settings
+        rate_limit_per_minute=audnex_data.get("rate_limit_per_minute", 90),
+        burst_limit=audnex_data.get("burst_limit", 10.0),
+        burst_period=audnex_data.get("burst_period", 5.0),
+        asin_concurrency=audnex_data.get("asin_concurrency", 5),
     )
 
     # Parse MediaInfo config

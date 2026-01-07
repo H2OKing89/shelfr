@@ -6,10 +6,13 @@ This validates the YAML structure at load time before converting to dataclasses.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 class EnvironmentSchema(BaseModel):
@@ -135,12 +138,34 @@ class AudnexSchema(BaseModel):
     timeout_seconds: int = Field(default=30, ge=5, le=120)
     # Regions to try in order (first success wins)
     regions: list[str] = Field(default_factory=lambda: [DEFAULT_ASIN_REGION])
-    # Rate limiting: maximum requests per second (default 10.0)
-    rate_limit: float = Field(
+
+    # Rate limiting (Phase 10.6)
+    # Audnex API limit is ~100 req/min per IP; we use 90/min for headroom
+    rate_limit_per_minute: int = Field(
+        default=90,
+        ge=10,
+        le=100,
+        description="Maximum requests per minute to Audnex API (default 90, max 100)",
+    )
+    # Burst protection: prevent hitting fixed-window limits with request spikes
+    burst_limit: float = Field(
         default=10.0,
-        ge=0.1,
-        le=100.0,
-        description="Maximum requests per second to Audnex API",
+        ge=1.0,
+        le=30.0,
+        description="Maximum requests per burst period",
+    )
+    burst_period: float = Field(
+        default=5.0,
+        ge=1.0,
+        le=30.0,
+        description="Burst period in seconds",
+    )
+    # ASIN-level concurrency: max ASINs in flight simultaneously during batch ops
+    asin_concurrency: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Maximum concurrent ASIN lookups for batch operations",
     )
 
     @field_validator("base_url")
@@ -161,6 +186,48 @@ class AudnexSchema(BaseModel):
             if r.lower() not in VALID_AUDNEX_REGIONS:
                 raise _invalid_region_error(r)
         return [r.lower() for r in v]  # Normalize to lowercase
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_rate_limit(cls, data: Any) -> Any:
+        """Migrate legacy rate_limit (per-second) to rate_limit_per_minute.
+
+        Older configs may have audnex.rate_limit which was a per-second limit.
+        Convert it to rate_limit_per_minute (multiply by 60) and warn the user.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        # Check if legacy rate_limit is present
+        legacy_rate_limit = data.get("rate_limit")
+        if legacy_rate_limit is not None:
+            # Only migrate if rate_limit_per_minute is NOT already set
+            if "rate_limit_per_minute" not in data:
+                # Convert per-second to per-minute
+                migrated_value = int(legacy_rate_limit * 60)
+                data["rate_limit_per_minute"] = migrated_value
+                logger.warning(
+                    "Config uses legacy 'audnex.rate_limit' (%s/sec). "
+                    "Migrated to 'rate_limit_per_minute' (%s/min). "
+                    "Please update your config.yaml to use 'rate_limit_per_minute' instead.",
+                    legacy_rate_limit,
+                    migrated_value,
+                )
+            else:
+                # Both present - warn that legacy key is ignored
+                logger.warning(
+                    "Config has both 'audnex.rate_limit' (%s/sec) and "
+                    "'rate_limit_per_minute' (%s/min). "
+                    "Using 'rate_limit_per_minute' (legacy key ignored). "
+                    "Please remove 'rate_limit' from your config.yaml.",
+                    legacy_rate_limit,
+                    data["rate_limit_per_minute"],
+                )
+
+            # Remove legacy key from data to avoid Pydantic extra field warnings
+            data.pop("rate_limit", None)
+
+        return data
 
 
 class MediaInfoSchema(BaseModel):

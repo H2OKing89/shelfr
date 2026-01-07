@@ -25,6 +25,11 @@ def mock_settings():
     settings = MagicMock()
     settings.audnex.base_url = "https://api.audnex.us"
     settings.audnex.timeout_seconds = 10.0
+    # Phase 10.6 concurrency settings
+    settings.audnex.rate_limit_per_minute = 90
+    settings.audnex.burst_limit = 10.0
+    settings.audnex.burst_period = 5.0
+    settings.audnex.asin_concurrency = 5
     return settings
 
 
@@ -97,9 +102,13 @@ class TestAudnexAsyncClientInit:
     """Test client initialization."""
 
     def test_default_initialization(self) -> None:
-        """Client initializes with default parameters."""
+        """Client initializes with default parameters from config."""
         client = AudnexAsyncClient()
         assert client is not None
+        # Should use config defaults (90/min, 10 burst, 5 ASIN concurrency)
+        assert client._minute_limiter.max_rate == 90
+        assert client._burst_limiter.max_rate == 10.0
+        assert client._asin_semaphore._value == 5
 
     def test_custom_minute_limit(self) -> None:
         """Client accepts custom minute rate limit."""
@@ -110,6 +119,11 @@ class TestAudnexAsyncClientInit:
         """Client accepts custom burst rate limit."""
         client = AudnexAsyncClient(burst_limit=5)
         assert client._burst_limiter.max_rate == 5
+
+    def test_custom_asin_concurrency(self) -> None:
+        """Client accepts custom ASIN concurrency limit."""
+        client = AudnexAsyncClient(asin_concurrency=10)
+        assert client._asin_semaphore._value == 10
 
 
 class TestStagedRaceConstants:
@@ -703,3 +717,161 @@ class TestContextManager:
         client = AudnexAsyncClient()
         with pytest.raises(RuntimeError, match="async context manager"):
             _ = client.client
+
+
+class TestBatchFetch:
+    """Test batch fetch with ASIN semaphore."""
+
+    @pytest.fixture
+    def mock_region_cache(self):
+        """Create a mock region cache for batch tests."""
+        mock_cache = MagicMock()
+        mock_cache.get = AsyncMock(return_value=None)
+        mock_cache.set = AsyncMock()
+        mock_cache.record_failure = AsyncMock()
+        return mock_cache
+
+    @pytest.mark.asyncio
+    async def test_batch_fetch_returns_all_asins(
+        self, sample_book_response: dict[str, Any], mock_region_cache
+    ) -> None:
+        """Batch fetch returns results for all ASINs."""
+        asins = ["B08G9PRS1K", "B00HBQRIHY", "B000FBJCJE"]
+
+        async with AudnexAsyncClient() as client:
+            # Mock fetch_book_parallel to return data for each ASIN
+            async def mock_fetch(asin: str, cached_region: str | None = None):
+                response = sample_book_response.copy()
+                response["asin"] = asin
+                return response, "us"
+
+            with patch.object(client, "fetch_book_parallel", side_effect=mock_fetch):
+                results = await client.fetch_batch(asins, region_cache=mock_region_cache)
+
+                assert len(results) == 3
+                for asin, data, region in results:
+                    assert asin in asins
+                    assert data is not None
+                    assert region == "us"
+
+    @pytest.mark.asyncio
+    async def test_batch_fetch_handles_failures(
+        self, sample_book_response: dict[str, Any], mock_region_cache
+    ) -> None:
+        """Batch fetch handles individual ASIN failures gracefully."""
+        asins = ["B08G9PRS1K", "INVALID123", "B000FBJCJE"]
+
+        async with AudnexAsyncClient() as client:
+            # Mock: first and third succeed, second fails
+            async def mock_fetch(asin: str, cached_region: str | None = None):
+                if asin == "INVALID123":
+                    return None, None
+                response = sample_book_response.copy()
+                response["asin"] = asin
+                return response, "us"
+
+            with patch.object(client, "fetch_book_parallel", side_effect=mock_fetch):
+                results = await client.fetch_batch(asins, region_cache=mock_region_cache)
+
+                assert len(results) == 3
+                # Check successful results
+                assert results[0][1] is not None  # First ASIN succeeded
+                assert results[2][1] is not None  # Third ASIN succeeded
+                # Check failed result
+                assert results[1][0] == "INVALID123"
+                assert results[1][1] is None
+                assert results[1][2] is None
+
+    @pytest.mark.asyncio
+    async def test_batch_fetch_respects_semaphore(self, mock_region_cache) -> None:
+        """Batch fetch respects ASIN concurrency semaphore."""
+        asins = ["ASIN1", "ASIN2", "ASIN3", "ASIN4", "ASIN5", "ASIN6"]
+        max_concurrent_observed = 0
+        current_concurrent = 0
+        lock = asyncio.Lock()
+
+        # Create client with concurrency limit of 2
+        async with AudnexAsyncClient(asin_concurrency=2) as client:
+
+            async def mock_fetch(asin: str, cached_region: str | None = None):
+                nonlocal max_concurrent_observed, current_concurrent
+                async with lock:
+                    current_concurrent += 1
+                    max_concurrent_observed = max(max_concurrent_observed, current_concurrent)
+
+                # Simulate some async work
+                await asyncio.sleep(0.05)
+
+                async with lock:
+                    current_concurrent -= 1
+
+                return {
+                    "asin": asin,
+                    "title": f"Book {asin}",
+                    "authors": [{"name": "Author"}],
+                }, "us"
+
+            with patch.object(client, "fetch_book_parallel", side_effect=mock_fetch):
+                results = await client.fetch_batch(asins, region_cache=mock_region_cache)
+
+                assert len(results) == 6
+                # Should never exceed semaphore limit of 2
+                assert max_concurrent_observed <= 2
+
+    @pytest.mark.asyncio
+    async def test_batch_fetch_with_chapters(
+        self,
+        sample_book_response: dict[str, Any],
+        sample_chapters_response: dict[str, Any],
+        mock_region_cache,
+    ) -> None:
+        """Batch fetch includes chapters when requested."""
+        asins = ["B08G9PRS1K"]
+
+        async with AudnexAsyncClient() as client:
+
+            async def mock_fetch_book(asin: str, cached_region: str | None = None):
+                return sample_book_response.copy(), "us"
+
+            async def mock_fetch_chapters(asin: str, region: str):
+                return sample_chapters_response.copy()
+
+            with (
+                patch.object(client, "fetch_book_parallel", side_effect=mock_fetch_book),
+                patch.object(client, "fetch_chapters", side_effect=mock_fetch_chapters),
+            ):
+                results = await client.fetch_batch(
+                    asins, region_cache=mock_region_cache, include_chapters=True
+                )
+
+                assert len(results) == 1
+                asin, data, region = results[0]
+                assert data is not None
+                # chapters is the entire chapters response dict, not just the list
+                assert "chapters" in data
+                chapters_data = data["chapters"]
+                assert chapters_data["asin"] == "B08G9PRS1K"
+                assert len(chapters_data["chapters"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_batch_fetch_caches_winning_regions(
+        self, sample_book_response: dict[str, Any], mock_region_cache
+    ) -> None:
+        """Batch fetch caches winning regions for successful lookups."""
+        asins = ["B08G9PRS1K", "B00HBQRIHY"]
+
+        async with AudnexAsyncClient() as client:
+
+            async def mock_fetch(asin: str, cached_region: str | None = None):
+                response = sample_book_response.copy()
+                response["asin"] = asin
+                return response, "uk"  # Simulating UK region wins
+
+            with patch.object(client, "fetch_book_parallel", side_effect=mock_fetch):
+                await client.fetch_batch(asins, region_cache=mock_region_cache)
+
+                # Should have called cache.set for each successful ASIN
+                assert mock_region_cache.set.call_count == 2
+                # Verify correct region was cached
+                mock_region_cache.set.assert_any_call("B08G9PRS1K", "uk")
+                mock_region_cache.set.assert_any_call("B00HBQRIHY", "uk")

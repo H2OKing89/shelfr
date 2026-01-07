@@ -74,6 +74,11 @@ class MockAudnexConfig:
 
     base_url: str = "https://api.audnex.us"
     timeout_seconds: int = 30
+    # Phase 10.6 concurrency settings
+    rate_limit_per_minute: int = 90
+    burst_limit: float = 10.0
+    burst_period: float = 5.0
+    asin_concurrency: int = 5
 
 
 @dataclass
