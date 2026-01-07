@@ -56,7 +56,7 @@ PROVIDER_TIMEOUT_SECONDS = 60
 
 def _fetch_audnex_with_provider(
     asin: str,
-    region: str | None = None,
+    region: str | None = None,  # Deprecated - region is now auto-detected
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Fetch Audnex data using AudnexProvider (with caching).
 
@@ -65,7 +65,7 @@ def _fetch_audnex_with_provider(
 
     Args:
         asin: Audible ASIN
-        region: Optional region override
+        region: Deprecated - region is auto-detected via region racing/caching
 
     Returns:
         Tuple of (audnex_data, region), or (None, None) on failure
@@ -73,8 +73,19 @@ def _fetch_audnex_with_provider(
     from shelfr.metadata.providers.audnex import AudnexProvider
     from shelfr.metadata.providers.types import LookupContext
 
-    provider = AudnexProvider(region=region)
+    provider = AudnexProvider()
     ctx = LookupContext(ids={"asin": asin})
+
+    async def run_provider() -> Any:
+        """Run provider with lifecycle management."""
+        await provider.startup()
+        try:
+            return await asyncio.wait_for(
+                provider.fetch(ctx, "asin"),
+                timeout=PROVIDER_TIMEOUT_SECONDS,
+            )
+        finally:
+            await provider.shutdown()
 
     # Run async provider in event loop
     try:
@@ -89,17 +100,11 @@ def _fetch_audnex_with_provider(
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, provider.fetch(ctx, "asin"))
-                result = future.result(timeout=PROVIDER_TIMEOUT_SECONDS)
+                future = pool.submit(asyncio.run, run_provider())
+                result = future.result(timeout=PROVIDER_TIMEOUT_SECONDS + 5)  # Extra margin
         else:
-            # No running loop - safe to use asyncio.run with timeout wrapper
-            async def fetch_with_timeout() -> Any:
-                return await asyncio.wait_for(
-                    provider.fetch(ctx, "asin"),
-                    timeout=PROVIDER_TIMEOUT_SECONDS,
-                )
-
-            result = asyncio.run(fetch_with_timeout())
+            # No running loop - safe to use asyncio.run
+            result = asyncio.run(run_provider())
 
         if not result.success:
             logger.debug("AudnexProvider failed: %s", result.error)
@@ -109,7 +114,8 @@ def _fetch_audnex_with_provider(
         # Use cached raw_data if available; this is the whole point of caching
         raw_data = result.raw_data.get("audnex") if result.raw_data else None
         if raw_data is not None:
-            actual_region = raw_data.get("region") or region or "us"
+            # Get region from raw_data which now includes it
+            actual_region = result.raw_data.get("region") or "us"
             return raw_data, actual_region
 
         # Fallback: provider succeeded but no raw data (shouldn't happen)

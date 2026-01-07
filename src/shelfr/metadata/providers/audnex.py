@@ -1,46 +1,63 @@
 """
 Audnex metadata provider.
 
-Wraps the existing Audnex client (metadata/audnex/client.py) in the
+Wraps the async Audnex client (metadata/audnex/async_client.py) in the
 provider interface for use with the aggregator.
+
+Phase 10.4: Updated to use AudnexAsyncClient with lifecycle management.
+The provider must be started before use and shut down when done.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 from datetime import UTC, datetime
-from typing import Any
-
-from aiolimiter import AsyncLimiter
+from typing import TYPE_CHECKING, Any
 
 from shelfr.utils.audible_urls import build_audible_url
 
-from ..audnex.client import fetch_audnex_book
+from ..audnex.async_client import AudnexAsyncClient, fetch_audnex_book_with_cache
 from ..cache import CachedResult, MetadataCache, get_default_cache, make_cache_key
 from .base import ProviderKind
 from .types import IdType, LookupContext, ProviderResult
+
+if TYPE_CHECKING:
+    from ..audnex.region_cache import RegionCache
 
 logger = logging.getLogger(__name__)
 
 
 class AudnexProvider:
-    """Audnex API provider for audiobook metadata.
+    """Audnex API provider for audiobook metadata with lifecycle management.
 
-    Primary source for audiobook metadata. Provides:
+    Primary source for audiobook metadata. Uses async client with staged region
+    racing (Phase 10.1) and region caching (Phase 10.2).
+
+    ⚠️ LIFECYCLE: Must call startup() before use and shutdown() when done.
+
+    Provides:
     - Title, subtitle, authors, narrators
     - Series information (primary and secondary)
     - Genres, description, summary
     - Publisher, release date, language
     - Cover image URL
     - Runtime
+    - Chapters (fetched using winning region - no re-race)
 
     Attributes:
         name: "audnex"
-        priority: 10 (high priority - authoritative for audiobooks)
+        priority: 70 (high priority - authoritative for audiobooks)
         kind: "network" (makes HTTP requests)
         is_override: False (cannot intentionally clear fields)
+
+    Example:
+        provider = AudnexProvider()
+        await provider.startup()
+        try:
+            result = await provider.fetch(ctx, IdType.ASIN)
+        finally:
+            await provider.shutdown()
     """
 
     name: str = "audnex"
@@ -50,25 +67,59 @@ class AudnexProvider:
 
     def __init__(
         self,
-        region: str | None = None,
         cache: MetadataCache | None = None,
         cache_ttl_seconds: int = 30 * 24 * 3600,  # 30 days default
-        rate_limit: float = 10.0,  # requests per second
+        region_cache: RegionCache | None = None,
     ):
         """Initialize Audnex provider.
 
         Args:
-            region: Optional fixed region to use. If None, uses
-                    configured region fallback from settings.
-            cache: Optional cache instance. If None, uses default FileCache.
+            cache: Optional metadata cache instance. If None, uses default FileCache.
             cache_ttl_seconds: Cache TTL in seconds (default: 30 days)
-            rate_limit: Maximum requests per second (default: 10)
+            region_cache: Optional region cache for ASIN→region mappings.
+                         If None, uses a new instance with default settings.
         """
-        self._region = region
         self._cache = cache or get_default_cache()
         self._cache_ttl_seconds = cache_ttl_seconds
-        # AsyncLimiter(max_rate, time_period=1.0) = max_rate requests per second
-        self._rate_limiter = AsyncLimiter(max_rate=rate_limit, time_period=1.0)
+        self._region_cache = region_cache
+
+        # Async client - created in startup()
+        self._client: AudnexAsyncClient | None = None
+        self._started = False
+
+    async def startup(self) -> None:
+        """Initialize shared async client. Call once at process start.
+
+        Creates the HTTP client and rate limiters. Must be called before
+        any fetch() calls.
+
+        Raises:
+            RuntimeError: If already started
+        """
+        if self._started:
+            raise RuntimeError("AudnexProvider already started")
+
+        self._client = AudnexAsyncClient()
+        await self._client.__aenter__()
+        self._started = True
+        logger.info("AudnexProvider started (async client ready)")
+
+    async def shutdown(self) -> None:
+        """Close shared async client. Call at process end.
+
+        Releases HTTP connections and cleans up resources.
+        Safe to call multiple times (idempotent).
+        """
+        if self._client:
+            await self._client.__aexit__(None, None, None)
+            self._client = None
+        self._started = False
+        logger.info("AudnexProvider shut down")
+
+    @property
+    def is_started(self) -> bool:
+        """Check if provider is started and ready for use."""
+        return self._started and self._client is not None
 
     def can_lookup(self, ctx: LookupContext, id_type: IdType) -> bool:
         """Check if provider can handle this lookup.
@@ -78,10 +129,18 @@ class AudnexProvider:
         return id_type == "asin" and ctx.asin is not None
 
     async def fetch(self, ctx: LookupContext, id_type: IdType) -> ProviderResult:
-        """Fetch metadata from Audnex API (with caching).
+        """Fetch metadata from Audnex API using async client with region racing.
 
-        Wraps sync HTTP client in asyncio.to_thread() to avoid blocking.
-        Checks cache first; only hits API on cache miss.
+        Uses staged region racing (Phase 10.1) and region caching (Phase 10.2)
+        for efficient lookups. Chapters are fetched using the winning region
+        to avoid re-racing.
+
+        Args:
+            ctx: Lookup context with ASIN and options
+            id_type: Must be "asin" for Audnex
+
+        Returns:
+            ProviderResult with metadata fields or failure
         """
         if id_type != "asin" or not ctx.asin:
             return ProviderResult.failure(self.name, "ASIN required for Audnex lookup")
@@ -90,12 +149,12 @@ class AudnexProvider:
         if not re.match(r"^[A-Z0-9]{10}$", ctx.asin):
             return ProviderResult.failure(self.name, f"Invalid ASIN format: {ctx.asin}")
 
-        # Check cache first
+        # Check metadata cache first (provider-level cache)
         cache_key = make_cache_key(
             provider=self.name,
             id_type="asin",
             identifier=ctx.asin,
-            region=self._region or "us",
+            region="parallel",  # Use "parallel" since we race regions
         )
         cached = await self._cache.get(cache_key)
         if cached and not cached.is_expired(self._cache_ttl_seconds):
@@ -105,10 +164,13 @@ class AudnexProvider:
         # Cache miss - fetch from API
         logger.debug("Cache miss for Audnex ASIN %s", ctx.asin)
         try:
-            # Apply rate limiting before making request
-            async with self._rate_limiter:
-                # Run sync HTTP call in thread pool
-                data, region = await asyncio.to_thread(fetch_audnex_book, ctx.asin, self._region)
+            # Use shared client if available (lifecycle-managed)
+            # Falls back to temporary client for backwards compatibility
+            data, region = await fetch_audnex_book_with_cache(
+                asin=ctx.asin,
+                client=self._client,
+                region_cache=self._region_cache,
+            )
 
             if data is None:
                 return ProviderResult.failure(self.name, f"ASIN {ctx.asin} not found in Audnex")
@@ -117,6 +179,24 @@ class AudnexProvider:
 
             # Store raw data for backward compatibility (orchestration needs this)
             result.raw_data = {"audnex": data, "region": region}
+
+            # Fetch chapters using SAME region (don't re-race!)
+            if ctx.include_chapters and region and self._client:
+                try:
+                    chapters_data = await self._client.fetch_chapters(ctx.asin, region)
+                    if chapters_data:
+                        chapters_list = chapters_data.get("chapters", [])
+                        if chapters_list:
+                            result.set_field("chapters", self._map_chapters(chapters_list))
+                            logger.debug(
+                                "Fetched %d chapters for %s (region=%s)",
+                                len(chapters_list),
+                                ctx.asin,
+                                region,
+                            )
+                except Exception as e:
+                    # Chapters are optional - don't fail the whole request
+                    logger.warning("Failed to fetch chapters for %s: %s", ctx.asin, e)
 
             # Cache successful results (including raw_data)
             if result.success:
@@ -150,6 +230,28 @@ class AudnexProvider:
         result.raw_data = cached.raw_data.copy() if cached.raw_data else {}
         result.cached = True
         return result
+
+    def _map_chapters(self, chapters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Map Audnex chapters response to canonical chapter format.
+
+        Args:
+            chapters: Raw chapters from Audnex API
+
+        Returns:
+            List of chapter dicts with canonical field names
+        """
+        mapped = []
+        for ch in chapters:
+            chapter = {}
+            if title := ch.get("title"):
+                chapter["title"] = title
+            if (start := ch.get("startOffsetMs")) is not None:
+                chapter["start"] = start / 1000.0  # Convert ms to seconds
+            if (length := ch.get("lengthMs")) is not None:
+                chapter["end"] = (ch.get("startOffsetMs", 0) + length) / 1000.0
+            if chapter:
+                mapped.append(chapter)
+        return mapped
 
     def _map_to_result(self, data: dict[str, Any], region: str | None) -> ProviderResult:
         """Map Audnex API response to ProviderResult.

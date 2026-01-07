@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -354,6 +354,89 @@ class TestAudnexProvider:
         assert provider.is_override is False
         assert provider.priority == 70
 
+    def test_is_started_initially_false(self) -> None:
+        """Test is_started is False before startup()."""
+        provider = AudnexProvider()
+        assert provider.is_started is False
+
+    @pytest.mark.asyncio
+    async def test_startup_sets_is_started(self) -> None:
+        """Test startup() sets is_started to True."""
+        mock_settings = type(
+            "MockSettings",
+            (),
+            {
+                "audnex": type(
+                    "MockAudnex", (), {"base_url": "https://api.audnex.us", "timeout_seconds": 30}
+                )()
+            },
+        )()
+        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
+            provider = AudnexProvider()
+            await provider.startup()
+            try:
+                assert provider.is_started is True
+            finally:
+                await provider.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_shutdown_sets_is_started_false(self) -> None:
+        """Test shutdown() sets is_started to False."""
+        mock_settings = type(
+            "MockSettings",
+            (),
+            {
+                "audnex": type(
+                    "MockAudnex", (), {"base_url": "https://api.audnex.us", "timeout_seconds": 30}
+                )()
+            },
+        )()
+        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
+            provider = AudnexProvider()
+            await provider.startup()
+            await provider.shutdown()
+            assert provider.is_started is False
+
+    @pytest.mark.asyncio
+    async def test_shutdown_is_idempotent(self) -> None:
+        """Test shutdown() can be called multiple times safely."""
+        mock_settings = type(
+            "MockSettings",
+            (),
+            {
+                "audnex": type(
+                    "MockAudnex", (), {"base_url": "https://api.audnex.us", "timeout_seconds": 30}
+                )()
+            },
+        )()
+        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
+            provider = AudnexProvider()
+            await provider.startup()
+            await provider.shutdown()
+            await provider.shutdown()  # Should not raise
+            assert provider.is_started is False
+
+    @pytest.mark.asyncio
+    async def test_startup_twice_raises(self) -> None:
+        """Test startup() twice raises RuntimeError."""
+        mock_settings = type(
+            "MockSettings",
+            (),
+            {
+                "audnex": type(
+                    "MockAudnex", (), {"base_url": "https://api.audnex.us", "timeout_seconds": 30}
+                )()
+            },
+        )()
+        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
+            provider = AudnexProvider()
+            await provider.startup()
+            try:
+                with pytest.raises(RuntimeError, match="already started"):
+                    await provider.startup()
+            finally:
+                await provider.shutdown()
+
     def test_can_lookup_asin(self) -> None:
         """Test can_lookup returns True for ASIN."""
         provider = AudnexProvider()
@@ -389,7 +472,9 @@ class TestAudnexProvider:
             "runtimeLengthMin": 2700,
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             result = await provider.fetch(ctx, "asin")
 
@@ -410,7 +495,9 @@ class TestAudnexProvider:
         # Use valid ASIN format that doesn't exist
         ctx = LookupContext.from_asin(asin="B000000000")
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (None, None)
             result = await provider.fetch(ctx, "asin")
 
@@ -452,7 +539,9 @@ class TestAudnexProvider:
             "isAdult": False,  # Explicitly non-adult
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             result = await provider.fetch(ctx, "asin")
 
@@ -471,7 +560,9 @@ class TestAudnexProvider:
             "isAdult": True,
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             result = await provider.fetch(ctx, "asin")
 
@@ -498,7 +589,9 @@ class TestAudnexProvider:
             "isAdult": True,
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             result = await provider.fetch(ctx, "asin")
 
@@ -519,7 +612,9 @@ class TestAudnexProvider:
             "formatType": "abridged",
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             result = await provider.fetch(ctx, "asin")
 
@@ -541,7 +636,9 @@ class TestAudnexProvider:
             ],
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             result = await provider.fetch(ctx, "asin")
 
@@ -562,7 +659,9 @@ class TestAudnexProvider:
             "genres": [{"name": "LGBT Fiction", "asin": "G1"}],
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             result = await provider.fetch(ctx, "asin")
 
@@ -588,7 +687,9 @@ class TestAudnexProvider:
             "genres": [{"name": "Children's Fiction", "asin": "G1"}],
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             result = await provider.fetch(ctx, "asin")
 
@@ -608,7 +709,9 @@ class TestAudnexProvider:
             "formatType": 123,  # Invalid type
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             # Should not raise, should just skip the malformed field
             result = await provider.fetch(ctx, "asin")
@@ -633,7 +736,9 @@ class TestAudnexProvider:
             ],
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             # Should not raise, should skip invalid and process valid
             result = await provider.fetch(ctx, "asin")
@@ -658,7 +763,9 @@ class TestAudnexProvider:
             "title": "The Way of Kings",
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             result = await provider.fetch(ctx, "asin")
 
@@ -681,7 +788,9 @@ class TestAudnexProvider:
             "title": "UK Book",
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "uk")
             result = await provider.fetch(ctx, "asin")
 
@@ -700,7 +809,9 @@ class TestAudnexProvider:
             "title": "German Book",
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "de")
             result = await provider.fetch(ctx, "asin")
 
@@ -719,7 +830,9 @@ class TestAudnexProvider:
             "title": "Unknown Region Book",
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, None)  # No region info
             result = await provider.fetch(ctx, "asin")
 
@@ -738,7 +851,9 @@ class TestAudnexProvider:
             "title": "No ASIN Book",
         }
 
-        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+        with patch(
+            "shelfr.metadata.providers.audnex.fetch_audnex_book_with_cache", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = (mock_response, "us")
             result = await provider.fetch(ctx, "asin")
 
