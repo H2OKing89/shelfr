@@ -34,6 +34,10 @@ logger = logging.getLogger(__name__)
 MAX_404_FAILURES = 2  # Fast invalidation for definitive 404s
 MAX_TRANSIENT_FAILURES = 5  # Slower invalidation for transient errors
 
+# Cache size limits
+DEFAULT_MAX_ENTRIES = 50_000  # Maximum entries before LRU eviction
+DEFAULT_TTL_DAYS = 90  # Entries older than this can be evicted
+
 
 # =============================================================================
 # Types
@@ -58,6 +62,7 @@ class RegionCacheEntry:
     Attributes:
         region: The Audible region code (us, uk, de, etc.)
         discovered_at: ISO 8601 timestamp when region was discovered
+        last_accessed_at: ISO 8601 timestamp of last access (for LRU eviction)
         hits: Number of successful cache hits
         last_failed_at: ISO 8601 timestamp of last failure (if any)
         fail_count: Consecutive failure count (resets on success)
@@ -66,6 +71,7 @@ class RegionCacheEntry:
 
     region: str
     discovered_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    last_accessed_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     hits: int = 0
     last_failed_at: str | None = None
     fail_count: int = 0
@@ -78,9 +84,11 @@ class RegionCacheEntry:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> RegionCacheEntry:
         """Create entry from dictionary."""
+        now = datetime.now(UTC).isoformat()
         return cls(
             region=data["region"],
-            discovered_at=data.get("discovered_at", datetime.now(UTC).isoformat()),
+            discovered_at=data.get("discovered_at", now),
+            last_accessed_at=data.get("last_accessed_at", now),
             hits=data.get("hits", 0),
             last_failed_at=data.get("last_failed_at"),
             fail_count=data.get("fail_count", 0),
@@ -121,6 +129,8 @@ class RegionCache:
         cache_path: Path,
         max_404_failures: int = MAX_404_FAILURES,
         max_transient_failures: int = MAX_TRANSIENT_FAILURES,
+        max_entries: int = DEFAULT_MAX_ENTRIES,
+        ttl_days: int = DEFAULT_TTL_DAYS,
     ):
         """Initialize region cache.
 
@@ -128,6 +138,8 @@ class RegionCache:
             cache_path: Path to JSON cache file
             max_404_failures: Invalidation threshold for 404 errors
             max_transient_failures: Invalidation threshold for transient errors
+            max_entries: Maximum entries before LRU eviction (default 50,000)
+            ttl_days: Days after which entries can be evicted (default 90)
         """
         self._path = cache_path
         self._lock = asyncio.Lock()
@@ -135,6 +147,8 @@ class RegionCache:
         self._loaded = False
         self._max_404_failures = max_404_failures
         self._max_transient_failures = max_transient_failures
+        self._max_entries = max_entries
+        self._ttl_days = ttl_days
 
     async def load(self) -> None:
         """Load cache from disk.
@@ -179,7 +193,7 @@ class RegionCache:
     async def get(self, asin: str) -> str | None:
         """Get cached region for ASIN.
 
-        Increments hit counter on cache hit.
+        Increments hit counter and updates last_accessed_at on cache hit.
 
         Args:
             asin: ASIN to look up
@@ -193,8 +207,9 @@ class RegionCache:
         entry = self._data.get(asin_upper)
 
         if entry:
-            # Increment hit counter (write happens on next set/record_failure)
+            # Update access tracking (for LRU eviction)
             entry.hits += 1
+            entry.last_accessed_at = datetime.now(UTC).isoformat()
             logger.debug("Region cache hit: %s → %s (hits: %d)", asin, entry.region, entry.hits)
             return entry.region
 
@@ -205,6 +220,7 @@ class RegionCache:
         """Store or update ASIN → region mapping.
 
         Resets failure tracking on successful set.
+        Triggers LRU eviction if cache exceeds max_entries.
 
         Args:
             asin: ASIN to cache
@@ -218,10 +234,11 @@ class RegionCache:
             existing = self._data.get(asin_upper)
 
             if existing and existing.region == region:
-                # Same region, just reset failure tracking
+                # Same region, just reset failure tracking and update access time
                 existing.fail_count = 0
                 existing.last_failed_at = None
                 existing.last_failure_type = None
+                existing.last_accessed_at = datetime.now(UTC).isoformat()
                 logger.debug("Region cache refreshed: %s → %s", asin, region)
             else:
                 # New entry or region changed
@@ -235,6 +252,9 @@ class RegionCache:
                     )
                 else:
                     logger.debug("Region cache set: %s → %s", asin, region)
+
+            # Evict if over limit
+            await self._maybe_evict()
 
             await self._atomic_write()
 
@@ -398,6 +418,51 @@ class RegionCache:
             if tmp_path.exists():
                 tmp_path.unlink()
             raise
+
+    async def _maybe_evict(self) -> None:
+        """Evict entries if cache exceeds max_entries.
+
+        Uses LRU strategy based on last_accessed_at.
+        Also evicts entries older than TTL first.
+        Must be called while holding self._lock.
+        """
+        if len(self._data) <= self._max_entries:
+            return
+
+        # Calculate how many to evict (evict 10% to avoid frequent evictions)
+        num_to_evict = max(1, len(self._data) - self._max_entries + int(self._max_entries * 0.1))
+
+        # Build list with (asin, last_accessed_at, is_stale) for sorting
+        now = datetime.now(UTC)
+
+        entries_with_age: list[tuple[str, str, bool]] = []
+        for asin, entry in self._data.items():
+            # Check if entry is stale (older than TTL)
+            try:
+                discovered = datetime.fromisoformat(entry.discovered_at.replace("Z", "+00:00"))
+                is_stale = (now - discovered).days > self._ttl_days
+            except (ValueError, AttributeError):
+                is_stale = True  # Can't parse = treat as stale
+
+            entries_with_age.append((asin, entry.last_accessed_at, is_stale))
+
+        # Sort: stale entries first, then by last_accessed_at (oldest first)
+        entries_with_age.sort(key=lambda x: (not x[2], x[1]))
+
+        # Evict the oldest/stalest entries
+        evicted = 0
+        for asin, _last_accessed, _is_stale in entries_with_age[:num_to_evict]:
+            del self._data[asin]
+            evicted += 1
+
+        if evicted > 0:
+            logger.info(
+                "Region cache evicted %d entries (size: %d → %d, max: %d)",
+                evicted,
+                evicted + len(self._data),
+                len(self._data),
+                self._max_entries,
+            )
 
     def __len__(self) -> int:
         """Return number of cached entries."""

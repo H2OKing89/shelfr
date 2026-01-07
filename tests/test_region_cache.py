@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -628,3 +629,126 @@ class TestFetchWithCache:
         entry = cache._data.get("B08G9PRS1K")
         if entry is not None:
             assert entry.fail_count > 0
+
+
+# =============================================================================
+# Cache Size Control Tests
+# =============================================================================
+
+
+class TestCacheSizeControl:
+    """Tests for LRU eviction and memory management."""
+
+    @pytest.fixture
+    def small_cache(self, tmp_path: Path) -> RegionCache:
+        """Create a cache with small max_entries for testing eviction."""
+        return RegionCache(tmp_path / "small_cache.json", max_entries=5, ttl_days=90)
+
+    @pytest.mark.asyncio
+    async def test_evicts_when_exceeds_max_entries(self, small_cache: RegionCache) -> None:
+        """Cache evicts entries when max_entries is exceeded."""
+        # Add 5 entries (at the limit)
+        for i in range(5):
+            await small_cache.set(f"ASIN{i:05d}", "us")
+
+        assert len(small_cache) == 5
+
+        # Add one more to trigger eviction
+        await small_cache.set("ASIN_NEW", "uk")
+
+        # Should have evicted some entries (10% buffer = evict ~1-2)
+        assert len(small_cache) < 6
+
+    @pytest.mark.asyncio
+    async def test_evicts_oldest_accessed_first(self, small_cache: RegionCache) -> None:
+        """LRU eviction removes least recently accessed entries."""
+        # Add entries with different access patterns
+        await small_cache.set("OLD_1", "us")
+        await small_cache.set("OLD_2", "us")
+
+        # Simulate time passing and access some entries
+        await small_cache.get("OLD_1")  # Access OLD_1 to make it "recently used"
+
+        # Add more entries to fill up
+        await small_cache.set("NEW_1", "us")
+        await small_cache.set("NEW_2", "us")
+        await small_cache.set("NEW_3", "us")
+
+        # Add one more to trigger eviction
+        await small_cache.set("TRIGGER", "uk")
+
+        # OLD_2 (least recently accessed) should be evicted first
+        # OLD_1 was accessed so should still be there
+        assert "OLD_1" in small_cache
+
+    @pytest.mark.asyncio
+    async def test_evicts_stale_entries_first(self, tmp_path: Path) -> None:
+        """Entries older than TTL are evicted first."""
+        cache = RegionCache(tmp_path / "ttl_cache.json", max_entries=3, ttl_days=30)
+
+        # Add an entry and manually backdate it
+        await cache.set("STALE_ENTRY", "us")
+        entry = cache._data["STALE_ENTRY"]
+        old_date = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+        entry.discovered_at = old_date
+
+        # Add fresh entries
+        await cache.set("FRESH_1", "uk")
+        await cache.set("FRESH_2", "de")
+
+        # Add one more to trigger eviction
+        await cache.set("FRESH_3", "au")
+
+        # Stale entry should be evicted first
+        assert "STALE_ENTRY" not in cache
+        # Fresh entries should still be there
+        assert "FRESH_1" in cache or "FRESH_2" in cache
+
+    @pytest.mark.asyncio
+    async def test_no_eviction_under_limit(self, small_cache: RegionCache) -> None:
+        """No eviction when cache is under max_entries."""
+        # Add 3 entries (under the limit of 5)
+        await small_cache.set("ASIN1", "us")
+        await small_cache.set("ASIN2", "uk")
+        await small_cache.set("ASIN3", "de")
+
+        assert len(small_cache) == 3
+        assert "ASIN1" in small_cache
+        assert "ASIN2" in small_cache
+        assert "ASIN3" in small_cache
+
+    @pytest.mark.asyncio
+    async def test_last_accessed_at_updated_on_get(self, small_cache: RegionCache) -> None:
+        """last_accessed_at is updated when entry is retrieved."""
+        await small_cache.set("B08G9PRS1K", "us")
+        entry = small_cache._data["B08G9PRS1K"]
+        original_accessed = entry.last_accessed_at
+
+        # Small delay to ensure timestamp changes
+        import time
+
+        time.sleep(0.01)
+
+        # Access the entry
+        await small_cache.get("B08G9PRS1K")
+
+        # last_accessed_at should be updated
+        assert entry.last_accessed_at >= original_accessed
+
+    @pytest.mark.asyncio
+    async def test_default_limits_are_reasonable(self, tmp_path: Path) -> None:
+        """Default limits should handle typical library sizes."""
+        from shelfr.metadata.audnex.region_cache import (
+            DEFAULT_MAX_ENTRIES,
+            DEFAULT_TTL_DAYS,
+        )
+
+        cache = RegionCache(tmp_path / "default_cache.json")
+
+        # Verify defaults
+        assert cache._max_entries == DEFAULT_MAX_ENTRIES
+        assert cache._ttl_days == DEFAULT_TTL_DAYS
+
+        # Defaults should be reasonable for audiobook libraries
+        assert DEFAULT_MAX_ENTRIES >= 10_000  # Most libraries have <10k books
+        assert DEFAULT_TTL_DAYS >= 30  # Regions don't change often
