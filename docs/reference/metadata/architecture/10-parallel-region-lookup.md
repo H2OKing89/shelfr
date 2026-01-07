@@ -1,8 +1,10 @@
 # Phase 10: Parallel Region Lookup & Source Provenance
 
-> **Status:** � In Progress (10.3 Complete) | **Priority:** High
+> **Status:** 🔄 In Progress | **Priority:** High
 >
-> **Progress:** Phase 10.3 (Source Provenance) implemented. Remaining: 10.1 (Staged Race), 10.2 (Region Cache), 10.4-10.7.
+> **Progress:** 10.1 (Async Client) ✅ | 10.2 (Region Cache) ✅ | 10.3 (Source Provenance) ✅ | 10.4 (Provider Lifecycle) ✅ | 10.5 (Templates) ✅
+>
+> **Next:** 10.6 (Concurrency) | **Remaining:** 10.7 (Observability)
 >
 > **Goal:** Replace sequential region fallback with parallel "race" semantics, cache winning region, and make source URLs truly platform-agnostic.
 

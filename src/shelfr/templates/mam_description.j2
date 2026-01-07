@@ -16,10 +16,18 @@
 • [b]Release Date:[/b] {{ release_date }}[br]
 • [b]Genre:[/b] {{ genres | join(', ') }}[br]
 • [b]Language:[/b] {{ language }}[br]
-{# Source URL: Currently Audible-only since shelfr's workflow is Libation→Audnex→MAM.
-   When non-ASIN providers are added (Phase 10+), make this conditional on source_provider. #}
+{# Source URL: Use source_url from provider if available, otherwise build from asin #}
+{% if source_url %}
+• [b]Source:[/b] [url={{ source_url }}]{{ source_url }}[/url][br]
+{% elif asin %}
 • [b]Source:[/b] [url=https://www.audible.com/pd/{{ asin }}]https://www.audible.com/pd/{{ asin }}[/url][br]
-• [b]Source ASIN:[/b] {{ asin }}[br][br]
+{% endif %}
+{% if asin %}
+• [b]Source ASIN:[/b] {{ asin }}[br]
+{% elif source_id and source_id_type %}
+• [b]Source ID ({{ source_id_type }}):[/b] {{ source_id }}[br]
+{% endif %}
+[br]
 [b][color=#3aa6ff]Audio / File[/color][/b][br][color=#3aa6ff]───────────────────────────────────────────────[/color][br]
 • [b]Container:[/b] {{ container }}[br]
 • [b]Codec:[/b] {{ codec }}[br]

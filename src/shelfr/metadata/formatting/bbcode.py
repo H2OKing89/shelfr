@@ -128,6 +128,10 @@ def render_bbcode_description(
     mediainfo_data: dict[str, Any] | None = None,
     asin: str | None = None,
     audnex_chapters: dict[str, Any] | None = None,
+    *,
+    source_url: str | None = None,
+    source_id: str | None = None,
+    source_id_type: str | None = None,
 ) -> str:
     """
     Render BBCode description from Audnex and MediaInfo data.
@@ -139,6 +143,9 @@ def render_bbcode_description(
         mediainfo_data: MediaInfo JSON (optional)
         asin: ASIN override (uses audnex_data.asin if not provided)
         audnex_chapters: Audnex chapters API response (preferred over mediainfo)
+        source_url: Direct URL to source (e.g., Audible product page)
+        source_id: Source identifier (e.g., ASIN, ISBN)
+        source_id_type: Type of source_id (e.g., "ASIN", "ISBN")
 
     Returns:
         Rendered BBCode description string
@@ -262,6 +269,9 @@ def render_bbcode_description(
         genres=genres or ["Audiobook"],
         language=language,
         asin=book_asin,
+        source_url=source_url,
+        source_id=source_id,
+        source_id_type=source_id_type,
         container=audio_info.get("container", "M4B"),
         codec=audio_info.get("codec", "AAC LC"),
         sample_rate=audio_info.get("sample_rate", "44.1 kHz"),
