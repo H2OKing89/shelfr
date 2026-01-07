@@ -135,12 +135,34 @@ class AudnexSchema(BaseModel):
     timeout_seconds: int = Field(default=30, ge=5, le=120)
     # Regions to try in order (first success wins)
     regions: list[str] = Field(default_factory=lambda: [DEFAULT_ASIN_REGION])
-    # Rate limiting: maximum requests per second (default 10.0)
-    rate_limit: float = Field(
+
+    # Rate limiting (Phase 10.6)
+    # Audnex API limit is ~100 req/min per IP; we use 90/min for headroom
+    rate_limit_per_minute: int = Field(
+        default=90,
+        ge=10,
+        le=100,
+        description="Maximum requests per minute to Audnex API (default 90, max 100)",
+    )
+    # Burst protection: prevent hitting fixed-window limits with request spikes
+    burst_limit: float = Field(
         default=10.0,
-        ge=0.1,
-        le=100.0,
-        description="Maximum requests per second to Audnex API",
+        ge=1.0,
+        le=30.0,
+        description="Maximum requests per burst period",
+    )
+    burst_period: float = Field(
+        default=5.0,
+        ge=1.0,
+        le=30.0,
+        description="Burst period in seconds",
+    )
+    # ASIN-level concurrency: max ASINs in flight simultaneously during batch ops
+    asin_concurrency: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Maximum concurrent ASIN lookups for batch operations",
     )
 
     @field_validator("base_url")

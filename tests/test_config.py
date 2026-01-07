@@ -113,6 +113,11 @@ class TestAudnexConfig:
         assert config.base_url == "https://api.audnex.us"
         assert config.timeout_seconds == 30
         assert config.regions == [DEFAULT_ASIN_REGION]
+        # Phase 10.6 concurrency defaults
+        assert config.rate_limit_per_minute == 90
+        assert config.burst_limit == 10.0
+        assert config.burst_period == 5.0
+        assert config.asin_concurrency == 5
 
     def test_valid_audnex_regions_constant(self) -> None:
         """Test that VALID_AUDNEX_REGIONS contains expected values."""

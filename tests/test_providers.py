@@ -346,7 +346,17 @@ def mock_audnex_settings():
         (),
         {
             "audnex": type(
-                "MockAudnex", (), {"base_url": "https://api.audnex.us", "timeout_seconds": 30}
+                "MockAudnex",
+                (),
+                {
+                    "base_url": "https://api.audnex.us",
+                    "timeout_seconds": 30,
+                    # Phase 10.6 concurrency settings
+                    "rate_limit_per_minute": 90,
+                    "burst_limit": 10.0,
+                    "burst_period": 5.0,
+                    "asin_concurrency": 5,
+                },
             )()
         },
     )()

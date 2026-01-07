@@ -129,30 +129,43 @@ class AudnexAsyncClient:
 
     def __init__(
         self,
-        rate_limit_per_min: int = 90,
-        burst_limit: float = 10.0,
-        burst_period: float = 5.0,
+        rate_limit_per_min: int | None = None,
+        burst_limit: float | None = None,
+        burst_period: float | None = None,
+        asin_concurrency: int | None = None,
     ):
         """Initialize Audnex async client.
 
         Args:
-            rate_limit_per_min: Maximum requests per minute (sustained rate)
-            burst_limit: Maximum requests in burst period
-            burst_period: Burst period in seconds
+            rate_limit_per_min: Maximum requests per minute (default from config)
+            burst_limit: Maximum requests in burst period (default from config)
+            burst_period: Burst period in seconds (default from config)
+            asin_concurrency: Max concurrent ASIN lookups for batch (default from config)
         """
         self._http_client: httpx.AsyncClient | None = None
 
+        # Get settings for defaults
+        settings = get_settings()
+        audnex_config = settings.audnex
+
+        # Use config values as defaults, allow override
+        _rate_limit = rate_limit_per_min or audnex_config.rate_limit_per_minute
+        _burst_limit = burst_limit or audnex_config.burst_limit
+        _burst_period = burst_period or audnex_config.burst_period
+        _asin_concurrency = asin_concurrency or audnex_config.asin_concurrency
+
         # Dual limiters: minute-scale (sustained) AND burst protection
         # This prevents both:
-        # - Sustained overuse (90/min)
-        # - Burst spikes that hit fixed-window limits (10 req / 5s)
-        self._minute_limiter = AsyncLimiter(rate_limit_per_min, 60.0)
-        self._burst_limiter = AsyncLimiter(burst_limit, burst_period)
+        # - Sustained overuse (90/min by default)
+        # - Burst spikes that hit fixed-window limits (10 req / 5s by default)
+        self._minute_limiter = AsyncLimiter(_rate_limit, 60.0)
+        self._burst_limiter = AsyncLimiter(_burst_limit, _burst_period)
 
-        # Get settings for base_url and timeout
-        settings = get_settings()
-        self._base_url = settings.audnex.base_url
-        self._default_timeout = settings.audnex.timeout_seconds
+        # ASIN-level semaphore for batch operations (Phase 10.6)
+        self._asin_semaphore = asyncio.Semaphore(_asin_concurrency)
+
+        self._base_url = audnex_config.base_url
+        self._default_timeout = audnex_config.timeout_seconds
 
     async def __aenter__(self) -> AudnexAsyncClient:
         """Create HTTP client on context entry."""
@@ -520,6 +533,63 @@ class AudnexAsyncClient:
         except Exception as e:
             logger.warning("Failed to fetch chapters for %s (region=%s): %s", asin, region, e)
             return None
+
+    async def fetch_batch(
+        self,
+        asins: list[str],
+        region_cache: RegionCache | None = None,
+        include_chapters: bool = False,
+    ) -> list[tuple[str, dict[str, Any] | None, str | None]]:
+        """Fetch metadata for multiple ASINs with proper concurrency control.
+
+        Uses ASIN-level semaphore to limit concurrent lookups, combined with
+        rate limiting to stay within API limits. This is the recommended
+        method for batch operations.
+
+        Args:
+            asins: List of ASINs to fetch
+            region_cache: Optional RegionCache for cached region hints
+            include_chapters: Whether to fetch chapters for each book
+
+        Returns:
+            List of (asin, metadata, region) tuples. Order matches input ASINs.
+            metadata/region will be None if lookup failed.
+        """
+        from .region_cache import (
+            FailureType,
+            get_default_region_cache,
+        )
+
+        # Use explicit None check - RegionCache is falsy when empty due to __len__
+        cache = region_cache if region_cache is not None else get_default_region_cache()
+
+        async def _fetch_one(asin: str) -> tuple[str, dict[str, Any] | None, str | None]:
+            """Fetch single ASIN with semaphore protection."""
+            async with self._asin_semaphore:
+                # Check region cache
+                cached_region = await cache.get(asin)
+
+                # Fetch book
+                data, region = await self.fetch_book_parallel(asin, cached_region)
+
+                # Update cache
+                if region:
+                    await cache.set(asin, region)
+
+                    # Fetch chapters if requested
+                    if include_chapters and data:
+                        chapters = await self.fetch_chapters(asin, region)
+                        if chapters:
+                            data["chapters"] = chapters
+                elif cached_region:
+                    # Failed with cached region - record transient failure
+                    await cache.record_failure(asin, FailureType.TRANSIENT)
+
+                return asin, data, region
+
+        # Process all ASINs concurrently (semaphore + rate limiter control throughput)
+        results = await asyncio.gather(*[_fetch_one(asin) for asin in asins])
+        return list(results)
 
 
 # =============================================================================

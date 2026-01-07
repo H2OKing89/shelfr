@@ -136,10 +136,20 @@ audnex:
     - us
     # - uk  # Uncomment to add UK as fallback
 
-  # Rate limiting: maximum requests per second to Audnex API
-  # Default 10 req/sec is conservative for good API citizenship.
-  # Increase only if you have many concurrent operations.
-  rate_limit: 10.0
+  # Rate limiting (Phase 10.6)
+  # Audnex API limit is ~100 req/min per IP; we use 90/min for headroom.
+  # Lower this if you're experiencing 429 errors.
+  rate_limit_per_minute: 90
+
+  # Burst protection: prevent hitting fixed-window limits with request spikes.
+  # Default: max 10 requests per 5 seconds = 2 req/sec burst cap.
+  burst_limit: 10.0
+  burst_period: 5.0
+
+  # ASIN-level concurrency: max ASINs in flight simultaneously during batch ops.
+  # Each ASIN can make 1-10 requests (depending on cache + region race),
+  # so asin_concurrency=5 with 3 regions in stage 1 = ~15 concurrent requests max.
+  asin_concurrency: 5
 
 
 # ─────────────────────────────────────────────────────────────────────────────
