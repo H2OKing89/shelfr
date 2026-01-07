@@ -229,52 +229,47 @@ class TestAudnexSchema:
         schema = AudnexSchema(asin_concurrency=10)
         assert schema.asin_concurrency == 10
 
-    def test_legacy_rate_limit_migration(self) -> None:
+    def test_legacy_rate_limit_migration(self, caplog) -> None:
         """Test legacy rate_limit is migrated to rate_limit_per_minute."""
-        import warnings
+        import logging
 
         # Legacy rate_limit of 1.5/sec should become 90/min
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING):
             schema = AudnexSchema.model_validate({"rate_limit": 1.5})
 
             # Should have migrated the value
             assert schema.rate_limit_per_minute == 90
 
-            # Should have warned about migration
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "legacy" in str(w[0].message).lower()
-            assert "rate_limit_per_minute" in str(w[0].message)
+            # Should have logged warning about migration
+            assert len(caplog.records) == 1
+            assert "legacy" in caplog.records[0].message.lower()
+            assert "rate_limit_per_minute" in caplog.records[0].message
 
-    def test_legacy_rate_limit_ignored_when_new_present(self) -> None:
+    def test_legacy_rate_limit_ignored_when_new_present(self, caplog) -> None:
         """Test legacy rate_limit is ignored when rate_limit_per_minute is present."""
-        import warnings
+        import logging
 
         # Both present - new one wins
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING):
             schema = AudnexSchema.model_validate({"rate_limit": 2.0, "rate_limit_per_minute": 60})
 
             # Should use the new value, not the legacy
             assert schema.rate_limit_per_minute == 60
 
-            # Should have warned about conflict
-            assert len(w) == 1
-            assert issubclass(w[0].category, UserWarning)
-            assert "both" in str(w[0].message).lower()
+            # Should have logged warning about conflict
+            assert len(caplog.records) == 1
+            assert "both" in caplog.records[0].message.lower()
 
-    def test_no_migration_when_only_new_field(self) -> None:
+    def test_no_migration_when_only_new_field(self, caplog) -> None:
         """Test no migration occurs when only rate_limit_per_minute is present."""
-        import warnings
+        import logging
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING):
             schema = AudnexSchema.model_validate({"rate_limit_per_minute": 80})
 
             assert schema.rate_limit_per_minute == 80
-            # Should not have any warnings
-            assert len(w) == 0
+            # Should not have any log messages
+            assert len(caplog.records) == 0
 
 
 class TestFiltersSchema:

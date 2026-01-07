@@ -6,10 +6,13 @@ This validates the YAML structure at load time before converting to dataclasses.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 class EnvironmentSchema(BaseModel):
@@ -198,29 +201,27 @@ class AudnexSchema(BaseModel):
         # Check if legacy rate_limit is present
         legacy_rate_limit = data.get("rate_limit")
         if legacy_rate_limit is not None:
-            import warnings
-
             # Only migrate if rate_limit_per_minute is NOT already set
             if "rate_limit_per_minute" not in data:
                 # Convert per-second to per-minute
                 migrated_value = int(legacy_rate_limit * 60)
                 data["rate_limit_per_minute"] = migrated_value
-                warnings.warn(
-                    f"Config uses legacy 'audnex.rate_limit' ({legacy_rate_limit}/sec). "
-                    f"Migrated to 'rate_limit_per_minute' ({migrated_value}/min). "
+                logger.warning(
+                    "Config uses legacy 'audnex.rate_limit' (%s/sec). "
+                    "Migrated to 'rate_limit_per_minute' (%s/min). "
                     "Please update your config.yaml to use 'rate_limit_per_minute' instead.",
-                    DeprecationWarning,
-                    stacklevel=2,
+                    legacy_rate_limit,
+                    migrated_value,
                 )
             else:
                 # Both present - warn that legacy key is ignored
-                warnings.warn(
-                    f"Config has both 'audnex.rate_limit' ({legacy_rate_limit}/sec) and "
-                    f"'rate_limit_per_minute' ({data['rate_limit_per_minute']}/min). "
+                logger.warning(
+                    "Config has both 'audnex.rate_limit' (%s/sec) and "
+                    "'rate_limit_per_minute' (%s/min). "
                     "Using 'rate_limit_per_minute' (legacy key ignored). "
                     "Please remove 'rate_limit' from your config.yaml.",
-                    UserWarning,
-                    stacklevel=2,
+                    legacy_rate_limit,
+                    data["rate_limit_per_minute"],
                 )
 
             # Remove legacy key from data to avoid Pydantic extra field warnings
