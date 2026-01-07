@@ -643,6 +643,110 @@ class TestAudnexProvider:
         assert "content_flags" in result.fields
         assert "lgbt" in result.fields["content_flags"]
 
+    # =========================================================================
+    # Source Provenance Tests (Phase 10.3)
+    # =========================================================================
+
+    @pytest.mark.asyncio
+    async def test_source_provenance_fields_populated(self) -> None:
+        """Test source provenance fields are populated from Audnex response."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        mock_response = {
+            "asin": "B08G9PRS1K",
+            "title": "The Way of Kings",
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        assert result.fields["retrieved_via"] == "audnex"
+        assert result.fields["source_platform"] == "Audible"
+        assert result.fields["source_id"] == "B08G9PRS1K"
+        assert result.fields["source_id_type"] == "asin"
+        assert result.fields["source_region"] == "us"
+        assert result.fields["source_url"] == "https://www.audible.com/pd/B08G9PRS1K"
+
+    @pytest.mark.asyncio
+    async def test_source_provenance_uk_region(self) -> None:
+        """Test source URL uses correct UK domain when region is UK."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        mock_response = {
+            "asin": "B08G9PRS1K",
+            "title": "UK Book",
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "uk")
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        assert result.fields["source_region"] == "uk"
+        assert result.fields["source_url"] == "https://www.audible.co.uk/pd/B08G9PRS1K"
+
+    @pytest.mark.asyncio
+    async def test_source_provenance_de_region(self) -> None:
+        """Test source URL uses correct German domain when region is DE."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        mock_response = {
+            "asin": "B08G9PRS1K",
+            "title": "German Book",
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "de")
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        assert result.fields["source_region"] == "de"
+        assert result.fields["source_url"] == "https://www.audible.de/pd/B08G9PRS1K"
+
+    @pytest.mark.asyncio
+    async def test_source_provenance_none_region_defaults_to_us(self) -> None:
+        """Test source URL defaults to US when region is None."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        mock_response = {
+            "asin": "B08G9PRS1K",
+            "title": "Unknown Region Book",
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, None)  # No region info
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        assert result.fields["source_region"] == "us"  # Defaults to US
+        assert result.fields["source_url"] == "https://www.audible.com/pd/B08G9PRS1K"
+
+    @pytest.mark.asyncio
+    async def test_source_provenance_not_set_without_asin(self) -> None:
+        """Test source provenance fields not set when ASIN missing from response."""
+        provider = AudnexProvider(cache=NoOpCache())
+        ctx = LookupContext.from_asin(asin="B08G9PRS1K")
+
+        # Response missing asin field (unusual but possible)
+        mock_response = {
+            "title": "No ASIN Book",
+        }
+
+        with patch("shelfr.metadata.providers.audnex.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (mock_response, "us")
+            result = await provider.fetch(ctx, "asin")
+
+        assert result.success is True
+        # Source provenance fields should not be set
+        assert "retrieved_via" not in result.fields
+        assert "source_url" not in result.fields
+
 
 # =============================================================================
 # MetadataAggregator Tests
