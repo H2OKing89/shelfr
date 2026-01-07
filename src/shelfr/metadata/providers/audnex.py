@@ -15,6 +15,8 @@ from typing import Any
 
 from aiolimiter import AsyncLimiter
 
+from shelfr.utils.audible_urls import build_audible_url
+
 from ..audnex.client import fetch_audnex_book
 from ..cache import CachedResult, MetadataCache, get_default_cache, make_cache_key
 from .base import ProviderKind
@@ -257,5 +259,19 @@ class AudnexProvider:
         # Runtime (Audnex provides minutes)
         if runtime_min := data.get("runtimeLengthMin"):
             result.set_field("duration_seconds", runtime_min * 60)
+
+        # Source provenance (Phase 10.3)
+        # Split "retrieval provider" (API) from "source platform" (storefront)
+        asin = data.get("asin")
+        if asin:
+            result.set_field("retrieved_via", "audnex")  # The API we used
+            result.set_field("source_platform", "Audible")  # What the data represents
+            result.set_field("source_id", asin)
+            result.set_field("source_id_type", "asin")
+
+            # Region-aware source URL
+            effective_region = region or "us"
+            result.set_field("source_region", effective_region)
+            result.set_field("source_url", build_audible_url(asin, effective_region))
 
         return result

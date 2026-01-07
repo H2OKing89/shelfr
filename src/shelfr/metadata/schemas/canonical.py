@@ -19,7 +19,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+
+# Supported Audible/Audnex regions
+AudibleRegion = Literal["au", "ca", "de", "es", "fr", "in", "it", "jp", "us", "uk"]
 
 # Supported content classification flags
 # Designed to be platform-agnostic but starts with MAM vocabulary
@@ -144,7 +147,34 @@ class CanonicalMetadata(BaseModel):
     release_date: str | datetime | None = Field(default=None, alias="releaseDate")
     copyright: int | None = None
     language: str = "english"
-    region: Literal["au", "ca", "de", "es", "fr", "in", "it", "jp", "us", "uk"] = "us"
+    region: AudibleRegion = "us"
+
+    # Source provenance (Phase 10)
+    # Split "retrieval provider" (API) from "source platform" (storefront)
+    retrieved_via: str | None = Field(
+        default=None,
+        description="API/provider that supplied this metadata (e.g., 'audnex', 'hardcover')",
+    )
+    source_platform: str | None = Field(
+        default=None,
+        description="Platform the metadata represents (e.g., 'Audible', 'Hardcover')",
+    )
+    source_region: AudibleRegion | None = Field(
+        default=None,
+        description="Region where source ID was resolved (for region-locked IDs like ASINs)",
+    )
+    source_id: str | None = Field(
+        default=None,
+        description="Primary identifier from source (ASIN, ISBN, etc.)",
+    )
+    source_id_type: Literal["asin", "isbn", "hardcover_id"] | None = Field(
+        default=None,
+        description="Type of source_id",
+    )
+    source_url: str | None = Field(
+        default=None,
+        description="Canonical URL to source storefront (pre-built from platform + region + id)",
+    )
 
     # Runtime
     runtime_length_min: int | None = Field(default=None, alias="runtimeLengthMin")
@@ -167,6 +197,17 @@ class CanonicalMetadata(BaseModel):
         if "sSex" in flags and "eSex" in flags:
             raise ValueError("Cannot have both sSex and eSex flags - they are mutually exclusive")
         return flags
+
+    @model_validator(mode="after")
+    def validate_source_provenance(self) -> CanonicalMetadata:
+        """Ensure source_url is only set when source_id is present.
+
+        It doesn't make sense to have a URL without knowing what ID it points to.
+        This catches configuration errors early.
+        """
+        if self.source_url and not self.source_id:
+            raise ValueError("source_url requires source_id to be set")
+        return self
 
     @field_validator(
         "description",

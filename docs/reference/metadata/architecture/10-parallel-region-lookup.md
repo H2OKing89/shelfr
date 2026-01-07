@@ -1,8 +1,8 @@
 # Phase 10: Parallel Region Lookup & Source Provenance
 
-> **Status:** 📋 Planning | **Priority:** High
+> **Status:** � In Progress (10.3 Complete) | **Priority:** High
 >
-> ⚠️ **Note:** Phase 10 is planned future work. Phase 9 deliverable is content flags (see [07-content-flags.md](07-content-flags.md)). This document is included for roadmap context and architectural continuity.
+> **Progress:** Phase 10.3 (Source Provenance) implemented. Remaining: 10.1 (Staged Race), 10.2 (Region Cache), 10.4-10.7.
 >
 > **Goal:** Replace sequential region fallback with parallel "race" semantics, cache winning region, and make source URLs truly platform-agnostic.
 
@@ -523,11 +523,11 @@ def build_audible_url(asin: str, region: str = "us") -> str:
 
 #### Tasks
 
-- [ ] Add source provenance fields to `CanonicalMetadata`
-- [ ] Create `utils/audible_urls.py` with `build_audible_url()`
-- [ ] Update `AudnexProvider._map_to_result()` to populate source fields
-- [ ] Add validation that `source_url` is only set when `source_id` is set
-- [ ] Tests for URL building across all regions
+- [x] Add source provenance fields to `CanonicalMetadata`
+- [x] Create `utils/audible_urls.py` with `build_audible_url()`
+- [x] Update `AudnexProvider._map_to_result()` to populate source fields
+- [x] Add validation that `source_url` is only set when `source_id` is set
+- [x] Tests for URL building across all regions (19 tests in `test_audible_urls.py`)
 
 ---
 
