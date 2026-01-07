@@ -344,6 +344,7 @@ class TestRaceRegions:
             assert region is None
             assert "us" in definitive_404s
             assert "uk" in definitive_404s
+            assert len(definitive_404s) == 2
 
 
 class TestStagedRace:
@@ -437,6 +438,7 @@ class TestStagedRace:
 
             # Should succeed from Stage 2
             assert data is not None
+            assert region not in STAGE_1_REGIONS
 
 
 class TestFetchBookParallel:
@@ -501,6 +503,9 @@ class TestFetchChapters:
             mock_http.get.assert_called_once()
             call_url = mock_http.get.call_args[0][0]
             assert "chapters" in call_url
+            # Verify region parameter is in the request params
+            call_params = mock_http.get.call_args[1].get("params", {})
+            assert call_params.get("region") == "uk"
 
 
 class TestConvenienceFunction:
@@ -524,6 +529,7 @@ class TestConvenienceFunction:
 
             assert data is not None
             assert isinstance(data, dict)
+            assert region in ALL_REGIONS
 
 
 class TestValidation:
@@ -546,6 +552,34 @@ class TestValidation:
             # Should not raise
             result = await client._fetch_book_region("B08G9PRS1K", "us")
             assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_invalid_response_logs_warning(self, caplog) -> None:
+        """Invalid response logs validation warning but still returns data."""
+        import logging
+
+        client = AudnexAsyncClient()
+
+        # Missing required fields like 'title', 'authors'
+        invalid_response = {"asin": "B08G9PRS1K", "region": "us"}
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = invalid_response
+
+        with (
+            patch.object(client, "_http_client") as mock_http,
+            caplog.at_level(logging.WARNING),
+        ):
+            mock_http.get = AsyncMock(return_value=mock_response)
+
+            # Should still return data despite validation warning
+            result = await client._fetch_book_region("B08G9PRS1K", "us")
+            assert result is not None
+            assert result == invalid_response
+
+            # Verify validation warning was logged
+            assert any("validation" in record.message.lower() for record in caplog.records)
 
 
 class TestRateLimiting:
