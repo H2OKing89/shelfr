@@ -209,6 +209,36 @@ class TestFetchChaptersRegion:
             assert result["asin"] == "B08G9PRS1K"
             assert len(result["chapters"]) == 2
 
+    @pytest.mark.asyncio
+    async def test_404_returns_none(self) -> None:
+        """Returns None for 404 responses."""
+        client = AudnexAsyncClient()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        with patch.object(client, "_http_client") as mock_http:
+            mock_http.get = AsyncMock(return_value=mock_response)
+
+            result = await client._fetch_chapters_region("INVALID123", "us")
+
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_500_returns_none(self) -> None:
+        """Returns None for 500 responses (treated as not found)."""
+        client = AudnexAsyncClient()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+
+        with patch.object(client, "_http_client") as mock_http:
+            mock_http.get = AsyncMock(return_value=mock_response)
+
+            result = await client._fetch_chapters_region("B08G9PRS1K", "us")
+
+            assert result is None
+
 
 class TestProbeRegion:
     """Test _probe_region helper method."""
