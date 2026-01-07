@@ -358,9 +358,12 @@ def resolve_content_flags(release: AudiobookRelease) -> FlagResult:
 - [x] Update `AudnexProvider` to map `isAdult` \u2192 `sSex` (not `eSex`)
 - [x] Update MAM JSON builder to use `content_flags`
 
-**Design documented (ready for Phase 9.2 implementation):**
+**Mapping configuration (✅ Shipped in PR #84):**
 
-- [ ] Create `config/content_flags.json` mapping file
+- [x] Create `config/content_flags.json` mapping file
+
+**Remaining Phase 9.2 work:**
+
 - [ ] Implement `FlagResolver` class
 
 ### Phase 9.2: LocalFlagsProvider
