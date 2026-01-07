@@ -380,22 +380,23 @@ class RegionCache:
         """
         await self.load()
 
-        region_counts: dict[str, int] = {}
-        total_hits = 0
-        entries_with_failures = 0
+        async with self._lock:
+            region_counts: dict[str, int] = {}
+            total_hits = 0
+            entries_with_failures = 0
 
-        for entry in self._data.values():
-            region_counts[entry.region] = region_counts.get(entry.region, 0) + 1
-            total_hits += entry.hits
-            if entry.fail_count > 0:
-                entries_with_failures += 1
+            for entry in self._data.values():
+                region_counts[entry.region] = region_counts.get(entry.region, 0) + 1
+                total_hits += entry.hits
+                if entry.fail_count > 0:
+                    entries_with_failures += 1
 
-        return {
-            "total_entries": len(self._data),
-            "region_distribution": region_counts,
-            "total_hits": total_hits,
-            "entries_with_failures": entries_with_failures,
-        }
+            return {
+                "total_entries": len(self._data),
+                "region_distribution": region_counts,
+                "total_hits": total_hits,
+                "entries_with_failures": entries_with_failures,
+            }
 
     async def _atomic_write(self) -> None:
         """Write cache to disk atomically.
@@ -467,12 +468,30 @@ class RegionCache:
                 self._max_entries,
             )
 
+    async def size(self) -> int:
+        """Return number of cached entries (async, thread-safe).
+
+        Use this for production code that needs consistent size under
+        concurrent access. Use __len__ only in sync testing contexts.
+        """
+        await self.load()
+        async with self._lock:
+            return len(self._data)
+
     def __len__(self) -> int:
-        """Return number of cached entries."""
+        """Return number of cached entries (sync, for testing).
+
+        Warning: Not thread-safe under concurrent modifications.
+        For production async code, use `await cache.size()` instead.
+        """
         return len(self._data)
 
     def __contains__(self, asin: str) -> bool:
-        """Check if ASIN is in cache (sync, for testing)."""
+        """Check if ASIN is in cache (sync, for testing).
+
+        Warning: Not thread-safe under concurrent modifications.
+        For production async code, use `await cache.get(asin) is not None`.
+        """
         return asin.upper() in self._data
 
 
