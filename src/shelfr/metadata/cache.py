@@ -43,7 +43,9 @@ logger = logging.getLogger(__name__)
 
 # Schema version for cache invalidation
 # Increment when CanonicalMetadata or ProviderResult structure changes
-SCHEMA_VERSION = "1.0.0"
+# 1.0.0 - Initial schema
+# 1.1.0 - Added source provenance fields (Phase 10.3)
+SCHEMA_VERSION = "1.1.0"
 
 
 class CacheUnavailableError(Exception):

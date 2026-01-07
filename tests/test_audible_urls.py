@@ -6,6 +6,8 @@ Phase 10.3: Source provenance URL generation.
 
 from __future__ import annotations
 
+import pytest
+
 from shelfr.utils.audible_urls import (
     AUDIBLE_DOMAINS,
     build_audible_url,
@@ -81,6 +83,26 @@ class TestBuildAudibleUrl:
         url = build_audible_url("B08G9PRS1K", "")
         assert url == "https://www.audible.com/pd/B08G9PRS1K"
 
+    def test_invalid_asin_raises_error(self) -> None:
+        """Test invalid ASIN raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid ASIN format"):
+            build_audible_url("invalid")
+
+    def test_empty_asin_raises_error(self) -> None:
+        """Test empty ASIN raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid ASIN format"):
+            build_audible_url("")
+
+    def test_asin_too_short_raises_error(self) -> None:
+        """Test ASIN that's too short raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid ASIN format"):
+            build_audible_url("B123")
+
+    def test_asin_wrong_format_raises_error(self) -> None:
+        """Test ASIN without B prefix raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid ASIN format"):
+            build_audible_url("1234567890")
+
 
 class TestGetAudibleDomain:
     """Tests for get_audible_domain function."""
@@ -98,6 +120,11 @@ class TestGetAudibleDomain:
     def test_unknown_region_falls_back(self) -> None:
         """Test unknown region falls back to US."""
         domain = get_audible_domain("zz")
+        assert domain == "www.audible.com"
+
+    def test_empty_region_uses_default(self) -> None:
+        """Test empty region string uses default (US)."""
+        domain = get_audible_domain("")
         assert domain == "www.audible.com"
 
 
@@ -125,6 +152,10 @@ class TestIsValidAudibleRegion:
     def test_empty_string(self) -> None:
         """Test empty string is invalid."""
         assert is_valid_audible_region("") is False
+
+    def test_none_is_invalid(self) -> None:
+        """Test None is invalid."""
+        assert is_valid_audible_region(None) is False
 
 
 class TestAudibleDomainsConstant:

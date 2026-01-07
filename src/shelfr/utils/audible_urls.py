@@ -7,6 +7,8 @@ based on the region where an ASIN was resolved.
 
 from __future__ import annotations
 
+from shelfr.utils.validation import is_valid_asin
+
 # Audible domains by region code
 # These match the regions supported by the Audnex API
 AUDIBLE_DOMAINS: dict[str, str] = {
@@ -36,6 +38,9 @@ def build_audible_url(asin: str, region: str = DEFAULT_REGION) -> str:
     Returns:
         Full Audible URL (e.g., "https://www.audible.co.uk/pd/B08G9PRS1K")
 
+    Raises:
+        ValueError: If ASIN format is invalid.
+
     Examples:
         >>> build_audible_url("B08G9PRS1K")
         'https://www.audible.com/pd/B08G9PRS1K'
@@ -46,6 +51,12 @@ def build_audible_url(asin: str, region: str = DEFAULT_REGION) -> str:
         >>> build_audible_url("B08G9PRS1K", "de")
         'https://www.audible.de/pd/B08G9PRS1K'
     """
+    # Validate ASIN format
+    if not is_valid_asin(asin):
+        raise ValueError(
+            f"Invalid ASIN format: '{asin}'. Expected format: B followed by 9 alphanumeric chars."
+        )
+
     # Normalize region to lowercase
     region_lower = region.lower() if region else DEFAULT_REGION
 
@@ -68,11 +79,11 @@ def get_audible_domain(region: str = DEFAULT_REGION) -> str:
     return AUDIBLE_DOMAINS.get(region_lower, AUDIBLE_DOMAINS[DEFAULT_REGION])
 
 
-def is_valid_audible_region(region: str) -> bool:
+def is_valid_audible_region(region: str | None) -> bool:
     """Check if a region code is valid for Audible.
 
     Args:
-        region: Region code to validate
+        region: Region code to validate (None returns False)
 
     Returns:
         True if region is supported by Audible/Audnex

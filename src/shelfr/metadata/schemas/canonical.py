@@ -21,6 +21,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
+# Supported Audible/Audnex regions
+AudibleRegion = Literal["au", "ca", "de", "es", "fr", "in", "it", "jp", "us", "uk"]
+
 # Supported content classification flags
 # Designed to be platform-agnostic but starts with MAM vocabulary
 ContentFlag = Literal["cLang", "vio", "sSex", "eSex", "abridged", "lgbt"]
@@ -144,7 +147,7 @@ class CanonicalMetadata(BaseModel):
     release_date: str | datetime | None = Field(default=None, alias="releaseDate")
     copyright: int | None = None
     language: str = "english"
-    region: Literal["au", "ca", "de", "es", "fr", "in", "it", "jp", "us", "uk"] = "us"
+    region: AudibleRegion = "us"
 
     # Source provenance (Phase 10)
     # Split "retrieval provider" (API) from "source platform" (storefront)
@@ -156,11 +159,9 @@ class CanonicalMetadata(BaseModel):
         default=None,
         description="Platform the metadata represents (e.g., 'Audible', 'Hardcover')",
     )
-    source_region: Literal["au", "ca", "de", "es", "fr", "in", "it", "jp", "us", "uk"] | None = (
-        Field(
-            default=None,
-            description="Region where source ID was resolved (for region-locked IDs like ASINs)",
-        )
+    source_region: AudibleRegion | None = Field(
+        default=None,
+        description="Region where source ID was resolved (for region-locked IDs like ASINs)",
     )
     source_id: str | None = Field(
         default=None,
