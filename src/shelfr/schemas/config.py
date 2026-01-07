@@ -184,6 +184,50 @@ class AudnexSchema(BaseModel):
                 raise _invalid_region_error(r)
         return [r.lower() for r in v]  # Normalize to lowercase
 
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_rate_limit(cls, data: Any) -> Any:
+        """Migrate legacy rate_limit (per-second) to rate_limit_per_minute.
+
+        Older configs may have audnex.rate_limit which was a per-second limit.
+        Convert it to rate_limit_per_minute (multiply by 60) and warn the user.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        # Check if legacy rate_limit is present
+        legacy_rate_limit = data.get("rate_limit")
+        if legacy_rate_limit is not None:
+            import warnings
+
+            # Only migrate if rate_limit_per_minute is NOT already set
+            if "rate_limit_per_minute" not in data:
+                # Convert per-second to per-minute
+                migrated_value = int(legacy_rate_limit * 60)
+                data["rate_limit_per_minute"] = migrated_value
+                warnings.warn(
+                    f"Config uses legacy 'audnex.rate_limit' ({legacy_rate_limit}/sec). "
+                    f"Migrated to 'rate_limit_per_minute' ({migrated_value}/min). "
+                    "Please update your config.yaml to use 'rate_limit_per_minute' instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+            else:
+                # Both present - warn that legacy key is ignored
+                warnings.warn(
+                    f"Config has both 'audnex.rate_limit' ({legacy_rate_limit}/sec) and "
+                    f"'rate_limit_per_minute' ({data['rate_limit_per_minute']}/min). "
+                    "Using 'rate_limit_per_minute' (legacy key ignored). "
+                    "Please remove 'rate_limit' from your config.yaml.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+            # Remove legacy key from data to avoid Pydantic extra field warnings
+            data.pop("rate_limit", None)
+
+        return data
+
 
 class MediaInfoSchema(BaseModel):
     """MediaInfo settings."""
