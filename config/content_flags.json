@@ -52,7 +52,7 @@
       "Rape",
       "Sexual assault",
       "Sexual violence",
-      "sexual harassment",
+      "Sexual harassment",
       "Adult/minor relationship"
     ],
     "lgbt": [
@@ -98,14 +98,14 @@
       "Emotional abuse",
       "Toxic friendship",
       "Toxic relationship",
-      "misogyny",
+      "Misogyny",
       "Xenophobia",
       "Racism",
       "Ableism",
       "Classism",
       "Colonisation",
       "Hate crime",
-      "bullying",
+      "Bullying",
       "Stalking"
     ],
     "medical_not_content_flags": [
@@ -114,9 +114,9 @@
       "Cancer",
       "Infertility",
       "Abortion",
-      "miscarriage",
-      "suicidal thoughts",
-      "suicide"
+      "Miscarriage",
+      "Suicidal thoughts",
+      "Suicide"
     ],
     "substance_not_content_flags": [
       "Drug use",
