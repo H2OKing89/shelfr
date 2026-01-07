@@ -7,10 +7,13 @@ with region fallback support.
 Public API:
     fetch_audnex_book: Fetch book metadata by ASIN (sync, sequential regions)
     fetch_audnex_book_parallel: Fetch book metadata by ASIN (async, parallel regions)
+    fetch_audnex_book_with_cache: Fetch with automatic region caching (recommended)
     fetch_audnex_author: Fetch author metadata by ASIN
     fetch_audnex_chapters: Fetch chapter data by ASIN
     save_audnex_json: Save Audnex response to JSON file
     AudnexAsyncClient: Async client for parallel region racing
+    RegionCache: ASIN → region cache for fast lookups
+    FailureType: Failure type enum for cache invalidation
 """
 
 from __future__ import annotations
@@ -21,6 +24,9 @@ from shelfr.metadata.audnex.async_client import (
 )
 from shelfr.metadata.audnex.async_client import (
     fetch_audnex_book_parallel as fetch_audnex_book_parallel,
+)
+from shelfr.metadata.audnex.async_client import (
+    fetch_audnex_book_with_cache as fetch_audnex_book_with_cache,
 )
 
 # Private helpers (exposed for testing and backward compatibility)
@@ -43,14 +49,34 @@ from shelfr.metadata.audnex.client import (
     save_audnex_json as save_audnex_json,
 )
 
+# Region cache (Phase 10.2)
+from shelfr.metadata.audnex.region_cache import (
+    FailureType as FailureType,
+)
+from shelfr.metadata.audnex.region_cache import (
+    RegionCache as RegionCache,
+)
+from shelfr.metadata.audnex.region_cache import (
+    RegionCacheEntry as RegionCacheEntry,
+)
+from shelfr.metadata.audnex.region_cache import (
+    get_default_region_cache as get_default_region_cache,
+)
+
 __all__ = [
     # Public API
     "AudnexAsyncClient",
     "fetch_audnex_author",
     "fetch_audnex_book",
     "fetch_audnex_book_parallel",
+    "fetch_audnex_book_with_cache",
     "fetch_audnex_chapters",
     "save_audnex_json",
+    # Region cache (Phase 10.2)
+    "RegionCache",
+    "RegionCacheEntry",
+    "FailureType",
+    "get_default_region_cache",
     # Private (for testing/backward compat)
     "_fetch_audnex_book_region",
     "_fetch_audnex_chapters_region",
