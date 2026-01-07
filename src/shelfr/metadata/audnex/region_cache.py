@@ -205,14 +205,16 @@ class RegionCache:
         await self.load()
 
         asin_upper = asin.upper()
-        entry = self._data.get(asin_upper)
 
-        if entry:
-            # Update access tracking (for LRU eviction)
-            entry.hits += 1
-            entry.last_accessed_at = datetime.now(UTC).isoformat()
-            logger.debug("Region cache hit: %s → %s (hits: %d)", asin, entry.region, entry.hits)
-            return entry.region
+        async with self._lock:
+            entry = self._data.get(asin_upper)
+
+            if entry:
+                # Update access tracking (for LRU eviction)
+                entry.hits += 1
+                entry.last_accessed_at = datetime.now(UTC).isoformat()
+                logger.debug("Region cache hit: %s → %s (hits: %d)", asin, entry.region, entry.hits)
+                return entry.region
 
         logger.debug("Region cache miss: %s", asin)
         return None
