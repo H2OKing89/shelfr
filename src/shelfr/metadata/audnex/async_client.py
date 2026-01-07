@@ -357,7 +357,7 @@ class AudnexAsyncClient:
         asin: str,
         regions: list[str],
         timeout: float,
-    ) -> tuple[tuple[dict[str, Any] | None, str | None], set[str]]:
+    ) -> tuple[tuple[dict[str, Any] | None, str | None], set[str], int]:
         """Race multiple regions, first valid response wins.
 
         Args:
@@ -369,12 +369,14 @@ class AudnexAsyncClient:
             Tuple of:
             - (data, winning_region) or (None, None)
             - Set of regions that definitively returned 404 (for Stage 2 exclusion)
+            - Number of requests completed before winner found
         """
         if not regions:
-            return (None, None), set()
+            return (None, None), set(), 0
 
         definitive_404s: set[str] = set()
         winner: tuple[dict[str, Any] | None, str | None] = (None, None)
+        requests_completed = 0
 
         # Create tasks for all regions
         tasks = [
@@ -385,6 +387,7 @@ class AudnexAsyncClient:
             for coro in asyncio.as_completed(tasks, timeout=timeout):
                 try:
                     region, data, err = await coro
+                    requests_completed += 1
                 except asyncio.CancelledError:
                     # Task was cancelled, skip it
                     continue
@@ -426,13 +429,13 @@ class AudnexAsyncClient:
         # Drain cancelled tasks cleanly
         await asyncio.gather(*tasks, return_exceptions=True)
 
-        return winner, definitive_404s
+        return winner, definitive_404s, requests_completed
 
     async def _staged_race(
         self,
         asin: str,
         cached_region: str | None = None,
-    ) -> tuple[dict[str, Any] | None, str | None]:
+    ) -> tuple[dict[str, Any] | None, str | None, int, int, float]:
         """Two-stage race: common regions first, then ALL regions if needed.
 
         If a cached region is provided, tries that first (single request).
@@ -442,25 +445,39 @@ class AudnexAsyncClient:
             cached_region: Optional cached region to try first
 
         Returns:
-            (data, winning_region) or (None, None)
+            Tuple of (data, winning_region, stage, requests, elapsed_seconds):
+            - stage: 0=cache hit, 1=stage1, 2=stage2
+            - requests: Total requests made
+            - elapsed_seconds: Total time taken
         """
+        import time
+
+        start_time = time.perf_counter()
+        total_requests = 0
+
         # Fast path: try cached region first
         if cached_region:
             logger.debug("Trying cached region %s for %s", cached_region, asin)
             region, data, err = await self._probe_region(asin, cached_region)
+            total_requests += 1
             if data and _is_valid_for_race(data, asin):
+                elapsed = time.perf_counter() - start_time
                 logger.debug("Cache hit: %s found in cached region %s", asin, region)
-                return data, region
+                return data, region, 0, total_requests, elapsed
             if err:
                 logger.debug("Cached region %s failed for %s: %s", cached_region, asin, err)
 
         # Stage 1: Race common regions
         logger.debug("Stage 1: Racing regions %s for %s", STAGE_1_REGIONS, asin)
-        winner, stage1_404s = await self._race_regions(asin, STAGE_1_REGIONS, STAGE_1_TIMEOUT)
+        winner, stage1_404s, stage1_requests = await self._race_regions(
+            asin, STAGE_1_REGIONS, STAGE_1_TIMEOUT
+        )
+        total_requests += stage1_requests
 
         if winner[0] is not None:
+            elapsed = time.perf_counter() - start_time
             _validate_and_log_quality(winner[0], asin)
-            return winner
+            return winner[0], winner[1], 1, total_requests, elapsed
 
         # Stage 2: Race ALL regions (not just remaining!)
         # If Stage 1 timed out (vs 404), the correct region might still be us/uk/de
@@ -473,12 +490,15 @@ class AudnexAsyncClient:
             stage1_404s,
         )
 
-        winner, _ = await self._race_regions(asin, stage2_regions, STAGE_2_TIMEOUT)
+        winner, _, stage2_requests = await self._race_regions(asin, stage2_regions, STAGE_2_TIMEOUT)
+        total_requests += stage2_requests
+        elapsed = time.perf_counter() - start_time
 
         if winner[0] is not None:
             _validate_and_log_quality(winner[0], asin)
+            return winner[0], winner[1], 2, total_requests, elapsed
 
-        return winner
+        return None, None, 2, total_requests, elapsed
 
     # -------------------------------------------------------------------------
     # Public API
@@ -500,7 +520,20 @@ class AudnexAsyncClient:
         Returns:
             (metadata, winning_region) or (None, None) if all fail
         """
-        return await self._staged_race(asin, cached_region)
+        data, region, stage, requests, elapsed = await self._staged_race(asin, cached_region)
+
+        # Structured observability logging (Phase 10.7)
+        # stage: 0=cache hit, 1=stage1, 2=stage2
+        logger.info(
+            "Audnex lookup for %s: source=%s stage=%d in %.2fs, requests=%d",
+            asin,
+            region or "none",
+            stage,
+            elapsed,
+            requests,
+        )
+
+        return data, region
 
     async def fetch_chapters(
         self,
@@ -555,6 +588,8 @@ class AudnexAsyncClient:
             List of (asin, metadata, region) tuples. Order matches input ASINs.
             metadata/region will be None if lookup failed.
         """
+        import time
+
         from .region_cache import (
             FailureType,
             get_default_region_cache,
@@ -562,6 +597,8 @@ class AudnexAsyncClient:
 
         # Use explicit None check - RegionCache is falsy when empty due to __len__
         cache = region_cache if region_cache is not None else get_default_region_cache()
+
+        batch_start = time.perf_counter()
 
         async def _fetch_one(asin: str) -> tuple[str, dict[str, Any] | None, str | None]:
             """Fetch single ASIN with semaphore protection."""
@@ -589,6 +626,18 @@ class AudnexAsyncClient:
 
         # Process all ASINs concurrently (semaphore + rate limiter control throughput)
         results = await asyncio.gather(*[_fetch_one(asin) for asin in asins])
+        batch_elapsed = time.perf_counter() - batch_start
+
+        # Batch-level observability logging (Phase 10.7)
+        success_count = sum(1 for _, data, _ in results if data is not None)
+        logger.info(
+            "Audnex batch complete: %d/%d succeeded in %.2fs (%.1f ASINs/sec)",
+            success_count,
+            len(asins),
+            batch_elapsed,
+            len(asins) / batch_elapsed if batch_elapsed > 0 else 0,
+        )
+
         return list(results)
 
 

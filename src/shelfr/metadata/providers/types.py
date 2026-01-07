@@ -168,6 +168,8 @@ class ProviderResult:
         cached: Whether result came from cache
         cache_age_seconds: Age of cached result if cached=True
         raw_data: Original API response for backward compatibility
+        elapsed_seconds: Time taken for the lookup (Phase 10.7 observability)
+        request_count: Number of API requests made (Phase 10.7 observability)
     """
 
     provider: str
@@ -178,6 +180,8 @@ class ProviderResult:
     cached: bool = False
     cache_age_seconds: int | None = None
     raw_data: dict[str, Any] = field(default_factory=dict)
+    elapsed_seconds: float | None = None
+    request_count: int | None = None
 
     def set_field(
         self,

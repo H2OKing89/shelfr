@@ -1,0 +1,131 @@
+"""Audnex commands (sub-app).
+
+Commands for Audnex API diagnostics and observability (Phase 10.7).
+
+Commands:
+    shelfr audnex region-stats - Show region cache statistics
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+
+import typer
+from rich.table import Table
+
+from shelfr.console import console
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Command Registration
+# =============================================================================
+
+
+def register_audnex_commands(audnex_app: typer.Typer) -> None:
+    """Register Audnex commands on the audnex sub-app."""
+
+    @audnex_app.callback(invoke_without_command=True)
+    def audnex_callback(ctx: typer.Context) -> None:
+        """Audnex API diagnostics and statistics.
+
+        [bold]Commands:[/]
+          shelfr audnex region-stats  Show region cache statistics
+
+        [dim]These tools help monitor the parallel region lookup system.[/]
+        """
+        if ctx.invoked_subcommand is None:
+            console.print(ctx.get_help())
+            raise typer.Exit(0)
+
+    @audnex_app.command("region-stats")
+    def region_stats_command() -> None:
+        """Show region cache statistics.
+
+        Displays statistics about the ASIN → region cache, including:
+        - Total cached entries
+        - Region distribution (count and percentage)
+        - Total cache hits
+        - Entries with pending failures
+
+        [bold]Example output:[/]
+          Region Distribution (1,234 entries):
+          ┌────────┬───────┬─────────┐
+          │ Region │ Count │ Percent │
+          ├────────┼───────┼─────────┤
+          │ us     │ 1,000 │ 81.0%   │
+          │ uk     │   180 │ 14.6%   │
+          │ de     │    54 │  4.4%   │
+          └────────┴───────┴─────────┘
+
+        [dim]Use this to verify cache effectiveness and debug region issues.[/]
+        """
+        result = asyncio.run(_region_stats_async())
+        raise typer.Exit(result)
+
+
+async def _region_stats_async() -> int:
+    """Async implementation of region-stats command."""
+    from shelfr.metadata.audnex.region_cache import get_default_region_cache
+
+    cache = get_default_region_cache()
+
+    try:
+        # Ensure cache is loaded
+        await cache.load()
+        stats = await cache.get_stats()
+    except Exception as e:
+        console.print(f"[red]Error reading region cache:[/] {e}")
+        return 1
+
+    total_entries = stats["total_entries"]
+    region_distribution = stats["region_distribution"]
+    total_hits = stats["total_hits"]
+    entries_with_failures = stats["entries_with_failures"]
+
+    if total_entries == 0:
+        console.print(
+            "[yellow]Region cache is empty.[/]\n"
+            "[dim]Cache is populated when ASINs are looked up via parallel fetch.[/]"
+        )
+        return 0
+
+    # Region distribution table
+    console.print(f"\n[bold cyan]Region Distribution[/] ({total_entries:,} entries):\n")
+
+    region_table = Table(show_header=True, header_style="bold")
+    region_table.add_column("Region", style="cyan")
+    region_table.add_column("Count", justify="right")
+    region_table.add_column("Percent", justify="right")
+
+    # Sort regions by count (descending)
+    sorted_regions = sorted(region_distribution.items(), key=lambda x: x[1], reverse=True)
+
+    for region, count in sorted_regions:
+        pct = (count / total_entries * 100) if total_entries > 0 else 0
+        region_table.add_row(region, f"{count:,}", f"{pct:.1f}%")
+
+    console.print(region_table)
+
+    # Cache performance table
+    console.print("\n[bold cyan]Cache Performance:[/]\n")
+
+    perf_table = Table(show_header=True, header_style="bold")
+    perf_table.add_column("Metric", style="cyan")
+    perf_table.add_column("Value", justify="right")
+
+    perf_table.add_row("Total cache hits", f"{total_hits:,}")
+    perf_table.add_row("Entries with failures", f"{entries_with_failures:,}")
+
+    # Calculate hit rate if we have any hits
+    if total_hits > 0:
+        # Hit rate = hits / (hits + misses), but we don't track misses directly
+        # So we show total hits as absolute number
+        pass
+
+    console.print(perf_table)
+    console.print()
+
+    return 0

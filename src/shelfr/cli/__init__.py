@@ -38,6 +38,7 @@ from shelfr.cli._app import (
     create_main_callback,
     make_abs_app,
     make_app,
+    make_audnex_app,
     make_libation_app,
     make_mam_app,
     make_state_app,
@@ -58,6 +59,7 @@ abs_app = make_abs_app()
 mam_app = make_mam_app()
 edit_app = make_edit_app()
 mkbrr_app = make_mkbrr_app()
+audnex_app = make_audnex_app()
 
 # Register sub-apps
 app.add_typer(state_app, name="state", rich_help_panel=STATE_COMMANDS)
@@ -67,6 +69,7 @@ app.add_typer(abs_app, name="abs", rich_help_panel=ABS_COMMANDS)
 app.add_typer(mam_app, name="mam")
 app.add_typer(edit_app, name="edit", rich_help_panel=TOOLS_COMMANDS)
 app.add_typer(mkbrr_app, name="mkbrr", rich_help_panel=TOOLS_COMMANDS)
+app.add_typer(audnex_app, name="audnex", rich_help_panel=TOOLS_COMMANDS)
 
 # Register main callback (handles --version, --verbose, --config, --dry-run)
 create_main_callback(app)
@@ -83,6 +86,7 @@ from shelfr.cli.abs import (  # noqa: E402
     register_abs_commands,
     register_abs_deprecated_aliases,
 )
+from shelfr.cli.audnex import register_audnex_commands  # noqa: E402
 from shelfr.cli.core import register_core_commands  # noqa: E402
 from shelfr.cli.diagnostics import register_diagnostics_commands  # noqa: E402
 from shelfr.cli.edit import register_edit_commands  # noqa: E402
@@ -102,6 +106,7 @@ register_tools_commands(tools_app)
 register_mam_commands(mam_app)
 register_edit_commands(edit_app)
 register_mkbrr_commands(mkbrr_app)
+register_audnex_commands(audnex_app)
 
 
 # =============================================================================
