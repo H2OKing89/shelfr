@@ -22,6 +22,7 @@ from shelfr.metadata.mam.categories import (
 )
 from shelfr.metadata.mediainfo import _extract_audio_info, _parse_chapters_from_mediainfo
 from shelfr.models import NormalizedBook
+from shelfr.utils.audible_urls import build_audible_url
 from shelfr.utils.naming import (
     extract_translators_from_mediainfo,
     filter_authors,
@@ -114,6 +115,8 @@ def build_mam_json(
     audnex_data: dict[str, Any] | None = None,
     mediainfo_data: dict[str, Any] | None = None,
     audnex_chapters: dict[str, Any] | None = None,
+    *,
+    audible_region: str | None = None,
 ) -> dict[str, Any]:
     """
     Build MAM fast-fillout JSON from release metadata.
@@ -123,6 +126,7 @@ def build_mam_json(
         audnex_data: Optional Audnex API response (uses release.audnex_metadata if None)
         mediainfo_data: Optional MediaInfo JSON (uses release.mediainfo_data if None)
         audnex_chapters: Optional Audnex chapters API response (for accurate chapter data)
+        audible_region: Optional Audible region code (e.g., "uk", "us") for source URL
 
     Returns:
         Dict ready to be serialized as MAM JSON
@@ -194,11 +198,19 @@ def build_mam_json(
 
     # Description - render BBCode using Jinja2 template
     if audnex:
+        # Build source_url using the region where ASIN was found
+        source_url = None
+        if release.asin:
+            source_url = build_audible_url(release.asin, audible_region or "us")
+
         bbcode_description = render_bbcode_description(
             audnex_data=audnex,
             mediainfo_data=mediainfo,
             asin=release.asin,
             audnex_chapters=audnex_chapters,
+            source_url=source_url,
+            source_id=release.asin,
+            source_id_type="ASIN" if release.asin else None,
         )
         if bbcode_description:
             mam_json["description"] = bbcode_description

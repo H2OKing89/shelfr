@@ -115,7 +115,7 @@ def cmd_tools_mamff(args: argparse.Namespace) -> int:
 
     # Fetch metadata
     console.print("[dim]Fetching metadata...[/]")
-    audnex_data, mediainfo_data, audnex_chapters = fetch_all_metadata(
+    audnex_data, mediainfo_data, audnex_chapters, _ = fetch_all_metadata(
         asin=asin,
         m4b_path=audio_file,
         output_dir=folder,

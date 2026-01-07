@@ -275,7 +275,7 @@ def fetch_metadata(
     m4b_path: Path | None = None,
     *,
     use_cache: bool = True,
-) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None, str | None]:
     """
     Fetch Audnex book metadata, chapters, and MediaInfo without saving.
 
@@ -288,7 +288,8 @@ def fetch_metadata(
         use_cache: If True, use cached provider (default: True)
 
     Returns:
-        Tuple of (audnex_data, mediainfo_data, audnex_chapters), any may be None on error.
+        Tuple of (audnex_data, mediainfo_data, audnex_chapters, region).
+        Any may be None on error. Region is the Audible region where ASIN was found.
     """
     return fetch_metadata_legacy(asin=asin, m4b_path=m4b_path, use_cache=use_cache)
 
@@ -316,7 +317,7 @@ def fetch_all_metadata(
     *,
     save_intermediate: bool = False,
     use_cache: bool = True,
-) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None, str | None]:
     """
     Fetch Audnex book data, chapters, and MediaInfo, optionally saving intermediate files.
 
@@ -331,7 +332,8 @@ def fetch_all_metadata(
         use_cache: If True, use cached provider (default: True)
 
     Returns:
-        Tuple of (audnex_data, mediainfo_data, audnex_chapters), any may be None on error.
+        Tuple of (audnex_data, mediainfo_data, audnex_chapters, region).
+        Any may be None on error. Region is the Audible region where ASIN was found.
     """
     return fetch_all_metadata_legacy(
         asin=asin,
