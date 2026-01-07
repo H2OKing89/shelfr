@@ -30,6 +30,9 @@ from shelfr.utils.circuit_breaker import (
 )
 
 if TYPE_CHECKING:
+    from .region_cache import RegionCache
+
+if TYPE_CHECKING:
     from types import TracebackType
 
 logger = logging.getLogger(__name__)
@@ -549,3 +552,64 @@ async def fetch_audnex_book_parallel(
     # Create temporary client for single lookup
     async with AudnexAsyncClient() as temp_client:
         return await temp_client.fetch_book_parallel(asin, cached_region)
+
+
+async def fetch_audnex_book_with_cache(
+    asin: str,
+    client: AudnexAsyncClient | None = None,
+    region_cache: RegionCache | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Fetch book metadata with automatic region caching.
+
+    This is the recommended entry point for production use.
+    It automatically:
+    1. Checks the region cache for a known region
+    2. Falls back to staged race if not cached
+    3. Caches the winning region for future lookups
+    4. Records failures for cache invalidation
+
+    Args:
+        asin: Audible ASIN
+        client: Optional shared AudnexAsyncClient instance
+        region_cache: Optional RegionCache instance (uses default if not provided)
+
+    Returns:
+        (metadata, winning_region) or (None, None) if all fail
+    """
+    from .region_cache import (
+        FailureType,
+        get_default_region_cache,
+    )
+
+    # Use explicit None check - RegionCache is falsy when empty due to __len__
+    cache = region_cache if region_cache is not None else get_default_region_cache()
+
+    # Check cache for known region
+    cached_region = await cache.get(asin)
+
+    if client:
+        data, region = await client.fetch_book_parallel(asin, cached_region)
+    else:
+        async with AudnexAsyncClient() as temp_client:
+            data, region = await temp_client.fetch_book_parallel(asin, cached_region)
+
+    # Update cache based on result
+    if region:
+        # Success! Cache the winning region
+        await cache.set(asin, region)
+        if cached_region and cached_region != region:
+            # Region changed - log for observability
+            logger.info(
+                "Region changed for %s: cached=%s, actual=%s",
+                asin,
+                cached_region,
+                region,
+            )
+    elif cached_region:
+        # Failed with a cached region - record failure as TRANSIENT
+        # Since we don't know if it's 404 or transient, use TRANSIENT
+        # to avoid fast invalidation of potentially-correct cached regions
+        # during service outages (timeouts/5xx across all regions)
+        await cache.record_failure(asin, FailureType.TRANSIENT)
+
+    return data, region
