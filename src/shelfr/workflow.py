@@ -137,7 +137,7 @@ def _fetch_metadata_with_retry(
     m4b_path: Path | None,
     *,
     use_cache: bool = True,
-) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None, str | None]:
     """Fetch metadata with retry logic for network failures.
 
     Args:
@@ -148,7 +148,7 @@ def _fetch_metadata_with_retry(
             Set to False to force fresh API calls (e.g., --no-cache CLI flag).
 
     Returns:
-        Tuple of (audnex_data, mediainfo_data, audnex_chapters).
+        Tuple of (audnex_data, mediainfo_data, audnex_chapters, region).
         Each element may be None if lookup failed or was skipped.
     """
     return fetch_metadata(asin=asin, m4b_path=m4b_path, use_cache=use_cache)
@@ -303,7 +303,7 @@ def process_single_release(
             else:
                 notify(ProgressStage.METADATA, "Fetching Audnex + MediaInfo...")
                 logger.debug("Step 2: Fetching metadata")
-                audnex_data, mediainfo_data, audnex_chapters = _fetch_metadata_with_retry(
+                audnex_data, mediainfo_data, audnex_chapters, _ = _fetch_metadata_with_retry(
                     asin=release.asin,
                     m4b_path=release.main_m4b,
                     use_cache=use_cache,

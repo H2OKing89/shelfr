@@ -37,11 +37,14 @@ class TestFetchMetadataLegacy:
                 return_value=mock_chapters,
             ),
         ):
-            audnex, mediainfo, chapters = fetch_metadata_legacy(asin="B08G9PRS1K", use_cache=False)
+            audnex, mediainfo, chapters, region = fetch_metadata_legacy(
+                asin="B08G9PRS1K", use_cache=False
+            )
 
             assert audnex == mock_audnex
             assert mediainfo is None
             assert chapters == mock_chapters
+            assert region == "us"
 
     def test_fetch_with_m4b_only(self, tmp_path: Path) -> None:
         """Test fetching with only m4b path provided."""
@@ -54,11 +57,12 @@ class TestFetchMetadataLegacy:
             "shelfr.metadata.orchestration.run_mediainfo",
             return_value=mock_mediainfo,
         ):
-            audnex, mediainfo, chapters = fetch_metadata_legacy(m4b_path=m4b_file)
+            audnex, mediainfo, chapters, region = fetch_metadata_legacy(m4b_path=m4b_file)
 
             assert audnex is None
             assert mediainfo == mock_mediainfo
             assert chapters is None
+            assert region is None
 
     def test_fetch_with_both(self, tmp_path: Path) -> None:
         """Test fetching with both ASIN and m4b path (bypassing cache)."""
@@ -83,31 +87,34 @@ class TestFetchMetadataLegacy:
                 return_value=mock_mediainfo,
             ),
         ):
-            audnex, mediainfo, chapters = fetch_metadata_legacy(
+            audnex, mediainfo, chapters, region = fetch_metadata_legacy(
                 asin="B08G9PRS1K", m4b_path=m4b_file, use_cache=False
             )
 
             assert audnex == mock_audnex
             assert mediainfo == mock_mediainfo
             assert chapters == mock_chapters
+            assert region == "us"
 
     def test_fetch_with_nonexistent_m4b(self, tmp_path: Path) -> None:
         """Test fetching with nonexistent m4b path."""
         m4b_file = tmp_path / "nonexistent.m4b"
 
-        audnex, mediainfo, chapters = fetch_metadata_legacy(m4b_path=m4b_file)
+        audnex, mediainfo, chapters, region = fetch_metadata_legacy(m4b_path=m4b_file)
 
         assert audnex is None
         assert mediainfo is None
         assert chapters is None
+        assert region is None
 
     def test_fetch_with_none_inputs(self) -> None:
         """Test fetching with no inputs."""
-        audnex, mediainfo, chapters = fetch_metadata_legacy()
+        audnex, mediainfo, chapters, region = fetch_metadata_legacy()
 
         assert audnex is None
         assert mediainfo is None
         assert chapters is None
+        assert region is None
 
 
 class TestSaveMetadataFilesLegacy:
@@ -193,7 +200,7 @@ class TestFetchAllMetadataLegacy:
                 use_cache=False,
             )
 
-            assert result == (mock_audnex, mock_mediainfo, mock_chapters)
+            assert result == (mock_audnex, mock_mediainfo, mock_chapters, "us")
             mock_save_audnex.assert_not_called()
             mock_save_mi.assert_not_called()
 
@@ -230,7 +237,7 @@ class TestFetchAllMetadataLegacy:
                 use_cache=False,
             )
 
-            assert result == (mock_audnex, mock_mediainfo, mock_chapters)
+            assert result == (mock_audnex, mock_mediainfo, mock_chapters, "us")
             mock_save_audnex.assert_called_once()
             mock_save_mi.assert_called_once()
 

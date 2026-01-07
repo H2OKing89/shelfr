@@ -61,11 +61,12 @@ def _fetch_metadata_for_path(
     dict[str, object] | None,
     dict[str, object] | None,
     dict[str, object] | None,
+    str | None,
 ]:
     """Fetch metadata for a given path.
 
     Returns:
-        Tuple of (audio_file, asin, audnex_data, mediainfo_data, audnex_chapters)
+        Tuple of (audio_file, asin, audnex_data, mediainfo_data, audnex_chapters, region)
     """
     from shelfr.metadata import fetch_all_metadata
 
@@ -78,22 +79,22 @@ def _fetch_metadata_for_path(
         audio_file = _find_audio_file(path)
 
     if not audio_file:
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
     # Extract ASIN
     asin = _extract_asin(audio_file) or _extract_asin(folder)
     if not asin:
-        return audio_file, None, None, None, None
+        return audio_file, None, None, None, None, None
 
     # Fetch metadata
-    audnex_data, mediainfo_data, audnex_chapters = fetch_all_metadata(
+    audnex_data, mediainfo_data, audnex_chapters, region = fetch_all_metadata(
         asin=asin,
         m4b_path=audio_file,
         output_dir=folder,
         save_intermediate=False,
     )
 
-    return audio_file, asin, audnex_data, mediainfo_data, audnex_chapters
+    return audio_file, asin, audnex_data, mediainfo_data, audnex_chapters, region
 
 
 def cmd_mam_bbcode(args: argparse.Namespace) -> int:
@@ -106,10 +107,13 @@ def cmd_mam_bbcode(args: argparse.Namespace) -> int:
         Exit code (0 for success)
     """
     from shelfr.metadata import render_bbcode_description
+    from shelfr.utils.audible_urls import build_audible_url
 
     path: Path = args.path.resolve()
 
-    audio_file, asin, audnex_data, mediainfo_data, audnex_chapters = _fetch_metadata_for_path(path)
+    audio_file, asin, audnex_data, mediainfo_data, audnex_chapters, region = (
+        _fetch_metadata_for_path(path)
+    )
 
     if not audio_file:
         print_error("No audio file found (.m4b, .mp3, .m4a, .flac, .ogg)")
@@ -128,12 +132,18 @@ def cmd_mam_bbcode(args: argparse.Namespace) -> int:
         print_error("MediaInfo extraction failed")
         return 1
 
+    # Build source_url using the region where ASIN was found
+    source_url = build_audible_url(asin, region or "us")
+
     # Generate BBCode description
     bbcode_description = render_bbcode_description(
         audnex_data=audnex_data,
         mediainfo_data=mediainfo_data,
         asin=asin,
         audnex_chapters=audnex_chapters,
+        source_url=source_url,
+        source_id=asin,
+        source_id_type="ASIN",
     )
 
     if not bbcode_description:
@@ -156,11 +166,14 @@ def cmd_mam_render(args: argparse.Namespace) -> int:
         Exit code (0 for success)
     """
     from shelfr.metadata import render_bbcode_description
+    from shelfr.utils.audible_urls import build_audible_url
     from shelfr.utils.bbcode_renderer import render_bbcode_preview
 
     path: Path = args.path.resolve()
 
-    audio_file, asin, audnex_data, mediainfo_data, audnex_chapters = _fetch_metadata_for_path(path)
+    audio_file, asin, audnex_data, mediainfo_data, audnex_chapters, region = (
+        _fetch_metadata_for_path(path)
+    )
 
     if not audio_file:
         print_error("No audio file found (.m4b, .mp3, .m4a, .flac, .ogg)")
@@ -179,12 +192,18 @@ def cmd_mam_render(args: argparse.Namespace) -> int:
         print_error("MediaInfo extraction failed")
         return 1
 
+    # Build source_url using the region where ASIN was found
+    source_url = build_audible_url(asin, region or "us")
+
     # Generate BBCode description
     bbcode_description = render_bbcode_description(
         audnex_data=audnex_data,
         mediainfo_data=mediainfo_data,
         asin=asin,
         audnex_chapters=audnex_chapters,
+        source_url=source_url,
+        source_id=asin,
+        source_id_type="ASIN",
     )
 
     if not bbcode_description:

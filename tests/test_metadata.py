@@ -1281,6 +1281,74 @@ class TestRenderBbcodeDescription:
         # Translator should be detected
         assert "Original Author" in result
 
+    def test_uses_source_url_when_provided(self):
+        """Test that source_url is used instead of hardcoded audible.com."""
+        audnex = {
+            "title": "UK Audiobook",
+            "authors": [{"name": "Author"}],
+            "asin": "B09UK12345",
+        }
+        source_url = "https://www.audible.co.uk/pd/B09UK12345"
+
+        result = render_bbcode_description(audnex, source_url=source_url)
+
+        # Should use the provided source_url
+        assert source_url in result
+        # Should NOT contain hardcoded audible.com
+        assert "www.audible.com/pd/" not in result
+
+    def test_falls_back_to_asin_without_source_url(self):
+        """Test fallback to ASIN-based URL when no source_url provided."""
+        audnex = {
+            "title": "US Audiobook",
+            "authors": [{"name": "Author"}],
+            "asin": "B09US12345",
+        }
+
+        result = render_bbcode_description(audnex)
+
+        # Should use hardcoded audible.com with ASIN
+        assert "www.audible.com/pd/B09US12345" in result
+
+    def test_displays_source_id_and_type(self):
+        """Test source_id with source_id_type display."""
+        audnex = {
+            "title": "Book with ISBN",
+            "authors": [{"name": "Author"}],
+            # No ASIN
+        }
+        result = render_bbcode_description(
+            audnex,
+            source_url="https://example.com/book/12345",
+            source_id="978-1234567890",
+            source_id_type="ISBN",
+        )
+
+        # Should show source URL
+        assert "https://example.com/book/12345" in result
+        # Should show source ID with type
+        assert "ISBN" in result
+        assert "978-1234567890" in result
+
+    def test_prefers_asin_over_source_id(self):
+        """Test that ASIN is displayed when both ASIN and source_id are present."""
+        audnex = {
+            "title": "Audible Book",
+            "authors": [{"name": "Author"}],
+            "asin": "B09ASIN123",
+        }
+
+        result = render_bbcode_description(
+            audnex,
+            source_url="https://www.audible.com/pd/B09ASIN123",
+            source_id="B09ASIN123",
+            source_id_type="ASIN",
+        )
+
+        # Should show ASIN label (from template's asin handling)
+        assert "Source ASIN" in result
+        assert "B09ASIN123" in result
+
 
 class TestSaveJson:
     """Tests for JSON saving functions."""
