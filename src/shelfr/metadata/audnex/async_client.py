@@ -216,13 +216,15 @@ class AudnexAsyncClient:
 
         logger.debug("Fetching Audnex book: %s (region=%s)", asin, region)
 
+        # Circuit breaker check BEFORE rate limiting to avoid wasting tokens
+        if audnex_breaker.state == CircuitState.OPEN:
+            raise CircuitOpenError("audnex", audnex_breaker.recovery_timeout)
+
         # Apply rate limiting
         async with self._minute_limiter, self._burst_limiter:
-            # Circuit breaker check (sync check, doesn't block)
-            if audnex_breaker.state == CircuitState.OPEN:
-                raise CircuitOpenError("audnex", audnex_breaker.recovery_timeout)
-
-            response = await self.client.get(url, params=params)
+            # Use circuit breaker context to record success/failure
+            with audnex_breaker:
+                response = await self.client.get(url, params=params)
 
             # 404/500 are authoritative "not found"
             if response.status_code in (404, 500):
@@ -274,11 +276,14 @@ class AudnexAsyncClient:
 
         logger.debug("Fetching Audnex chapters: %s (region=%s)", asin, region)
 
-        async with self._minute_limiter, self._burst_limiter:
-            if audnex_breaker.state == CircuitState.OPEN:
-                raise CircuitOpenError("audnex", audnex_breaker.recovery_timeout)
+        # Circuit breaker check BEFORE rate limiting to avoid wasting tokens
+        if audnex_breaker.state == CircuitState.OPEN:
+            raise CircuitOpenError("audnex", audnex_breaker.recovery_timeout)
 
-            response = await self.client.get(url, params=params)
+        async with self._minute_limiter, self._burst_limiter:
+            # Use circuit breaker context to record success/failure
+            with audnex_breaker:
+                response = await self.client.get(url, params=params)
 
             if response.status_code in (404, 500):
                 logger.debug("Chapters for %s not found in region %s", asin, region)

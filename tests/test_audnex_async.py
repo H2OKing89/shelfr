@@ -96,23 +96,20 @@ def sample_chapters_response() -> dict[str, Any]:
 class TestAudnexAsyncClientInit:
     """Test client initialization."""
 
-    def test_default_initialization(self, mock_settings) -> None:
+    def test_default_initialization(self) -> None:
         """Client initializes with default parameters."""
-        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
-            client = AudnexAsyncClient()
-            assert client is not None
+        client = AudnexAsyncClient()
+        assert client is not None
 
-    def test_custom_minute_limit(self, mock_settings) -> None:
+    def test_custom_minute_limit(self) -> None:
         """Client accepts custom minute rate limit."""
-        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
-            client = AudnexAsyncClient(rate_limit_per_min=60)
-            assert client._minute_limiter.max_rate == 60
+        client = AudnexAsyncClient(rate_limit_per_min=60)
+        assert client._minute_limiter.max_rate == 60
 
-    def test_custom_burst_limit(self, mock_settings) -> None:
+    def test_custom_burst_limit(self) -> None:
         """Client accepts custom burst rate limit."""
-        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
-            client = AudnexAsyncClient(burst_limit=5)
-            assert client._burst_limiter.max_rate == 5
+        client = AudnexAsyncClient(burst_limit=5)
+        assert client._burst_limiter.max_rate == 5
 
 
 class TestStagedRaceConstants:
@@ -525,13 +522,10 @@ class TestRateLimiting:
     """Test rate limiter integration."""
 
     @pytest.mark.asyncio
-    async def test_respects_rate_limits(
-        self, sample_book_response: dict[str, Any], mock_settings
-    ) -> None:
-        """Client respects rate limiting."""
-        # Create client with very low limits to test queuing
-        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
-            client = AudnexAsyncClient(rate_limit_per_min=60, burst_limit=2)
+    async def test_respects_rate_limits(self, sample_book_response: dict[str, Any]) -> None:
+        """Client respects rate limiting (smoke test)."""
+        # Create client with lower limits
+        client = AudnexAsyncClient(rate_limit_per_min=60, burst_limit=2)
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -557,16 +551,66 @@ class TestCircuitBreaker:
 
         client = AudnexAsyncClient()
 
+        with patch("shelfr.metadata.audnex.async_client.audnex_breaker") as mock_breaker:
+            mock_breaker.state = CircuitState.OPEN
+            mock_breaker.recovery_timeout = 30.0
+
+            # Should raise before even acquiring rate limiter tokens
+            with pytest.raises(CircuitOpenError):
+                await client._fetch_book_region("B08G9PRS1K", "us")
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_records_success(
+        self, sample_book_response: dict[str, Any]
+    ) -> None:
+        """Circuit breaker context records successful requests."""
+        from shelfr.utils.circuit_breaker import CircuitState
+
+        client = AudnexAsyncClient()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = sample_book_response
+
         with (
             patch.object(client, "_http_client") as mock_http,
             patch("shelfr.metadata.audnex.async_client.audnex_breaker") as mock_breaker,
         ):
-            mock_http.get = AsyncMock()
-            mock_breaker.state = CircuitState.OPEN
-            mock_breaker.recovery_timeout = 30.0
+            mock_http.get = AsyncMock(return_value=mock_response)
+            mock_breaker.state = CircuitState.CLOSED
+            mock_breaker.__enter__ = MagicMock(return_value=mock_breaker)
+            mock_breaker.__exit__ = MagicMock(return_value=False)
 
-            with pytest.raises(CircuitOpenError):
+            await client._fetch_book_region("B08G9PRS1K", "us")
+
+            # Verify circuit breaker context was entered (records success/failure)
+            mock_breaker.__enter__.assert_called_once()
+            mock_breaker.__exit__.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_records_timeout_failure(self) -> None:
+        """Circuit breaker context records timeout failures."""
+        from shelfr.utils.circuit_breaker import CircuitState
+
+        client = AudnexAsyncClient()
+
+        with (
+            patch.object(client, "_http_client") as mock_http,
+            patch("shelfr.metadata.audnex.async_client.audnex_breaker") as mock_breaker,
+        ):
+            mock_http.get = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+            mock_breaker.state = CircuitState.CLOSED
+            mock_breaker.__enter__ = MagicMock(return_value=mock_breaker)
+            mock_breaker.__exit__ = MagicMock(return_value=False)
+
+            # The timeout will be caught by _probe_region, but breaker context should record it
+            with pytest.raises(httpx.TimeoutException):
                 await client._fetch_book_region("B08G9PRS1K", "us")
+
+            # Verify circuit breaker exit was called with exception info
+            mock_breaker.__exit__.assert_called_once()
+            exit_args = mock_breaker.__exit__.call_args[0]
+            assert exit_args[0] is httpx.TimeoutException  # exc_type
 
 
 class TestContextManager:
