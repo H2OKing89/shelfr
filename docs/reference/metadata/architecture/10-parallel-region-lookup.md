@@ -1,10 +1,8 @@
 # Phase 10: Parallel Region Lookup & Source Provenance
 
-> **Status:** 🔄 In Progress | **Priority:** High
+> **Status:** ✅ Complete | **Priority:** High
 >
-> **Progress:** 10.1 (Async Client) ✅ | 10.2 (Region Cache) ✅ | 10.3 (Source Provenance) ✅ | 10.4 (Provider Lifecycle) ✅ | 10.5 (Templates) ✅ | 10.6 (Concurrency) ✅
->
-> **Next:** 10.7 (Observability)
+> **Progress:** 10.1 (Async Client) ✅ | 10.2 (Region Cache) ✅ | 10.3 (Source Provenance) ✅ | 10.4 (Provider Lifecycle) ✅ | 10.5 (Templates) ✅ | 10.6 (Concurrency) ✅ | 10.7 (Observability) ✅
 >
 > **Goal:** Replace sequential region fallback with parallel "race" semantics, cache winning region, and make source URLs truly platform-agnostic.
 
@@ -458,7 +456,7 @@ async def fetch_with_region_cache(asin: str, client: AudnexClient) -> tuple[dict
 - [x] Smart invalidation: 404 → fast (2 failures), transient → slow (5 failures)
 - [x] Add `discovered_at`, `hits`, `last_failed_at`, `fail_count` for observability
 - [x] Implement cache-first strategy in `fetch_audnex_book_parallel()`
-- [ ] Add `shelfr audnex region-stats` command for debugging (deferred to 10.7)
+- [x] Add `shelfr audnex region-stats` command for debugging (implemented in 10.7)
 - [x] Tests for cache hit/miss/404/transient failure scenarios
 
 ---
@@ -765,7 +763,7 @@ async def fetch_batch(asins: list[str], client: AudnexClient) -> list[tuple[dict
 - [x] Use dual limiters: `AsyncLimiter(90, 60.0)` + `AsyncLimiter(10, 5.0)` for burst protection
 - [x] Add `asin_semaphore` for batch operations
 - [x] Document concurrency settings in config
-- [ ] Add metrics/logging for concurrency stats (deferred to 10.7)
+- [x] Add metrics/logging for concurrency stats (implemented in 10.7)
 
 ---
 
@@ -820,11 +818,11 @@ Cache Performance:
 
 #### Tasks
 
-- [ ] Add structured logging for race results (stage, requests, latency)
-- [ ] Create `shelfr audnex region-stats` CLI command
-- [ ] Track cache hit rate as KPI ("did we actually improve?")
-- [ ] Add avg requests/ASIN metric
-- [ ] Add timing metrics to provider result
+- [x] Add structured logging for race results (stage, requests, latency)
+- [x] Create `shelfr audnex region-stats` CLI command
+- [x] Track cache hit rate as KPI ("did we actually improve?")
+- [x] Add avg requests/ASIN metric
+- [x] Add timing metrics to provider result
 
 ---
 
