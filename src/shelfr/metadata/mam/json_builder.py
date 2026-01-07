@@ -201,7 +201,17 @@ def build_mam_json(
         # Build source_url using the region where ASIN was found
         source_url = None
         if release.asin:
-            source_url = build_audible_url(release.asin, audible_region or "us")
+            try:
+                source_url = build_audible_url(release.asin, audible_region or "us")
+            except ValueError as e:
+                logger.warning(
+                    "Invalid ASIN format '%s' for release '%s': %s. "
+                    "Template will fall back to hardcoded audible.com.",
+                    release.asin,
+                    release.display_name,
+                    e,
+                )
+                # source_url remains None, template will use fallback
 
         bbcode_description = render_bbcode_description(
             audnex_data=audnex,
