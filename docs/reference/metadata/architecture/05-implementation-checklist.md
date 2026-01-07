@@ -749,10 +749,10 @@ Current Audnex client tries regions **sequentially** (up to 30s worst case). ASI
 
 ### Key Tasks
 
-- [ ] **10.1:** Async `fetch_audnex_book_parallel()` with `as_completed` race pattern
-- [ ] **10.2:** `RegionCache` class (ASIN → region mapping with TTL)
+- [x] **10.1:** Async `fetch_audnex_book_parallel()` with `as_completed` race pattern ✅ PR #86
+- [x] **10.2:** `RegionCache` class (ASIN → region mapping with TTL) ✅ PR #87
 - [x] **10.3:** Add source provenance fields to `CanonicalMetadata` ✅ Complete
-- [ ] **10.4:** Update `AudnexProvider` to use parallel fetch + populate source fields
+- [x] **10.4:** Update `AudnexProvider` to use parallel fetch + populate source fields ✅ PR #89
 - [ ] **10.5:** Update `mam_description.j2` with conditional `source_url`
 - [ ] **10.6:** Two-level concurrency limits (ASIN semaphore + rate limiting)
 - [ ] **10.7:** Observability (race logging, `shelfr audnex region-stats` command)
@@ -787,7 +787,7 @@ Current Audnex client tries regions **sequentially** (up to 30s worst case). ASI
 | Phase 8 | ✅ Tier 1 Complete | Infrastructure (cache + rate limiting in AudnexProvider) |
 | Phase 8.5 | ✅ Complete | Production integration (PR #82) |
 | Phase 9 | ✅ Complete | Content flags (PR #83) - Core + tests shipped, CHANGELOG pending |
-| Phase 10 | � In Progress | 10.3 complete; 10.1, 10.2, 10.4-10.7 remaining ([spec](10-parallel-region-lookup.md)) |
+| Phase 10 | 🔄 In Progress | 10.1-10.4 ✅ complete (PRs #86, #87, #89); 10.5-10.7 remaining ([spec](10-parallel-region-lookup.md)) |
 | Future | ⏳ Not Started | Additional providers, exporters, batch ops |
 
 ---

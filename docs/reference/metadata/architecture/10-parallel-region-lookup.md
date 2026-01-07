@@ -102,9 +102,11 @@ Templates use `source_url` if available, fall back gracefully:
 
 ## Implementation Plan
 
-### Phase 10.1: Async Staged Race (Audnex Client)
+### Phase 10.1: Async Staged Race (Audnex Client) ✅ COMPLETE
 
-**Estimated effort:** 2-3 hours
+**Status:** Implemented in PR #86
+
+**Estimated effort:** 2-3 hours (actual)
 
 #### New Function: `fetch_audnex_book_parallel()`
 
@@ -334,9 +336,11 @@ for asin in asins:
 
 ---
 
-### Phase 10.2: Region Cache
+### Phase 10.2: Region Cache ✅ COMPLETE
 
-**Estimated effort:** 1-2 hours
+**Status:** Implemented in PR #87
+
+**Estimated effort:** 1-2 hours (actual)
 
 #### Cache Key Format
 
@@ -457,9 +461,11 @@ async def fetch_with_region_cache(asin: str, client: AudnexClient) -> tuple[dict
 
 ---
 
-### Phase 10.3: Source Provenance in Schema
+### Phase 10.3: Source Provenance in Schema ✅ COMPLETE
 
-**Estimated effort:** 1 hour
+**Status:** Already implemented (part of provider system)
+
+**Estimated effort:** 1 hour (actual)
 
 #### Extend `CanonicalMetadata`
 
@@ -531,9 +537,11 @@ def build_audible_url(asin: str, region: str = "us") -> str:
 
 ---
 
-### Phase 10.4: Update AudnexProvider
+### Phase 10.4: Update AudnexProvider ✅ COMPLETE
 
-**Estimated effort:** 1-2 hours
+**Status:** Implemented in PR #89 (includes AsyncExitStack lifecycle, cache fix, chapter handling)
+
+**Estimated effort:** 1-2 hours (actual)
 
 #### Switch to Parallel Fetch
 
