@@ -1,6 +1,22 @@
 {
   "_comment": "Content flag mappings from provider signals to MAM flags. Generated from Hardcover API data (Dec 2025, 1089 books analyzed).",
   "_version": "1.0.0",
+  "_schema": {
+    "version": "1.0",
+    "required_fields": [
+      "hardcover_to_mam",
+      "hardcover_genres_to_mam",
+      "audnex_to_mam"
+    ],
+    "field_types": {
+      "hardcover_to_mam": "object<flag: string[]>",
+      "hardcover_genres_to_mam": "object<flag: string[]>",
+      "audnex_to_mam": "object<flag: object>",
+      "_unmapped_warnings": "object<category: string[]>",
+      "_design_decisions": "object<key: string>"
+    },
+    "description": "Mapping configuration for content warning resolution. Consumers should validate structure before parsing."
+  },
   "hardcover_to_mam": {
     "cLang": [
       "Strong language",
@@ -9,23 +25,23 @@
     "vio": [
       "Violence",
       "Gore",
-      "murder",
-      "war",
+      "Murder",
+      "War",
       "Torture",
       "Blood",
-      "violent imagery",
+      "Violent imagery",
       "Gun violence",
-      "body horror",
-      "death",
-      "animal death",
-      "child death",
+      "Body horror",
+      "Death",
+      "Animal death",
+      "Child death",
       "Injury/Injury detail",
       "Cannibalism",
       "Genocide",
       "Fire/Fire injury",
-      "kidnapping",
+      "Kidnapping",
       "Slavery",
-      "confinement"
+      "Confinement"
     ],
     "sSex": [
       "Sexual content",
@@ -66,8 +82,12 @@
     },
     "lgbt": {
       "field": "genres[].name",
-      "match": "contains 'LGBTQ' or 'LGBT'",
-      "note": "Case-insensitive. Audnex provides this as genre or tag type."
+      "contains_any": [
+        "LGBTQ",
+        "LGBT"
+      ],
+      "case_insensitive": true,
+      "note": "Audnex provides this as genre or tag type."
     }
   },
   "_unmapped_warnings": {
@@ -111,9 +131,9 @@
     ]
   },
   "_design_decisions": {
-    "sexual_violence_to_eSex": "Sexual assault, Rape \u2192 eSex (not vio). The sexual nature is primary concern for MAM filtering.",
-    "death_to_vio": "Generic 'death', 'animal death', 'child death' \u2192 vio. Specific relationship-based warnings (e.g., 'Death of parent') are intentionally unmapped as overly specific.",
-    "audnex_never_eSex": "isAdult=true \u2192 sSex only. Too many false positives for explicit upgrade.",
+    "sexual_violence_to_eSex": "Sexual assault, Rape -> eSex (not vio). The sexual nature is primary concern for MAM filtering.",
+    "death_to_vio": "Generic 'death', 'animal death', 'child death' -> vio. Specific relationship-based warnings (e.g., 'Death of parent') are intentionally unmapped as overly specific.",
+    "audnex_never_eSex": "isAdult=true -> sSex only. Too many false positives for explicit upgrade.",
     "case_insensitive": "All string matching is case-insensitive."
   }
 }
