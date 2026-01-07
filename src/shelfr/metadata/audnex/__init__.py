@@ -5,13 +5,23 @@ Provides functions to fetch book, author, and chapter data from the Audnex API
 with region fallback support.
 
 Public API:
-    fetch_audnex_book: Fetch book metadata by ASIN
+    fetch_audnex_book: Fetch book metadata by ASIN (sync, sequential regions)
+    fetch_audnex_book_parallel: Fetch book metadata by ASIN (async, parallel regions)
     fetch_audnex_author: Fetch author metadata by ASIN
     fetch_audnex_chapters: Fetch chapter data by ASIN
     save_audnex_json: Save Audnex response to JSON file
+    AudnexAsyncClient: Async client for parallel region racing
 """
 
 from __future__ import annotations
+
+# Async client (Phase 10.1)
+from shelfr.metadata.audnex.async_client import (
+    AudnexAsyncClient as AudnexAsyncClient,
+)
+from shelfr.metadata.audnex.async_client import (
+    fetch_audnex_book_parallel as fetch_audnex_book_parallel,
+)
 
 # Private helpers (exposed for testing and backward compatibility)
 from shelfr.metadata.audnex.client import (
@@ -35,8 +45,10 @@ from shelfr.metadata.audnex.client import (
 
 __all__ = [
     # Public API
+    "AudnexAsyncClient",
     "fetch_audnex_author",
     "fetch_audnex_book",
+    "fetch_audnex_book_parallel",
     "fetch_audnex_chapters",
     "save_audnex_json",
     # Private (for testing/backward compat)
