@@ -336,7 +336,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                 cleanup_prefs=None,  # Cleanup runs separately in Step 5
                 source_paths={f: f for f in staging_folders},  # 1:1 mapping in staging
                 seed_root=settings.paths.seed_root,
-                preferred_asin_region=settings.audnex.preferred_asin_region,
+                preferred_asin_region=import_settings.preferred_asin_region,
                 generate_metadata_json=import_settings.generate_metadata_json,
                 metadata_json_fallback=import_settings.metadata_json_fallback,
                 generate_opf_sidecar=import_settings.generate_opf_sidecar,

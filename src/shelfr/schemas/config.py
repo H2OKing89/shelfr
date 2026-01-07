@@ -135,10 +135,6 @@ class AudnexSchema(BaseModel):
     timeout_seconds: int = Field(default=30, ge=5, le=120)
     # Regions to try in order (first success wins)
     regions: list[str] = Field(default_factory=lambda: [DEFAULT_ASIN_REGION])
-    # Preferred ASIN region - when ASIN found in different region, use ABS search
-    # to find the preferred region's ASIN. Set to null/None to disable.
-    # Valid: us, uk, au, ca, de, es, fr, in, it, jp, or null
-    preferred_asin_region: str | None = Field(default=DEFAULT_ASIN_REGION)
     # Rate limiting: maximum requests per second (default 10.0)
     rate_limit: float = Field(
         default=10.0,
@@ -165,16 +161,6 @@ class AudnexSchema(BaseModel):
             if r.lower() not in VALID_AUDNEX_REGIONS:
                 raise _invalid_region_error(r)
         return [r.lower() for r in v]  # Normalize to lowercase
-
-    @field_validator("preferred_asin_region")
-    @classmethod
-    def validate_preferred_region(cls, v: str | None) -> str | None:
-        """Validate preferred region is valid or None."""
-        if v is None:
-            return None
-        if v.lower() not in VALID_AUDNEX_REGIONS:
-            raise _invalid_region_error(v, allow_null=True)
-        return v.lower()
 
 
 class MediaInfoSchema(BaseModel):
@@ -410,6 +396,12 @@ class AudiobookshelfImportSchema(BaseModel):
 
     duplicate_policy: str = Field(default="skip", description="What to do with duplicates")
     trigger_scan: str = Field(default="batch", description="When to trigger ABS library scan")
+    # Preferred ASIN region when importing to Audiobookshelf.
+    # When an ASIN is found in a different region, use ABS search to find this region's ASIN.
+    # This ONLY affects ABS import; Audnex metadata lookup uses audnex.regions instead.
+    # Set to null/None to disable ASIN normalization.
+    # Valid: us, uk, au, ca, de, es, fr, in, it, jp, or null
+    preferred_asin_region: str | None = Field(default=DEFAULT_ASIN_REGION)
     unknown_asin_policy: str = Field(
         default="import",
         description="How to handle books without ASIN: import | quarantine | skip",
@@ -458,6 +450,16 @@ class AudiobookshelfImportSchema(BaseModel):
         valid = {"none", "each", "batch"}
         if v.lower() not in valid:
             raise ValueError(f"Invalid trigger_scan '{v}'. Must be one of: {valid}")
+        return v.lower()
+
+    @field_validator("preferred_asin_region")
+    @classmethod
+    def validate_preferred_region(cls, v: str | None) -> str | None:
+        """Validate preferred region is valid or None."""
+        if v is None:
+            return None
+        if v.lower() not in VALID_AUDNEX_REGIONS:
+            raise _invalid_region_error(v, allow_null=True)
         return v.lower()
 
     @field_validator("unknown_asin_policy")
