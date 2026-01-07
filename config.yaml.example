@@ -121,8 +121,9 @@ qbittorrent:
 audnex:
   base_url: "https://api.audnex.us"
   timeout_seconds: 30
-  # Regions to try in order when fetching metadata
+  # Regions to try in order when fetching metadata from Audnex
   # Tries each region in order; returns data from first region where ASIN exists.
+  # This is for metadata lookup only; does NOT affect ABS import region selection.
   # For English audiobooks, US/UK usually has the best metadata coverage.
   # Some ASINs are region-specific (e.g., US-only or UK-only books).
   # Valid regions: us, uk, au, ca, de, es, fr, in, it, jp
@@ -134,20 +135,6 @@ audnex:
   regions:
     - us
     # - uk  # Uncomment to add UK as fallback
-
-  # Preferred ASIN region for folder/file naming
-  # When an audiobook's ASIN is found in a different region (e.g., "es" for Spain),
-  # Shelfr will use Audiobookshelf's Audible search to find the ASIN for the
-  # preferred region. This ensures consistent ASINs across your library.
-  #
-  # Example: A book downloaded from Audible Spain has ASIN B0FDCW8SS7 (Spain).
-  # With preferred_asin_region: us, shelfr searches ABS and finds the US ASIN
-  # B0FDCLSZ7G, which is then used in folder/file names.
-  #
-  # Set to null to disable ASIN normalization (use whatever ASIN is found).
-  # Requires audiobookshelf.enabled: true for the ABS search to work.
-  # Valid: us, uk, au, ca, de, es, fr, in, it, jp, or null
-  preferred_asin_region: us
 
   # Rate limiting: maximum requests per second to Audnex API
   # Default 10 req/sec is conservative for good API citizenship.
@@ -206,6 +193,20 @@ audiobookshelf:
 
   # Import settings
   import:
+    # Preferred ASIN region when importing to Audiobookshelf
+    # When an audiobook's ASIN is found in a different region (e.g., "es" for Spain),
+    # Shelfr will use ABS's Audible search to find the ASIN for your preferred region.
+    # This ensures consistent ASINs across your library.
+    #
+    # Example: A book downloaded from Audible Spain has ASIN B0FDCW8SS7 (Spain).
+    # With preferred_asin_region: us, shelfr searches ABS and finds the US ASIN
+    # B0FDCLSZ7G, which is then used in folder/file names.
+    #
+    # This ONLY affects ABS import; Audnex metadata lookup uses audnex.regions.
+    # Set to null to disable ASIN normalization (use whatever ASIN is found).
+    # Valid: us, uk, au, ca, de, es, fr, in, it, jp, or null
+    preferred_asin_region: us
+
     # What to do when ASIN already exists in library
     duplicate_policy: skip            # skip | warn | overwrite
 

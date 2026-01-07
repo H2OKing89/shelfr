@@ -150,9 +150,6 @@ class AudnexConfig:
     # Regions to try in order (first success wins)
     # Valid: us, uk, au, ca, de, es, fr, in, it, jp
     regions: list[str] = field(default_factory=lambda: [DEFAULT_ASIN_REGION])
-    # Preferred ASIN region - when ASIN found in different region, use ABS search
-    # to find the preferred region's ASIN. Set to None to disable normalization.
-    preferred_asin_region: str | None = DEFAULT_ASIN_REGION
 
 
 @dataclass
@@ -428,6 +425,11 @@ class AudiobookshelfImportConfig:
 
     duplicate_policy: str = "skip"  # skip | warn | overwrite
     trigger_scan: str = "batch"  # none | each | batch
+    # Preferred ASIN region when importing to Audiobookshelf.
+    # When an ASIN is found in a different region, use ABS search to find this region's ASIN.
+    # This ONLY affects ABS import; Audnex metadata lookup uses audnex.regions instead.
+    # Set to None to disable ASIN normalization. Valid: us, uk, au, ca, de, es, fr, in, it, jp
+    preferred_asin_region: str | None = DEFAULT_ASIN_REGION
     trumping: TrumpingConfig = field(default_factory=TrumpingConfig)
     cleanup: CleanupConfig = field(default_factory=CleanupConfig)
     # ABS search: query Audible via ABS for missing ASINs (default: enabled)
@@ -1116,24 +1118,10 @@ def load_settings(
     if not validated_regions:
         validated_regions = [DEFAULT_ASIN_REGION]
 
-    # Validate preferred_asin_region (None disables normalization)
-    raw_preferred = audnex_data.get("preferred_asin_region", DEFAULT_ASIN_REGION)
-    if raw_preferred is not None:
-        preferred_lower = raw_preferred.lower()
-        if preferred_lower not in VALID_AUDNEX_REGIONS:
-            raise ConfigurationError(
-                f"Invalid preferred_asin_region '{raw_preferred}'. "
-                f"Valid: {sorted(VALID_AUDNEX_REGIONS)} or null"
-            )
-        validated_preferred: str | None = preferred_lower
-    else:
-        validated_preferred = None
-
     audnex = AudnexConfig(
         base_url=audnex_data.get("base_url", "https://api.audnex.us"),
         timeout_seconds=audnex_data.get("timeout_seconds", 30),
         regions=validated_regions,
-        preferred_asin_region=validated_preferred,
     )
 
     # Parse MediaInfo config
@@ -1213,6 +1201,19 @@ def load_settings(
     abs_data = yaml_config.get("audiobookshelf", {})
     abs_import_data = abs_data.get("import", {})
 
+    # Validate preferred_asin_region for ABS import (None disables normalization)
+    raw_preferred = abs_import_data.get("preferred_asin_region", DEFAULT_ASIN_REGION)
+    if raw_preferred is not None:
+        preferred_lower = raw_preferred.lower()
+        if preferred_lower not in VALID_AUDNEX_REGIONS:
+            raise ConfigurationError(
+                f"Invalid audiobookshelf.import.preferred_asin_region '{raw_preferred}'. "
+                f"Valid: {sorted(VALID_AUDNEX_REGIONS)} or null"
+            )
+        validated_preferred: str | None = preferred_lower
+    else:
+        validated_preferred = None
+
     # Build path mappings
     abs_path_map = []
     for pm in abs_data.get("path_map", []):
@@ -1247,6 +1248,7 @@ def load_settings(
         import_settings=AudiobookshelfImportConfig(
             duplicate_policy=abs_import_data.get("duplicate_policy", "skip"),
             trigger_scan=abs_import_data.get("trigger_scan", "batch"),
+            preferred_asin_region=validated_preferred,
             trumping=_parse_trumping_config(abs_import_data.get("trumping", {})),
             cleanup=_parse_cleanup_config(abs_import_data.get("cleanup", {})),
             abs_search=abs_import_data.get("abs_search", True),
