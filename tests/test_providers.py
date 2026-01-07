@@ -338,6 +338,20 @@ class TestMockProvider:
 # =============================================================================
 
 
+@pytest.fixture
+def mock_audnex_settings():
+    """Mock settings for AudnexAsyncClient lifecycle tests."""
+    return type(
+        "MockSettings",
+        (),
+        {
+            "audnex": type(
+                "MockAudnex", (), {"base_url": "https://api.audnex.us", "timeout_seconds": 30}
+            )()
+        },
+    )()
+
+
 class TestAudnexProvider:
     """Tests for AudnexProvider."""
 
@@ -360,18 +374,11 @@ class TestAudnexProvider:
         assert provider.is_started is False
 
     @pytest.mark.asyncio
-    async def test_startup_sets_is_started(self) -> None:
+    async def test_startup_sets_is_started(self, mock_audnex_settings) -> None:
         """Test startup() sets is_started to True."""
-        mock_settings = type(
-            "MockSettings",
-            (),
-            {
-                "audnex": type(
-                    "MockAudnex", (), {"base_url": "https://api.audnex.us", "timeout_seconds": 30}
-                )()
-            },
-        )()
-        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
+        with patch(
+            "shelfr.metadata.audnex.async_client.get_settings", return_value=mock_audnex_settings
+        ):
             provider = AudnexProvider()
             await provider.startup()
             try:
@@ -380,36 +387,22 @@ class TestAudnexProvider:
                 await provider.shutdown()
 
     @pytest.mark.asyncio
-    async def test_shutdown_sets_is_started_false(self) -> None:
+    async def test_shutdown_sets_is_started_false(self, mock_audnex_settings) -> None:
         """Test shutdown() sets is_started to False."""
-        mock_settings = type(
-            "MockSettings",
-            (),
-            {
-                "audnex": type(
-                    "MockAudnex", (), {"base_url": "https://api.audnex.us", "timeout_seconds": 30}
-                )()
-            },
-        )()
-        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
+        with patch(
+            "shelfr.metadata.audnex.async_client.get_settings", return_value=mock_audnex_settings
+        ):
             provider = AudnexProvider()
             await provider.startup()
             await provider.shutdown()
             assert provider.is_started is False
 
     @pytest.mark.asyncio
-    async def test_shutdown_is_idempotent(self) -> None:
+    async def test_shutdown_is_idempotent(self, mock_audnex_settings) -> None:
         """Test shutdown() can be called multiple times safely."""
-        mock_settings = type(
-            "MockSettings",
-            (),
-            {
-                "audnex": type(
-                    "MockAudnex", (), {"base_url": "https://api.audnex.us", "timeout_seconds": 30}
-                )()
-            },
-        )()
-        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
+        with patch(
+            "shelfr.metadata.audnex.async_client.get_settings", return_value=mock_audnex_settings
+        ):
             provider = AudnexProvider()
             await provider.startup()
             await provider.shutdown()
@@ -417,18 +410,11 @@ class TestAudnexProvider:
             assert provider.is_started is False
 
     @pytest.mark.asyncio
-    async def test_startup_twice_raises(self) -> None:
+    async def test_startup_twice_raises(self, mock_audnex_settings) -> None:
         """Test startup() twice raises RuntimeError."""
-        mock_settings = type(
-            "MockSettings",
-            (),
-            {
-                "audnex": type(
-                    "MockAudnex", (), {"base_url": "https://api.audnex.us", "timeout_seconds": 30}
-                )()
-            },
-        )()
-        with patch("shelfr.metadata.audnex.async_client.get_settings", return_value=mock_settings):
+        with patch(
+            "shelfr.metadata.audnex.async_client.get_settings", return_value=mock_audnex_settings
+        ):
             provider = AudnexProvider()
             await provider.startup()
             try:

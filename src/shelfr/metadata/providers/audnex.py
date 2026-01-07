@@ -150,16 +150,23 @@ class AudnexProvider:
             return ProviderResult.failure(self.name, f"Invalid ASIN format: {ctx.asin}")
 
         # Check metadata cache first (provider-level cache)
+        # Include include_chapters in key so chapter requests don't get non-chapter cached results
+        cache_suffix = "_chapters" if ctx.include_chapters else ""
         cache_key = make_cache_key(
             provider=self.name,
             id_type="asin",
-            identifier=ctx.asin,
+            identifier=f"{ctx.asin}{cache_suffix}",
             region="parallel",  # Use "parallel" since we race regions
         )
         cached = await self._cache.get(cache_key)
         if cached and not cached.is_expired(self._cache_ttl_seconds):
             logger.debug("Cache hit for Audnex ASIN %s", ctx.asin)
-            return self._result_from_cache(cached)
+            # If chapters requested but cached result lacks them, fetch and update cache
+            if ctx.include_chapters and "chapters" not in cached.fields:
+                logger.debug("Cache hit lacks chapters, will fetch for %s", ctx.asin)
+                # Continue to fetch path to get chapters
+            else:
+                return self._result_from_cache(cached)
 
         # Cache miss - fetch from API
         logger.debug("Cache miss for Audnex ASIN %s", ctx.asin)
@@ -242,13 +249,15 @@ class AudnexProvider:
         """
         mapped = []
         for ch in chapters:
-            chapter = {}
+            chapter: dict[str, Any] = {}
             if title := ch.get("title"):
                 chapter["title"] = title
-            if (start := ch.get("startOffsetMs")) is not None:
-                chapter["start"] = start / 1000.0  # Convert ms to seconds
-            if (length := ch.get("lengthMs")) is not None:
-                chapter["end"] = (ch.get("startOffsetMs", 0) + length) / 1000.0
+            start_ms = ch.get("startOffsetMs")
+            if start_ms is not None:
+                chapter["start"] = start_ms / 1000.0  # Convert ms to seconds
+                # Only compute end if we have start (to avoid orphaned end without start)
+                if (length := ch.get("lengthMs")) is not None:
+                    chapter["end"] = (start_ms + length) / 1000.0
             if chapter:
                 mapped.append(chapter)
         return mapped
