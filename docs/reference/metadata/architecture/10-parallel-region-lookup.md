@@ -2,9 +2,9 @@
 
 > **Status:** 🔄 In Progress | **Priority:** High
 >
-> **Progress:** 10.1 (Async Client) ✅ | 10.2 (Region Cache) ✅ | 10.3 (Source Provenance) ✅ | 10.4 (Provider Lifecycle) ✅ | 10.5 (Templates) ✅
+> **Progress:** 10.1 (Async Client) ✅ | 10.2 (Region Cache) ✅ | 10.3 (Source Provenance) ✅ | 10.4 (Provider Lifecycle) ✅ | 10.5 (Templates) ✅ | 10.6 (Concurrency) ✅
 >
-> **Next:** 10.6 (Concurrency) | **Remaining:** 10.7 (Observability)
+> **Next:** 10.7 (Observability)
 >
 > **Goal:** Replace sequential region fallback with parallel "race" semantics, cache winning region, and make source URLs truly platform-agnostic.
 
@@ -324,17 +324,17 @@ for asin in asins:
 
 #### Tasks
 
-- [ ] Create `AudnexClient` class with dual rate limiters (minute + burst)
-- [ ] Ensure client is created ONCE per run (store on provider or context)
-- [ ] Implement `_probe()` helper that returns `(region, data, error)` tuple
-- [ ] Implement `_staged_race()` with Stage 2 racing ALL regions on timeout
-- [ ] Implement `_race_regions()` with proper `as_completed` pattern
-- [ ] Track definitive 404s vs timeouts for smart Stage 2 exclusion
-- [ ] Add `_is_valid_for_race()` (Level 1 validation)
-- [ ] Add `_validate_and_log_quality()` (Level 2 validation)
-- [ ] Create `fetch_audnex_book_parallel()` public API
-- [ ] Add proper cancellation handling (cancel + gather to drain)
-- [ ] Unit tests with mocked responses (varied latencies, 404s, timeouts)
+- [x] Create `AudnexClient` class with dual rate limiters (minute + burst)
+- [x] Ensure client is created ONCE per run (store on provider or context)
+- [x] Implement `_probe()` helper that returns `(region, data, error)` tuple
+- [x] Implement `_staged_race()` with Stage 2 racing ALL regions on timeout
+- [x] Implement `_race_regions()` with proper `as_completed` pattern
+- [x] Track definitive 404s vs timeouts for smart Stage 2 exclusion
+- [x] Add `_is_valid_for_race()` (Level 1 validation)
+- [x] Add `_validate_and_log_quality()` (Level 2 validation)
+- [x] Create `fetch_audnex_book_parallel()` public API
+- [x] Add proper cancellation handling (cancel + gather to drain)
+- [x] Unit tests with mocked responses (varied latencies, 404s, timeouts)
 
 ---
 
@@ -451,15 +451,15 @@ async def fetch_with_region_cache(asin: str, client: AudnexClient) -> tuple[dict
 
 #### Tasks
 
-- [ ] Create `RegionCache` class with JSON file backend
-- [ ] Add `asyncio.Lock()` for concurrent write protection
-- [ ] Implement atomic writes (temp file + rename)
-- [ ] Add `FailureType` enum: `NOT_FOUND` vs `TRANSIENT`
-- [ ] Smart invalidation: 404 → fast (2 failures), transient → slow (5 failures)
-- [ ] Add `discovered_at`, `hits`, `last_failed_at`, `fail_count` for observability
-- [ ] Implement cache-first strategy in `fetch_audnex_book_parallel()`
-- [ ] Add `shelfr audnex region-stats` command for debugging
-- [ ] Tests for cache hit/miss/404/transient failure scenarios
+- [x] Create `RegionCache` class with JSON file backend
+- [x] Add `asyncio.Lock()` for concurrent write protection
+- [x] Implement atomic writes (temp file + rename)
+- [x] Add `FailureType` enum: `NOT_FOUND` vs `TRANSIENT`
+- [x] Smart invalidation: 404 → fast (2 failures), transient → slow (5 failures)
+- [x] Add `discovered_at`, `hits`, `last_failed_at`, `fail_count` for observability
+- [x] Implement cache-first strategy in `fetch_audnex_book_parallel()`
+- [ ] Add `shelfr audnex region-stats` command for debugging (deferred to 10.7)
+- [x] Tests for cache hit/miss/404/transient failure scenarios
 
 ---
 
@@ -615,20 +615,22 @@ async def main():
 
 #### Tasks
 
-- [ ] Add `startup()` / `shutdown()` lifecycle methods to `AudnexProvider`
-- [ ] Store shared `AudnexClient` on provider instance
-- [ ] Update CLI entrypoint to call `startup()` / `shutdown()`
-- [ ] Populate source provenance fields with split provider/platform semantics
-- [ ] Use winning region for chapters endpoint (don't re-race!)
-- [ ] Update cache key to include "parallel" schema version
-- [ ] Add observability logging (race results, winning region)
-- [ ] Integration tests with real Audnex API
+- [x] Add `startup()` / `shutdown()` lifecycle methods to `AudnexProvider`
+- [x] Store shared `AudnexClient` on provider instance
+- [x] Update CLI entrypoint to call `startup()` / `shutdown()`
+- [x] Populate source provenance fields with split provider/platform semantics
+- [x] Use winning region for chapters endpoint (don't re-race!)
+- [x] Update cache key to include "parallel" schema version
+- [x] Add observability logging (race results, winning region)
+- [x] Integration tests with real Audnex API
 
 ---
 
-### Phase 10.5: Template Updates
+### Phase 10.5: Template Updates ✅ COMPLETE
 
-**Estimated effort:** 30 min
+**Status:** Implemented in PR #90
+
+**Estimated effort:** 30 min (actual)
 
 #### Update `mam_description.j2`
 
@@ -666,16 +668,18 @@ if not source_url and asin:
 
 #### Tasks
 
-- [ ] Update `mam_description.j2` with conditional source URL
-- [ ] Update `render_bbcode_description()` to pass source fields to template
-- [ ] Test with various source combinations
-- [ ] Update golden tests if needed
+- [x] Update `mam_description.j2` with conditional source URL
+- [x] Update `render_bbcode_description()` to pass source fields to template
+- [x] Test with various source combinations
+- [x] Update golden tests if needed
 
 ---
 
-### Phase 10.6: Concurrency Limits
+### Phase 10.6: Concurrency Limits ✅ COMPLETE
 
-**Estimated effort:** 1 hour
+**Status:** Implemented in PR #91
+
+**Estimated effort:** 1 hour (actual)
 
 > **API Limit:** Audnex allows ~100 requests/minute per source IP (see [API Reference](#audnex-api-reference))
 
@@ -758,11 +762,10 @@ async def fetch_batch(asins: list[str], client: AudnexClient) -> list[tuple[dict
 
 #### Tasks
 
-- [ ] Use dual limiters: `AsyncLimiter(90, 60.0)` + `AsyncLimiter(2.0, 1.0)` for burst protection
-- [ ] Adjust to 80/min if `include_chapters` is commonly enabled
-- [ ] Add `asin_semaphore` for batch operations
-- [ ] Document concurrency settings in config
-- [ ] Add metrics/logging for concurrency stats
+- [x] Use dual limiters: `AsyncLimiter(90, 60.0)` + `AsyncLimiter(10, 5.0)` for burst protection
+- [x] Add `asin_semaphore` for batch operations
+- [x] Document concurrency settings in config
+- [ ] Add metrics/logging for concurrency stats (deferred to 10.7)
 
 ---
 
