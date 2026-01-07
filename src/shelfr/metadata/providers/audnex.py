@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+from contextlib import AsyncExitStack
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -85,6 +86,7 @@ class AudnexProvider:
 
         # Async client - created in startup()
         self._client: AudnexAsyncClient | None = None
+        self._stack: AsyncExitStack | None = None
         self._started = False
 
     async def startup(self) -> None:
@@ -99,8 +101,8 @@ class AudnexProvider:
         if self._started:
             raise RuntimeError("AudnexProvider already started")
 
-        self._client = AudnexAsyncClient()
-        await self._client.__aenter__()
+        self._stack = AsyncExitStack()
+        self._client = await self._stack.enter_async_context(AudnexAsyncClient())
         self._started = True
         logger.info("AudnexProvider started (async client ready)")
 
@@ -110,9 +112,10 @@ class AudnexProvider:
         Releases HTTP connections and cleans up resources.
         Safe to call multiple times (idempotent).
         """
-        if self._client:
-            await self._client.__aexit__(None, None, None)
-            self._client = None
+        if self._stack:
+            await self._stack.aclose()
+            self._stack = None
+        self._client = None
         self._started = False
         logger.info("AudnexProvider shut down")
 
@@ -249,14 +252,18 @@ class AudnexProvider:
         """
         mapped = []
         for ch in chapters:
+            # Defensive: skip non-dict entries
+            if not isinstance(ch, dict):
+                continue
             chapter: dict[str, Any] = {}
             if title := ch.get("title"):
                 chapter["title"] = title
             start_ms = ch.get("startOffsetMs")
-            if start_ms is not None:
+            if start_ms is not None and isinstance(start_ms, int | float):
                 chapter["start"] = start_ms / 1000.0  # Convert ms to seconds
                 # Only compute end if we have start (to avoid orphaned end without start)
-                if (length := ch.get("lengthMs")) is not None:
+                length = ch.get("lengthMs")
+                if length is not None and isinstance(length, int | float):
                     chapter["end"] = (start_ms + length) / 1000.0
             if chapter:
                 mapped.append(chapter)
