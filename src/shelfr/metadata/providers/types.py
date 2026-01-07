@@ -72,12 +72,14 @@ class LookupContext:
         path: Path to m4b file or audiobook folder
         source_dir: Libation source path (series heuristics)
         existing_abs_json: Pre-loaded ABS metadata.json contents
+        include_chapters: Whether to fetch chapter information (default: False)
     """
 
     ids: dict[IdType, str] = field(default_factory=dict)
     path: Path | None = None
     source_dir: Path | None = None
     existing_abs_json: dict[str, Any] | None = None
+    include_chapters: bool = False
 
     @property
     def asin(self) -> str | None:
@@ -98,6 +100,7 @@ class LookupContext:
         path: Path | None = None,
         source_dir: Path | None = None,
         existing_abs_json: dict[str, Any] | None = None,
+        include_chapters: bool = False,
     ) -> LookupContext:
         """Create context from a single identifier."""
         return cls(
@@ -105,6 +108,7 @@ class LookupContext:
             path=path,
             source_dir=source_dir,
             existing_abs_json=existing_abs_json,
+            include_chapters=include_chapters,
         )
 
     @classmethod
@@ -115,6 +119,7 @@ class LookupContext:
         path: Path | None = None,
         source_dir: Path | None = None,
         existing_abs_json: dict[str, Any] | None = None,
+        include_chapters: bool = False,
     ) -> LookupContext:
         """Create context from ASIN (convenience method)."""
         return cls.from_id(
@@ -123,6 +128,7 @@ class LookupContext:
             path=path,
             source_dir=source_dir,
             existing_abs_json=existing_abs_json,
+            include_chapters=include_chapters,
         )
 
     @classmethod
@@ -133,6 +139,7 @@ class LookupContext:
         path: Path | None = None,
         source_dir: Path | None = None,
         existing_abs_json: dict[str, Any] | None = None,
+        include_chapters: bool = False,
     ) -> LookupContext:
         """Create context from ISBN (convenience method)."""
         return cls.from_id(
@@ -141,6 +148,7 @@ class LookupContext:
             path=path,
             source_dir=source_dir,
             existing_abs_json=existing_abs_json,
+            include_chapters=include_chapters,
         )
 
 
