@@ -116,7 +116,7 @@ class FFmpegSchema(BaseModel):
     # Timeout for FFmpeg operations (transcoding can be slow)
     timeout_seconds: int = Field(default=1800, ge=60, le=7200)  # 30 min default, 2hr max
     # Hardware acceleration: none, vaapi, qsv, nvenc, vulkan
-    hwaccel: str = Field(default="none", pattern=r"^(none|vaapi|qsv|nvenc|vulkan)$")
+    hwaccel: str = Field(default="none")
 
     @field_validator("hwaccel")
     @classmethod

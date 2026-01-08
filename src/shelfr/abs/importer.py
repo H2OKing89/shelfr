@@ -56,6 +56,7 @@ from shelfr.utils.naming import build_mam_file_name, build_mam_folder_name, clea
 
 if TYPE_CHECKING:
     from shelfr.abs.client import AbsClient
+    from shelfr.abs.prefetch import PrefetchSummary
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2029,7 +2030,7 @@ async def import_batch_async(
     generate_opf_sidecar: bool = False,
     progress_callback: Callable[[int, int, Path], None] | None = None,
     dry_run: bool = False,
-) -> tuple[BatchImportResult, Any]:
+) -> tuple[BatchImportResult, PrefetchSummary]:
     """Import multiple audiobooks with async metadata prefetch.
 
     Phase 11.4: Hybrid async/sync import. This function:
@@ -2065,7 +2066,7 @@ async def import_batch_async(
     Returns:
         Tuple of (BatchImportResult, PrefetchSummary)
     """
-    from shelfr.abs.prefetch import PrefetchSummary, prefetch_metadata_async
+    from shelfr.abs.prefetch import prefetch_metadata_async
     from shelfr.metadata.audnex.async_client import AudnexAsyncClient
     from shelfr.metadata.audnex.region_cache import get_default_region_cache
 

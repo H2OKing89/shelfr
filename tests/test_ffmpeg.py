@@ -61,13 +61,13 @@ class TestFFprobeResult:
         """Test has_chapters returns True when chapters exist."""
         result = FFprobeResult(
             success=True,
-            format={"chapters": [{"start": 0, "end": 100}]},
+            chapters=[{"start": 0, "end": 100}],
         )
         assert result.has_chapters is True
 
     def test_has_chapters_false(self) -> None:
         """Test has_chapters returns False when no chapters."""
-        result = FFprobeResult(success=True, format={})
+        result = FFprobeResult(success=True, chapters=[])
         assert result.has_chapters is False
 
     def test_empty_streams(self) -> None:
@@ -485,6 +485,32 @@ class TestTranscode:
         assert result.success is False
         assert "exists" in result.error.lower()
 
+    def test_transcode_success(self, tmp_path: Path, mock_settings: MagicMock) -> None:
+        """Test successful transcode operation."""
+        input_file = tmp_path / "input.m4b"
+        output_file = tmp_path / "output.m4b"
+        input_file.touch()
+
+        mock_result = MagicMock()
+        mock_result.exit_code = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+
+        def create_output_and_return(*args: Any, **kwargs: Any) -> MagicMock:
+            """Side effect that creates output file like FFmpeg would."""
+            output_file.touch()
+            return mock_result
+
+        with (
+            patch("shelfr.ffmpeg.get_settings", return_value=mock_settings),
+            patch("shelfr.ffmpeg._run_docker_command", side_effect=create_output_and_return),
+        ):
+            result = transcode(input_file, output_file)
+
+        assert result.success is True
+        assert result.exit_code == 0
+        assert result.output_path == output_file
+
 
 class TestExtractAudio:
     """Tests for extract_audio function."""
@@ -773,13 +799,13 @@ class TestGetChapters:
 
         mock_result = MagicMock()
         mock_result.exit_code = 0
+        # Note: chapters are at top level in ffprobe JSON, not in format
         mock_result.stdout = """{
-            "format": {
-                "chapters": [
-                    {"start": 0, "end": 1000, "title": "Chapter 1"},
-                    {"start": 1000, "end": 2000, "title": "Chapter 2"}
-                ]
-            },
+            "chapters": [
+                {"start": 0, "end": 1000, "title": "Chapter 1"},
+                {"start": 1000, "end": 2000, "title": "Chapter 2"}
+            ],
+            "format": {},
             "streams": []
         }"""
         mock_result.stderr = ""

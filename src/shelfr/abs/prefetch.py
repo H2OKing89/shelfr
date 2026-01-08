@@ -74,8 +74,9 @@ class PrefetchSummary:
         return (self.success_count / self.total_asins) * 100
 
 
-# Type alias for the metadata cache
-MetadataCache = dict[str, tuple[dict[str, Any] | None, str | None]]
+# Type alias for the metadata cache (maps ASIN -> (metadata, region))
+# Named AsinMetadataCache to avoid collision with shelfr.metadata.MetadataCache Protocol
+AsinMetadataCache = dict[str, tuple[dict[str, Any] | None, str | None]]
 
 
 # =============================================================================
@@ -103,7 +104,7 @@ def extract_asins_from_folders(folders: list[Path]) -> dict[Path, str | None]:
                 parsed = parse_mam_folder_name(folder.name)
                 asin = parsed.asin
             except Exception:
-                pass
+                logger.debug("Could not parse folder name: %s", folder.name)
 
         result[folder] = asin
     return result
@@ -115,7 +116,7 @@ async def prefetch_metadata_async(
     *,
     region_cache: RegionCache | None = None,
     include_chapters: bool = False,
-) -> tuple[MetadataCache, PrefetchSummary]:
+) -> tuple[AsinMetadataCache, PrefetchSummary]:
     """Prefetch Audnex metadata for all staged folders in parallel.
 
     Uses the Phase 10 AudnexAsyncClient.fetch_batch() for efficient
@@ -139,7 +140,8 @@ async def prefetch_metadata_async(
 
     # Get unique ASINs (skip None values)
     unique_asins = list({asin for asin in folder_asins.values() if asin})
-    skipped_count = len(folders) - len(unique_asins)
+    # Count folders without ASINs (not deduplicated folders)
+    skipped_count = sum(1 for asin in folder_asins.values() if asin is None)
 
     if not unique_asins:
         logger.info("No ASINs found in %d folders, skipping prefetch", len(folders))
@@ -166,7 +168,7 @@ async def prefetch_metadata_async(
     )
 
     # Build cache from results
-    cache: MetadataCache = {}
+    cache: AsinMetadataCache = {}
     success_count = 0
     failure_count = 0
 
@@ -250,13 +252,13 @@ async def prefetch_single_async(
 
 
 def get_cached_metadata(
-    cache: MetadataCache,
+    cache: AsinMetadataCache,
     asin: str,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Get metadata from prefetch cache.
 
     Args:
-        cache: MetadataCache from prefetch_metadata_async()
+        cache: AsinMetadataCache from prefetch_metadata_async()
         asin: ASIN to look up
 
     Returns:
@@ -265,11 +267,11 @@ def get_cached_metadata(
     return cache.get(asin, (None, None))
 
 
-def has_cached_metadata(cache: MetadataCache, asin: str) -> bool:
+def has_cached_metadata(cache: AsinMetadataCache, asin: str) -> bool:
     """Check if ASIN has successfully cached metadata.
 
     Args:
-        cache: MetadataCache from prefetch_metadata_async()
+        cache: AsinMetadataCache from prefetch_metadata_async()
         asin: ASIN to check
 
     Returns:

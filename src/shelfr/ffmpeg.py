@@ -45,6 +45,7 @@ class FFprobeResult:
     success: bool
     format: dict[str, Any] = field(default_factory=dict)
     streams: list[dict[str, Any]] = field(default_factory=list)
+    chapters: list[dict[str, Any]] = field(default_factory=list)  # Top-level chapters
     duration: float | None = None
     duration_str: str | None = None
     bitrate: int | None = None  # bits per second
@@ -68,7 +69,7 @@ class FFprobeResult:
     @property
     def has_chapters(self) -> bool:
         """Check if media has chapters."""
-        return bool(self.format.get("chapters"))
+        return bool(self.chapters)
 
 
 @dataclass
@@ -253,8 +254,7 @@ def probe(
         cmd.insert(image_idx, mount)
         image_idx += 1
 
-    # Use ffprobe instead of ffmpeg
-    cmd[-1] = cmd[-1]  # Keep image
+    # Use ffprobe entrypoint instead of ffmpeg
     cmd.extend(
         [
             "ffprobe",
@@ -298,6 +298,7 @@ def probe(
 
     format_info = data.get("format", {})
     streams = data.get("streams", [])
+    chapters = data.get("chapters", [])  # Chapters are at top level, not in format
 
     # Extract common fields
     duration = None
@@ -342,6 +343,7 @@ def probe(
         success=True,
         format=format_info,
         streams=streams,
+        chapters=chapters,
         duration=duration,
         duration_str=duration_str,
         bitrate=bitrate,
@@ -443,10 +445,11 @@ def transcode(
     if audio_channels:
         ffmpeg_args.extend(["-ac", str(audio_channels)])
 
-    # Video settings
-    ffmpeg_args.extend(["-c:v", video_codec])
-    if video_bitrate:
-        ffmpeg_args.extend(["-b:v", video_bitrate])
+    # Video settings (skip -c:v if video_codec is 'none' since -vn handles it)
+    if video_codec != "none":
+        ffmpeg_args.extend(["-c:v", video_codec])
+        if video_bitrate:
+            ffmpeg_args.extend(["-b:v", video_bitrate])
 
     # Extra args
     if extra_args:
@@ -829,5 +832,4 @@ def get_chapters(input_path: Path | str) -> list[dict[str, Any]] | None:
     if not result.success:
         return None
 
-    chapters: list[dict[str, Any]] = result.format.get("chapters", [])
-    return chapters
+    return result.chapters

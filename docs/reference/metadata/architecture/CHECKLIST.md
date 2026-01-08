@@ -107,7 +107,7 @@
 shelfr audnex region-stats        # Show cache statistics
 shelfr --no-cache run             # Bypass caching
 shelfr abs import --parallel      # Use async parallel prefetch
-shelfr abs import --dry-run       # Preview import without changes
+shelfr --dry-run abs import       # Preview import without changes
 ```
 
 ### Config

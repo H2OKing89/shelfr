@@ -28,6 +28,8 @@ from shelfr.ui.icons import get_icons
 if TYPE_CHECKING:
     from rich.progress import TaskID
 
+    from shelfr.abs.prefetch import PrefetchSummary
+
 
 def cmd_abs_import(args: argparse.Namespace) -> int:
     """Import staged audiobooks to Audiobookshelf library.
@@ -333,7 +335,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         "dry_run": args.dry_run,
     }
 
-    prefetch_summary = None  # For parallel mode stats
+    prefetch_summary: PrefetchSummary | None = None  # For parallel mode stats
 
     try:
         # Create progress display

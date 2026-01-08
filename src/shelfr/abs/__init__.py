@@ -58,7 +58,7 @@ from shelfr.abs.importer import (
 )
 from shelfr.abs.paths import PathMapper, abs_path_to_host, host_path_to_abs
 from shelfr.abs.prefetch import (
-    MetadataCache,
+    AsinMetadataCache,
     PrefetchResult,
     PrefetchSummary,
     extract_asins_from_folders,
@@ -137,7 +137,7 @@ __all__ = [
     "abs_path_to_host",
     "host_path_to_abs",
     # Prefetch (Phase 11.3)
-    "MetadataCache",
+    "AsinMetadataCache",
     "PrefetchResult",
     "PrefetchSummary",
     "extract_asins_from_folders",

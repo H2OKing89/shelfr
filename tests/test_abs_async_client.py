@@ -32,7 +32,7 @@ def abs_fixtures_path() -> Path:
 @pytest.fixture
 def mock_authorize_response(abs_fixtures_path: Path) -> dict[str, Any]:
     """Load authorize.json fixture."""
-    with open(abs_fixtures_path / "authorize.json") as f:
+    with open(abs_fixtures_path / "authorize.json", encoding="utf-8") as f:
         result: dict[str, Any] = json.load(f)
         return result
 
@@ -40,7 +40,7 @@ def mock_authorize_response(abs_fixtures_path: Path) -> dict[str, Any]:
 @pytest.fixture
 def mock_libraries_response(abs_fixtures_path: Path) -> dict[str, Any]:
     """Load libraries.json fixture."""
-    with open(abs_fixtures_path / "libraries.json") as f:
+    with open(abs_fixtures_path / "libraries.json", encoding="utf-8") as f:
         result: dict[str, Any] = json.load(f)
         return result
 
@@ -48,7 +48,7 @@ def mock_libraries_response(abs_fixtures_path: Path) -> dict[str, Any]:
 @pytest.fixture
 def mock_library_items_response(abs_fixtures_path: Path) -> dict[str, Any]:
     """Load library_items.json fixture."""
-    with open(abs_fixtures_path / "library_items.json") as f:
+    with open(abs_fixtures_path / "library_items.json", encoding="utf-8") as f:
         result: dict[str, Any] = json.load(f)
         return result
 
@@ -1072,9 +1072,9 @@ class TestPrefetchHelpers:
 
     def test_get_cached_metadata(self) -> None:
         """Test get_cached_metadata function."""
-        from shelfr.abs.prefetch import MetadataCache, get_cached_metadata
+        from shelfr.abs.prefetch import AsinMetadataCache, get_cached_metadata
 
-        cache: MetadataCache = {
+        cache: AsinMetadataCache = {
             "B0HASASI01": ({"title": "Book"}, "us"),
             "B0NOTFOUN1": (None, None),
         }
@@ -1096,9 +1096,9 @@ class TestPrefetchHelpers:
 
     def test_has_cached_metadata(self) -> None:
         """Test has_cached_metadata function."""
-        from shelfr.abs.prefetch import MetadataCache, has_cached_metadata
+        from shelfr.abs.prefetch import AsinMetadataCache, has_cached_metadata
 
-        cache: MetadataCache = {
+        cache: AsinMetadataCache = {
             "B0HASASI01": ({"title": "Book"}, "us"),
             "B0NOTFOUN1": (None, None),
         }
@@ -1240,8 +1240,6 @@ class TestEnrichFromAudnexWithCache:
 
     def test_enrich_without_cache_calls_fetch(self) -> None:
         """Test that without cache, fetch_audnex_book is called."""
-        from unittest.mock import patch
-
         from shelfr.abs.importer import ParsedFolderName, enrich_from_audnex
 
         parsed = ParsedFolderName(

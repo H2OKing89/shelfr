@@ -217,7 +217,7 @@ async def _import_async(args, settings) -> int:
 
 - [x] Create `prefetch_metadata_async()` in `abs/prefetch.py`
 - [x] Integration with Phase 10 Audnex async client
-- [x] Cache results for batch import (`MetadataCache` type alias)
+- [x] Cache results for batch import (`AsinMetadataCache` type alias)
 
 ### 11.4: Hybrid Batch Import
 
