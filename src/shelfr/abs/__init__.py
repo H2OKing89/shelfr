@@ -56,6 +56,16 @@ from shelfr.abs.importer import (
     validate_import_prerequisites,
 )
 from shelfr.abs.paths import PathMapper, abs_path_to_host, host_path_to_abs
+from shelfr.abs.prefetch import (
+    MetadataCache,
+    PrefetchResult,
+    PrefetchSummary,
+    extract_asins_from_folders,
+    get_cached_metadata,
+    has_cached_metadata,
+    prefetch_metadata_async,
+    prefetch_single_async,
+)
 from shelfr.abs.rename import (
     AbsMetadata,
     RenameCandidate,
@@ -124,6 +134,15 @@ __all__ = [
     "PathMapper",
     "abs_path_to_host",
     "host_path_to_abs",
+    # Prefetch (Phase 11.3)
+    "MetadataCache",
+    "PrefetchResult",
+    "PrefetchSummary",
+    "extract_asins_from_folders",
+    "get_cached_metadata",
+    "has_cached_metadata",
+    "prefetch_metadata_async",
+    "prefetch_single_async",
     # Rename
     "AbsMetadata",
     "RenameCandidate",

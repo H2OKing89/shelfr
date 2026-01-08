@@ -813,7 +813,7 @@ class TestBuildAsinIndexAsync:
                 author_name="Author",
                 narrator_name=None,
                 series_name=None,
-                asin="B0HASASIN01",
+                asin="B0HASASI01",
                 isbn=None,
                 duration=3600.0,
                 size=100000,
@@ -850,7 +850,7 @@ class TestBuildAsinIndexAsync:
 
         # Only the item with ASIN
         assert len(index) == 1
-        assert "B0HASASIN01" in index
+        assert "B0HASASI01" in index
 
     @pytest.mark.asyncio
     async def test_build_asin_index_empty_library(self) -> None:
@@ -870,3 +870,296 @@ class TestBuildAsinIndexAsync:
                 index = await build_asin_index_async(client, "lib_123")
 
         assert len(index) == 0
+
+
+# =============================================================================
+# Phase 11.3: Metadata Prefetch Tests
+# =============================================================================
+
+
+class TestExtractAsinsFromFolders:
+    """Tests for extract_asins_from_folders function."""
+
+    def test_extract_asins_from_mam_folders(self, tmp_path: Path) -> None:
+        """Test extracting ASINs from MAM-style folder names."""
+        from shelfr.abs.prefetch import extract_asins_from_folders
+
+        folders = [
+            tmp_path / "Author - Book Title {ASIN.B0HASASI01} [2024]",
+            tmp_path / "Another Author - Another Book {ASIN.B0HASASI02} [2023]",
+            tmp_path / "No ASIN Book [2022]",
+        ]
+
+        result = extract_asins_from_folders(folders)
+
+        assert len(result) == 3
+        assert result[folders[0]] == "B0HASASI01"
+        assert result[folders[1]] == "B0HASASI02"
+        assert result[folders[2]] is None
+
+    def test_extract_asins_empty_list(self) -> None:
+        """Test with empty folder list."""
+        from shelfr.abs.prefetch import extract_asins_from_folders
+
+        result = extract_asins_from_folders([])
+        assert result == {}
+
+    def test_extract_asins_all_without_asin(self, tmp_path: Path) -> None:
+        """Test when no folders have ASINs."""
+        from shelfr.abs.prefetch import extract_asins_from_folders
+
+        folders = [
+            tmp_path / "Book Without ASIN",
+            tmp_path / "Another Book No ASIN",
+        ]
+
+        result = extract_asins_from_folders(folders)
+
+        assert len(result) == 2
+        assert all(asin is None for asin in result.values())
+
+
+class TestPrefetchMetadataAsync:
+    """Tests for prefetch_metadata_async function."""
+
+    @pytest.mark.asyncio
+    async def test_prefetch_basic(self, tmp_path: Path) -> None:
+        """Test basic prefetch with successful results."""
+        from shelfr.abs.prefetch import prefetch_metadata_async
+
+        folders = [
+            tmp_path / "Author - Book One {ASIN.B0HASASI01} [2024]",
+            tmp_path / "Author - Book Two {ASIN.B0HASASI02} [2024]",
+        ]
+
+        # Mock Audnex client
+        mock_client = AsyncMock()
+        mock_client.fetch_batch = AsyncMock(
+            return_value=[
+                ("B0HASASI01", {"title": "Book One"}, "us"),
+                ("B0HASASI02", {"title": "Book Two"}, "uk"),
+            ]
+        )
+
+        cache, summary = await prefetch_metadata_async(folders, mock_client)
+
+        assert len(cache) == 2
+        assert cache["B0HASASI01"] == ({"title": "Book One"}, "us")
+        assert cache["B0HASASI02"] == ({"title": "Book Two"}, "uk")
+        assert summary.total_asins == 2
+        assert summary.success_count == 2
+        assert summary.failure_count == 0
+        assert summary.skipped_count == 0
+        assert summary.success_rate == 100.0
+
+    @pytest.mark.asyncio
+    async def test_prefetch_with_failures(self, tmp_path: Path) -> None:
+        """Test prefetch with some failures."""
+        from shelfr.abs.prefetch import prefetch_metadata_async
+
+        folders = [
+            tmp_path / "Author - Book One {ASIN.B0HASASI01} [2024]",
+            tmp_path / "Author - Book Two {ASIN.B0NOTFOUN1} [2024]",
+        ]
+
+        mock_client = AsyncMock()
+        mock_client.fetch_batch = AsyncMock(
+            return_value=[
+                ("B0HASASI01", {"title": "Book One"}, "us"),
+                ("B0NOTFOUN1", None, None),  # Not found
+            ]
+        )
+
+        cache, summary = await prefetch_metadata_async(folders, mock_client)
+
+        assert len(cache) == 2
+        assert cache["B0HASASI01"][0] is not None
+        assert cache["B0NOTFOUN1"] == (None, None)
+        assert summary.success_count == 1
+        assert summary.failure_count == 1
+        assert summary.success_rate == 50.0
+
+    @pytest.mark.asyncio
+    async def test_prefetch_skips_folders_without_asin(self, tmp_path: Path) -> None:
+        """Test that folders without ASINs are skipped."""
+        from shelfr.abs.prefetch import prefetch_metadata_async
+
+        folders = [
+            tmp_path / "Author - Book One {ASIN.B0HASASI01} [2024]",
+            tmp_path / "No ASIN Folder",
+            tmp_path / "Another No ASIN",
+        ]
+
+        mock_client = AsyncMock()
+        mock_client.fetch_batch = AsyncMock(
+            return_value=[
+                ("B0HASASI01", {"title": "Book One"}, "us"),
+            ]
+        )
+
+        cache, summary = await prefetch_metadata_async(folders, mock_client)
+
+        # Only 1 unique ASIN
+        assert len(cache) == 1
+        assert summary.total_asins == 1
+        assert summary.skipped_count == 2
+
+    @pytest.mark.asyncio
+    async def test_prefetch_deduplicates_asins(self, tmp_path: Path) -> None:
+        """Test that duplicate ASINs are deduplicated."""
+        from shelfr.abs.prefetch import prefetch_metadata_async
+
+        # Same ASIN in multiple folders
+        folders = [
+            tmp_path / "Author - Book One {ASIN.B0HASASI01} [2024]",
+            tmp_path / "Author - Book One Extended {ASIN.B0HASASI01} [2024]",
+        ]
+
+        mock_client = AsyncMock()
+        mock_client.fetch_batch = AsyncMock(
+            return_value=[
+                ("B0HASASI01", {"title": "Book One"}, "us"),
+            ]
+        )
+
+        cache, summary = await prefetch_metadata_async(folders, mock_client)
+
+        # Only 1 unique ASIN fetched
+        assert len(cache) == 1
+        assert summary.total_asins == 1
+        mock_client.fetch_batch.assert_called_once_with(
+            ["B0HASASI01"],
+            region_cache=None,
+            include_chapters=False,
+        )
+
+    @pytest.mark.asyncio
+    async def test_prefetch_empty_folders(self) -> None:
+        """Test prefetch with empty folder list."""
+        from shelfr.abs.prefetch import prefetch_metadata_async
+
+        mock_client = AsyncMock()
+
+        cache, summary = await prefetch_metadata_async([], mock_client)
+
+        assert cache == {}
+        assert summary.total_asins == 0
+        assert summary.success_count == 0
+        mock_client.fetch_batch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_prefetch_all_folders_without_asins(self, tmp_path: Path) -> None:
+        """Test prefetch when no folders have ASINs."""
+        from shelfr.abs.prefetch import prefetch_metadata_async
+
+        folders = [
+            tmp_path / "No ASIN One",
+            tmp_path / "No ASIN Two",
+        ]
+
+        mock_client = AsyncMock()
+
+        cache, summary = await prefetch_metadata_async(folders, mock_client)
+
+        assert cache == {}
+        assert summary.total_asins == 0
+        assert summary.skipped_count == 2
+        mock_client.fetch_batch.assert_not_called()
+
+
+class TestPrefetchHelpers:
+    """Tests for prefetch helper functions."""
+
+    def test_get_cached_metadata(self) -> None:
+        """Test get_cached_metadata function."""
+        from shelfr.abs.prefetch import MetadataCache, get_cached_metadata
+
+        cache: MetadataCache = {
+            "B0HASASI01": ({"title": "Book"}, "us"),
+            "B0NOTFOUN1": (None, None),
+        }
+
+        # Existing successful entry
+        data, region = get_cached_metadata(cache, "B0HASASI01")
+        assert data == {"title": "Book"}
+        assert region == "us"
+
+        # Existing failed entry
+        data, region = get_cached_metadata(cache, "B0NOTFOUN1")
+        assert data is None
+        assert region is None
+
+        # Non-existent entry
+        data, region = get_cached_metadata(cache, "B0NOTEXI01")
+        assert data is None
+        assert region is None
+
+    def test_has_cached_metadata(self) -> None:
+        """Test has_cached_metadata function."""
+        from shelfr.abs.prefetch import MetadataCache, has_cached_metadata
+
+        cache: MetadataCache = {
+            "B0HASASI01": ({"title": "Book"}, "us"),
+            "B0NOTFOUN1": (None, None),
+        }
+
+        assert has_cached_metadata(cache, "B0HASASI01") is True
+        assert has_cached_metadata(cache, "B0NOTFOUN1") is False
+        assert has_cached_metadata(cache, "B0NOTEXI01") is False
+
+
+class TestPrefetchResult:
+    """Tests for PrefetchResult and PrefetchSummary dataclasses."""
+
+    def test_prefetch_result_creation(self) -> None:
+        """Test PrefetchResult dataclass."""
+        from shelfr.abs.prefetch import PrefetchResult
+
+        result = PrefetchResult(
+            asin="B0HASASI01",
+            data={"title": "Book"},
+            region="us",
+            elapsed=0.5,
+        )
+
+        assert result.asin == "B0HASASI01"
+        assert result.data == {"title": "Book"}
+        assert result.region == "us"
+        assert result.elapsed == 0.5
+
+    def test_prefetch_summary_success_rate(self) -> None:
+        """Test PrefetchSummary.success_rate calculation."""
+        from shelfr.abs.prefetch import PrefetchSummary
+
+        # 100% success
+        summary = PrefetchSummary(
+            total_asins=10,
+            success_count=10,
+            failure_count=0,
+            skipped_count=0,
+            elapsed=1.0,
+            asins_per_second=10.0,
+        )
+        assert summary.success_rate == 100.0
+
+        # 50% success
+        summary = PrefetchSummary(
+            total_asins=10,
+            success_count=5,
+            failure_count=5,
+            skipped_count=0,
+            elapsed=1.0,
+            asins_per_second=10.0,
+        )
+        assert summary.success_rate == 50.0
+
+        # 0 ASINs
+        summary = PrefetchSummary(
+            total_asins=0,
+            success_count=0,
+            failure_count=0,
+            skipped_count=5,
+            elapsed=0.0,
+            asins_per_second=0.0,
+        )
+        assert summary.success_rate == 0.0
