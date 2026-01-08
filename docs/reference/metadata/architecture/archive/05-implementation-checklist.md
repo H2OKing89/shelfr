@@ -1,6 +1,10 @@
 # Implementation Checklist
 
-> Part of [Metadata Architecture Documentation](README.md)
+> **⚠️ ARCHIVE NOTE:** This document is preserved for historical reference.
+> **Current status:** See [PHASE_AUDIT.md](../PHASE_AUDIT.md) for completion tracking.
+> **Active orchestrator:** [CHECKLIST.md](../CHECKLIST.md)
+>
+> Part of [Metadata Architecture Documentation](../README.md)
 
 ---
 

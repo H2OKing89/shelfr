@@ -290,6 +290,25 @@ def make_abs_app() -> typer.Typer:
     )
 
 
+AUDNEX_EPILOG = """
+[bold cyan]Available Commands:[/]
+  shelfr audnex region-stats   [dim]# Show region cache statistics[/]
+
+[dim]These commands help monitor and debug the Audnex API integration.[/]
+"""
+
+
+def make_audnex_app() -> typer.Typer:
+    """Create the Audnex sub-app."""
+    return typer.Typer(
+        name="audnex",
+        help="Audnex API diagnostics and statistics",
+        epilog=AUDNEX_EPILOG,
+        rich_markup_mode="rich",
+        no_args_is_help=True,
+    )
+
+
 # =============================================================================
 # Logging Setup Helper
 # =============================================================================

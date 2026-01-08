@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Phase 10: Parallel Region Lookup & Source Provenance** - Complete async refactor for Audnex API
+  - **10.1 Async Client:** New `AudnexAsyncClient` with staged region racing
+    - Stage 1 races us/uk/de (most common regions)
+    - Stage 2 races remaining regions only if Stage 1 fails
+    - First valid response wins, losers cancelled
+  - **10.2 Region Cache:** Persistent ASIN→region cache (`data/region_cache.json`)
+    - Smart invalidation: 404 fast (2 failures), transient slow (5 failures)
+    - Cache hit rate KPI tracking
+    - Atomic writes with file locking
+  - **10.3 Source Provenance:** `ProviderResult` includes `source_region`, `source_url`
+  - **10.4 Provider Lifecycle:** `AudnexProvider.startup()`/`shutdown()` for connection pooling
+  - **10.5 Templates:** Dynamic source URLs based on winning region
+  - **10.6 Concurrency Limits:** Dual rate limiters (90/min + 10/5s burst)
+    - ASIN semaphore prevents batch operations from exceeding limits
+  - **10.7 Observability:** Structured logging for parallel region lookups
+    - New CLI command: `shelfr audnex region-stats` for cache diagnostics
+    - INFO-level logs: source region, stage (0=cache, 1/2=race), elapsed time, request count
+    - Batch stats: cache hit rate, avg requests/ASIN
+
 - **Phase 9: Content Flags & Platform-Agnostic Metadata** - Support for MAM content classification
   - Added `content_flags` field to `CanonicalMetadata` for platform-agnostic content classification
   - Supports MAM flags: `cLang`, `vio`, `sSex`, `eSex`, `abridged`, `lgbt`

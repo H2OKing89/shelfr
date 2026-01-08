@@ -329,7 +329,7 @@ class TestRaceRegions:
         with patch.object(client, "_http_client") as mock_http:
             mock_http.get = AsyncMock(return_value=mock_response)
 
-            (data, region), definitive_404s = await client._race_regions(
+            (data, region), definitive_404s, request_count = await client._race_regions(
                 "B08G9PRS1K", ["us", "uk", "de"], STAGE_1_TIMEOUT
             )
 
@@ -338,6 +338,7 @@ class TestRaceRegions:
             assert region == "us"
             # 404s only collected for non-successful probes
             assert isinstance(definitive_404s, set)
+            assert request_count >= 1
 
     @pytest.mark.asyncio
     async def test_collects_definitive_404s(self) -> None:
@@ -350,7 +351,7 @@ class TestRaceRegions:
         with patch.object(client, "_http_client") as mock_http:
             mock_http.get = AsyncMock(return_value=mock_response)
 
-            (data, region), definitive_404s = await client._race_regions(
+            (data, region), definitive_404s, request_count = await client._race_regions(
                 "INVALID123", ["us", "uk"], STAGE_1_TIMEOUT
             )
 
@@ -359,6 +360,7 @@ class TestRaceRegions:
             assert "us" in definitive_404s
             assert "uk" in definitive_404s
             assert len(definitive_404s) == 2
+            assert request_count == 2
 
 
 class TestStagedRace:
@@ -386,12 +388,17 @@ class TestStagedRace:
         with patch.object(client, "_http_client") as mock_http:
             mock_http.get = AsyncMock(side_effect=mock_get)
 
-            data, region = await client._staged_race("B08G9PRS1K", cached_region="uk")
+            data, region, stage, total_requests, elapsed = await client._staged_race(
+                "B08G9PRS1K", cached_region="uk"
+            )
 
             assert data is not None
             assert region == "uk"
+            assert stage == 0  # Cache hit is stage 0
             # Should only make one request (cached region hit)
             assert call_count == 1
+            assert total_requests == 1
+            assert elapsed >= 0
 
     @pytest.mark.asyncio
     async def test_stage1_success_skips_stage2(self, sample_book_response: dict[str, Any]) -> None:
@@ -408,10 +415,11 @@ class TestStagedRace:
         with patch.object(client, "_http_client") as mock_http:
             mock_http.get = AsyncMock(return_value=mock_response)
 
-            data, region = await client._staged_race("B08G9PRS1K")
+            data, region, stage, _total_requests, _elapsed = await client._staged_race("B08G9PRS1K")
 
             assert data is not None
             assert region in STAGE_1_REGIONS
+            assert stage == 1  # Stage 1 success
 
     @pytest.mark.asyncio
     async def test_stage2_runs_when_stage1_fails(self) -> None:
@@ -448,11 +456,12 @@ class TestStagedRace:
         with patch.object(client, "_http_client") as mock_http:
             mock_http.get = AsyncMock(side_effect=mock_get)
 
-            data, region = await client._staged_race("B08G9PRS1K")
+            data, region, stage, _total_requests, _elapsed = await client._staged_race("B08G9PRS1K")
 
             # Should succeed from Stage 2
             assert data is not None
             assert region not in STAGE_1_REGIONS
+            assert stage == 2  # Stage 2 success
 
 
 class TestFetchBookParallel:
