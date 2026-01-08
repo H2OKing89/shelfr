@@ -123,6 +123,16 @@ class MkbrrConfig:
 
 
 @dataclass
+class FFmpegConfig:
+    """FFmpeg Docker configuration (linuxserver/ffmpeg)."""
+
+    enabled: bool = False  # Disabled by default until configured
+    image: str = "lscr.io/linuxserver/ffmpeg:latest"
+    timeout_seconds: int = 1800  # 30 minutes default (transcoding can be slow)
+    hwaccel: str = "none"  # Hardware acceleration: none, vaapi, qsv, nvenc, vulkan
+
+
+@dataclass
 class QBittorrentConfig:
     """
     qBittorrent settings.
@@ -498,6 +508,7 @@ class Settings:
     paths: PathsConfig
     mam: MamConfig
     mkbrr: MkbrrConfig
+    ffmpeg: FFmpegConfig
     qbittorrent: QBittorrentConfig
     audnex: AudnexConfig
     mediainfo: MediaInfoConfig
@@ -1094,6 +1105,15 @@ def load_settings(
         timeout_seconds=mkbrr_data.get("timeout_seconds", 300),
     )
 
+    # Parse FFmpeg config
+    ffmpeg_data = yaml_config.get("ffmpeg", {})
+    ffmpeg = FFmpegConfig(
+        enabled=ffmpeg_data.get("enabled", False),
+        image=ffmpeg_data.get("image", "lscr.io/linuxserver/ffmpeg:latest"),
+        timeout_seconds=ffmpeg_data.get("timeout_seconds", 1800),
+        hwaccel=ffmpeg_data.get("hwaccel", "none"),
+    )
+
     # Parse qBittorrent config (credentials from pydantic-settings, rest from YAML)
     qb_data = yaml_config.get("qbittorrent", {})
     qbittorrent = QBittorrentConfig(
@@ -1290,6 +1310,7 @@ def load_settings(
         paths=paths,
         mam=mam,
         mkbrr=mkbrr,
+        ffmpeg=ffmpeg,
         qbittorrent=qbittorrent,
         audnex=audnex,
         mediainfo=mediainfo,

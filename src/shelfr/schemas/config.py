@@ -108,6 +108,26 @@ class MkbrrSchema(BaseModel):
     timeout_seconds: int = Field(default=300, ge=60, le=3600)
 
 
+class FFmpegSchema(BaseModel):
+    """FFmpeg Docker configuration (linuxserver/ffmpeg)."""
+
+    enabled: bool = False  # Disabled by default until configured
+    image: str = "lscr.io/linuxserver/ffmpeg:latest"
+    # Timeout for FFmpeg operations (transcoding can be slow)
+    timeout_seconds: int = Field(default=1800, ge=60, le=7200)  # 30 min default, 2hr max
+    # Hardware acceleration: none, vaapi, qsv, nvenc, vulkan
+    hwaccel: str = Field(default="none", pattern=r"^(none|vaapi|qsv|nvenc|vulkan)$")
+
+    @field_validator("hwaccel")
+    @classmethod
+    def validate_hwaccel(cls, v: str) -> str:
+        """Validate hardware acceleration type."""
+        valid = {"none", "vaapi", "qsv", "nvenc", "vulkan"}
+        if v not in valid:
+            raise ValueError(f"Invalid hwaccel '{v}'. Valid: {sorted(valid)}")
+        return v
+
+
 class QBittorrentSchema(BaseModel):
     """qBittorrent settings (credentials come from .env)."""
 
@@ -703,6 +723,7 @@ class ConfigSchema(BaseModel):
     paths: PathsSchema
     mam: MamSchema = Field(default_factory=MamSchema)
     mkbrr: MkbrrSchema = Field(default_factory=MkbrrSchema)
+    ffmpeg: FFmpegSchema = Field(default_factory=FFmpegSchema)
     qbittorrent: QBittorrentSchema = Field(default_factory=QBittorrentSchema)
     audnex: AudnexSchema = Field(default_factory=AudnexSchema)
     mediainfo: MediaInfoSchema = Field(default_factory=MediaInfoSchema)

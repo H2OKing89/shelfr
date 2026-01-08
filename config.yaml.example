@@ -96,6 +96,18 @@ mkbrr:
   timeout_seconds: 300
 
 # ─────────────────────────────────────────────────────────────────────────────
+# FFmpeg Docker Settings (optional - for audio processing)
+# ─────────────────────────────────────────────────────────────────────────────
+# Uses linuxserver/ffmpeg container for portable, hardware-accelerated encoding.
+# See: https://hub.docker.com/r/linuxserver/ffmpeg
+ffmpeg:
+  enabled: false                      # Enable FFmpeg integration
+  image: "lscr.io/linuxserver/ffmpeg:latest"
+  timeout_seconds: 1800               # 30 min default (transcoding can be slow)
+  # Hardware acceleration: none, vaapi (Intel/AMD), qsv (Intel), nvenc (NVIDIA), vulkan
+  hwaccel: "none"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # qBittorrent Settings
 # ─────────────────────────────────────────────────────────────────────────────
 # Note: Host, username, and password are read from .env file:
