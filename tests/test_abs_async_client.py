@@ -1163,3 +1163,152 @@ class TestPrefetchResult:
             asins_per_second=0.0,
         )
         assert summary.success_rate == 0.0
+
+
+# =============================================================================
+# Phase 11.4: Hybrid Import Tests
+# =============================================================================
+
+
+class TestEnrichFromAudnexWithCache:
+    """Tests for enrich_from_audnex with cache support."""
+
+    def test_enrich_uses_cache_hit(self) -> None:
+        """Test that enrich_from_audnex uses cached data when available."""
+
+        from shelfr.abs.importer import ParsedFolderName, enrich_from_audnex
+
+        parsed = ParsedFolderName(
+            author="Unknown",
+            title="Test Book",
+            asin="B0HASASI01",
+            series=None,
+            series_position=None,
+            year=None,
+            narrator=None,
+            ripper_tag=None,
+            is_standalone=True,
+        )
+
+        # Cache with metadata
+        cache: dict[str, tuple[dict[str, Any] | None, str | None]] = {
+            "B0HASASI01": (
+                {
+                    "title": "Enriched Title",
+                    "authors": [{"name": "Cache Author"}],
+                    "releaseDate": "2024-01-15T00:00:00.000Z",
+                },
+                "us",
+            ),
+        }
+
+        result_parsed, data, region = enrich_from_audnex(parsed, "B0HASASI01", audnex_cache=cache)
+
+        assert result_parsed.author == "Cache Author"
+        assert data is not None
+        assert data["title"] == "Enriched Title"
+        assert region == "us"
+
+    def test_enrich_uses_cache_miss_as_not_found(self) -> None:
+        """Test that cache None value means 'not found'."""
+
+        from shelfr.abs.importer import ParsedFolderName, enrich_from_audnex
+
+        parsed = ParsedFolderName(
+            author="Original Author",
+            title="Test Book",
+            asin="B0NOTFOUN1",
+            series=None,
+            series_position=None,
+            year=None,
+            narrator=None,
+            ripper_tag=None,
+            is_standalone=True,
+        )
+
+        # Cache with None (not found)
+        cache: dict[str, tuple[dict[str, Any] | None, str | None]] = {
+            "B0NOTFOUN1": (None, None),
+        }
+
+        result_parsed, data, region = enrich_from_audnex(parsed, "B0NOTFOUN1", audnex_cache=cache)
+
+        # Original data unchanged
+        assert result_parsed.author == "Original Author"
+        assert data is None
+        assert region is None
+
+    def test_enrich_without_cache_calls_fetch(self) -> None:
+        """Test that without cache, fetch_audnex_book is called."""
+        from unittest.mock import patch
+
+        from shelfr.abs.importer import ParsedFolderName, enrich_from_audnex
+
+        parsed = ParsedFolderName(
+            author="Original",
+            title="Test",
+            asin="B0HASASI01",
+            series=None,
+            series_position=None,
+            year=None,
+            narrator=None,
+            ripper_tag=None,
+            is_standalone=True,
+        )
+
+        with patch("shelfr.abs.importer.fetch_audnex_book") as mock_fetch:
+            mock_fetch.return_value = (
+                {
+                    "title": "Fetched Title",
+                    "authors": [{"name": "Fetched Author"}],
+                },
+                "uk",
+            )
+
+            result_parsed, data, region = enrich_from_audnex(
+                parsed, "B0HASASI01", audnex_cache=None
+            )
+
+            mock_fetch.assert_called_once_with("B0HASASI01")
+            assert result_parsed.author == "Fetched Author"
+            assert region == "uk"
+
+
+class TestImportBatchWithCache:
+    """Tests for import_batch with audnex_cache parameter."""
+
+    def test_import_batch_passes_cache_to_single(self, tmp_path: Path) -> None:
+        """Test that import_batch passes cache to import_single."""
+        from unittest.mock import MagicMock, patch
+
+        from shelfr.abs.importer import import_batch
+
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        folder = staging / "Author - Book {ASIN.B0HASASI01} [2024]"
+        folder.mkdir()
+        (folder / "book.m4b").write_bytes(b"audio")
+
+        library = tmp_path / "library"
+        library.mkdir()
+
+        cache: dict[str, tuple[dict[str, Any] | None, str | None]] = {
+            "B0HASASI01": ({"title": "Cached"}, "us")
+        }
+
+        with patch("shelfr.abs.importer.import_single") as mock_single:
+            mock_single.return_value = MagicMock(
+                status="imported",
+                asin="B0HASASI01",
+            )
+
+            import_batch(
+                staging_folders=[folder],
+                library_root=library,
+                asin_index={},
+                audnex_cache=cache,
+            )
+
+            # Verify cache was passed
+            call_kwargs = mock_single.call_args.kwargs
+            assert call_kwargs["audnex_cache"] == cache
