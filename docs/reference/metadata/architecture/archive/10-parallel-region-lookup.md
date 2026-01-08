@@ -925,7 +925,7 @@ Returns book metadata for a given ASIN and region.
 Returns chapter timing data for audiobook playback.
 
 | Parameter | In | Type | Required | Default | Description |
-| ----------- | ----- | ------ | ---------- | --------- | ------------- |
+|----------- | ----- | ------ | ---------- | --------- | ------------- |
 | `ASIN` | path | string | ✅ | - | Audible ASIN |
 | `region` | query | enum | ❌ | `us` | Region code |
 | `update` | query | 0\|1 | ❌ | 0 | Force upstream data refresh |

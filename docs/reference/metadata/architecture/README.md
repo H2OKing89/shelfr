@@ -1,27 +1,50 @@
 # Metadata Architecture Documentation
 
-> **Date:** January 5, 2026
-> **Status:** Migration Complete ✅ — Phases 0-8.5 implemented, Phase 9 in progress
-> **Related:** [JSON Sidecar Discovery](../../../implementation/json-sidecar-discovery.md) | [Naming System](../naming/NAMING.md) | [Providers](../providers/README.md)
+> **Date:** January 2025
+> **Status:** ✅ All Phases Complete (01-10)
+> **Related:** [Naming System](../naming/NAMING.md) | [Providers](../providers/README.md)
 
 ---
 
 ## Overview
 
-This folder contains the comprehensive metadata architecture documentation for shelfr. The documentation is organized into focused modules for easier navigation and maintenance.
+This folder contains the metadata architecture documentation for shelfr, organized into:
 
-## Quick Links
+- **CHECKLIST.md** — Master orchestrator with phase status
+- **phases/** — Design documents for each implementation phase
+- **patterns/** — Code reference for key implementation patterns
+- **archive/** — Historical documents (original detailed specs)
+
+## Quick Navigation
+
+### Master Document
 
 | Document | Description |
-| --- | --- |
-| [Current State Audit](01-current-state-audit.md) | Analysis of existing files, duplicates, and issues |
-| [Recommendations](02-recommendations.md) | Phased refactoring plan and migration strategy |
-| [Plugin Architecture](03-plugin-architecture.md) | Provider system for extensible metadata sources |
-| [Future-Proofing](04-future-proofing.md) | Exporters, caching, events, and infrastructure |
-| [Implementation Checklist](05-implementation-checklist.md) | Actionable task list by phase |
-| [Dead Code Removal Guide](06-dead-code-removal-guide.md) | How to safely identify, deprecate, and remove unused code |
-| [Content Flags](07-content-flags.md) | Flag resolution for MAM content warnings |
-| [Providers](../providers/README.md) | Provider-specific documentation (Hardcover, etc.) |
+| ---------- | ------------- |
+| [CHECKLIST.md](CHECKLIST.md) | **Start here.** Phase status and links |
+
+### Phase Documentation (Design)
+
+| Document | Description |
+| ---------- | ------------- |
+| [01-06-migration](phases/01-06-migration.md) | Plugin architecture & dead code removal |
+| [09-content-flags](phases/09-content-flags.md) | Content warning resolution system |
+| [10-parallel-region-lookup](phases/10-parallel-region-lookup.md) | Async Audnex with staged racing |
+
+### Pattern Reference (Code)
+
+| Document | Description |
+| ---------- | ------------- |
+| [async-race-pattern](patterns/async-race-pattern.md) | `as_completed()` racing with cancellation |
+| [region-cache-pattern](patterns/region-cache-pattern.md) | Smart cache invalidation |
+| [rate-limiting-pattern](patterns/rate-limiting-pattern.md) | Dual limiters (minute + burst) |
+| [provider-lifecycle-pattern](patterns/provider-lifecycle-pattern.md) | AsyncExitStack lifecycle |
+
+### Archive (Historical)
+
+| Document | Description |
+| ---------- | ------------- |
+| [archive/](archive/) | Original detailed phase specs (3800+ lines) |
 
 ---
 
@@ -95,7 +118,7 @@ When multiple providers have data for the same field, use these rules:
 
 **Override providers:** `abs_sidecar` and `private_db` may intentionally set empty values to clear bad data. The aggregator respects these clears rather than filtering them out.
 
-> **Note:** The plugin architecture implements precedence via per-provider `priority` + `confidence` scores with deterministic tie-breaking. These tables document the *default* behavior; see [Plugin Architecture](03-plugin-architecture.md) for the flexible system.
+> **Note:** The plugin architecture implements precedence via per-provider `priority` + `confidence` scores with deterministic tie-breaking. These tables document the *default* behavior; see [archive/03-plugin-architecture.md](archive/03-plugin-architecture.md) for the detailed system design.
 
 ---
 
@@ -185,8 +208,8 @@ src/shelfr/metadata/
 | **Production Integration** | ✅ Complete | Legacy workflow uses provider via `_fetch_audnex_with_provider()` |
 
 > **Note:** Production workflow (`workflow.py`) now uses `AudnexProvider` with caching (30-day TTL)
-> and rate limiting (10 req/sec). Use `--no-cache` flag to bypass caching if needed.
-> See [Phase 8.5 in Implementation Checklist](05-implementation-checklist.md#phase-85-production-integration--complete).
+> and rate limiting. Use `--no-cache` flag to bypass caching if needed.
+> See [archive/05-implementation-checklist.md](archive/05-implementation-checklist.md) for implementation history.
 
 **Key changes from original `metadata.py`:**
 
@@ -235,7 +258,7 @@ When ABS changes fields later, add an adapter layer rather than breaking existin
 
 ## Migration Strategy (Ship Value Fast)
 
-See [Implementation Checklist](05-implementation-checklist.md) for the detailed phased approach.
+See [archive/05-implementation-checklist.md](archive/05-implementation-checklist.md) for the detailed phased approach.
 
 **Summary sequence:**
 
@@ -265,7 +288,7 @@ See [Implementation Checklist](05-implementation-checklist.md) for the detailed 
 5. **Move OPF** after JSON works
 6. **Break up `metadata.py`** incrementally over time
 
-See [Implementation Checklist](05-implementation-checklist.md) for the detailed phased approach.
+See [archive/05-implementation-checklist.md](archive/05-implementation-checklist.md) for the detailed phased approach.
 
 ---
 
