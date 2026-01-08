@@ -1277,8 +1277,6 @@ class TestImportBatchWithCache:
 
     def test_import_batch_passes_cache_to_single(self, tmp_path: Path) -> None:
         """Test that import_batch passes cache to import_single."""
-        from unittest.mock import MagicMock, patch
-
         from shelfr.abs.importer import import_batch
 
         staging = tmp_path / "staging"

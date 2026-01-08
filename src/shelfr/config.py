@@ -345,7 +345,8 @@ class CleanupConfig:
 class UploadSanitizeConfig:
     """Sanitization settings for the upload workflow.
 
-    Tags are stored normalized (lowercase) for case-insensitive matching.
+    Note: Tags should be passed as lowercase for case-insensitive matching.
+    The Pydantic schema normalizes tags during config file loading.
     """
 
     enabled: bool = True

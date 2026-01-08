@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -239,6 +241,293 @@ class TestSanitizeFile:
         assert error is None
         # File unchanged
         assert test_file.read_bytes() == original_content
+
+    def test_copy_audio_success_replaces_file(self, tmp_path: Path) -> None:
+        """Test successful sanitization with atomic file replacement."""
+        test_file = tmp_path / "test.m4b"
+        test_file.write_bytes(b"original audio content")
+
+        mock_result = MagicMock()
+        mock_result.success = True
+
+        def create_temp_file(*args: Any, **kwargs: Any) -> MagicMock:
+            """Side effect: create temp file simulating FFmpeg output."""
+            # Find the temp file path (second positional arg)
+            temp_path = args[1]
+            # Write content same size as original (within 1% tolerance)
+            temp_path.write_bytes(b"original audio content")
+            return mock_result
+
+        # Mock check_unwanted_tags to return found on first call, empty on verify
+        check_call_count = [0]
+
+        def check_tags_side_effect(path: Path, tags: tuple[str, ...]) -> list[str]:
+            check_call_count[0] += 1
+            if check_call_count[0] == 1:
+                return ["AUDIBLE_ACR"]  # First call: found tag
+            return []  # Second call (verify): tag removed
+
+        with (
+            patch("shelfr.sanitize.check_unwanted_tags", side_effect=check_tags_side_effect),
+            patch("shelfr.sanitize.get_chapters", return_value=[{"id": 1}]),
+            patch("shelfr.sanitize.copy_audio", side_effect=create_temp_file),
+        ):
+            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+
+        assert modified is True
+        assert tags == ["AUDIBLE_ACR"]
+        assert error is None
+        # Original file should be replaced (content same size but from temp)
+        assert test_file.exists()
+        # No backup file should remain
+        backup_path = test_file.with_suffix(f"{test_file.suffix}.backup")
+        assert not backup_path.exists()
+
+    def test_copy_audio_failure_cleans_temp_file(self, tmp_path: Path) -> None:
+        """Test FFmpeg failure cleans up temp file and returns error."""
+        test_file = tmp_path / "test.m4b"
+        test_file.write_bytes(b"original audio content")
+
+        mock_result = MagicMock()
+        mock_result.success = False
+        mock_result.error = "FFmpeg conversion failed"
+
+        captured_temp_path: list[Path] = []
+
+        def create_failed_temp(*args: Any, **kwargs: Any) -> MagicMock:
+            """Side effect: create temp file but return failure."""
+            temp_path = args[1]
+            captured_temp_path.append(temp_path)
+            temp_path.write_bytes(b"partial output")
+            return mock_result
+
+        with (
+            patch("shelfr.sanitize.check_unwanted_tags", return_value=["AUDIBLE_ACR"]),
+            patch("shelfr.sanitize.get_chapters", return_value=None),
+            patch("shelfr.sanitize.copy_audio", side_effect=create_failed_temp),
+        ):
+            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+
+        assert modified is False
+        assert tags == []
+        assert error is not None
+        assert "FFmpeg failed" in error
+        # Original file unchanged
+        assert test_file.read_bytes() == b"original audio content"
+        # Temp file should be cleaned up
+        assert len(captured_temp_path) == 1
+        assert not captured_temp_path[0].exists()
+
+    def test_verification_size_tolerance_failure(self, tmp_path: Path) -> None:
+        """Test verification fails when file size changes too much."""
+        test_file = tmp_path / "test.m4b"
+        test_file.write_bytes(b"x" * 1000)  # 1000 bytes
+
+        mock_result = MagicMock()
+        mock_result.success = True
+
+        def create_wrong_size_temp(*args: Any, **kwargs: Any) -> MagicMock:
+            """Side effect: create temp file with wrong size (>1% diff)."""
+            temp_path = args[1]
+            temp_path.write_bytes(b"x" * 500)  # 50% smaller
+            return mock_result
+
+        with (
+            patch("shelfr.sanitize.check_unwanted_tags", return_value=["AUDIBLE_ACR"]),
+            patch("shelfr.sanitize.get_chapters", return_value=None),
+            patch("shelfr.sanitize.copy_audio", side_effect=create_wrong_size_temp),
+        ):
+            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+
+        assert modified is False
+        assert error is not None
+        assert "size changed" in error.lower()
+        # Original unchanged
+        assert test_file.read_bytes() == b"x" * 1000
+
+    def test_verification_chapter_count_mismatch(self, tmp_path: Path) -> None:
+        """Test verification fails when chapter count changes."""
+        test_file = tmp_path / "test.m4b"
+        test_file.write_bytes(b"original audio content")
+
+        mock_result = MagicMock()
+        mock_result.success = True
+
+        # Track calls to get_chapters
+        chapter_call_count = [0]
+
+        def chapters_side_effect(path: Path) -> list[dict[str, Any]] | None:
+            chapter_call_count[0] += 1
+            if chapter_call_count[0] == 1:
+                return [{"id": 1}, {"id": 2}, {"id": 3}]  # Original: 3 chapters
+            return [{"id": 1}]  # Sanitized: only 1 chapter
+
+        def create_temp(*args: Any, **kwargs: Any) -> MagicMock:
+            temp_path = args[1]
+            temp_path.write_bytes(b"original audio content")  # Same size
+            return mock_result
+
+        with (
+            patch("shelfr.sanitize.check_unwanted_tags", return_value=["AUDIBLE_ACR"]),
+            patch("shelfr.sanitize.get_chapters", side_effect=chapters_side_effect),
+            patch("shelfr.sanitize.copy_audio", side_effect=create_temp),
+        ):
+            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+
+        assert modified is False
+        assert error is not None
+        assert "chapter count" in error.lower()
+
+    def test_verification_tags_not_removed(self, tmp_path: Path) -> None:
+        """Test verification fails when tags weren't actually removed."""
+        test_file = tmp_path / "test.m4b"
+        test_file.write_bytes(b"original audio content")
+
+        mock_result = MagicMock()
+        mock_result.success = True
+
+        check_call_count = [0]
+
+        def check_tags_side_effect(path: Path, tags: tuple[str, ...]) -> list[str]:
+            check_call_count[0] += 1
+            if check_call_count[0] == 1:
+                return ["AUDIBLE_ACR"]  # First call: found tag
+            return ["AUDIBLE_ACR"]  # Second call: still there!
+
+        def create_temp(*args: Any, **kwargs: Any) -> MagicMock:
+            temp_path = args[1]
+            temp_path.write_bytes(b"original audio content")
+            return mock_result
+
+        with (
+            patch("shelfr.sanitize.check_unwanted_tags", side_effect=check_tags_side_effect),
+            patch("shelfr.sanitize.get_chapters", return_value=None),
+            patch("shelfr.sanitize.copy_audio", side_effect=create_temp),
+        ):
+            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+
+        assert modified is False
+        assert error is not None
+        assert "not removed" in error.lower()
+
+    def test_unexpected_exception_cleans_up(self, tmp_path: Path) -> None:
+        """Test unexpected exception cleans up temp file."""
+        test_file = tmp_path / "test.m4b"
+        test_file.write_bytes(b"original audio content")
+
+        captured_temp_path: list[Path] = []
+
+        def raise_exception(*args: Any, **kwargs: Any) -> None:
+            temp_path = args[1]
+            captured_temp_path.append(temp_path)
+            temp_path.write_bytes(b"partial")
+            raise RuntimeError("Unexpected crash!")
+
+        with (
+            patch("shelfr.sanitize.check_unwanted_tags", return_value=["AUDIBLE_ACR"]),
+            patch("shelfr.sanitize.get_chapters", return_value=None),
+            patch("shelfr.sanitize.copy_audio", side_effect=raise_exception),
+        ):
+            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+
+        assert modified is False
+        assert error is not None
+        assert "unexpected error" in error.lower()
+        # Original unchanged
+        assert test_file.read_bytes() == b"original audio content"
+        # Temp cleaned up
+        assert len(captured_temp_path) == 1
+        assert not captured_temp_path[0].exists()
+
+    def test_atomic_rename_failure_restores_backup(self, tmp_path: Path) -> None:
+        """Test atomic rename failure restores from backup."""
+        test_file = tmp_path / "test.m4b"
+        test_file.write_bytes(b"original audio content")
+
+        mock_result = MagicMock()
+        mock_result.success = True
+
+        move_call_count = [0]
+        original_move = shutil.move
+
+        def move_side_effect(src: str, dst: str) -> str:
+            move_call_count[0] += 1
+            if move_call_count[0] == 2:
+                # Fail on the second move (temp → original)
+                raise OSError("Disk full!")
+            return original_move(src, dst)
+
+        def create_temp(*args: Any, **kwargs: Any) -> MagicMock:
+            temp_path = args[1]
+            temp_path.write_bytes(b"original audio content")
+            return mock_result
+
+        # Mock all verification to pass
+        def check_tags_pass(path: Path, tags: tuple[str, ...]) -> list[str]:
+            # Return found on first call (original), empty on verify (sanitized)
+            if str(path).endswith(".m4b"):
+                return ["AUDIBLE_ACR"]
+            return []
+
+        with (
+            patch("shelfr.sanitize.check_unwanted_tags", side_effect=check_tags_pass),
+            patch("shelfr.sanitize.get_chapters", return_value=None),
+            patch("shelfr.sanitize.copy_audio", side_effect=create_temp),
+            patch("shelfr.sanitize.shutil.move", side_effect=move_side_effect),
+        ):
+            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+
+        assert modified is False
+        assert error is not None
+        assert "failed to replace" in error.lower()
+        # Original should be restored from backup
+        assert test_file.exists()
+        assert test_file.read_bytes() == b"original audio content"
+
+
+# =============================================================================
+# _verify_sanitized_file Tests
+# =============================================================================
+
+
+class TestVerifySanitizedFile:
+    """Tests for _verify_sanitized_file function."""
+
+    def test_empty_original_file_with_content_sanitized(self, tmp_path: Path) -> None:
+        """Test verification fails when original is empty but sanitized has content."""
+        from shelfr.sanitize import _verify_sanitized_file
+
+        original = tmp_path / "original.m4b"
+        original.touch()  # Empty file
+
+        sanitized = tmp_path / "sanitized.m4b"
+        sanitized.write_bytes(b"some content")
+
+        success, error = _verify_sanitized_file(
+            original, sanitized, original_chapters=None, expected_stripped_tags=()
+        )
+
+        assert success is False
+        assert error is not None
+        assert "empty" in error.lower()
+
+    def test_both_empty_files_passes(self, tmp_path: Path) -> None:
+        """Test verification passes when both files are empty."""
+        from shelfr.sanitize import _verify_sanitized_file
+
+        original = tmp_path / "original.m4b"
+        original.touch()
+
+        sanitized = tmp_path / "sanitized.m4b"
+        sanitized.touch()
+
+        with patch("shelfr.sanitize.check_unwanted_tags", return_value=[]):
+            success, error = _verify_sanitized_file(
+                original, sanitized, original_chapters=None, expected_stripped_tags=()
+            )
+
+        assert success is True
+        assert error is None
 
 
 # =============================================================================

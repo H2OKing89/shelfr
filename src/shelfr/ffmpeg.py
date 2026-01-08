@@ -269,7 +269,7 @@ def probe(
         ]
     )
 
-    logger.debug(f"Running probe: {' '.join(cmd)}")
+    logger.debug("Running probe: %s", " ".join(cmd))
 
     try:
         result = _run_docker_command(cmd, timeout=timeout)
@@ -462,7 +462,7 @@ def transcode(
 
     cmd.extend(ffmpeg_args)
 
-    logger.debug(f"Running transcode: {' '.join(cmd)}")
+    logger.debug("Running transcode: %s", " ".join(cmd))
 
     try:
         result = _run_docker_command(cmd, timeout=timeout)
@@ -592,7 +592,7 @@ def pull_image() -> bool:
         )
         return result.exit_code == 0
     except Exception as e:
-        logger.error(f"Failed to pull FFmpeg image: {e}")
+        logger.error("Failed to pull FFmpeg image: %s", e)
         return False
 
 
@@ -739,7 +739,7 @@ def copy_audio(
 
     cmd.extend(ffmpeg_args)
 
-    logger.debug(f"Running copy_audio: {' '.join(cmd)}")
+    logger.debug("Running copy_audio: %s", " ".join(cmd))
 
     try:
         result = _run_docker_command(cmd, timeout=timeout)

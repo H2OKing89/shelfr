@@ -34,21 +34,6 @@ from shelfr.models import AudiobookRelease
 
 logger = logging.getLogger(__name__)
 
-# Silence "unused" linter warnings - these ARE used at runtime
-_ = (
-    FFmpegResult,
-    copy_audio,
-    get_chapters,
-    ffmpeg_available,
-    get_settings,
-    print_dry_run,
-    print_info,
-    print_success,
-    print_warning,
-    AudiobookRelease,
-    shutil,
-)
-
 
 @dataclass
 class SanitizeResult:
@@ -177,10 +162,16 @@ def _verify_sanitized_file(
     orig_size = original.stat().st_size
     new_size = sanitized.stat().st_size
 
-    # Allow 1% tolerance (metadata changes shouldn't be more)
-    size_diff_percent = abs(orig_size - new_size) / orig_size * 100
-    if size_diff_percent > 1.0:
-        return False, f"File size changed by {size_diff_percent:.1f}% (expected <1%)"
+    # Handle empty files (corrupt or test files)
+    if orig_size == 0:
+        if new_size > 0:
+            return False, "Sanitized file has content but original was empty"
+        # Both empty - continue to other checks
+    else:
+        # Allow 1% tolerance (metadata changes shouldn't be more)
+        size_diff_percent = abs(orig_size - new_size) / orig_size * 100
+        if size_diff_percent > 1.0:
+            return False, f"File size changed by {size_diff_percent:.1f}% (expected <1%)"
 
     # Verify chapters preserved
     if original_chapters:
@@ -251,7 +242,11 @@ def sanitize_file(
     original_chapters = get_chapters(file_path)
 
     # Create temp file in same directory (for atomic rename on same filesystem)
-    temp_path = file_path.with_suffix(f"{file_path.suffix}.sanitizing")
+    # Use timestamp in suffix to avoid collisions with user files
+    import time
+
+    temp_suffix = f".sanitizing.{int(time.time() * 1000000)}"
+    temp_path = file_path.with_suffix(f"{file_path.suffix}{temp_suffix}")
 
     try:
         # Strip tags using ffmpeg copy
