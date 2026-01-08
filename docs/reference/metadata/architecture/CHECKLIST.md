@@ -63,12 +63,12 @@
 
 | Phase | Status | Description |
 | ------- | -------- | ------------- |
-| **11: ABS Importer Async** | � In Progress | Migrate sync importer to async |
+| **11: ABS Importer Async** | ✅ Complete | Migrate sync importer to async |
 | **12: Hardcover Provider** | 📋 Planned | Add Hardcover as metadata source |
 
 ---
 
-## Phase 11: ABS Importer Async 🚧 IN PROGRESS
+## Phase 11: ABS Importer Async ✅ COMPLETE
 
 > **Goal:** Migrate sync ABS importer to async for better performance with large libraries
 
@@ -78,7 +78,7 @@
 | 11.2 Async ASIN Index | ✅ | `build_asin_index_async()` |
 | 11.3 Metadata Prefetch | ✅ | `prefetch_metadata_async()` |
 | 11.4 Hybrid Batch Import | ✅ | `import_batch_async()` |
-| 11.5 CLI Integration | 📋 | Update `shelfr abs import` |
+| 11.5 CLI Integration | ✅ | Update `shelfr abs import --parallel` |
 
 **Details:** [phases/11-abs-importer-async.md](phases/11-abs-importer-async.md)
 
