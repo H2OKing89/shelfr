@@ -9,6 +9,7 @@ Commands:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
 import typer
@@ -32,17 +33,19 @@ def register_audnex_commands(audnex_app: typer.Typer) -> None:
     def audnex_callback(ctx: typer.Context) -> None:
         """Audnex API diagnostics and statistics.
 
-        [bold]Commands:[/]
+        Commands:
           shelfr audnex region-stats  Show region cache statistics
 
-        [dim]These tools help monitor the parallel region lookup system.[/]
+        These tools help monitor the parallel region lookup system.
         """
         if ctx.invoked_subcommand is None:
             console.print(ctx.get_help())
             raise typer.Exit(0)
 
     @audnex_app.command("region-stats")
-    def region_stats_command() -> None:
+    def region_stats_command(
+        json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+    ) -> None:
         """Show region cache statistics.
 
         Displays statistics about the ASIN → region cache, including:
@@ -51,7 +54,9 @@ def register_audnex_commands(audnex_app: typer.Typer) -> None:
         - Total cache hits
         - Entries with pending failures
 
-        [bold]Example output:[/]
+        Use --json for machine-readable output.
+
+        Example output:
           Region Distribution (1,234 entries):
           ┌────────┬───────┬─────────┐
           │ Region │ Count │ Percent │
@@ -61,13 +66,13 @@ def register_audnex_commands(audnex_app: typer.Typer) -> None:
           │ de     │    54 │  4.4%   │
           └────────┴───────┴─────────┘
 
-        [dim]Use this to verify cache effectiveness and debug region issues.[/]
+        Use this to verify cache effectiveness and debug region issues.
         """
-        result = asyncio.run(_region_stats_async())
+        result = asyncio.run(_region_stats_async(json_output=json_output))
         raise typer.Exit(result)
 
 
-async def _region_stats_async() -> int:
+async def _region_stats_async(*, json_output: bool = False) -> int:
     """Async implementation of region-stats command."""
     cache = get_default_region_cache()
 
@@ -85,6 +90,17 @@ async def _region_stats_async() -> int:
         logger.exception("Failed to load region cache stats")
         console.print(f"[red]Error reading region cache:[/] {e}")
         return 1
+
+    # JSON output mode
+    if json_output:
+        output = {
+            "total_entries": total_entries,
+            "region_distribution": region_distribution,
+            "total_hits": total_hits,
+            "entries_with_failures": entries_with_failures,
+        }
+        console.print(json.dumps(output, indent=2))
+        return 0
 
     if total_entries == 0:
         console.print(
@@ -105,7 +121,7 @@ async def _region_stats_async() -> int:
     sorted_regions = sorted(region_distribution.items(), key=lambda x: x[1], reverse=True)
 
     for region, count in sorted_regions:
-        pct = (count / total_entries * 100) if total_entries > 0 else 0
+        pct = (count / total_entries) * 100
         region_table.add_row(region, f"{count:,}", f"{pct:.1f}%")
 
     console.print(region_table)
