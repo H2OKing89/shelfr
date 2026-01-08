@@ -1,6 +1,6 @@
 # Phase 11: ABS Importer Async
 
-> **Status:** 🚧 In Progress
+> **Status:** ✅ Complete
 > **Goal:** Migrate sync ABS importer to async for better performance with large libraries
 > **Branch:** `feature/phase-11-abs-async`
 
@@ -26,7 +26,7 @@ Filesystem operations (rename, move, hardlink) remain sync — async provides no
 ## Current Architecture
 
 | Component | File | Lines | Pattern |
-|-----------|------|-------|---------|
+| ----------- | ------ | ------- | --------- |
 | Sync Client | `abs/client.py` | 605 | `httpx.Client` |
 | Sync Importer | `abs/importer.py` | 2059 | Sequential loop |
 | CLI Handler | `commands/abs/import_.py` | 921 | Sync orchestration |
@@ -47,7 +47,7 @@ Filesystem operations (rename, move, hardlink) remain sync — async provides no
 Create `abs/async_client.py` with async equivalents:
 
 | Sync Method | Async Method | Notes |
-|-------------|--------------|-------|
+| ------------- | -------------- | ------- |
 | `authorize()` | `authorize_async()` | Connection test |
 | `get_libraries()` | `get_libraries_async()` | Library list |
 | `get_library_items()` | `get_library_items_async()` | Paginated fetch |
@@ -173,7 +173,7 @@ async def _import_async(args, settings) -> int:
 ## Performance Expectations
 
 | Scenario | Current | Phase 11 | Improvement |
-|----------|---------|----------|-------------|
+| ---------- | --------- | ---------- | ------------- |
 | ASIN index (1000 books) | ~10s (10 pages × 1s) | ~2s (parallel pages) | **5×** |
 | Metadata prefetch (50 books) | N/A (on-demand) | ~3s (parallel) | **N/A** |
 | Batch import (50 books) | ~150s (3s × 50) | ~60s (prefetch + sequential FS) | **2.5×** |
@@ -183,7 +183,7 @@ async def _import_async(args, settings) -> int:
 ## Files to Create/Modify
 
 | File | Action | Description |
-|------|--------|-------------|
+| ------ | -------- | ------------- |
 | `abs/async_client.py` | **CREATE** | Async ABS client |
 | `abs/importer.py` | MODIFY | Add `import_batch_async()` |
 | `abs/__init__.py` | MODIFY | Export async client |
@@ -196,52 +196,52 @@ async def _import_async(args, settings) -> int:
 
 ### 11.1: Async ABS Client
 
-- [ ] Create `abs/async_client.py` with `AbsAsyncClient`
-- [ ] Implement `authorize_async()`
-- [ ] Implement `get_libraries_async()`
-- [ ] Implement `get_library_items_async()`
-- [ ] Implement `get_all_library_items_async()` with parallel pages
-- [ ] Implement `search_books_async()`
-- [ ] Implement `scan_library_async()`
-- [ ] Add rate limiting with `aiolimiter`
-- [ ] Add connection pooling
-- [ ] Add context manager support
+- [x] Create `abs/async_client.py` with `AbsAsyncClient`
+- [x] Implement `authorize_async()` → `authorize()`
+- [x] Implement `get_libraries_async()` → `get_libraries()`
+- [x] Implement `get_library_items_async()` → `get_library_items()`
+- [x] Implement `get_all_library_items_async()` with parallel pages → `get_all_library_items()`
+- [x] Implement `search_books_async()` → `search_books()`, `search_books_batch()`
+- [x] Implement `scan_library_async()` → `scan_library()`, `scan_libraries()`
+- [x] Add rate limiting with `aiolimiter`
+- [x] Add connection pooling
+- [x] Add context manager support
 
 ### 11.2: Async ASIN Index
 
-- [ ] Create `build_asin_index_async()` in `abs/asin.py`
-- [ ] Parallel page fetching
-- [ ] Progress callback support
+- [x] Create `build_asin_index_async()` in `abs/asin.py`
+- [x] Parallel page fetching
+- [x] Progress callback support
 
 ### 11.3: Metadata Prefetch
 
-- [ ] Create `prefetch_metadata_async()`
-- [ ] Integration with Phase 10 Audnex async client
-- [ ] Cache results for batch import
+- [x] Create `prefetch_metadata_async()` in `abs/prefetch.py`
+- [x] Integration with Phase 10 Audnex async client
+- [x] Cache results for batch import (`MetadataCache` type alias)
 
 ### 11.4: Hybrid Batch Import
 
-- [ ] Create `import_batch_async()` wrapper
-- [ ] Keep `import_single()` sync (filesystem ops)
-- [ ] Parallel library scans
+- [x] Create `import_batch_async()` wrapper in `abs/importer.py`
+- [x] Keep `import_single()` sync (filesystem ops)
+- [x] Parallel library scans via `scan_libraries()`
 
 ### 11.5: CLI Integration
 
-- [ ] Update `cmd_abs_import()` to use async
-- [ ] Maintain backward compatibility
-- [ ] Progress bar updates
+- [x] Update `cmd_abs_import()` to use async (`asyncio.run(import_batch_async(...))`)
+- [x] Maintain backward compatibility (sync still default, `--parallel` for async)
+- [x] Progress bar updates
 
 ### Tests
 
-- [ ] Unit tests for `AbsAsyncClient`
-- [ ] Integration tests for async import
-- [ ] Mock ABS API responses
+- [x] Unit tests for `AbsAsyncClient` (`tests/test_abs_async_client.py`)
+- [x] Integration tests for async import
+- [x] Mock ABS API responses
 
 ### Documentation
 
-- [ ] Update CHECKLIST.md status
-- [ ] Add async client to Quick Reference
-- [ ] CHANGELOG entry
+- [x] Update CHECKLIST.md status
+- [x] Add async client to Quick Reference
+- [x] CHANGELOG entry
 
 ---
 
@@ -258,7 +258,7 @@ No new dependencies required.
 ## Risk Mitigation
 
 | Risk | Mitigation |
-|------|------------|
+| ------ | ------------ |
 | Breaking existing sync imports | Keep sync client, add async as alternative |
 | Rate limiting ABS server | Use `AsyncLimiter` (10 req/s default) |
 | Connection exhaustion | Limit concurrent connections (20 max) |

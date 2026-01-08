@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -514,3 +515,290 @@ class TestExtractAudio:
             call_kwargs = mock_transcode.call_args[1]
             assert call_kwargs["audio_codec"] == "copy"
             assert "-vn" in call_kwargs["extra_args"]
+
+
+# =============================================================================
+# Audiobook / Audio-Focused Tests
+# =============================================================================
+
+
+class TestCopyAudio:
+    """Tests for copy_audio function."""
+
+    @pytest.fixture
+    def mock_settings(self) -> MagicMock:
+        """Create mock settings."""
+        settings = MagicMock()
+        settings.docker_bin = "docker"
+        settings.ffmpeg.image = "lscr.io/linuxserver/ffmpeg:latest"
+        settings.ffmpeg.timeout_seconds = 1800
+        return settings
+
+    def test_copy_audio_input_not_found(self, tmp_path: Path, mock_settings: MagicMock) -> None:
+        """Test copy_audio fails for non-existent input."""
+        from shelfr.ffmpeg import copy_audio
+
+        with patch("shelfr.ffmpeg.get_settings", return_value=mock_settings):
+            result = copy_audio(
+                tmp_path / "nonexistent.m4b",
+                tmp_path / "output.m4b",
+            )
+
+        assert result.success is False
+        assert result.error is not None
+        assert "not found" in result.error.lower()
+
+    def test_copy_audio_output_exists_no_overwrite(
+        self, tmp_path: Path, mock_settings: MagicMock
+    ) -> None:
+        """Test copy_audio fails when output exists and overwrite=False."""
+        from shelfr.ffmpeg import copy_audio
+
+        input_file = tmp_path / "input.m4b"
+        output_file = tmp_path / "output.m4b"
+        input_file.touch()
+        output_file.touch()
+
+        with patch("shelfr.ffmpeg.get_settings", return_value=mock_settings):
+            result = copy_audio(input_file, output_file, overwrite=False)
+
+        assert result.success is False
+        assert result.error is not None
+        assert "exists" in result.error.lower()
+
+    def test_copy_audio_builds_correct_command(
+        self, tmp_path: Path, mock_settings: MagicMock
+    ) -> None:
+        """Test copy_audio builds correct FFmpeg command."""
+        from shelfr.ffmpeg import copy_audio
+
+        input_file = tmp_path / "input.m4b"
+        output_file = tmp_path / "output.m4b"
+        input_file.touch()
+        # Output needs to exist after the "run" for verification
+        output_file.touch()
+
+        mock_result = MagicMock()
+        mock_result.exit_code = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+
+        with (
+            patch("shelfr.ffmpeg.get_settings", return_value=mock_settings),
+            patch("shelfr.ffmpeg._run_docker_command", return_value=mock_result),
+        ):
+            result = copy_audio(input_file, output_file, overwrite=True)
+            assert result.success is True
+
+    def test_copy_audio_with_strip_tags(self, tmp_path: Path, mock_settings: MagicMock) -> None:
+        """Test copy_audio includes strip_tags in command."""
+        from shelfr.ffmpeg import copy_audio
+
+        input_file = tmp_path / "input.m4b"
+        output_file = tmp_path / "output.m4b"
+        input_file.touch()
+        output_file.touch()
+
+        mock_result = MagicMock()
+        mock_result.exit_code = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+
+        captured_cmd: list[str] = []
+
+        def capture_cmd(cmd: list[str], **kwargs: Any) -> MagicMock:
+            captured_cmd.extend(cmd)
+            return mock_result
+
+        with (
+            patch("shelfr.ffmpeg.get_settings", return_value=mock_settings),
+            patch("shelfr.ffmpeg._run_docker_command", side_effect=capture_cmd),
+        ):
+            copy_audio(
+                input_file,
+                output_file,
+                strip_tags=["AUDIBLE_ACR", "AUDIBLE_ASIN"],
+                overwrite=True,
+            )
+
+        # Verify strip tags are in command
+        cmd_str = " ".join(captured_cmd)
+        assert "-metadata AUDIBLE_ACR=" in cmd_str
+        assert "-metadata AUDIBLE_ASIN=" in cmd_str
+
+    def test_copy_audio_with_set_tags(self, tmp_path: Path, mock_settings: MagicMock) -> None:
+        """Test copy_audio includes set_tags in command."""
+        from shelfr.ffmpeg import copy_audio
+
+        input_file = tmp_path / "input.m4b"
+        output_file = tmp_path / "output.m4b"
+        input_file.touch()
+        output_file.touch()
+
+        mock_result = MagicMock()
+        mock_result.exit_code = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+
+        captured_cmd: list[str] = []
+
+        def capture_cmd(cmd: list[str], **kwargs: Any) -> MagicMock:
+            captured_cmd.extend(cmd)
+            return mock_result
+
+        with (
+            patch("shelfr.ffmpeg.get_settings", return_value=mock_settings),
+            patch("shelfr.ffmpeg._run_docker_command", side_effect=capture_cmd),
+        ):
+            copy_audio(
+                input_file,
+                output_file,
+                set_tags={"title": "My Audiobook", "artist": "Author Name"},
+                overwrite=True,
+            )
+
+        # Verify set tags are in command
+        cmd_str = " ".join(captured_cmd)
+        assert "-metadata title=My Audiobook" in cmd_str
+        assert "-metadata artist=Author Name" in cmd_str
+
+
+class TestStripAudibleTags:
+    """Tests for strip_audible_tags function."""
+
+    @pytest.fixture
+    def mock_settings(self) -> MagicMock:
+        """Create mock settings."""
+        settings = MagicMock()
+        settings.docker_bin = "docker"
+        settings.ffmpeg.image = "lscr.io/linuxserver/ffmpeg:latest"
+        settings.ffmpeg.timeout_seconds = 1800
+        return settings
+
+    def test_strip_audible_tags_calls_copy_audio(
+        self, tmp_path: Path, mock_settings: MagicMock
+    ) -> None:
+        """Test strip_audible_tags uses copy_audio with correct tags."""
+        from shelfr.ffmpeg import strip_audible_tags
+
+        input_file = tmp_path / "input.m4b"
+        output_file = tmp_path / "output.m4b"
+        input_file.touch()
+
+        with (
+            patch("shelfr.ffmpeg.get_settings", return_value=mock_settings),
+            patch("shelfr.ffmpeg.copy_audio") as mock_copy,
+        ):
+            mock_copy.return_value = FFmpegResult(success=True, exit_code=0)
+            strip_audible_tags(input_file, output_file)
+
+            mock_copy.assert_called_once()
+            call_kwargs = mock_copy.call_args[1]
+            assert "AUDIBLE_ACR" in call_kwargs["strip_tags"]
+            assert len(call_kwargs["strip_tags"]) == 1  # Only AUDIBLE_ACR for now
+
+
+class TestGetAudioTags:
+    """Tests for get_audio_tags function."""
+
+    @pytest.fixture
+    def mock_settings(self) -> MagicMock:
+        """Create mock settings."""
+        settings = MagicMock()
+        settings.docker_bin = "docker"
+        settings.ffmpeg.image = "lscr.io/linuxserver/ffmpeg:latest"
+        settings.ffmpeg.timeout_seconds = 60
+        return settings
+
+    def test_get_audio_tags_success(self, tmp_path: Path, mock_settings: MagicMock) -> None:
+        """Test get_audio_tags returns tags dict."""
+        from shelfr.ffmpeg import get_audio_tags
+
+        test_file = tmp_path / "test.m4b"
+        test_file.touch()
+
+        mock_result = MagicMock()
+        mock_result.exit_code = 0
+        mock_result.stdout = """{
+            "format": {
+                "tags": {
+                    "title": "My Audiobook",
+                    "artist": "Author",
+                    "AUDIBLE_ACR": "some_value"
+                }
+            },
+            "streams": []
+        }"""
+        mock_result.stderr = ""
+
+        with (
+            patch("shelfr.ffmpeg.get_settings", return_value=mock_settings),
+            patch("shelfr.ffmpeg._run_docker_command", return_value=mock_result),
+        ):
+            tags = get_audio_tags(test_file)
+
+        assert tags is not None
+        assert tags["title"] == "My Audiobook"
+        assert tags["artist"] == "Author"
+        assert tags["AUDIBLE_ACR"] == "some_value"
+
+    def test_get_audio_tags_failure(self, tmp_path: Path, mock_settings: MagicMock) -> None:
+        """Test get_audio_tags returns None on failure."""
+        from shelfr.ffmpeg import get_audio_tags
+
+        with patch("shelfr.ffmpeg.get_settings", return_value=mock_settings):
+            tags = get_audio_tags(tmp_path / "nonexistent.m4b")
+
+        assert tags is None
+
+
+class TestGetChapters:
+    """Tests for get_chapters function."""
+
+    @pytest.fixture
+    def mock_settings(self) -> MagicMock:
+        """Create mock settings."""
+        settings = MagicMock()
+        settings.docker_bin = "docker"
+        settings.ffmpeg.image = "lscr.io/linuxserver/ffmpeg:latest"
+        settings.ffmpeg.timeout_seconds = 60
+        return settings
+
+    def test_get_chapters_success(self, tmp_path: Path, mock_settings: MagicMock) -> None:
+        """Test get_chapters returns chapter list."""
+        from shelfr.ffmpeg import get_chapters
+
+        test_file = tmp_path / "test.m4b"
+        test_file.touch()
+
+        mock_result = MagicMock()
+        mock_result.exit_code = 0
+        mock_result.stdout = """{
+            "format": {
+                "chapters": [
+                    {"start": 0, "end": 1000, "title": "Chapter 1"},
+                    {"start": 1000, "end": 2000, "title": "Chapter 2"}
+                ]
+            },
+            "streams": []
+        }"""
+        mock_result.stderr = ""
+
+        with (
+            patch("shelfr.ffmpeg.get_settings", return_value=mock_settings),
+            patch("shelfr.ffmpeg._run_docker_command", return_value=mock_result),
+        ):
+            chapters = get_chapters(test_file)
+
+        assert chapters is not None
+        assert len(chapters) == 2
+        assert chapters[0]["title"] == "Chapter 1"
+
+    def test_get_chapters_failure(self, tmp_path: Path, mock_settings: MagicMock) -> None:
+        """Test get_chapters returns None on failure."""
+        from shelfr.ffmpeg import get_chapters
+
+        with patch("shelfr.ffmpeg.get_settings", return_value=mock_settings):
+            chapters = get_chapters(tmp_path / "nonexistent.m4b")
+
+        assert chapters is None

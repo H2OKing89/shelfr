@@ -53,6 +53,7 @@ from shelfr.metadata import fetch_metadata, generate_mam_json_for_release
 from shelfr.mkbrr import create_torrent
 from shelfr.models import AudiobookRelease, ProcessingResult, ReleaseStatus
 from shelfr.qbittorrent import upload_torrent
+from shelfr.sanitize import preview_sanitization, sanitize_release
 from shelfr.utils.retry import NETWORK_EXCEPTIONS, retry_with_backoff
 from shelfr.utils.state import (
     checkpoint_stage,
@@ -84,6 +85,7 @@ class ProgressStage(Enum):
     SCAN = "scan"
     DISCOVERY = "discovery"
     VALIDATION = "validation"
+    SANITIZE = "sanitize"
     STAGING = "staging"
     METADATA = "metadata"
     TORRENT = "torrent"
@@ -186,16 +188,18 @@ def process_single_release(
     release_total: int = 0,
     *,
     use_cache: bool = True,
+    verbose: bool = False,
 ) -> ProcessingResult:
     """
     Process a single release through the full pipeline.
 
     Steps:
-    1. Stage (hardlink + rename)
-    2. Fetch metadata (optional)
-    3. Create torrent
-    4. Upload to qBittorrent
-    5. Mark as processed
+    1. Sanitize (strip unwanted metadata tags)
+    2. Stage (hardlink + rename)
+    3. Fetch metadata (optional)
+    4. Create torrent
+    5. Upload to qBittorrent
+    6. Mark as processed
 
     Args:
         release: AudiobookRelease to process
@@ -264,6 +268,32 @@ def process_single_release(
             print_warning(f"Validation passed with {discovery_result.warning_count} warning(s)")
         else:
             print_success("Validation passed")
+
+        # ---------------------------------------------------------------------
+        # 0b. Sanitize (strip unwanted metadata tags)
+        # ---------------------------------------------------------------------
+        if should_skip_stage(release, "sanitized"):
+            logger.info("Skipping sanitization (already completed)")
+        else:
+            notify(ProgressStage.SANITIZE, "Checking for unwanted metadata tags...")
+            logger.debug("Step 0b: Sanitize release")
+            sanitize_result = sanitize_release(release, verbose=verbose)
+
+            if sanitize_result.skipped_reason:
+                logger.debug("Sanitization skipped: %s", sanitize_result.skipped_reason)
+            elif sanitize_result.files_modified > 0:
+                print_success(
+                    f"Sanitized {sanitize_result.files_modified} file(s) "
+                    f"(stripped unwanted tags)"
+                )
+                checkpoint_stage(release, "sanitized")
+            elif sanitize_result.errors:
+                # Log errors but don't fail - continue with workflow
+                for error in sanitize_result.errors:
+                    print_warning(f"Sanitize warning: {error}")
+            else:
+                logger.debug("No unwanted tags found - nothing to sanitize")
+                checkpoint_stage(release, "sanitized")
 
         # ---------------------------------------------------------------------
         # 1. Stage
@@ -783,6 +813,14 @@ def full_run(
             # Show detailed dry-run info for each step
             print_dry_run("Steps that would be performed:")
 
+            # Step 0b: Sanitize - check for unwanted metadata tags
+            tags_to_strip = preview_sanitization(release)
+            if tags_to_strip:
+                for file_path, tags in tags_to_strip.items():
+                    print_dry_run(f"SANITIZE → Strip {tags} from {file_path.name}")
+            else:
+                print_dry_run("SANITIZE → No unwanted tags found")
+
             # Step 1: Stage - compute actual staging path (same logic as real run)
             if release.source_dir:
                 seed_root = settings.paths.seed_root
@@ -833,6 +871,7 @@ def full_run(
             release_index=i,
             release_total=len(releases),
             use_cache=use_cache,
+            verbose=verbose,
         )
         results.append(result)
 

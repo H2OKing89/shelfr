@@ -620,3 +620,214 @@ def version() -> str | None:
         return None
     except Exception:
         return None
+
+
+# =============================================================================
+# Audiobook / Audio-Focused Functions
+# =============================================================================
+
+
+def copy_audio(
+    input_path: Path | str,
+    output_path: Path | str,
+    *,
+    strip_tags: list[str] | None = None,
+    set_tags: dict[str, str] | None = None,
+    preserve_chapters: bool = True,
+    preserve_cover: bool = True,
+    overwrite: bool = False,
+    timeout: int | None = None,
+) -> FFmpegResult:
+    """
+    Copy audio file with metadata manipulation (no re-encoding).
+
+    This is a lossless operation using stream copy. Useful for:
+    - Stripping unwanted tags (e.g., AUDIBLE_ACR, AUDIBLE_ASIN)
+    - Adding/modifying metadata tags
+    - Preserving chapters and cover art
+
+    Example command this generates:
+        ffmpeg -i input.m4b -map 0:a -map 0:v? -map_metadata 0 -map_chapters 0
+               -metadata AUDIBLE_ACR= -c copy output.m4b
+
+    Args:
+        input_path: Path to input audio file
+        output_path: Path for output file
+        strip_tags: List of tag names to remove (set to empty)
+        set_tags: Dict of tag_name -> value to set
+        preserve_chapters: Keep chapter markers (default: True)
+        preserve_cover: Keep embedded cover art (default: True)
+        overwrite: Whether to overwrite existing output
+        timeout: Timeout in seconds
+
+    Returns:
+        FFmpegResult with operation status
+    """
+    input_path = Path(input_path).resolve()
+    output_path = Path(output_path).resolve()
+    settings = get_settings()
+    timeout = timeout or settings.ffmpeg.timeout_seconds
+
+    if not input_path.exists():
+        return FFmpegResult(
+            success=False,
+            exit_code=1,
+            error=f"Input file not found: {input_path}",
+        )
+
+    if output_path.exists() and not overwrite:
+        return FFmpegResult(
+            success=False,
+            exit_code=1,
+            error=f"Output file exists: {output_path}",
+        )
+
+    # Ensure output directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Build command
+    mounts, path_map = _build_volume_mounts([input_path, output_path])
+    container_input = path_map[input_path]
+    container_output = path_map[output_path]
+
+    cmd = _docker_base_command()
+    # Insert mounts before image name
+    image_idx = len(cmd) - 1
+    for mount in mounts:
+        cmd.insert(image_idx, mount)
+        image_idx += 1
+
+    # Build ffmpeg args for audio copy
+    ffmpeg_args = [
+        "-i",
+        container_input,
+        "-map",
+        "0:a",  # Map audio streams
+    ]
+
+    # Optionally preserve cover art (video stream in M4B)
+    if preserve_cover:
+        ffmpeg_args.extend(["-map", "0:v?"])  # ? = optional
+
+    # Preserve metadata
+    ffmpeg_args.extend(["-map_metadata", "0"])
+
+    # Preserve chapters
+    if preserve_chapters:
+        ffmpeg_args.extend(["-map_chapters", "0"])
+
+    # Strip specific tags (set to empty value)
+    if strip_tags:
+        for tag in strip_tags:
+            ffmpeg_args.extend(["-metadata", f"{tag}="])
+
+    # Set specific tags
+    if set_tags:
+        for tag, value in set_tags.items():
+            ffmpeg_args.extend(["-metadata", f"{tag}={value}"])
+
+    # Stream copy (no re-encoding)
+    ffmpeg_args.extend(["-c", "copy"])
+
+    # Output
+    if overwrite:
+        ffmpeg_args.append("-y")
+    ffmpeg_args.append(container_output)
+
+    cmd.extend(ffmpeg_args)
+
+    logger.debug(f"Running copy_audio: {' '.join(cmd)}")
+
+    try:
+        result = _run_docker_command(cmd, timeout=timeout)
+    except (CmdError, OSError, TimeoutError) as e:
+        return FFmpegResult(
+            success=False,
+            exit_code=1,
+            error=str(e),
+        )
+
+    success = result.exit_code == 0 and output_path.exists()
+
+    return FFmpegResult(
+        success=success,
+        exit_code=result.exit_code,
+        output_path=output_path if success else None,
+        error=result.stderr if not success else None,
+        stdout=result.stdout,
+        stderr=result.stderr,
+    )
+
+
+def strip_audible_tags(
+    input_path: Path | str,
+    output_path: Path | str,
+    *,
+    overwrite: bool = False,
+    timeout: int | None = None,
+) -> FFmpegResult:
+    """
+    Strip Audible-specific tags from an audiobook file.
+
+    Removes Audible DRM-related metadata tags while preserving
+    all other metadata, chapters, and cover art.
+
+    Tags stripped:
+    - AUDIBLE_ACR (Audible Content Reference)
+
+    Args:
+        input_path: Path to input M4B/M4A file
+        output_path: Path for output file
+        overwrite: Whether to overwrite existing output
+        timeout: Timeout in seconds
+
+    Returns:
+        FFmpegResult with operation status
+    """
+    audible_tags = [
+        "AUDIBLE_ACR",
+    ]
+
+    return copy_audio(
+        input_path,
+        output_path,
+        strip_tags=audible_tags,
+        overwrite=overwrite,
+        timeout=timeout,
+    )
+
+
+def get_audio_tags(input_path: Path | str) -> dict[str, str] | None:
+    """
+    Get all metadata tags from an audio file.
+
+    Args:
+        input_path: Path to audio file
+
+    Returns:
+        Dict of tag_name -> value, or None if probe failed
+    """
+    result = probe(input_path)
+    if not result.success:
+        return None
+
+    tags: dict[str, str] = result.format.get("tags", {})
+    return tags
+
+
+def get_chapters(input_path: Path | str) -> list[dict[str, Any]] | None:
+    """
+    Get chapter list from an audio file.
+
+    Args:
+        input_path: Path to audio file
+
+    Returns:
+        List of chapter dicts with start, end, title, or None if failed
+    """
+    result = probe(input_path)
+    if not result.success:
+        return None
+
+    chapters: list[dict[str, Any]] = result.format.get("chapters", [])
+    return chapters

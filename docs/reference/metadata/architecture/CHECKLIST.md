@@ -94,12 +94,20 @@
 | `src/shelfr/metadata/audnex/region_cache.py` | Region cache |
 | `src/shelfr/metadata/providers/audnex.py` | AudnexProvider |
 | `src/shelfr/cli/audnex.py` | `shelfr audnex` commands |
+| `src/shelfr/abs/async_client.py` | Async ABS client |
+| `src/shelfr/abs/prefetch.py` | Async metadata prefetch |
+| `src/shelfr/abs/asin.py` | ASIN index (sync + async) |
+| `src/shelfr/abs/importer.py` | ABS importer (sync + async batch) |
+| `src/shelfr/sanitize.py` | Audio metadata sanitization |
+| `src/shelfr/ffmpeg.py` | FFmpeg Docker wrapper |
 
 ### Commands
 
 ```bash
 shelfr audnex region-stats        # Show cache statistics
 shelfr --no-cache run             # Bypass caching
+shelfr abs import --parallel      # Use async parallel prefetch
+shelfr abs import --dry-run       # Preview import without changes
 ```
 
 ### Config
