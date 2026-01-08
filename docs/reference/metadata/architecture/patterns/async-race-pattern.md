@@ -151,14 +151,20 @@ Minimal validation to pick a winner quickly:
 
 ```python
 def _is_valid_for_race(data: dict, expected_asin: str) -> bool:
-    """Minimal validation for race winner selection."""
+    """Minimal validation for race winner selection.
+
+    Level 1 accepts anything with ASIN + title + authors.
+    """
     if not data:
         return False
     # ASIN must match (case-insensitive)
     if data.get("asin", "").upper() != expected_asin.upper():
         return False
-    # Must have title (bare minimum)
+    # Must have title
     if not data.get("title"):
+        return False
+    # Must have at least one author
+    if not data.get("authors") or len(data["authors"]) == 0:
         return False
     return True
 ```

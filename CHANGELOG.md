@@ -23,8 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **10.5 Templates:** Dynamic source URLs based on winning region
   - **10.6 Concurrency Limits:** Dual rate limiters (90/min + 10/5s burst)
     - ASIN semaphore prevents batch operations from exceeding limits
-  - **10.7 Observability:** Structured logging and `shelfr audnex region-stats` CLI command
-    - INFO-level logs: source, stage, elapsed time, request count
+  - **10.7 Observability:** Structured logging for parallel region lookups
+    - New CLI command: `shelfr audnex region-stats` for cache diagnostics
+    - INFO-level logs: source region, stage (0=cache, 1/2=race), elapsed time, request count
     - Batch stats: cache hit rate, avg requests/ASIN
 
 - **Phase 9: Content Flags & Platform-Agnostic Metadata** - Support for MAM content classification

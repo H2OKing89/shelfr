@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -450,8 +451,6 @@ class AudnexAsyncClient:
             - requests: Total requests made
             - elapsed_seconds: Total time taken
         """
-        import time
-
         start_time = time.perf_counter()
         total_requests = 0
 
@@ -588,8 +587,6 @@ class AudnexAsyncClient:
             List of (asin, metadata, region) tuples. Order matches input ASINs.
             metadata/region will be None if lookup failed.
         """
-        import time
-
         from .region_cache import (
             FailureType,
             get_default_region_cache,

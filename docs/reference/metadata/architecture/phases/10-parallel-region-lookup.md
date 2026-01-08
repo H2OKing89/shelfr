@@ -171,3 +171,9 @@ shelfr audnex region-stats
 - All Audnex lookups now go through `AudnexAsyncClient`
 - Region cache auto-populates on first lookup
 - Templates automatically use `source_url` when available
+
+### Internal API Changes (Phase 10.7)
+
+- `_race_regions()` returns 3 values: `(winner_tuple, definitive_404s, request_count)`
+- `_staged_race()` returns 5 values: `(data, region, stage, total_requests, elapsed)`
+- These signatures support observability instrumentation—do not revert

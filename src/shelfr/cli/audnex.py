@@ -76,14 +76,15 @@ async def _region_stats_async() -> int:
         # Ensure cache is loaded
         await cache.load()
         stats = await cache.get_stats()
+
+        # Extract stats values (inside try/except for KeyError safety)
+        total_entries = stats["total_entries"]
+        region_distribution = stats["region_distribution"]
+        total_hits = stats["total_hits"]
+        entries_with_failures = stats["entries_with_failures"]
     except Exception as e:
         console.print(f"[red]Error reading region cache:[/] {e}")
         return 1
-
-    total_entries = stats["total_entries"]
-    region_distribution = stats["region_distribution"]
-    total_hits = stats["total_hits"]
-    entries_with_failures = stats["entries_with_failures"]
 
     if total_entries == 0:
         console.print(
@@ -118,12 +119,7 @@ async def _region_stats_async() -> int:
 
     perf_table.add_row("Total cache hits", f"{total_hits:,}")
     perf_table.add_row("Entries with failures", f"{entries_with_failures:,}")
-
-    # Calculate hit rate if we have any hits
-    if total_hits > 0:
-        # Hit rate = hits / (hits + misses), but we don't track misses directly
-        # So we show total hits as absolute number
-        pass
+    # TODO: Add hit rate calculation when miss tracking is implemented
 
     console.print(perf_table)
     console.print()

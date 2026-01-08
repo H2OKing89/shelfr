@@ -182,7 +182,7 @@ Items like FlagResolver, LocalFlagsProvider, HardcoverProvider are **intentional
 From archived checklists, these are **deferred** (not incomplete):
 
 | Item | Phase | Reason | Build When |
-|------|-------|--------|------------|
+| ------ | ------- | -------- | ------------ |
 | Schema Versioning | 8 Tier 2 | Not needed yet | CanonicalMetadata changes |
 | Two-Stage Fetch Optimization | 8 Tier 2 | Cache is sufficient | Batch processing slow |
 | Event Hooks | 8 Tier 3 | YAGNI | External monitoring needed |
