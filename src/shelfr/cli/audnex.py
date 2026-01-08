@@ -82,6 +82,7 @@ async def _region_stats_async() -> int:
         total_hits = stats["total_hits"]
         entries_with_failures = stats["entries_with_failures"]
     except Exception as e:
+        logger.exception("Failed to load region cache stats")
         console.print(f"[red]Error reading region cache:[/] {e}")
         return 1
 
