@@ -50,12 +50,6 @@ _ = (
 )
 
 
-# Tags we want to strip from audiobook files
-UNWANTED_TAGS: list[str] = [
-    "AUDIBLE_ACR",
-]
-
-
 @dataclass
 class SanitizeResult:
     """Result of sanitization operation."""
@@ -69,28 +63,40 @@ class SanitizeResult:
     skipped_reason: str | None = None
 
 
-def check_unwanted_tags(file_path: Path) -> list[str]:
+def check_unwanted_tags(
+    file_path: Path,
+    unwanted_tags: tuple[str, ...] | None = None,
+) -> list[str]:
     """
     Check if a file contains any unwanted metadata tags.
 
     Args:
         file_path: Path to audio file
+        unwanted_tags: Tuple of tag names to check (lowercase, from config).
+            If None, reads from settings.workflow.upload.sanitize.tags.
 
     Returns:
         List of unwanted tag names found (empty if none)
     """
+    # Get tags from config if not provided
+    if unwanted_tags is None:
+        settings = get_settings()
+        unwanted_tags = settings.workflow.upload.sanitize.tags
+
+    if not unwanted_tags:
+        return []
+
     file_tags = get_audio_tags(file_path)
     if file_tags is None:
         logger.warning("Could not read tags from %s", file_path)
         return []
 
+    # Tags in config are already lowercase for case-insensitive matching
+    unwanted_set = set(unwanted_tags)
     found = []
-    for tag in UNWANTED_TAGS:
-        # Check case-insensitive
-        for key in file_tags:
-            if key.upper() == tag.upper():
-                found.append(key)
-                break
+    for key in file_tags:
+        if key.lower() in unwanted_set:
+            found.append(key)
 
     return found
 
@@ -106,9 +112,19 @@ def preview_sanitization(release: AudiobookRelease) -> dict[Path, list[str]]:
 
     Returns:
         Dict mapping file paths to lists of tags that would be stripped.
-        Empty dict if nothing to strip or FFmpeg unavailable.
+        Empty dict if nothing to strip, disabled, or FFmpeg unavailable.
     """
     settings = get_settings()
+    sanitize_config = settings.workflow.upload.sanitize
+
+    # Check if sanitization is enabled
+    if not sanitize_config.enabled:
+        return {}
+
+    # Check if any tags configured
+    if not sanitize_config.tags:
+        logger.debug("Sanitize enabled but no tags configured - nothing to preview")
+        return {}
 
     # Check if FFmpeg is available
     if not settings.ffmpeg.enabled:
@@ -122,7 +138,7 @@ def preview_sanitization(release: AudiobookRelease) -> dict[Path, list[str]]:
 
     result: dict[Path, list[str]] = {}
     for m4b_path in release.source_dir.glob("*.m4b"):
-        found_tags = check_unwanted_tags(m4b_path)
+        found_tags = check_unwanted_tags(m4b_path, sanitize_config.tags)
         if found_tags:
             result[m4b_path] = found_tags
 
@@ -133,6 +149,7 @@ def _verify_sanitized_file(
     original: Path,
     sanitized: Path,
     original_chapters: list[dict[str, Any]] | None,
+    expected_stripped_tags: tuple[str, ...],
 ) -> tuple[bool, str | None]:
     """
     Verify the sanitized file is valid.
@@ -141,11 +158,13 @@ def _verify_sanitized_file(
     - File exists and has content
     - File size within tolerance (stream copy should be ~same size)
     - Chapter count preserved
+    - Specified tags actually removed
 
     Args:
         original: Original file path
         sanitized: Sanitized temp file path
         original_chapters: Chapters from original file
+        expected_stripped_tags: Tags that should have been removed (lowercase)
 
     Returns:
         Tuple of (success, error_message)
@@ -176,7 +195,7 @@ def _verify_sanitized_file(
             )
 
     # Verify unwanted tags actually removed
-    remaining_tags = check_unwanted_tags(sanitized)
+    remaining_tags = check_unwanted_tags(sanitized, expected_stripped_tags)
     if remaining_tags:
         return False, f"Tags not removed: {remaining_tags}"
 
@@ -186,6 +205,7 @@ def _verify_sanitized_file(
 def sanitize_file(
     file_path: Path,
     *,
+    unwanted_tags: tuple[str, ...] | None = None,
     dry_run: bool = False,
     verbose: bool = False,
 ) -> tuple[bool, list[str], str | None]:
@@ -200,14 +220,20 @@ def sanitize_file(
 
     Args:
         file_path: Path to audio file to sanitize
+        unwanted_tags: Tags to strip (lowercase, from config). If None, reads from config.
         dry_run: If True, only check and report (don't modify)
         verbose: If True, log extra details
 
     Returns:
         Tuple of (modified, tags_stripped, error_message)
     """
+    # Get tags from config if not provided
+    if unwanted_tags is None:
+        settings = get_settings()
+        unwanted_tags = settings.workflow.upload.sanitize.tags
+
     # Check for unwanted tags
-    found_tags = check_unwanted_tags(file_path)
+    found_tags = check_unwanted_tags(file_path, unwanted_tags)
 
     if not found_tags:
         if verbose:
@@ -247,7 +273,9 @@ def sanitize_file(
             return False, [], error
 
         # Verify the sanitized file
-        valid, verify_error = _verify_sanitized_file(file_path, temp_path, original_chapters)
+        valid, verify_error = _verify_sanitized_file(
+            file_path, temp_path, original_chapters, unwanted_tags
+        )
 
         if not valid:
             logger.error("Verification failed: %s", verify_error)
@@ -305,6 +333,23 @@ def sanitize_release(
         SanitizeResult with operation summary
     """
     settings = get_settings()
+    sanitize_config = settings.workflow.upload.sanitize
+
+    # Check if sanitization is enabled
+    if not sanitize_config.enabled:
+        logger.debug("Sanitization disabled in config")
+        return SanitizeResult(
+            success=True,
+            skipped_reason="Sanitization disabled in config",
+        )
+
+    # Check if any tags configured
+    if not sanitize_config.tags:
+        logger.debug("Sanitize enabled but no tags configured - nothing to do")
+        return SanitizeResult(
+            success=True,
+            skipped_reason="No tags configured to strip",
+        )
 
     # Check if FFmpeg is available
     if not settings.ffmpeg.enabled:
@@ -340,9 +385,11 @@ def sanitize_release(
     if verbose:
         print_info(f"Checking {len(m4b_files)} audio file(s) for unwanted tags...")
 
+    # Pass configured tags to sanitize_file
     for m4b_path in m4b_files:
         modified, tags, error = sanitize_file(
             m4b_path,
+            unwanted_tags=sanitize_config.tags,
             dry_run=dry_run,
             verbose=verbose,
         )

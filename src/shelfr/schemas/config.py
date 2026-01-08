@@ -674,6 +674,42 @@ class LibationSchema(BaseModel):
         return v
 
 
+# =============================================================================
+# Workflow Schemas
+# =============================================================================
+
+
+class UploadSanitizeSchema(BaseModel):
+    """Sanitization settings for the upload workflow."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable metadata tag sanitization before staging",
+    )
+    tags: list[str] = Field(
+        default_factory=lambda: ["AUDIBLE_ACR"],
+        description="Metadata tags to strip (case-insensitive)",
+    )
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def normalize_tags(cls, v: list[str]) -> list[str]:
+        """Normalize tags to lowercase at load time for case-insensitive matching."""
+        return [t.strip().lower() for t in v if t and t.strip()]
+
+
+class UploadWorkflowSchema(BaseModel):
+    """Upload workflow settings (shelfr run)."""
+
+    sanitize: UploadSanitizeSchema = Field(default_factory=UploadSanitizeSchema)
+
+
+class WorkflowSchema(BaseModel):
+    """Workflow settings - controls behavior of various pipelines."""
+
+    upload: UploadWorkflowSchema = Field(default_factory=UploadWorkflowSchema)
+
+
 class CacheSchema(BaseModel):
     """Metadata cache settings."""
 
@@ -731,6 +767,7 @@ class ConfigSchema(BaseModel):
     libation: LibationSchema = Field(default_factory=LibationSchema)
     audiobookshelf: AudiobookshelfSchema = Field(default_factory=AudiobookshelfSchema)
     cache: CacheSchema = Field(default_factory=CacheSchema)
+    workflow: WorkflowSchema = Field(default_factory=WorkflowSchema)
 
     model_config = {"extra": "forbid"}  # Catch typos in config keys
 

@@ -336,6 +336,37 @@ class CleanupConfig:
     prune_empty_dirs: bool = True  # Remove empty directories after import
 
 
+# =============================================================================
+# Workflow Config (controls pipeline behavior)
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class UploadSanitizeConfig:
+    """Sanitization settings for the upload workflow.
+
+    Tags are stored normalized (lowercase) for case-insensitive matching.
+    """
+
+    enabled: bool = True
+    # Stored as tuple of lowercase tags for efficient membership testing
+    tags: tuple[str, ...] = ("audible_acr",)
+
+
+@dataclass(frozen=True)
+class UploadWorkflowConfig:
+    """Upload workflow settings (shelfr run)."""
+
+    sanitize: UploadSanitizeConfig = field(default_factory=UploadSanitizeConfig)
+
+
+@dataclass(frozen=True)
+class WorkflowConfig:
+    """Workflow settings - controls behavior of various pipelines."""
+
+    upload: UploadWorkflowConfig = field(default_factory=UploadWorkflowConfig)
+
+
 def build_trump_prefs(
     trumping_config: TrumpingConfig,
     *,
@@ -517,6 +548,7 @@ class Settings:
     categories: CategoriesConfig
     naming: NamingConfig
     audiobookshelf: AudiobookshelfConfig = field(default_factory=AudiobookshelfConfig)
+    workflow: WorkflowConfig = field(default_factory=WorkflowConfig)
 
 
 def validate_url(url: str, field_name: str) -> None:
@@ -790,6 +822,49 @@ def _parse_cleanup_config(data: dict[str, Any]) -> CleanupConfig:
         ignore_glob=data.get("ignore_glob", ["*/__*", "*/.#*"]),
         prune_empty_dirs=data.get("prune_empty_dirs", True),
     )
+
+
+def _parse_workflow_config(data: dict[str, Any] | None) -> WorkflowConfig:
+    """Parse workflow config from YAML data with backward compatibility.
+
+    If workflow section is missing, returns defaults matching current behavior
+    (sanitize enabled with AUDIBLE_ACR tag).
+
+    Args:
+        data: Dict from YAML workflow section, or None if missing
+
+    Returns:
+        WorkflowConfig with values from YAML or sensible defaults
+    """
+    # Backward compatibility: missing workflow section = current default behavior
+    if data is None:
+        logger.debug("No workflow section in config - using defaults (sanitize enabled)")
+        return WorkflowConfig()
+
+    upload_data = data.get("upload", {})
+    sanitize_data = upload_data.get("sanitize", {})
+
+    # Parse sanitize config
+    sanitize_enabled = sanitize_data.get("enabled", True)
+    raw_tags = sanitize_data.get("tags", ["AUDIBLE_ACR"])
+
+    # Normalize tags to lowercase at load time for case-insensitive matching
+    normalized_tags = tuple(
+        t.strip().lower() for t in raw_tags if t and isinstance(t, str) and t.strip()
+    )
+
+    # Warn if enabled but no tags configured
+    if sanitize_enabled and not normalized_tags:
+        logger.warning(
+            "workflow.upload.sanitize enabled but no tags configured - sanitize will be a no-op"
+        )
+
+    sanitize_config = UploadSanitizeConfig(
+        enabled=sanitize_enabled,
+        tags=normalized_tags,
+    )
+
+    return WorkflowConfig(upload=UploadWorkflowConfig(sanitize=sanitize_config))
 
 
 def _load_categories(config_dir: Path) -> CategoriesConfig:
@@ -1293,6 +1368,9 @@ def load_settings(
         index_db=abs_data.get("index_db", "./data/abs_index.db"),
     )
 
+    # Parse workflow config (with backward compatibility)
+    workflow = _parse_workflow_config(yaml_config.get("workflow"))
+
     # Parse environment section (YAML overrides pydantic-settings values)
     env_data = yaml_config.get("environment", {})
 
@@ -1319,6 +1397,7 @@ def load_settings(
         categories=categories,
         naming=naming,
         audiobookshelf=audiobookshelf,
+        workflow=workflow,
     )
 
     # Comprehensive validation if requested

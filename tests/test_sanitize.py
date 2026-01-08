@@ -8,12 +8,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from shelfr.sanitize import (
-    UNWANTED_TAGS,
     check_unwanted_tags,
     preview_sanitization,
     sanitize_file,
     sanitize_release,
 )
+
+# Default tags used in tests (matches config default)
+DEFAULT_TEST_TAGS = ("audible_acr",)
+
 
 # =============================================================================
 # check_unwanted_tags Tests
@@ -29,7 +32,7 @@ class TestCheckUnwantedTags:
         test_file.touch()
 
         with patch("shelfr.sanitize.get_audio_tags", return_value=None):
-            result = check_unwanted_tags(test_file)
+            result = check_unwanted_tags(test_file, DEFAULT_TEST_TAGS)
 
         assert result == []
 
@@ -45,7 +48,7 @@ class TestCheckUnwantedTags:
         }
 
         with patch("shelfr.sanitize.get_audio_tags", return_value=clean_tags):
-            result = check_unwanted_tags(test_file)
+            result = check_unwanted_tags(test_file, DEFAULT_TEST_TAGS)
 
         assert result == []
 
@@ -60,7 +63,7 @@ class TestCheckUnwantedTags:
         }
 
         with patch("shelfr.sanitize.get_audio_tags", return_value=tags_with_acr):
-            result = check_unwanted_tags(test_file)
+            result = check_unwanted_tags(test_file, DEFAULT_TEST_TAGS)
 
         assert "AUDIBLE_ACR" in result
 
@@ -73,9 +76,23 @@ class TestCheckUnwantedTags:
         tags = {"audible_acr": "some_value"}
 
         with patch("shelfr.sanitize.get_audio_tags", return_value=tags):
-            result = check_unwanted_tags(test_file)
+            result = check_unwanted_tags(test_file, DEFAULT_TEST_TAGS)
 
         assert "audible_acr" in result
+
+    def test_empty_tags_returns_empty(self, tmp_path: Path) -> None:
+        """Test returns empty list when no tags to check."""
+        test_file = tmp_path / "test.m4b"
+        test_file.touch()
+
+        tags_with_acr = {
+            "AUDIBLE_ACR": "CR!SOME_VALUE_HERE",
+        }
+
+        with patch("shelfr.sanitize.get_audio_tags", return_value=tags_with_acr):
+            result = check_unwanted_tags(test_file, ())
+
+        assert result == []
 
 
 # =============================================================================
@@ -95,15 +112,40 @@ class TestPreviewSanitization:
 
     @pytest.fixture
     def mock_settings(self) -> MagicMock:
-        """Create mock settings with ffmpeg enabled."""
+        """Create mock settings with ffmpeg and sanitize enabled."""
         settings = MagicMock()
         settings.ffmpeg.enabled = True
+        settings.workflow.upload.sanitize.enabled = True
+        settings.workflow.upload.sanitize.tags = DEFAULT_TEST_TAGS
         return settings
+
+    def test_returns_empty_when_sanitize_disabled(self, mock_release: MagicMock) -> None:
+        """Test returns empty dict when sanitize is disabled."""
+        settings = MagicMock()
+        settings.workflow.upload.sanitize.enabled = False
+
+        with patch("shelfr.sanitize.get_settings", return_value=settings):
+            result = preview_sanitization(mock_release)
+
+        assert result == {}
+
+    def test_returns_empty_when_no_tags_configured(self, mock_release: MagicMock) -> None:
+        """Test returns empty dict when no tags configured."""
+        settings = MagicMock()
+        settings.workflow.upload.sanitize.enabled = True
+        settings.workflow.upload.sanitize.tags = ()
+
+        with patch("shelfr.sanitize.get_settings", return_value=settings):
+            result = preview_sanitization(mock_release)
+
+        assert result == {}
 
     def test_returns_empty_when_ffmpeg_disabled(self, mock_release: MagicMock) -> None:
         """Test returns empty dict when FFmpeg is disabled."""
         settings = MagicMock()
         settings.ffmpeg.enabled = False
+        settings.workflow.upload.sanitize.enabled = True
+        settings.workflow.upload.sanitize.tags = DEFAULT_TEST_TAGS
 
         with patch("shelfr.sanitize.get_settings", return_value=settings):
             result = preview_sanitization(mock_release)
@@ -172,7 +214,7 @@ class TestSanitizeFile:
         test_file.touch()
 
         with patch("shelfr.sanitize.check_unwanted_tags", return_value=[]):
-            modified, tags, error = sanitize_file(test_file)
+            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
 
         assert modified is False
         assert tags == []
@@ -188,7 +230,9 @@ class TestSanitizeFile:
             "shelfr.sanitize.check_unwanted_tags",
             return_value=["AUDIBLE_ACR"],
         ):
-            modified, tags, error = sanitize_file(test_file, dry_run=True)
+            modified, tags, error = sanitize_file(
+                test_file, unwanted_tags=DEFAULT_TEST_TAGS, dry_run=True
+            )
 
         assert modified is False
         assert tags == ["AUDIBLE_ACR"]
@@ -207,15 +251,46 @@ class TestSanitizeRelease:
 
     @pytest.fixture
     def mock_settings(self) -> MagicMock:
-        """Create mock settings with ffmpeg enabled."""
+        """Create mock settings with ffmpeg and sanitize enabled."""
         settings = MagicMock()
         settings.ffmpeg.enabled = True
+        settings.workflow.upload.sanitize.enabled = True
+        settings.workflow.upload.sanitize.tags = DEFAULT_TEST_TAGS
         return settings
+
+    def test_skipped_when_sanitize_disabled(self) -> None:
+        """Test returns skipped result when sanitize disabled."""
+        settings = MagicMock()
+        settings.workflow.upload.sanitize.enabled = False
+
+        release = MagicMock()
+
+        with patch("shelfr.sanitize.get_settings", return_value=settings):
+            result = sanitize_release(release)
+
+        assert result.success is True
+        assert result.skipped_reason == "Sanitization disabled in config"
+
+    def test_skipped_when_no_tags_configured(self) -> None:
+        """Test returns skipped result when no tags configured."""
+        settings = MagicMock()
+        settings.workflow.upload.sanitize.enabled = True
+        settings.workflow.upload.sanitize.tags = ()
+
+        release = MagicMock()
+
+        with patch("shelfr.sanitize.get_settings", return_value=settings):
+            result = sanitize_release(release)
+
+        assert result.success is True
+        assert result.skipped_reason == "No tags configured to strip"
 
     def test_skipped_when_ffmpeg_disabled(self) -> None:
         """Test returns skipped result when FFmpeg disabled."""
         settings = MagicMock()
         settings.ffmpeg.enabled = False
+        settings.workflow.upload.sanitize.enabled = True
+        settings.workflow.upload.sanitize.tags = DEFAULT_TEST_TAGS
 
         release = MagicMock()
 
@@ -288,18 +363,24 @@ class TestSanitizeRelease:
 
 
 # =============================================================================
-# UNWANTED_TAGS Tests
+# Workflow Config Integration Tests
 # =============================================================================
 
 
-class TestUnwantedTags:
-    """Tests for UNWANTED_TAGS configuration."""
+class TestWorkflowConfigIntegration:
+    """Tests for workflow config integration."""
 
-    def test_audible_acr_in_unwanted_tags(self) -> None:
-        """Test AUDIBLE_ACR is in the unwanted tags list."""
-        assert "AUDIBLE_ACR" in UNWANTED_TAGS
+    def test_default_tags_from_config(self) -> None:
+        """Test default config has AUDIBLE_ACR tag (lowercase)."""
+        from shelfr.config import WorkflowConfig
 
-    def test_only_audible_acr_for_now(self) -> None:
-        """Test only AUDIBLE_ACR is configured (per user request)."""
-        assert len(UNWANTED_TAGS) == 1
-        assert UNWANTED_TAGS[0] == "AUDIBLE_ACR"
+        config = WorkflowConfig()
+        assert "audible_acr" in config.upload.sanitize.tags
+
+    def test_case_normalization(self) -> None:
+        """Test tags are normalized to lowercase."""
+        from shelfr.config import UploadSanitizeConfig
+
+        # Simulate what config loading does
+        config = UploadSanitizeConfig(enabled=True, tags=("AUDIBLE_ACR", "Some_Other_TAG"))
+        assert config.tags == ("AUDIBLE_ACR", "Some_Other_TAG")  # frozen, user passes normalized

@@ -108,6 +108,22 @@ ffmpeg:
   hwaccel: "none"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Workflow Settings
+# ─────────────────────────────────────────────────────────────────────────────
+# Controls behavior of various pipelines (shelfr run, etc.)
+workflow:
+  # Upload workflow (shelfr run)
+  upload:
+    # Sanitize: Strip unwanted metadata tags from audio files before staging
+    # Requires ffmpeg.enabled = true
+    sanitize:
+      enabled: true
+      # Tags to strip (case-insensitive)
+      # AUDIBLE_ACR: Audible Content Reference - fingerprint for DRM verification
+      tags:
+        - "AUDIBLE_ACR"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # qBittorrent Settings
 # ─────────────────────────────────────────────────────────────────────────────
 # Note: Host, username, and password are read from .env file:
