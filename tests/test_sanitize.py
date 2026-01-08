@@ -666,10 +666,10 @@ class TestWorkflowConfigIntegration:
         config = WorkflowConfig()
         assert "audible_acr" in config.upload.sanitize.tags
 
-    def test_case_normalization(self) -> None:
-        """Test tags are normalized to lowercase."""
+    def test_dataclass_preserves_tags_verbatim(self) -> None:
+        """Test dataclass stores tags as-is (normalization happens in _parse_workflow_config)."""
         from shelfr.config import UploadSanitizeConfig
 
-        # Simulate what config loading does
+        # Dataclass itself does not normalize - that's done during YAML parsing
         config = UploadSanitizeConfig(enabled=True, tags=("AUDIBLE_ACR", "Some_Other_TAG"))
-        assert config.tags == ("AUDIBLE_ACR", "Some_Other_TAG")  # frozen, user passes normalized
+        assert config.tags == ("AUDIBLE_ACR", "Some_Other_TAG")  # frozen, preserves as passed

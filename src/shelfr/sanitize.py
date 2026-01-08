@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -243,8 +244,6 @@ def sanitize_file(
 
     # Create temp file in same directory (for atomic rename on same filesystem)
     # Use timestamp in suffix to avoid collisions with user files
-    import time
-
     temp_suffix = f".sanitizing.{int(time.time() * 1000000)}"
     temp_path = file_path.with_suffix(f"{file_path.suffix}{temp_suffix}")
 
