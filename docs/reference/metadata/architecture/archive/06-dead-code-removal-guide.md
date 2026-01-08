@@ -248,11 +248,12 @@ def old_function():
 
 ## Current Deprecation Inventory (shelfr)
 
-| Item | Deprecated In | Remove In | Replacement |
-| ------- | --------------- | ----------- | ------------- |
-| `shelfr.opf` module | v1.x | v2.0 | `shelfr.metadata.opf` |
-| `cli_argparse.py` | v1.x | v2.0 | Typer CLI (`cli/`) |
-| `fetch_metadata_sync()` | — | — | `fetch_metadata_async()` (Phase 8.5) |
+| Item | Deprecated In | Remove In | Replacement | Status |
+| ------- | --------------- | ----------- | ------------- | -------- |
+| `shelfr.opf` module | v1.x | v2.0 | `shelfr.metadata.opf` | Shim active |
+| `cli_argparse.py` | v1.x | v2.0 | Typer CLI (`cli/`) | Deprecated |
+| `cli_legacy.py` | — | — | `cli/` package | **Removed** |
+| `fetch_metadata_sync()` | — | — | `fetch_metadata_async()` | Never existed |
 
 ---
 

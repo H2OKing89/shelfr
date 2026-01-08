@@ -53,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Deprecated legacy argparse-based CLI
   - Preserved for backward compatibility with existing scripts
 
+### Removed
+
+- **`shelfr.cli_legacy`** - Dead code removal (1542 lines)
+  - Old Typer CLI implementation superseded by `shelfr.cli` package
+  - No imports, no usage detected in codebase
+
 ### Changed
 
 - **Configurable signature/branding in MAM descriptions** - New `description.show_signature` config option
