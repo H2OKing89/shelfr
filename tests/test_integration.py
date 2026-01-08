@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from shelfr.models import AudiobookRelease, ReleaseStatus
+from shelfr.sanitize import SanitizeResult
 from shelfr.validation import ValidationResult
 from shelfr.workflow import PipelineResult, full_run, process_single_release
 
@@ -19,6 +20,11 @@ def _create_passing_validation_result() -> ValidationResult:
     return result
 
 
+def _create_sanitize_result() -> SanitizeResult:
+    """Create a SanitizeResult indicating no tags found."""
+    return SanitizeResult(success=True, files_checked=0)
+
+
 class TestProcessSingleRelease:
     """Integration tests for processing a single release through the pipeline."""
 
@@ -26,6 +32,7 @@ class TestProcessSingleRelease:
     @patch("shelfr.workflow.mark_failed")
     @patch("shelfr.workflow.checkpoint_stage")
     @patch("shelfr.workflow.should_skip_stage", return_value=False)
+    @patch("shelfr.workflow.sanitize_release")
     @patch("shelfr.workflow.DiscoveryValidation")
     @patch("shelfr.workflow.PreUploadValidation")
     @patch("shelfr.workflow.get_settings")
@@ -46,6 +53,7 @@ class TestProcessSingleRelease:
         mock_settings: Mock,
         mock_pre_upload_validation: Mock,
         mock_discovery_validation: Mock,
+        mock_sanitize_release: Mock,
         mock_should_skip_stage: Mock,
         mock_checkpoint_stage: Mock,
         mock_mark_failed: Mock,
@@ -69,6 +77,9 @@ class TestProcessSingleRelease:
 
             # Mock processed identifiers (empty set = nothing processed yet)
             mock_get_processed.return_value = set()
+
+            # Mock sanitize to pass
+            mock_sanitize_release.return_value = _create_sanitize_result()
 
             # Mock validation to pass
             mock_discovery_validation.return_value.validate.return_value = (
@@ -107,6 +118,7 @@ class TestProcessSingleRelease:
     @patch("shelfr.workflow.get_processed_identifiers")
     @patch("shelfr.workflow.checkpoint_stage")
     @patch("shelfr.workflow.should_skip_stage", return_value=False)
+    @patch("shelfr.workflow.sanitize_release")
     @patch("shelfr.workflow.DiscoveryValidation")
     @patch("shelfr.workflow.PreUploadValidation")
     @patch("shelfr.workflow.get_settings")
@@ -123,6 +135,7 @@ class TestProcessSingleRelease:
         mock_settings: Mock,
         mock_pre_upload_validation: Mock,
         mock_discovery_validation: Mock,
+        mock_sanitize_release: Mock,
         mock_should_skip_stage: Mock,
         mock_checkpoint_stage: Mock,
         mock_get_processed: Mock,
@@ -142,6 +155,9 @@ class TestProcessSingleRelease:
 
             # Mock processed identifiers
             mock_get_processed.return_value = set()
+
+            # Mock sanitize to pass
+            mock_sanitize_release.return_value = _create_sanitize_result()
 
             # Mock validation to pass
             mock_discovery_validation.return_value.validate.return_value = (
@@ -176,6 +192,7 @@ class TestProcessSingleRelease:
     @patch("shelfr.workflow.checkpoint_stage")
     @patch("shelfr.workflow.should_skip_stage", return_value=False)
     @patch("shelfr.workflow.DiscoveryValidation")
+    @patch("shelfr.workflow.sanitize_release")
     @patch("shelfr.workflow.PreUploadValidation")
     @patch("shelfr.workflow.get_settings")
     @patch("shelfr.workflow.upload_torrent")
@@ -190,6 +207,7 @@ class TestProcessSingleRelease:
         mock_upload: Mock,
         mock_settings: Mock,
         mock_pre_upload_validation: Mock,
+        mock_sanitize_release: Mock,
         mock_discovery_validation: Mock,
         mock_should_skip_stage: Mock,
         mock_checkpoint_stage: Mock,
@@ -209,6 +227,9 @@ class TestProcessSingleRelease:
                 author="Test Author",
                 asin="B000TEST03",
             )
+
+            # Mock sanitize to pass
+            mock_sanitize_release.return_value = _create_sanitize_result()
 
             # Mock processed identifiers
             mock_get_processed.return_value = set()
@@ -445,6 +466,7 @@ class TestWorkflowSavePathLogic:
     @patch("shelfr.workflow.mark_failed")
     @patch("shelfr.workflow.checkpoint_stage")
     @patch("shelfr.workflow.should_skip_stage", return_value=False)
+    @patch("shelfr.workflow.sanitize_release")
     @patch("shelfr.workflow.DiscoveryValidation")
     @patch("shelfr.workflow.PreUploadValidation")
     @patch("shelfr.workflow.get_settings")
@@ -465,6 +487,7 @@ class TestWorkflowSavePathLogic:
         mock_settings: Mock,
         mock_pre_upload_validation: Mock,
         mock_discovery_validation: Mock,
+        mock_sanitize_release: Mock,
         mock_should_skip_stage: Mock,
         mock_checkpoint_stage: Mock,
         mock_mark_failed: Mock,
@@ -484,6 +507,9 @@ class TestWorkflowSavePathLogic:
                 asin="B000TEST04",
                 source_dir=tmppath / "source",
             )
+
+            # Mock sanitize to pass
+            mock_sanitize_release.return_value = _create_sanitize_result()
 
             # Mock processed identifiers
             mock_get_processed.return_value = set()
@@ -522,6 +548,7 @@ class TestWorkflowSavePathLogic:
     @patch("shelfr.workflow.mark_failed")
     @patch("shelfr.workflow.checkpoint_stage")
     @patch("shelfr.workflow.should_skip_stage", return_value=False)
+    @patch("shelfr.workflow.sanitize_release")
     @patch("shelfr.workflow.DiscoveryValidation")
     @patch("shelfr.workflow.PreUploadValidation")
     @patch("shelfr.workflow.get_settings")
@@ -542,6 +569,7 @@ class TestWorkflowSavePathLogic:
         mock_settings: Mock,
         mock_pre_upload_validation: Mock,
         mock_discovery_validation: Mock,
+        mock_sanitize_release: Mock,
         mock_should_skip_stage: Mock,
         mock_checkpoint_stage: Mock,
         mock_mark_failed: Mock,
@@ -561,6 +589,9 @@ class TestWorkflowSavePathLogic:
                 asin="B000TEST05",
                 source_dir=tmppath / "source",
             )
+
+            # Mock sanitize to pass
+            mock_sanitize_release.return_value = _create_sanitize_result()
 
             # Mock processed identifiers
             mock_get_processed.return_value = set()
@@ -601,6 +632,7 @@ class TestWorkflowSavePathLogic:
     @patch("shelfr.workflow.checkpoint_stage")
     @patch("shelfr.workflow.should_skip_stage", return_value=False)
     @patch("shelfr.workflow.DiscoveryValidation")
+    @patch("shelfr.workflow.sanitize_release")
     @patch("shelfr.workflow.PreUploadValidation")
     @patch("shelfr.workflow.get_settings")
     @patch("shelfr.workflow.generate_mam_json_for_release")
@@ -619,6 +651,7 @@ class TestWorkflowSavePathLogic:
         mock_mam_json: Mock,
         mock_settings: Mock,
         mock_pre_upload_validation: Mock,
+        mock_sanitize_release: Mock,
         mock_discovery_validation: Mock,
         mock_should_skip_stage: Mock,
         mock_checkpoint_stage: Mock,
@@ -639,6 +672,9 @@ class TestWorkflowSavePathLogic:
                 asin="B000TEST06",
                 source_dir=tmppath / "source",
             )
+
+            # Mock sanitize to pass
+            mock_sanitize_release.return_value = _create_sanitize_result()
 
             # Mock processed identifiers
             mock_get_processed.return_value = set()

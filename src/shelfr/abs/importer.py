@@ -56,6 +56,7 @@ from shelfr.utils.naming import build_mam_file_name, build_mam_folder_name, clea
 
 if TYPE_CHECKING:
     from shelfr.abs.client import AbsClient
+    from shelfr.abs.prefetch import PrefetchSummary
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -415,7 +416,10 @@ def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
 
 
 def enrich_from_audnex(
-    parsed: ParsedFolderName, asin: str
+    parsed: ParsedFolderName,
+    asin: str,
+    *,
+    audnex_cache: dict[str, tuple[dict[str, Any] | None, str | None]] | None = None,
 ) -> tuple[ParsedFolderName, dict[str, Any] | None, str | None]:
     """Enrich parsed folder data with Audnex metadata.
 
@@ -433,6 +437,8 @@ def enrich_from_audnex(
     Args:
         parsed: ParsedFolderName from parse_mam_folder_name()
         asin: Resolved ASIN to look up
+        audnex_cache: Optional pre-fetched cache mapping ASIN → (data, region).
+            If provided and ASIN is in cache, skips network call.
 
     Returns:
         Tuple of (ParsedFolderName with enriched data, Audnex data dict, region).
@@ -440,15 +446,24 @@ def enrich_from_audnex(
     """
     from shelfr.utils.naming import normalize_audnex_book
 
-    try:
-        audnex_data, audnex_region = fetch_audnex_book(asin)
-    except Exception as e:
-        logger.debug("Failed to fetch Audnex data for %s: %s", asin, e)
-        return parsed, None, None  # Return None for audnex_data and region on error
+    # Check cache first (Phase 11.4: prefetched data)
+    if audnex_cache is not None and asin in audnex_cache:
+        audnex_data, audnex_region = audnex_cache[asin]
+        if audnex_data is None:
+            logger.debug("Cache hit for ASIN %s (not found)", asin)
+            return parsed, None, None
+        logger.debug("Cache hit for ASIN %s", asin)
+    else:
+        # No cache or cache miss - fetch synchronously
+        try:
+            audnex_data, audnex_region = fetch_audnex_book(asin)
+        except Exception as e:
+            logger.debug("Failed to fetch Audnex data for %s: %s", asin, e)
+            return parsed, None, None
 
-    if not audnex_data:
-        logger.debug("No Audnex data found for ASIN %s", asin)
-        return parsed, None, None  # Return None for audnex_data and region when not found
+        if not audnex_data:
+            logger.debug("No Audnex data found for ASIN %s", asin)
+            return parsed, None, None
 
     # Use the naming module's normalizer for consistent series extraction
     normalized = normalize_audnex_book(audnex_data)
@@ -1422,6 +1437,7 @@ def import_single(
     generate_metadata_json: bool = True,
     metadata_json_fallback: bool = True,
     generate_opf_sidecar: bool = False,
+    audnex_cache: dict[str, tuple[dict[str, Any] | None, str | None]] | None = None,
     dry_run: bool = False,
 ) -> ImportResult:
     """Import a single audiobook from staging to library.
@@ -1447,6 +1463,8 @@ def import_single(
         generate_metadata_json: If True, generate metadata.json for ABS (default True)
         metadata_json_fallback: If True, generate metadata.json even without ASIN (default True)
         generate_opf_sidecar: If True, generate metadata.opf for ABS (default False)
+        audnex_cache: Optional pre-fetched Audnex metadata cache from prefetch_metadata_async().
+            Mapping of ASIN → (metadata_dict, region). Skips network calls for cached ASINs.
         dry_run: If True, don't actually move files
 
     Returns:
@@ -1650,7 +1668,8 @@ def import_single(
     # This fills in author/series/position for poorly-named folders
     # Done after duplicate check to avoid network calls for skipped books
     # Also captures audnex_data for metadata.json generation
-    parsed, audnex_data, audnex_region = enrich_from_audnex(parsed, asin)
+    # Phase 11.4: Use prefetched cache if available to skip network calls
+    parsed, audnex_data, audnex_region = enrich_from_audnex(parsed, asin, audnex_cache=audnex_cache)
 
     # Phase 6: ASIN region normalization - convert non-preferred region ASINs
     # to preferred region ASINs using ABS search (requires ABS client)
@@ -1914,6 +1933,7 @@ def import_batch(
     generate_metadata_json: bool = True,
     metadata_json_fallback: bool = True,
     generate_opf_sidecar: bool = False,
+    audnex_cache: dict[str, tuple[dict[str, Any] | None, str | None]] | None = None,
     progress_callback: Callable[[int, int, Path], None] | None = None,
     dry_run: bool = False,
 ) -> BatchImportResult:
@@ -1940,6 +1960,8 @@ def import_batch(
         generate_metadata_json: If True, generate metadata.json for ABS (default True)
         metadata_json_fallback: If True, generate metadata.json even without ASIN (default True)
         generate_opf_sidecar: If True, generate metadata.opf for ABS (default False)
+        audnex_cache: Optional pre-fetched Audnex metadata cache from prefetch_metadata_async().
+            Mapping of ASIN → (metadata_dict, region). Skips network calls for cached ASINs.
         progress_callback: Optional callback(current, total, folder) for progress updates
         dry_run: If True, don't actually move files
 
@@ -1977,11 +1999,124 @@ def import_batch(
             generate_metadata_json=generate_metadata_json,
             metadata_json_fallback=metadata_json_fallback,
             generate_opf_sidecar=generate_opf_sidecar,
+            audnex_cache=audnex_cache,
             dry_run=dry_run,
         )
         batch_result.add(result)
 
     return batch_result
+
+
+async def import_batch_async(
+    staging_folders: list[Path],
+    library_root: Path,
+    asin_index: dict[str, AsinEntry],
+    *,
+    abs_client: AbsClient | None = None,
+    abs_search_confidence: float = 0.75,
+    staging_root: Path | None = None,
+    duplicate_policy: str = "skip",
+    unknown_asin_policy: UnknownAsinPolicy = UnknownAsinPolicy.IMPORT,
+    quarantine_path: Path | None = None,
+    ignore_patterns: list[str] | None = None,
+    trump_prefs: TrumpPrefs | None = None,
+    path_mapper: PathMapper | None = None,
+    cleanup_prefs: CleanupPrefs | None = None,
+    source_paths: dict[Path, Path] | None = None,
+    seed_root: Path | None = None,
+    preferred_asin_region: str | None = None,
+    generate_metadata_json: bool = True,
+    metadata_json_fallback: bool = True,
+    generate_opf_sidecar: bool = False,
+    progress_callback: Callable[[int, int, Path], None] | None = None,
+    dry_run: bool = False,
+) -> tuple[BatchImportResult, PrefetchSummary]:
+    """Import multiple audiobooks with async metadata prefetch.
+
+    Phase 11.4: Hybrid async/sync import. This function:
+    1. Pre-fetches Audnex metadata for all ASINs in parallel (async)
+    2. Performs sequential filesystem imports with cached metadata (sync)
+
+    This provides the performance benefit of parallel API calls while
+    keeping the filesystem operations sequential for reliability.
+
+    Args:
+        staging_folders: List of staging folders to import
+        library_root: ABS library root
+        asin_index: In-memory ASIN index from build_asin_index()
+        abs_client: Optional ABS client for metadata search resolution
+        abs_search_confidence: Minimum confidence for ABS search matches (0.0-1.0)
+        staging_root: Root staging directory (for resolving author from path)
+        duplicate_policy: "skip", "warn", or "overwrite"
+        unknown_asin_policy: How to handle books without ASIN
+        quarantine_path: Path for quarantine (required if policy=QUARANTINE)
+        ignore_patterns: File patterns to remove before import
+        trump_prefs: Trumping preferences (None = disabled)
+        path_mapper: Optional path mapper for container↔host conversion
+        cleanup_prefs: Post-import cleanup preferences (None = disabled)
+        source_paths: Mapping of staging_folder → original source path (for cleanup)
+        seed_root: Seed/staging root path (for cleanup hardlink verification)
+        preferred_asin_region: Preferred ASIN region code
+        generate_metadata_json: If True, generate metadata.json for ABS (default True)
+        metadata_json_fallback: If True, generate metadata.json even without ASIN
+        generate_opf_sidecar: If True, generate metadata.opf for ABS (default False)
+        progress_callback: Optional callback(current, total, folder) for progress updates
+        dry_run: If True, don't actually move files
+
+    Returns:
+        Tuple of (BatchImportResult, PrefetchSummary)
+    """
+    from shelfr.abs.prefetch import prefetch_metadata_async
+    from shelfr.metadata.audnex.async_client import AudnexAsyncClient
+    from shelfr.metadata.audnex.region_cache import get_default_region_cache
+
+    # Phase 1: Async prefetch of all Audnex metadata
+    region_cache = get_default_region_cache()
+    prefetch_summary: PrefetchSummary | None = None
+
+    async with AudnexAsyncClient() as audnex_client:
+        audnex_cache, prefetch_summary = await prefetch_metadata_async(
+            staging_folders,
+            audnex_client,
+            region_cache=region_cache,
+            include_chapters=False,
+        )
+
+    logger.info(
+        "Prefetch complete: %d/%d ASINs fetched (%.1f%%) in %.2fs",
+        prefetch_summary.success_count,
+        prefetch_summary.total_asins,
+        prefetch_summary.success_rate,
+        prefetch_summary.elapsed,
+    )
+
+    # Phase 2: Sync import with cached metadata
+    batch_result = import_batch(
+        staging_folders=staging_folders,
+        library_root=library_root,
+        asin_index=asin_index,
+        abs_client=abs_client,
+        abs_search_confidence=abs_search_confidence,
+        staging_root=staging_root,
+        duplicate_policy=duplicate_policy,
+        unknown_asin_policy=unknown_asin_policy,
+        quarantine_path=quarantine_path,
+        ignore_patterns=ignore_patterns,
+        trump_prefs=trump_prefs,
+        path_mapper=path_mapper,
+        cleanup_prefs=cleanup_prefs,
+        source_paths=source_paths,
+        seed_root=seed_root,
+        preferred_asin_region=preferred_asin_region,
+        generate_metadata_json=generate_metadata_json,
+        metadata_json_fallback=metadata_json_fallback,
+        generate_opf_sidecar=generate_opf_sidecar,
+        audnex_cache=audnex_cache,
+        progress_callback=progress_callback,
+        dry_run=dry_run,
+    )
+
+    return batch_result, prefetch_summary
 
 
 def trigger_scan_safe(client: AbsClient, library_id: str) -> bool:

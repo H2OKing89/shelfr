@@ -28,6 +28,8 @@ from shelfr.ui.icons import get_icons
 if TYPE_CHECKING:
     from rich.progress import TaskID
 
+    from shelfr.abs.prefetch import PrefetchSummary
+
 
 def cmd_abs_import(args: argparse.Namespace) -> int:
     """Import staged audiobooks to Audiobookshelf library.
@@ -38,6 +40,8 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     Duplicate detection uses in-memory ASIN index built from ABS API,
     always providing fresh data.
     """
+    import asyncio
+
     from rich.panel import Panel
     from rich.progress import (
         BarColumn,
@@ -55,6 +59,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         build_asin_index,
         discover_staged_books,
         import_batch,
+        import_batch_async,
         trigger_scan_safe,
         validate_import_prerequisites,
     )
@@ -288,6 +293,11 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         path_mappings = [{"container": pm.container, "host": pm.host} for pm in abs_config.path_map]
         path_mapper = PathMapper(mappings=path_mappings) if path_mappings else None
 
+    # Check for parallel mode (Phase 11.5)
+    use_parallel = getattr(args, "parallel", False)
+    if use_parallel:
+        print_info("Parallel metadata prefetch enabled (--parallel)")
+
     # Track the progress task ID so callback can update it
     progress_task_id: TaskID | None = None
     progress_ctx: Progress | None = None
@@ -299,6 +309,33 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
             # Truncate folder name to fit nicely
             book_name = folder.name[:50] + "..." if len(folder.name) > 50 else folder.name
             progress_ctx.update(progress_task_id, completed=current, current_book=book_name)
+
+    # Common import kwargs
+    import_kwargs = {
+        "staging_folders": staging_folders,
+        "library_root": abs_library_root,
+        "asin_index": asin_index,
+        "abs_client": abs_client_for_import,
+        "abs_search_confidence": confidence,
+        "staging_root": import_source,
+        "duplicate_policy": dup_policy,
+        "unknown_asin_policy": unknown_asin_policy,
+        "quarantine_path": quarantine_path,
+        "ignore_patterns": ignore_patterns,
+        "trump_prefs": trump_prefs,
+        "path_mapper": path_mapper,
+        "cleanup_prefs": None,  # Cleanup runs separately in Step 5
+        "source_paths": {f: f for f in staging_folders},  # 1:1 mapping in staging
+        "seed_root": settings.paths.seed_root,
+        "preferred_asin_region": import_settings.preferred_asin_region,
+        "generate_metadata_json": import_settings.generate_metadata_json,
+        "metadata_json_fallback": import_settings.metadata_json_fallback,
+        "generate_opf_sidecar": import_settings.generate_opf_sidecar,
+        "progress_callback": progress_callback,
+        "dry_run": args.dry_run,
+    }
+
+    prefetch_summary: PrefetchSummary | None = None  # For parallel mode stats
 
     try:
         # Create progress display
@@ -320,29 +357,12 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                 current_book="",
             )
 
-            result = import_batch(
-                staging_folders=staging_folders,
-                library_root=abs_library_root,
-                asin_index=asin_index,
-                abs_client=abs_client_for_import,
-                abs_search_confidence=confidence,
-                staging_root=import_source,
-                duplicate_policy=dup_policy,
-                unknown_asin_policy=unknown_asin_policy,
-                quarantine_path=quarantine_path,
-                ignore_patterns=ignore_patterns,
-                trump_prefs=trump_prefs,
-                path_mapper=path_mapper,
-                cleanup_prefs=None,  # Cleanup runs separately in Step 5
-                source_paths={f: f for f in staging_folders},  # 1:1 mapping in staging
-                seed_root=settings.paths.seed_root,
-                preferred_asin_region=import_settings.preferred_asin_region,
-                generate_metadata_json=import_settings.generate_metadata_json,
-                metadata_json_fallback=import_settings.metadata_json_fallback,
-                generate_opf_sidecar=import_settings.generate_opf_sidecar,
-                progress_callback=progress_callback,
-                dry_run=args.dry_run,
-            )
+            if use_parallel:
+                # Phase 11.5: Async import with parallel metadata prefetch
+                result, prefetch_summary = asyncio.run(import_batch_async(**import_kwargs))
+            else:
+                # Standard sync import
+                result = import_batch(**import_kwargs)
 
             # Mark as complete
             progress_ctx.update(
@@ -360,6 +380,19 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     # Close client if we kept it open for ABS search
     if use_abs_search:
         client.close()
+
+    # Display prefetch summary for parallel mode
+    if prefetch_summary:
+        console.print()
+        success = prefetch_summary.success_count
+        total = prefetch_summary.total_asins
+        rate = prefetch_summary.success_rate
+        elapsed = prefetch_summary.elapsed
+        per_sec = prefetch_summary.asins_per_second
+        console.print(
+            f"[dim]Metadata prefetch: {success}/{total} ASINs ({rate:.0f}%) "
+            f"in {elapsed:.1f}s ({per_sec:.1f} ASINs/sec)[/dim]"
+        )
 
     # Track categories for summary
     asin_count = 0

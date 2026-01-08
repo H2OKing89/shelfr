@@ -9,6 +9,7 @@ from shelfr.abs.asin import (
     SearchMatch,
     asin_exists,
     build_asin_index,
+    build_asin_index_async,
     extract_all_asins,
     extract_asin,
     extract_asin_from_abs_item,
@@ -17,6 +18,7 @@ from shelfr.abs.asin import (
     match_search_results,
     resolve_asin_via_abs_search,
 )
+from shelfr.abs.async_client import AbsAsyncClient
 from shelfr.abs.cleanup import (
     CLEANUP_ELIGIBLE_STATUSES,
     CleanupError,
@@ -48,12 +50,23 @@ from shelfr.abs.importer import (
     build_target_path,
     discover_staged_books,
     import_batch,
+    import_batch_async,
     import_single,
     parse_mam_folder_name,
     trigger_scan_safe,
     validate_import_prerequisites,
 )
 from shelfr.abs.paths import PathMapper, abs_path_to_host, host_path_to_abs
+from shelfr.abs.prefetch import (
+    AsinMetadataCache,
+    PrefetchResult,
+    PrefetchSummary,
+    extract_asins_from_folders,
+    get_cached_metadata,
+    has_cached_metadata,
+    prefetch_metadata_async,
+    prefetch_single_async,
+)
 from shelfr.abs.rename import (
     AbsMetadata,
     RenameCandidate,
@@ -76,6 +89,7 @@ __all__ = [
     "SearchMatch",
     "asin_exists",
     "build_asin_index",
+    "build_asin_index_async",
     "extract_asin",
     "extract_asin_from_abs_item",
     "extract_asin_with_source",
@@ -96,6 +110,7 @@ __all__ = [
     "verify_seed_exists",
     # Client
     "AbsApiError",
+    "AbsAsyncClient",
     "AbsAuthError",
     "AbsClient",
     "AbsConnectionError",
@@ -112,6 +127,7 @@ __all__ = [
     "build_target_path",
     "discover_staged_books",
     "import_batch",
+    "import_batch_async",
     "import_single",
     "parse_mam_folder_name",
     "trigger_scan_safe",
@@ -120,6 +136,15 @@ __all__ = [
     "PathMapper",
     "abs_path_to_host",
     "host_path_to_abs",
+    # Prefetch (Phase 11.3)
+    "AsinMetadataCache",
+    "PrefetchResult",
+    "PrefetchSummary",
+    "extract_asins_from_folders",
+    "get_cached_metadata",
+    "has_cached_metadata",
+    "prefetch_metadata_async",
+    "prefetch_single_async",
     # Rename
     "AbsMetadata",
     "RenameCandidate",

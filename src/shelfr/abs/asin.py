@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 from shelfr.config import get_settings
 
 if TYPE_CHECKING:
+    from shelfr.abs.async_client import AbsAsyncClient
     from shelfr.abs.client import AbsClient
 
 # Import ABS exceptions for narrow exception handling
@@ -671,6 +672,68 @@ def build_asin_index(
     indexed = len(index)
     logger.info(
         "Built ASIN index: %d indexed, %d without ASIN, %d duplicate ASINs (total: %d items)",
+        indexed,
+        no_asin_count,
+        duplicate_count,
+        total,
+    )
+    return index
+
+
+async def build_asin_index_async(
+    client: AbsAsyncClient,
+    library_id: str,
+) -> dict[str, AsinEntry]:
+    """Build in-memory ASIN index from ABS library (async version).
+
+    Phase 11.2: Async version with parallel page fetching.
+
+    Fetches all items from ABS using parallel pagination and builds a dict
+    for O(1) ASIN lookups. This is significantly faster for large libraries.
+
+    Args:
+        client: AbsAsyncClient instance (will use cached items if available)
+        library_id: ABS library ID to index
+
+    Returns:
+        Dict mapping ASIN to AsinEntry for all books with ASINs
+    """
+    items = await client.get_library_items_cached(library_id)
+    index: dict[str, AsinEntry] = {}
+    no_asin_count = 0
+    duplicate_count = 0
+
+    for item in items:
+        # Get ASIN from the item (metadata, folder name, or file name)
+        asin = item.asin  # AbsLibraryItem already has this parsed
+
+        # If not in metadata, try extracting from path
+        if not asin:
+            asin = extract_asin(item.path)
+
+        if not asin:
+            no_asin_count += 1
+            continue
+
+        # Skip if we've seen this ASIN (keep first occurrence)
+        if asin in index:
+            logger.debug(f"Duplicate ASIN {asin} found, keeping first at {index[asin].path}")
+            duplicate_count += 1
+            continue
+
+        index[asin] = AsinEntry(
+            asin=asin,
+            path=item.path,
+            library_item_id=item.id,
+            title=item.title,
+            author=item.author_name,
+        )
+
+    # Log detailed breakdown: indexed + no_asin + duplicates should equal total items
+    total = len(items)
+    indexed = len(index)
+    logger.info(
+        "Built ASIN index (async): %d indexed, %d no ASIN, %d duplicates (total: %d)",
         indexed,
         no_asin_count,
         duplicate_count,

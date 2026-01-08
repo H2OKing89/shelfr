@@ -63,8 +63,24 @@
 
 | Phase | Status | Description |
 | ------- | -------- | ------------- |
-| **11: ABS Importer Async** | 📋 Planned | Migrate sync importer to async |
+| **11: ABS Importer Async** | ✅ Complete | Migrate sync importer to async |
 | **12: Hardcover Provider** | 📋 Planned | Add Hardcover as metadata source |
+
+---
+
+## Phase 11: ABS Importer Async ✅ COMPLETE
+
+> **Goal:** Migrate sync ABS importer to async for better performance with large libraries
+
+| Sub-phase | Status | Description |
+| --------- | ------ | ----------- |
+| 11.1 Async Client | ✅ | `AbsAsyncClient` with parallel pagination |
+| 11.2 Async ASIN Index | ✅ | `build_asin_index_async()` |
+| 11.3 Metadata Prefetch | ✅ | `prefetch_metadata_async()` |
+| 11.4 Hybrid Batch Import | ✅ | `import_batch_async()` |
+| 11.5 CLI Integration | ✅ | Update `shelfr abs import --parallel` |
+
+**Details:** [phases/11-abs-importer-async.md](phases/11-abs-importer-async.md)
 
 ---
 
@@ -78,12 +94,20 @@
 | `src/shelfr/metadata/audnex/region_cache.py` | Region cache |
 | `src/shelfr/metadata/providers/audnex.py` | AudnexProvider |
 | `src/shelfr/cli/audnex.py` | `shelfr audnex` commands |
+| `src/shelfr/abs/async_client.py` | Async ABS client |
+| `src/shelfr/abs/prefetch.py` | Async metadata prefetch |
+| `src/shelfr/abs/asin.py` | ASIN index (sync + async) |
+| `src/shelfr/abs/importer.py` | ABS importer (sync + async batch) |
+| `src/shelfr/sanitize.py` | Audio metadata sanitization |
+| `src/shelfr/ffmpeg.py` | FFmpeg Docker wrapper |
 
 ### Commands
 
 ```bash
 shelfr audnex region-stats        # Show cache statistics
 shelfr --no-cache run             # Bypass caching
+shelfr abs import --parallel      # Use async parallel prefetch
+shelfr --dry-run abs import       # Preview import without changes
 ```
 
 ### Config

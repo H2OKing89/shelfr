@@ -108,6 +108,26 @@ class MkbrrSchema(BaseModel):
     timeout_seconds: int = Field(default=300, ge=60, le=3600)
 
 
+class FFmpegSchema(BaseModel):
+    """FFmpeg Docker configuration (linuxserver/ffmpeg)."""
+
+    enabled: bool = False  # Disabled by default until configured
+    image: str = "lscr.io/linuxserver/ffmpeg:latest"
+    # Timeout for FFmpeg operations (transcoding can be slow)
+    timeout_seconds: int = Field(default=1800, ge=60, le=7200)  # 30 min default, 2hr max
+    # Hardware acceleration: none, vaapi, qsv, nvenc, vulkan
+    hwaccel: str = Field(default="none")
+
+    @field_validator("hwaccel")
+    @classmethod
+    def validate_hwaccel(cls, v: str) -> str:
+        """Validate hardware acceleration type."""
+        valid = {"none", "vaapi", "qsv", "nvenc", "vulkan"}
+        if v not in valid:
+            raise ValueError(f"Invalid hwaccel '{v}'. Valid: {sorted(valid)}")
+        return v
+
+
 class QBittorrentSchema(BaseModel):
     """qBittorrent settings (credentials come from .env)."""
 
@@ -654,6 +674,42 @@ class LibationSchema(BaseModel):
         return v
 
 
+# =============================================================================
+# Workflow Schemas
+# =============================================================================
+
+
+class UploadSanitizeSchema(BaseModel):
+    """Sanitization settings for the upload workflow."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable metadata tag sanitization before staging",
+    )
+    tags: list[str] = Field(
+        default_factory=lambda: ["AUDIBLE_ACR"],
+        description="Metadata tags to strip (case-insensitive)",
+    )
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def normalize_tags(cls, v: list[str]) -> list[str]:
+        """Normalize tags to lowercase at load time for case-insensitive matching."""
+        return [t.strip().lower() for t in v if t and t.strip()]
+
+
+class UploadWorkflowSchema(BaseModel):
+    """Upload workflow settings (shelfr run)."""
+
+    sanitize: UploadSanitizeSchema = Field(default_factory=UploadSanitizeSchema)
+
+
+class WorkflowSchema(BaseModel):
+    """Workflow settings - controls behavior of various pipelines."""
+
+    upload: UploadWorkflowSchema = Field(default_factory=UploadWorkflowSchema)
+
+
 class CacheSchema(BaseModel):
     """Metadata cache settings."""
 
@@ -703,6 +759,7 @@ class ConfigSchema(BaseModel):
     paths: PathsSchema
     mam: MamSchema = Field(default_factory=MamSchema)
     mkbrr: MkbrrSchema = Field(default_factory=MkbrrSchema)
+    ffmpeg: FFmpegSchema = Field(default_factory=FFmpegSchema)
     qbittorrent: QBittorrentSchema = Field(default_factory=QBittorrentSchema)
     audnex: AudnexSchema = Field(default_factory=AudnexSchema)
     mediainfo: MediaInfoSchema = Field(default_factory=MediaInfoSchema)
@@ -710,6 +767,7 @@ class ConfigSchema(BaseModel):
     libation: LibationSchema = Field(default_factory=LibationSchema)
     audiobookshelf: AudiobookshelfSchema = Field(default_factory=AudiobookshelfSchema)
     cache: CacheSchema = Field(default_factory=CacheSchema)
+    workflow: WorkflowSchema = Field(default_factory=WorkflowSchema)
 
     model_config = {"extra": "forbid"}  # Catch typos in config keys
 
