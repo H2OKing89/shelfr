@@ -607,3 +607,266 @@ class TestAbsDataClasses:
         assert item.isbn == "9781234567890"
         assert item.duration == 3600.5
         assert item.size == 100000000
+
+
+# =============================================================================
+# Phase 11.2: Async ASIN Index Tests
+# =============================================================================
+
+
+class TestBuildAsinIndexAsync:
+    """Test async ASIN index building."""
+
+    @pytest.mark.asyncio
+    async def test_build_asin_index_basic(self) -> None:
+        """Test basic async ASIN index building."""
+        from shelfr.abs.asin import AsinEntry, build_asin_index_async
+
+        async_client = AbsAsyncClient(
+            host="http://localhost:13378",
+            api_key="test-key",
+        )
+
+        # Create mock items with ASINs
+        mock_items = [
+            AbsLibraryItem(
+                id="item_1",
+                library_id="lib_123",
+                path="/audiobooks/Book 1 {ASIN.B0ABC123456}",
+                rel_path="Book 1",
+                is_missing=False,
+                media_type="book",
+                title="Book 1",
+                subtitle=None,
+                author_name="Author 1",
+                narrator_name=None,
+                series_name=None,
+                asin="B0ABC123456",
+                isbn=None,
+                duration=3600.0,
+                size=100000,
+                added_at=1704067200000,
+                updated_at=1704067200000,
+            ),
+            AbsLibraryItem(
+                id="item_2",
+                library_id="lib_123",
+                path="/audiobooks/Book 2 {ASIN.B0DEF789012}",
+                rel_path="Book 2",
+                is_missing=False,
+                media_type="book",
+                title="Book 2",
+                subtitle=None,
+                author_name="Author 2",
+                narrator_name=None,
+                series_name=None,
+                asin="B0DEF789012",
+                isbn=None,
+                duration=7200.0,
+                size=200000,
+                added_at=1704067200000,
+                updated_at=1704067200000,
+            ),
+        ]
+
+        async with async_client as client:
+            with patch.object(
+                client, "get_library_items_cached", new_callable=AsyncMock
+            ) as mock_fetch:
+                mock_fetch.return_value = mock_items
+                index = await build_asin_index_async(client, "lib_123")
+
+        assert len(index) == 2
+        assert "B0ABC123456" in index
+        assert "B0DEF789012" in index
+        assert isinstance(index["B0ABC123456"], AsinEntry)
+        assert index["B0ABC123456"].title == "Book 1"
+        assert index["B0DEF789012"].author == "Author 2"
+
+    @pytest.mark.asyncio
+    async def test_build_asin_index_extracts_from_path(self) -> None:
+        """Test ASIN extraction from path when not in metadata."""
+        from shelfr.abs.asin import build_asin_index_async
+
+        async_client = AbsAsyncClient(
+            host="http://localhost:13378",
+            api_key="test-key",
+        )
+
+        # Item without ASIN in metadata but has it in path
+        mock_items = [
+            AbsLibraryItem(
+                id="item_1",
+                library_id="lib_123",
+                path="/audiobooks/Book {ASIN.B0PATHONL1}",
+                rel_path="Book",
+                is_missing=False,
+                media_type="book",
+                title="Book Without Metadata ASIN",
+                subtitle=None,
+                author_name="Author",
+                narrator_name=None,
+                series_name=None,
+                asin=None,  # No ASIN in metadata
+                isbn=None,
+                duration=3600.0,
+                size=100000,
+                added_at=1704067200000,
+                updated_at=1704067200000,
+            ),
+        ]
+
+        async with async_client as client:
+            with patch.object(
+                client, "get_library_items_cached", new_callable=AsyncMock
+            ) as mock_fetch:
+                mock_fetch.return_value = mock_items
+                index = await build_asin_index_async(client, "lib_123")
+
+        assert len(index) == 1
+        assert "B0PATHONL1" in index
+
+    @pytest.mark.asyncio
+    async def test_build_asin_index_skips_duplicates(self) -> None:
+        """Test that duplicate ASINs keep only first occurrence."""
+        from shelfr.abs.asin import build_asin_index_async
+
+        async_client = AbsAsyncClient(
+            host="http://localhost:13378",
+            api_key="test-key",
+        )
+
+        # Two items with same ASIN
+        mock_items = [
+            AbsLibraryItem(
+                id="item_1",
+                library_id="lib_123",
+                path="/audiobooks/First Copy",
+                rel_path="First Copy",
+                is_missing=False,
+                media_type="book",
+                title="First Copy",
+                subtitle=None,
+                author_name="Author",
+                narrator_name=None,
+                series_name=None,
+                asin="B0DUPLICATE1",
+                isbn=None,
+                duration=3600.0,
+                size=100000,
+                added_at=1704067200000,
+                updated_at=1704067200000,
+            ),
+            AbsLibraryItem(
+                id="item_2",
+                library_id="lib_123",
+                path="/audiobooks/Second Copy",
+                rel_path="Second Copy",
+                is_missing=False,
+                media_type="book",
+                title="Second Copy",
+                subtitle=None,
+                author_name="Author",
+                narrator_name=None,
+                series_name=None,
+                asin="B0DUPLICATE1",  # Same ASIN
+                isbn=None,
+                duration=3600.0,
+                size=100000,
+                added_at=1704067200000,
+                updated_at=1704067200000,
+            ),
+        ]
+
+        async with async_client as client:
+            with patch.object(
+                client, "get_library_items_cached", new_callable=AsyncMock
+            ) as mock_fetch:
+                mock_fetch.return_value = mock_items
+                index = await build_asin_index_async(client, "lib_123")
+
+        # Only one entry, the first one
+        assert len(index) == 1
+        assert index["B0DUPLICATE1"].title == "First Copy"
+        assert index["B0DUPLICATE1"].path == "/audiobooks/First Copy"
+
+    @pytest.mark.asyncio
+    async def test_build_asin_index_skips_items_without_asin(self) -> None:
+        """Test that items without ASIN are skipped."""
+        from shelfr.abs.asin import build_asin_index_async
+
+        async_client = AbsAsyncClient(
+            host="http://localhost:13378",
+            api_key="test-key",
+        )
+
+        mock_items = [
+            AbsLibraryItem(
+                id="item_1",
+                library_id="lib_123",
+                path="/audiobooks/Book With ASIN",
+                rel_path="Book With ASIN",
+                is_missing=False,
+                media_type="book",
+                title="Book With ASIN",
+                subtitle=None,
+                author_name="Author",
+                narrator_name=None,
+                series_name=None,
+                asin="B0HASASIN01",
+                isbn=None,
+                duration=3600.0,
+                size=100000,
+                added_at=1704067200000,
+                updated_at=1704067200000,
+            ),
+            AbsLibraryItem(
+                id="item_2",
+                library_id="lib_123",
+                path="/audiobooks/Book Without ASIN",  # No ASIN in path either
+                rel_path="Book Without ASIN",
+                is_missing=False,
+                media_type="book",
+                title="Book Without ASIN",
+                subtitle=None,
+                author_name="Author",
+                narrator_name=None,
+                series_name=None,
+                asin=None,  # No ASIN
+                isbn=None,
+                duration=3600.0,
+                size=100000,
+                added_at=1704067200000,
+                updated_at=1704067200000,
+            ),
+        ]
+
+        async with async_client as client:
+            with patch.object(
+                client, "get_library_items_cached", new_callable=AsyncMock
+            ) as mock_fetch:
+                mock_fetch.return_value = mock_items
+                index = await build_asin_index_async(client, "lib_123")
+
+        # Only the item with ASIN
+        assert len(index) == 1
+        assert "B0HASASIN01" in index
+
+    @pytest.mark.asyncio
+    async def test_build_asin_index_empty_library(self) -> None:
+        """Test building index from empty library."""
+        from shelfr.abs.asin import build_asin_index_async
+
+        async_client = AbsAsyncClient(
+            host="http://localhost:13378",
+            api_key="test-key",
+        )
+
+        async with async_client as client:
+            with patch.object(
+                client, "get_library_items_cached", new_callable=AsyncMock
+            ) as mock_fetch:
+                mock_fetch.return_value = []
+                index = await build_asin_index_async(client, "lib_123")
+
+        assert len(index) == 0

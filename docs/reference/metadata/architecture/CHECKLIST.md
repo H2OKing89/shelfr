@@ -75,7 +75,7 @@
 | Sub-phase | Status | Description |
 | --------- | ------ | ----------- |
 | 11.1 Async Client | ✅ | `AbsAsyncClient` with parallel pagination |
-| 11.2 Async ASIN Index | 📋 | Parallel page fetching |
+| 11.2 Async ASIN Index | ✅ | `build_asin_index_async()` |
 | 11.3 Metadata Prefetch | 📋 | Pre-fetch Audnex metadata |
 | 11.4 Hybrid Batch Import | 📋 | Async API + sync filesystem |
 | 11.5 CLI Integration | 📋 | Update `shelfr abs import` |
