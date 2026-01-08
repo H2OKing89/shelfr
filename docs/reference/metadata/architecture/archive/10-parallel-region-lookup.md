@@ -1,5 +1,10 @@
 # Phase 10: Parallel Region Lookup & Source Provenance
 
+> **⚠️ ARCHIVE NOTE:** This document is preserved for historical reference and detailed implementation specs.
+> **Current status:** ✅ ALL SUB-PHASES COMPLETE (10.1-10.7 shipped in PRs #86-92).
+> See [PHASE_AUDIT.md](../PHASE_AUDIT.md) for completion verification.
+> See [phases/10-parallel-region-lookup.md](../phases/10-parallel-region-lookup.md) for concise summary.
+>
 > **Status:** ✅ Complete | **Priority:** High
 >
 > **Progress:** 10.1 (Async Client) ✅ | 10.2 (Region Cache) ✅ | 10.3 (Source Provenance) ✅ | 10.4 (Provider Lifecycle) ✅ | 10.5 (Templates) ✅ | 10.6 (Concurrency) ✅ | 10.7 (Observability) ✅
@@ -925,7 +930,7 @@ Returns book metadata for a given ASIN and region.
 Returns chapter timing data for audiobook playback.
 
 | Parameter | In | Type | Required | Default | Description |
-|----------- | ----- | ------ | ---------- | --------- | ------------- |
+| ----------- | ----- | ------ | ---------- | --------- | ------------- |
 | `ASIN` | path | string | ✅ | - | Audible ASIN |
 | `region` | query | enum | ❌ | `us` | Region code |
 | `update` | query | 0\|1 | ❌ | 0 | Force upstream data refresh |
