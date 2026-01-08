@@ -253,7 +253,6 @@ def old_function():
 | `shelfr.opf` module | v1.x | v2.0 | `shelfr.metadata.opf` | Shim active |
 | `cli_argparse.py` | v1.x | v2.0 | Typer CLI (`cli/`) | Deprecated |
 | `cli_legacy.py` | — | — | `cli/` package | **Removed** |
-| `fetch_metadata_sync()` | — | — | `fetch_metadata_async()` | Never existed |
 
 ---
 
