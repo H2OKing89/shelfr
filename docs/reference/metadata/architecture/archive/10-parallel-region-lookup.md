@@ -706,6 +706,8 @@ async def fetch_region(self, asin: str, region: str) -> dict | None:
 
 With staged race + region cache, actual request volume is much lower:
 
+**Throughput (chapters NOT enabled):**
+
 | Scenario | Requests/ASIN | At 90/min limit |
 | --- | --- | --- |
 | Cache hit | 1 | **90 ASINs/min** |
@@ -801,7 +803,7 @@ Audnex lookup for B01H0IE2RQ: source=uk stage=0 in 0.23s, requests=1  # cache hi
 ```bash
 $ shelfr audnex region-stats
 
-Region Distribution (last 30 days):
+Region Distribution (from cached lookups, last 30 days):
 ┌────────┬───────┬─────────┐
 │ Region │ Count │ Percent │
 ├────────┼───────┼─────────┤
@@ -811,14 +813,16 @@ Region Distribution (last 30 days):
 │ au     │    35 │  2.2%   │
 └────────┴───────┴─────────┘
 
-Cache Performance:
+Cache Performance (last 30 days):
 ┌──────────────────┬─────────┐
 │ Metric           │ Value   │
 ├──────────────────┼─────────┤
-│ Cache hit rate   │ 67.3%   │
+│ Cache hit rate*  │ 67.3%   │
 │ Avg req/ASIN     │ 1.8     │
 │ Avg race latency │ 1.23s   │
 └──────────────────┴─────────┘
+
+*Cache hit = ASIN resolved from region_cache without staged race
 ```
 
 #### Tasks
@@ -828,6 +832,186 @@ Cache Performance:
 - [x] Track cache hit rate as KPI ("did we actually improve?")
 - [x] Add avg requests/ASIN metric
 - [x] Add timing metrics to provider result
+
+---
+
+## Observability & Metrics (Phase 10.7)
+
+### Instrumentation Strategy
+
+Phase 10.7 adds structured logging and metrics throughout the metadata pipeline to provide visibility into:
+
+- Race pattern performance (stage progression, latency, request efficiency)
+- Cache effectiveness (hit rate, invalidation patterns)
+- API health (rate limiting, timeouts, failures)
+- Batch processing throughput
+
+### Telemetry Points
+
+#### 1. Race-Level Instrumentation
+
+**Location:** `AudnexAsyncClient._staged_race()` and `_race_regions()`
+
+**Emitted payload:**
+
+```python
+{
+    "asin": str,
+    "stage": int,  # 0=cache hit, 1=Stage1 win, 2=Stage2 win
+    "elapsed_ms": float,
+    "request_count": int,
+    "winning_region": str | None,
+}
+```
+
+**Logged events:**
+
+- `"Trying cached region <region> for <asin>"` (cache fast-path attempt)
+- `"Cache hit: <asin> found in cached region <region>"` (stage=0)
+- `"Stage 1: Racing regions [us, uk, de] for <asin>"` (stage1 start)
+- `"Race winner for <asin>: region <region>"` (stage1/2 success)
+- `"Stage 2: Racing regions [...] for <asin> (excluded 404s: [...])"` (stage2 start)
+- `"Audnex lookup for <asin>: source=<region> stage=<N> in <elapsed>s, requests=<N>"` (final result)
+
+#### 2. Provider-Level Metrics
+
+**Location:** `providers/audnex.py` (AudnexProvider) and `AudnexAsyncClient`
+
+**ProviderResult observability fields:**
+
+```python
+@dataclass
+class ProviderResult:
+    # ... existing fields ...
+
+    # Phase 10.7 observability
+    fetch_latency_ms: float | None  # Total latency including race
+    request_count: int | None       # Number of API requests made
+    source_region: str | None       # Winning region for this lookup
+```
+
+**Population:**
+
+- `fetch_latency_ms`: Populated from `_staged_race()` return value (`elapsed` field)
+- `request_count`: Populated from `_staged_race()` return value
+- `source_region`: Populated from race winner region
+
+#### 3. Cache Metrics
+
+**Location:** `RegionCache.get_stats()`
+
+**Metrics exposed:**
+
+```python
+{
+    "region_distribution": dict[str, int],  # {region: count}
+    "cache_hit_rate": float,                # percentage (0-100)
+    "avg_requests_per_asin": float,         # efficiency metric
+    "avg_race_latency_s": float,            # performance metric
+    "total_asins": int,
+    "cache_size_bytes": int,
+    "last_updated": datetime,
+}
+```
+
+**Tracking:**
+
+- Cache hits: Increment when `get(asin)` returns cached region AND race succeeds on that region
+- Cache misses: Full staged race required
+- Invalidations: Track via `fail_count` increments and threshold crossings
+
+#### 4. Batch-Level Logging
+
+**Location:** `AudnexAsyncClient.fetch_batch()`
+
+**Logged event:**
+
+```
+"Audnex batch complete: <success>/<total> succeeded in <elapsed>s (<asins/sec> ASINs/sec)"
+```
+
+**Metrics:**
+
+- Success rate: `success_count / total_asins`
+- Throughput: `total_asins / batch_elapsed_seconds`
+- Aggregate request efficiency: `sum(requests) / total_asins`
+
+### Failure Classification
+
+**Logged failure types:**
+
+- `NOT_FOUND` (404/500): Definitive "book doesn't exist in any region"
+- `TRANSIENT` (timeout/5xx): Temporary failure, retry may succeed
+- `RATE_LIMITED` (429): Hit API rate limit (triggers backoff)
+- `AUTH_ERROR` (401/403): Credentials issue (unlikely for public API)
+
+**Failure tracking:**
+
+- `RegionCache.record_failure(asin, failure_type)` updates cache metadata
+- Different invalidation thresholds: NOT_FOUND=2, TRANSIENT=5
+
+### CLI Integration: `region-stats`
+
+**Command:** `shelfr audnex region-stats`
+
+**Data source:** `RegionCache.get_stats()` → aggregates from `data/region_cache.json`
+
+**Displayed metrics:**
+
+1. **Region Distribution** (table):
+   - Aggregation: Group cached entries by `region` field
+   - Shows which regions are most common in your library
+
+2. **Cache Performance** (table):
+   - `Cache hit rate`: `(cache_hits / total_lookups) * 100`
+   - `Avg req/ASIN`: `total_requests / total_asins`
+   - `Avg race latency`: Mean of all non-cache-hit lookup latencies
+
+**Example output:**
+
+```
+Region Distribution (from cached lookups, last 30 days):
+┌────────┬───────┬─────────┐
+│ Region │ Count │ Percent │
+├────────┼───────┼─────────┤
+│ us     │ 1,234 │ 78.5%   │  ← Most books from US region
+│ uk     │   245 │ 15.6%   │
+│ de     │    58 │  3.7%   │
+│ au     │    35 │  2.2%   │
+└────────┴───────┴─────────┘
+
+Cache Performance (last 30 days):
+┌──────────────────┬─────────┐
+│ Metric           │ Value   │
+├──────────────────┼─────────┤
+│ Cache hit rate*  │ 67.3%   │  ← 2/3 of lookups use cached region
+│ Avg req/ASIN     │ 1.8     │  ← Near-ideal (1.0 = always cached)
+│ Avg race latency │ 1.23s   │  ← Stage 1 typical (~0.5-1.5s)
+└──────────────────┴─────────┘
+
+*Cache hit = ASIN resolved from region_cache without staged race
+```
+
+### Usage for Maintainers
+
+**Debugging slow metadata fetches:**
+
+1. Check `Audnex lookup` logs for high `stage=2` rate (indicates Stage 1 timeouts)
+2. Run `region-stats` to see cache hit rate (< 50% = cache not helping)
+3. Inspect `avg race latency` (> 5s = possible network/API issues)
+
+**Validating config changes:**
+
+1. Change `audnex.rate_limit_per_minute` or `asin_concurrency`
+2. Process 100 ASINs
+3. Check `Avg req/ASIN` and throughput (`<N> ASINs/sec` from batch log)
+4. Verify no 429 errors in logs
+
+**Production monitoring:**
+
+- Alert if `cache_hit_rate` drops below baseline (cache corruption or invalidation loop)
+- Alert if `stage2_fallback_rate` > 30% (Stage 1 regions insufficient or API slow)
+- Alert if `429` errors appear (rate limit too high or limiter not shared)
 
 ---
 
@@ -844,6 +1028,51 @@ Cache Performance:
 | **Templates** | Conditional rendering, missing fields |
 | **Rate limiting** | Dual limiters (90/min + 2/sec burst) |
 | **Two-level validation** | Level 1 acceptance, Level 2 warnings |
+
+### Real Audnex API Integration
+
+The unit tests above use mocked responses. For pre-deployment validation, you must also test against the real Audnex API.
+
+**API Access:**
+
+- Public endpoint: `https://api.audnex.us`
+- No credentials required (open API)
+- Rate limits: 90 requests/minute sustained + 10 requests/5s burst
+
+**Integration Test Requirements (per PR Checklist):**
+
+1. **Test corpus:** Minimum 10 diverse ASINs covering:
+   - Multiple regions (us, uk, de, au, etc.)
+   - Mix of common/rare titles
+   - At least one multi-author book
+   - At least one series book
+
+2. **Rate limit verification:**
+   - Run batch fetch with 50+ ASINs
+   - Verify dual limiters working (no 429 errors)
+   - Check burst limiter prevents spikes (max 10 req/5s)
+   - Monitor sustained rate stays ≤ 90/min
+
+3. **Cache persistence:**
+   - Run first batch, verify cache file created
+   - Run second batch with same ASINs
+   - Confirm cache hits (avg requests/ASIN should drop)
+   - Verify cache survives process restart
+
+4. **Observability validation:**
+   - Check structured logs include: `source=<region>`, `stage=<0|1|2>`, `requests=<N>`
+   - Verify `region-stats` CLI shows expected distribution
+   - Confirm timing metrics (avg race latency < 2s for Stage 1 hits)
+
+**Running integration tests:**
+
+```bash
+# Run integration test suite (requires network)
+pytest tests/test_audnex_integration.py -v --real-api
+
+# Manual verification with region-stats
+shelfr audnex region-stats
+```
 
 ### Mock Latency Testing
 
@@ -936,6 +1165,8 @@ Returns chapter timing data for audiobook playback.
 | `update` | query | 0\|1 | ❌ | 0 | Force upstream data refresh |
 
 ### Book Schema (Response)
+
+For complete nested type definitions (Series, Genre, Person), refer to [AUDNEXUS_SPEC.yaml](../../audnex/api/AUDNEXUS_SPEC.yaml).
 
 ```yaml
 # Required fields (per OpenAPI spec)
@@ -1219,13 +1450,20 @@ If issues detected in production:
 
 ### Performance Benchmarks (Definition of Done)
 
-Run against a corpus of 100 diverse ASINs (mix of regions):
+Run against a corpus of 100 diverse ASINs (mix of regions).
+
+**Benchmark assumptions:**
+
+- Cache starts cold for this test (empty region_cache)
+- Stage 1 (us/uk/de race, 1.5s timeout) expected to find ~95% of ASINs
+- Stage 2 (all regions, 8.5s timeout) needed for remainder (~5%)
+- "Steady state" cache refers to hit rate post-production deployment (after processing several hundred ASINs)
 
 | Metric | Target | Measurement |
 | --- | --- | --- |
 | P50 latency (cache miss) | < 2.0s | `shelfr audnex region-stats` |
 | P95 latency (cache miss) | < 5.0s | Log analysis |
-| Cache hit rate (warm) | > 60% | `region-stats` |
+| Cache hit rate (steady state) | > 60% | `region-stats` |
 | Avg requests/ASIN | < 2.5 | `region-stats` |
 | 429 errors | 0 | Log grep |
 | "Task destroyed" warnings | 0 | stderr |
@@ -1240,6 +1478,9 @@ Run against a corpus of 100 diverse ASINs (mix of regions):
 | `audnex_avg_latency` | > 10s | Check Audnex API status |
 | `region_cache_corruption` | Any | Investigate atomic write failure |
 | `task_destroyed_warnings` | Any | Check cancellation draining |
+| `cache_hit_rate` | < 50% (baseline 65%) | Investigate stale mappings or invalidation loop |
+| `stage2_fallback_rate` | > 30% (baseline ~5%) | Check if cache is cold or Stage 1 timeouts frequent |
+| `audnex_lookup_rate` | < 10/min OR > 200/min | Investigate traffic shifts or ingestion issues |
 
 **Log queries to prepare:**
 

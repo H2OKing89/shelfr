@@ -15,6 +15,7 @@ import typer
 from rich.table import Table
 
 from shelfr.console import console
+from shelfr.metadata.audnex.region_cache import get_default_region_cache
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +69,6 @@ def register_audnex_commands(audnex_app: typer.Typer) -> None:
 
 async def _region_stats_async() -> int:
     """Async implementation of region-stats command."""
-    from shelfr.metadata.audnex.region_cache import get_default_region_cache
-
     cache = get_default_region_cache()
 
     try:
