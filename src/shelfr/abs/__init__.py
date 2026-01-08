@@ -17,6 +17,7 @@ from shelfr.abs.asin import (
     match_search_results,
     resolve_asin_via_abs_search,
 )
+from shelfr.abs.async_client import AbsAsyncClient
 from shelfr.abs.cleanup import (
     CLEANUP_ELIGIBLE_STATUSES,
     CleanupError,
@@ -96,6 +97,7 @@ __all__ = [
     "verify_seed_exists",
     # Client
     "AbsApiError",
+    "AbsAsyncClient",
     "AbsAuthError",
     "AbsClient",
     "AbsConnectionError",

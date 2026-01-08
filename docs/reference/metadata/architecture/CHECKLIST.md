@@ -63,8 +63,24 @@
 
 | Phase | Status | Description |
 | ------- | -------- | ------------- |
-| **11: ABS Importer Async** | 📋 Planned | Migrate sync importer to async |
+| **11: ABS Importer Async** | � In Progress | Migrate sync importer to async |
 | **12: Hardcover Provider** | 📋 Planned | Add Hardcover as metadata source |
+
+---
+
+## Phase 11: ABS Importer Async 🚧 IN PROGRESS
+
+> **Goal:** Migrate sync ABS importer to async for better performance with large libraries
+
+| Sub-phase | Status | Description |
+| --------- | ------ | ----------- |
+| 11.1 Async Client | ✅ | `AbsAsyncClient` with parallel pagination |
+| 11.2 Async ASIN Index | 📋 | Parallel page fetching |
+| 11.3 Metadata Prefetch | 📋 | Pre-fetch Audnex metadata |
+| 11.4 Hybrid Batch Import | 📋 | Async API + sync filesystem |
+| 11.5 CLI Integration | 📋 | Update `shelfr abs import` |
+
+**Details:** [phases/11-abs-importer-async.md](phases/11-abs-importer-async.md)
 
 ---
 
