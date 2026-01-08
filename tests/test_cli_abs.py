@@ -445,6 +445,9 @@ class TestAbsImportCommand:
         config.import_settings.cleanup.ignore_dirs = ["__import_test", ".git", ".venv"]
         config.import_settings.cleanup.ignore_glob = ["*/__*", "*/.#*"]
         config.import_settings.cleanup.prune_empty_dirs = False
+        # ABS search config
+        config.import_settings.abs_search = True
+        config.import_settings.abs_search_confidence = 0.75
         return config
 
     def test_abs_import_config_not_found(self, args: argparse.Namespace) -> None:
@@ -775,6 +778,112 @@ class TestAbsImportCommand:
         ):
             result = cmd_abs_import(args)
             assert result == 1  # Should fail with invalid confidence
+
+    def test_abs_import_parallel_flag(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test that --parallel flag uses import_batch_async."""
+        from shelfr.abs.importer import BatchImportResult
+        from shelfr.abs.prefetch import PrefetchSummary
+        from shelfr.commands.abs import cmd_abs_import
+
+        args.parallel = True
+
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        book_folder = staging / "Author - Book"
+        book_folder.mkdir()
+        (book_folder / "book.m4b").write_text("audio")
+
+        library = tmp_path / "audiobooks"
+        library.mkdir()
+
+        mock_abs_config.path_map = [MockAbsPathMap(host=str(library))]
+        mock_abs_config.import_settings.abs_search = False  # Disable for simplicity
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = staging
+
+        mock_user = MagicMock()
+        mock_user.username = "testuser"
+        mock_client = MagicMock()
+        mock_client.authorize.return_value = mock_user
+
+        # Mock the async import function
+        mock_prefetch_summary = PrefetchSummary(
+            total_asins=1,
+            success_count=1,
+            failure_count=0,
+            skipped_count=0,
+            elapsed=0.5,
+            asins_per_second=2.0,
+        )
+
+        async def mock_import_batch_async(**kwargs):
+            return BatchImportResult(), mock_prefetch_summary
+
+        with (
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
+            patch(
+                "shelfr.abs.import_batch_async",
+                side_effect=mock_import_batch_async,
+            ) as mock_async,
+            patch("shelfr.abs.import_batch") as mock_sync,
+        ):
+            result = cmd_abs_import(args)
+            assert result == 0
+            # Verify async import was called, not sync
+            mock_async.assert_called_once()
+            mock_sync.assert_not_called()
+
+    def test_abs_import_no_parallel_flag_uses_sync(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test that without --parallel, sync import_batch is used."""
+        from shelfr.abs.importer import BatchImportResult
+        from shelfr.commands.abs import cmd_abs_import
+
+        args.parallel = False
+
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        book_folder = staging / "Author - Book"
+        book_folder.mkdir()
+        (book_folder / "book.m4b").write_text("audio")
+
+        library = tmp_path / "audiobooks"
+        library.mkdir()
+
+        mock_abs_config.path_map = [MockAbsPathMap(host=str(library))]
+        mock_abs_config.import_settings.abs_search = False
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = staging
+
+        mock_user = MagicMock()
+        mock_user.username = "testuser"
+        mock_client = MagicMock()
+        mock_client.authorize.return_value = mock_user
+
+        with (
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
+            patch(
+                "shelfr.abs.import_batch",
+                return_value=BatchImportResult(),
+            ) as mock_sync,
+            patch("shelfr.abs.import_batch_async") as mock_async,
+        ):
+            result = cmd_abs_import(args)
+            assert result == 0
+            # Verify sync import was called, not async
+            mock_sync.assert_called_once()
+            mock_async.assert_not_called()
 
 
 # =============================================================================

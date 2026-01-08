@@ -122,6 +122,13 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             bool,
             typer.Option("--no-opf", help="Disable metadata.opf sidecar generation."),
         ] = False,
+        parallel: Annotated[
+            bool,
+            typer.Option(
+                "--parallel",
+                help="Enable parallel metadata prefetch for faster imports.",
+            ),
+        ] = False,
     ) -> None:
         """Import staged audiobooks to Audiobookshelf.
 
@@ -131,6 +138,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
           shelfr abs import                    # Import all staged
           shelfr abs import /path/to/book      # Import specific folder
           shelfr abs import -d skip            # Skip duplicates
+          shelfr abs import --parallel         # Parallel metadata prefetch
         """
         from shelfr.commands import cmd_abs_import
 
@@ -148,6 +156,7 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             no_cleanup=no_cleanup,
             no_metadata=no_metadata,
             opf=True if opf else (False if no_opf else None),
+            parallel=parallel,
             command="abs import",
         )
         result = cmd_abs_import(args)
