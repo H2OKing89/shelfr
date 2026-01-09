@@ -409,9 +409,12 @@ def process_single_release(
                 )
             release.status = ReleaseStatus.STAGED
         else:
-            notify(ProgressStage.STAGING, "Creating hardlinks...")
-            logger.debug("Step 1: Staging release")
-            staging_dir = stage_release(release)
+            # Determine packaging mode from config
+            audio_only = settings.workflow.upload.packaging == "audio_only"
+            mode_display = "audio_only" if audio_only else "folder"
+            notify(ProgressStage.STAGING, f"Creating hardlinks ({mode_display})...")
+            logger.debug("Step 1: Staging release (packaging=%s)", mode_display)
+            staging_dir = stage_release(release, audio_only=audio_only)
             # Show truncated path - full path available in logs via --verbose
             display_path = truncate_path(str(staging_dir), max_length=60)
             print_success(f"Staged → {display_path}")
@@ -553,8 +556,19 @@ def process_single_release(
             notify(ProgressStage.TORRENT, "Creating torrent file...")
             logger.debug("Step 3: Creating torrent")
 
+            # Determine torrent target based on packaging mode
+            audio_only = settings.workflow.upload.packaging == "audio_only"
+            if audio_only and release.main_m4b:
+                # audio_only mode: torrent targets the file directly
+                torrent_target = release.main_m4b
+                logger.debug("Torrent target (audio_only): %s", torrent_target)
+            else:
+                # folder mode: torrent targets the directory
+                torrent_target = staging_dir
+                logger.debug("Torrent target (folder): %s", torrent_target)
+
             mkbrr_result = create_torrent(
-                content_path=staging_dir,
+                content_path=torrent_target,
                 output_dir=release_output_dir,
                 preset=preset or settings.mkbrr.preset,
             )
@@ -628,14 +642,22 @@ def process_single_release(
                 release_title=release.display_name,
             )
 
-        # Use configured save_path (container path) + release folder name
+        # Use configured save_path (container path)
         # Only needed when auto_tmm is disabled
         if settings.qbittorrent.auto_tmm:
             # Auto TMM: qBittorrent manages save path via category
             qb_save_path = None
         elif settings.qbittorrent.save_path:
-            # Manual: build save path from config + release folder
-            qb_save_path = Path(settings.qbittorrent.save_path) / staging_dir.name
+            # Manual: build save path from config
+            audio_only = settings.workflow.upload.packaging == "audio_only"
+            if audio_only:
+                # audio_only: torrent is for file inside staging_dir
+                # save_path = container path to staging_dir (where file lives)
+                qb_save_path = Path(settings.qbittorrent.save_path) / staging_dir.name
+            else:
+                # folder mode: torrent is for staging_dir folder itself
+                # save_path = container path to parent (seed_root)
+                qb_save_path = Path(settings.qbittorrent.save_path)
         else:
             # No save_path configured - let qBittorrent use its default
             qb_save_path = None

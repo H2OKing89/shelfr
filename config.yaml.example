@@ -114,6 +114,13 @@ ffmpeg:
 workflow:
   # Upload workflow (shelfr run)
   upload:
+    # Torrent packaging mode - controls how files are staged and torrented
+    # - folder: Hardlink all allowed files (.m4b, .jpg, .pdf, .cue), torrent at folder level
+    #           Results in: FolderName.torrent containing folder with all files
+    # - audio_only: Hardlink only .m4b files, torrent at file level
+    #               Results in: FileName.m4b.torrent for just the audio file
+    packaging: "folder"  # "folder" or "audio_only"
+
     # Sanitize: Strip unwanted metadata tags from audio files before staging
     # Requires ffmpeg.enabled = true
     sanitize:

@@ -387,6 +387,7 @@ class UploadWorkflowConfig:
 
     sanitize: UploadSanitizeConfig = field(default_factory=UploadSanitizeConfig)
     content_warnings: ContentWarningsConfig = field(default_factory=ContentWarningsConfig)
+    packaging: str = "folder"  # "folder" or "audio_only"
 
 
 @dataclass(frozen=True)
@@ -902,10 +903,20 @@ def _parse_workflow_config(data: dict[str, Any] | None) -> WorkflowConfig:
         enabled=content_warnings_data.get("enabled", False),
     )
 
+    # Parse packaging mode
+    packaging_mode = upload_data.get("packaging", "folder").lower()
+    if packaging_mode not in {"folder", "audio_only"}:
+        logger.warning(
+            "Invalid packaging mode '%s', defaulting to 'folder'",
+            packaging_mode,
+        )
+        packaging_mode = "folder"
+
     return WorkflowConfig(
         upload=UploadWorkflowConfig(
             sanitize=sanitize_config,
             content_warnings=content_warnings_config,
+            packaging=packaging_mode,
         )
     )
 
