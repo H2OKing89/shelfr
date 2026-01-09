@@ -436,8 +436,8 @@ class TestWorkflowContentWarnings:
         assert release.hardcover_genres == ["Horror", "Thriller"]
         assert release.hardcover_moods == ["dark", "tense"]
 
-    def test_content_flags_in_mam_json(self):
-        """Test that content_flags flow into MAM JSON."""
+    def test_release_content_flags_settable(self):
+        """Test that content_flags field is settable on AudiobookRelease."""
         from shelfr.models import AudiobookRelease
 
         release = AudiobookRelease(

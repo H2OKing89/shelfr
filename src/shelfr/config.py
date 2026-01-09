@@ -1356,6 +1356,16 @@ def load_settings(
     # Load categories from config/categories.json
     categories = _load_categories(config_dir)
 
+    # Parse Hardcover config
+    hardcover_data = yaml_config.get("hardcover", {})
+    hardcover = HardcoverConfig(
+        enabled=hardcover_data.get("enabled", True),
+        timeout_seconds=hardcover_data.get("timeout_seconds", 30),
+        rate_limit_per_minute=hardcover_data.get("rate_limit_per_minute", 60),
+        match_threshold=hardcover_data.get("match_threshold", 0.70),
+        cache_ttl_days=hardcover_data.get("cache_ttl_days", 7),
+    )
+
     # Parse Audiobookshelf config
     abs_data = yaml_config.get("audiobookshelf", {})
     abs_import_data = abs_data.get("import", {})
@@ -1451,6 +1461,7 @@ def load_settings(
         categories=categories,
         naming=naming,
         audiobookshelf=audiobookshelf,
+        hardcover=hardcover,
         workflow=workflow,
     )
 

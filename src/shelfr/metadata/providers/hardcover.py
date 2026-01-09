@@ -323,6 +323,7 @@ class HardcoverProvider:
             "hardcover_id": book.id,
             "match_score": search_result.match_score,
             "raw_warnings": book.warning_names,
+            "moods": book.mood_names,  # Store moods for workflow extraction
         }
 
         return result
@@ -365,7 +366,15 @@ class HardcoverProvider:
                     flags.add("cLang")
                 elif any(
                     q in warning_lower
-                    for q in ["lgbt", "queer", "gay", "lesbian", "bisex", "trans"]
+                    for q in [
+                        "lgbt",
+                        "queer",
+                        "gay",
+                        "lesbian",
+                        "bisex",
+                        "transgender",
+                        "nonbinary",
+                    ]
                 ):
                     flags.add("lgbt")
 

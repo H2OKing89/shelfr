@@ -354,7 +354,7 @@ def build_mam_path(
         year: Release year (4 digits)
         author: Primary author name (cleaned)
         asin: Amazon ASIN (optional - if None, ASIN component is omitted from path)
-        ripper_tag: Optional ripper tag (e.g., "H2OKing") - ignored in file_only mode
+        ripper_tag: Optional ripper tag (e.g., "H2OKing") - in file_only mode, included on filename
         extension: File extension (default: ".m4b")
         part_count: Number of parts (>1 adjusts budget for " - Part XX")
         naming_config: NamingConfig for cleaning rules

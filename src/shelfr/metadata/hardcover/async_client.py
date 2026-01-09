@@ -186,6 +186,8 @@ class HardcoverAsyncClient:
             return None
 
         payload = {"query": query, "variables": variables}
+        rate_limit_retries = 0
+        max_rate_limit_retries = 3
 
         for attempt in range(DEFAULT_RETRIES):
             try:
@@ -221,6 +223,11 @@ class HardcoverAsyncClient:
                         return None
 
                     elif response.status_code == 429:
+                        rate_limit_retries += 1
+                        if rate_limit_retries > max_rate_limit_retries:
+                            logger.error("Rate limited too many times, giving up")
+                            self._error_count += 1
+                            return None
                         retry_after = int(response.headers.get("retry-after", 60))
                         logger.warning("Rate limited. Waiting %ds before retry", retry_after)
                         await asyncio.sleep(retry_after)

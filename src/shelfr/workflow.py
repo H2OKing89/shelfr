@@ -211,7 +211,7 @@ async def _fetch_hardcover_data_async(
         await provider.startup()
         ctx = LookupContext(
             ids={"asin": asin},
-            existing_abs_json={"title": title, "author": author},
+            existing_abs_json={"title": title, "authors": [{"name": author}] if author else []},
         )
         result = await provider.fetch(ctx, id_type="asin")
         if result.success and result.fields:
@@ -224,11 +224,13 @@ async def _fetch_hardcover_data_async(
                     genres.append(name)
 
             # Get moods safely - it's not a standard MetadataFields key
+            # Use raw_data which stores the complete Hardcover response
             moods: list[str] | None = None
-            if hasattr(result.fields, "get"):
-                raw_moods = getattr(result.fields, "moods", None)
+            if result.raw_data:
+                raw_moods = result.raw_data.get("moods")
                 if isinstance(raw_moods, list):
-                    moods = raw_moods
+                    moods = [m for m in raw_moods if isinstance(m, str)]
+                    moods = moods if moods else None
 
             return HardcoverResult(
                 content_flags=result.fields.get("content_flags"),
@@ -1012,7 +1014,9 @@ def full_run(
                 if release.main_m4b:
                     print_dry_run(f"METADATA → MediaInfo on {release.main_m4b.name}")
                 # Step 2a: Hardcover data (content warnings, genres, moods)
-                if settings.workflow.upload.content_warnings.enabled and settings.hardcover.enabled:
+                # Only check content_warnings.enabled here - the internal fetch
+                # handles hardcover.enabled
+                if settings.workflow.upload.content_warnings.enabled:
                     title = release.title or "unknown"
                     print_dry_run(
                         f"HARDCOVER → Fetch content warnings, genres, moods for '{title}'"

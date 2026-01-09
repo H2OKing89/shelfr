@@ -1,6 +1,10 @@
 # Secrets
 .env
 
+# User config (use config.yaml.example as template)
+config.yaml
+config/config.yaml
+
 # Python
 __pycache__/
 *.py[cod]
