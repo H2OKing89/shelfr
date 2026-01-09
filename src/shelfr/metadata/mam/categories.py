@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from typing import Any
 
 from shelfr.config import get_settings
@@ -250,3 +252,329 @@ def _map_genres_to_categories(genres: list[dict[str, Any]]) -> list[int]:
                     break
 
     return sorted(categories)
+
+
+# =============================================================================
+# Category Resolver (Signal Scoring)
+# =============================================================================
+
+# Signal weights for category scoring
+SIGNAL_WEIGHTS: dict[str, float] = {
+    "audnex_genre": 1.0,
+    "hardcover_genre": 0.8,
+    "hardcover_mood": 0.3,
+}
+
+# Penalty multiplier for generic/vague terms
+GENERIC_PENALTY: float = 0.5
+
+# Terms that provide little category signal (normalized lowercase)
+GENERIC_TERMS: frozenset[str] = frozenset(
+    {
+        "fiction",
+        "general fiction",
+        "contemporary",
+        "nonfiction",
+        "non-fiction",
+        "general nonfiction",
+        "general non-fiction",
+        "general",
+        "literature",
+        "literature & fiction",
+    }
+)
+
+# Mood → candidate categories (moods can only reinforce, not create)
+MOOD_CATEGORY_HINTS: dict[str, list[str]] = {
+    "dark": ["Audiobooks - Horror", "Audiobooks - Crime/Thriller"],
+    "mysterious": ["Audiobooks - Crime/Thriller", "Audiobooks - Mystery"],
+    "tense": ["Audiobooks - Crime/Thriller", "Audiobooks - Thriller/Suspense"],
+    "romantic": ["Audiobooks - Romance"],
+    "funny": ["Audiobooks - General Fiction", "Audiobooks - Comedy"],
+    "lighthearted": ["Audiobooks - General Fiction", "Audiobooks - Romance"],
+    "adventurous": ["Audiobooks - Action/Adventure", "Audiobooks - Fantasy"],
+    "hopeful": ["Audiobooks - Romance", "Audiobooks - General Fiction"],
+    "sad": ["Audiobooks - Literary Classics", "Audiobooks - Drama/Plays"],
+    "emotional": ["Audiobooks - Romance", "Audiobooks - Drama/Plays"],
+    "informative": ["Audiobooks - General Non-Fic", "Audiobooks - Self-Help"],
+    "inspiring": ["Audiobooks - Self-Help", "Audiobooks - Biographical"],
+    "challenging": ["Audiobooks - Literary Classics", "Audiobooks - Literary Fiction"],
+    "reflective": ["Audiobooks - Literary Fiction", "Audiobooks - Self-Help"],
+}
+
+
+@dataclass(frozen=True)
+class Signal:
+    """A single genre or mood signal from a metadata source."""
+
+    source: str  # "audnex_genre" | "hardcover_genre" | "hardcover_mood"
+    term: str  # The genre/mood string
+
+
+@dataclass(frozen=True)
+class Contribution:
+    """A signal's contribution to a category score."""
+
+    category: str
+    source: str
+    term: str
+    delta: float
+
+
+@dataclass
+class Resolution:
+    """Result of category resolution with scores and provenance."""
+
+    category: str
+    scores: dict[str, float] = field(default_factory=dict)
+    contributions: list[Contribution] = field(default_factory=list)
+    is_fiction: bool = True
+
+
+class CategoryResolver:
+    """
+    Resolves MAM audiobook category from multiple metadata sources using signal scoring.
+
+    Combines genres from Audnex and Hardcover, plus Hardcover moods, to determine
+    the best MAM category. Uses weighted scoring with:
+    - Audnex genres: weight 1.0 (primary source)
+    - Hardcover genres: weight 0.8 (strong fallback)
+    - Hardcover moods: weight 0.3 (tie-breaker hints)
+
+    Generic terms (e.g., "Fiction", "Contemporary") receive a penalty.
+    Moods can only reinforce categories that already have genre support.
+    Ties are broken deterministically: Audnex-backed > Hardcover-backed > alphabetical.
+    """
+
+    def __init__(self, category_keywords: dict[str, list[str]] | None = None):
+        """
+        Initialize resolver with category keyword mappings.
+
+        Args:
+            category_keywords: Map of MAM category → list of matching keywords.
+                If None, loads from config/audiobook_categories.json.
+        """
+        if category_keywords is not None:
+            self.category_keywords = {
+                cat: [self._norm(k) for k in keys] for cat, keys in category_keywords.items()
+            }
+        else:
+            # Load from config
+            self.category_keywords = self._load_category_keywords()
+
+    def _load_category_keywords(self) -> dict[str, list[str]]:
+        """Load category keywords from config, inverting the map."""
+        try:
+            settings = get_settings()
+            categories = settings.categories
+
+            # Combine fiction and nonfiction maps, inverting keyword→category
+            # to category→keywords
+            result: dict[str, list[str]] = {}
+
+            for keyword, category in categories.audiobook_fiction_map.items():
+                result.setdefault(category, []).append(self._norm(keyword))
+
+            for keyword, category in categories.audiobook_nonfiction_map.items():
+                result.setdefault(category, []).append(self._norm(keyword))
+
+            return result
+        except Exception:
+            logger.debug("Failed to load category keywords from config")
+            return {}
+
+    def resolve(
+        self,
+        audnex_genres: Iterable[str] | None = None,
+        hardcover_genres: Iterable[str] | None = None,
+        hardcover_moods: Iterable[str] | None = None,
+        is_fiction: bool = True,
+    ) -> Resolution:
+        """
+        Resolve the best MAM category from available signals.
+
+        Args:
+            audnex_genres: Genre names from Audnex API
+            hardcover_genres: Genre names from Hardcover API
+            hardcover_moods: Mood names from Hardcover API
+            is_fiction: Whether the book is fiction (affects default)
+
+        Returns:
+            Resolution with category, scores, and contributions
+        """
+        default_category = (
+            "Audiobooks - General Fiction" if is_fiction else "Audiobooks - General Non-Fic"
+        )
+
+        # Build signals list
+        signals: list[Signal] = []
+        for g in audnex_genres or []:
+            signals.append(Signal("audnex_genre", g))
+        for g in hardcover_genres or []:
+            signals.append(Signal("hardcover_genre", g))
+        for m in hardcover_moods or []:
+            signals.append(Signal("hardcover_mood", m))
+
+        if not signals:
+            return Resolution(default_category, {}, [], is_fiction)
+
+        scores: dict[str, float] = {}
+        contribs: list[Contribution] = []
+
+        # First pass: find categories backed by genre signals (not moods)
+        genre_backed: set[str] = set()
+        for s in signals:
+            if s.source.endswith("_genre"):
+                for cat in self._match_categories(s.term):
+                    genre_backed.add(cat)
+
+        # Second pass: score all signals
+        for s in signals:
+            weight = SIGNAL_WEIGHTS.get(s.source, 0.0)
+            if weight <= 0:
+                continue
+
+            term_n = self._norm(s.term)
+            penalty = GENERIC_PENALTY if term_n in GENERIC_TERMS else 1.0
+
+            matched = self._match_categories(s.term)
+
+            # Mood rule: only reinforce existing genre-backed categories
+            if s.source == "hardcover_mood" and genre_backed:
+                matched = [c for c in matched if c in genre_backed]
+                # If no genre backing, moods can still suggest categories
+                # but with reduced weight (already lower at 0.3)
+
+            for cat in matched:
+                delta = weight * penalty
+                scores[cat] = scores.get(cat, 0.0) + delta
+                contribs.append(Contribution(cat, s.source, s.term, delta))
+
+        if not scores:
+            return Resolution(default_category, {}, [], is_fiction)
+
+        best = self._pick_best_category(scores, contribs)
+        top_contribs = self._top_contributions(best, contribs)
+
+        return Resolution(best, scores, top_contribs, is_fiction)
+
+    def format_reason(self, res: Resolution, max_items: int = 3) -> str:
+        """
+        Format resolution contributions as a human-readable reason string.
+
+        Args:
+            res: Resolution to format
+            max_items: Maximum contributions to include
+
+        Returns:
+            String like "audnex_genre:Fantasy=1.00, hardcover_mood:dark=0.30"
+        """
+        if not res.contributions:
+            return "default"
+
+        parts = []
+        sorted_contribs = sorted(res.contributions, key=lambda x: x.delta, reverse=True)
+        for c in sorted_contribs[:max_items]:
+            parts.append(f"{c.source}:{c.term}={c.delta:.2f}")
+        return ", ".join(parts)
+
+    def _pick_best_category(self, scores: dict[str, float], contribs: list[Contribution]) -> str:
+        """
+        Pick best category with deterministic tie-breaking.
+
+        Priority: highest score > Audnex-backed > Hardcover-backed > alphabetical
+        """
+        audnex_cats = {c.category for c in contribs if c.source == "audnex_genre"}
+        hardcover_cats = {c.category for c in contribs if c.source.startswith("hardcover")}
+
+        def sort_key(cat: str) -> tuple[float, int, int, str]:
+            return (
+                scores[cat],
+                1 if cat in audnex_cats else 0,
+                1 if cat in hardcover_cats else 0,
+                cat,  # Alphabetical for final tie-break
+            )
+
+        return max(scores.keys(), key=sort_key)
+
+    def _top_contributions(self, category: str, contribs: list[Contribution]) -> list[Contribution]:
+        """Get contributions for the selected category, sorted by delta."""
+        cs = [c for c in contribs if c.category == category]
+        cs.sort(key=lambda x: x.delta, reverse=True)
+        return cs
+
+    def _match_categories(self, term: str) -> list[str]:
+        """Find categories that match the given term."""
+        t = self._norm(term)
+        hits: list[str] = []
+
+        # Check keyword-based matching from config
+        for cat, keys in self.category_keywords.items():
+            if t in keys or any(re.search(rf"\b{re.escape(k)}\b", t) for k in keys if len(k) >= 4):
+                hits.append(cat)
+
+        # Check mood hints if this looks like a mood
+        if t in MOOD_CATEGORY_HINTS:
+            hits.extend(MOOD_CATEGORY_HINTS[t])
+
+        return list(set(hits))  # Dedupe
+
+    @staticmethod
+    def _norm(s: str) -> str:
+        """Normalize a term for matching (lowercase, collapse whitespace)."""
+        return " ".join(s.strip().lower().split())
+
+
+# Singleton resolver instance (lazy-loaded)
+_resolver: CategoryResolver | None = None
+
+
+def get_category_resolver() -> CategoryResolver:
+    """Get or create the singleton CategoryResolver instance."""
+    global _resolver
+    if _resolver is None:
+        _resolver = CategoryResolver()
+    return _resolver
+
+
+def resolve_audiobook_category(
+    audnex_data: dict[str, Any] | None = None,
+    hardcover_genres: list[str] | None = None,
+    hardcover_moods: list[str] | None = None,
+    is_fiction: bool | None = None,
+) -> Resolution:
+    """
+    Resolve MAM audiobook category using signal scoring.
+
+    Convenience function that extracts genres from audnex_data and calls
+    the CategoryResolver.
+
+    Args:
+        audnex_data: Audnex API response (genres extracted from 'genres' key)
+        hardcover_genres: Genre names from Hardcover API
+        hardcover_moods: Mood names from Hardcover API
+        is_fiction: Override fiction/nonfiction. If None, inferred from audnex_data.
+
+    Returns:
+        Resolution with category, scores, and contributions
+    """
+    resolver = get_category_resolver()
+
+    # Extract Audnex genres
+    audnex_genres: list[str] = []
+    if audnex_data:
+        for g in audnex_data.get("genres", []):
+            name = g.get("name", "")
+            if name:
+                audnex_genres.append(name)
+
+    # Infer fiction/nonfiction if not provided
+    if is_fiction is None:
+        is_fiction = _infer_fiction_or_nonfiction(audnex_data) == 1 if audnex_data else True
+
+    return resolver.resolve(
+        audnex_genres=audnex_genres,
+        hardcover_genres=hardcover_genres,
+        hardcover_moods=hardcover_moods,
+        is_fiction=is_fiction,
+    )

@@ -18,6 +18,7 @@ from typing import Any
 
 from shelfr.config import get_settings
 from shelfr.utils.cmd import CmdError, CmdResult, run
+from shelfr.utils.permissions import fix_ownership
 from shelfr.utils.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,7 @@ def _docker_base_command(
     hwaccel: HardwareAccel = HardwareAccel.NONE,
     extra_devices: list[str] | None = None,
     extra_env: dict[str, str] | None = None,
+    entrypoint: str | None = None,
 ) -> list[str]:
     """
     Build the common docker run prefix for all FFmpeg commands.
@@ -108,6 +110,7 @@ def _docker_base_command(
         hwaccel: Hardware acceleration type
         extra_devices: Additional devices to pass through (e.g., /dev/dri)
         extra_env: Additional environment variables
+        entrypoint: Override default entrypoint (e.g., 'ffprobe')
 
     Returns:
         List of docker command arguments
@@ -121,6 +124,10 @@ def _docker_base_command(
         "--rm",
     ]
 
+    # Override entrypoint if specified (e.g., for ffprobe)
+    if entrypoint:
+        cmd.extend(["--entrypoint", entrypoint])
+
     # Hardware acceleration devices
     if hwaccel in (HardwareAccel.VAAPI, HardwareAccel.QSV, HardwareAccel.VULKAN):
         cmd.extend(["--device=/dev/dri:/dev/dri"])
@@ -133,9 +140,15 @@ def _docker_base_command(
             cmd.extend([f"--device={device}"])
 
     # Environment variables
+    user_env = {
+        "PUID": str(settings.target_uid),
+        "PGID": str(settings.target_gid),
+    }
     if extra_env:
-        for key, value in extra_env.items():
-            cmd.extend(["-e", f"{key}={value}"])
+        user_env.update(extra_env)
+
+    for key, value in user_env.items():
+        cmd.extend(["-e", f"{key}={value}"])
 
     # Volume mounts - we'll add specific mounts per operation
     # The container expects input/output in /config
@@ -247,17 +260,16 @@ def probe(
     mounts, path_map = _build_volume_mounts([input_path])
     container_input = path_map[input_path]
 
-    cmd = _docker_base_command()
+    cmd = _docker_base_command(entrypoint="ffprobe")
     # Insert mounts before image name
     image_idx = len(cmd) - 1
     for mount in mounts:
         cmd.insert(image_idx, mount)
         image_idx += 1
 
-    # Use ffprobe entrypoint instead of ffmpeg
+    # ffprobe arguments (entrypoint already set to ffprobe)
     cmd.extend(
         [
-            "ffprobe",
             "-v",
             "quiet",
             "-print_format",
@@ -412,8 +424,11 @@ def transcode(
             error=f"Output file exists: {output_path}",
         )
 
-    # Ensure output directory exists
+    # Ensure output directory exists and is writable by container user
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    fix_ownership(output_path.parent, settings.target_uid, settings.target_gid)
+    if output_path.exists():
+        fix_ownership(output_path, settings.target_uid, settings.target_gid)
 
     # Build command
     mounts, path_map = _build_volume_mounts([input_path, output_path])
@@ -685,8 +700,11 @@ def copy_audio(
             error=f"Output file exists: {output_path}",
         )
 
-    # Ensure output directory exists
+    # Ensure output directory exists and is writable by target user
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    fix_ownership(output_path.parent, settings.target_uid, settings.target_gid)
+    if output_path.exists():
+        fix_ownership(output_path, settings.target_uid, settings.target_gid)
 
     # Build command
     mounts, path_map = _build_volume_mounts([input_path, output_path])
@@ -751,6 +769,15 @@ def copy_audio(
         )
 
     success = result.exit_code == 0 and output_path.exists()
+
+    if not success:
+        stderr_preview = (result.stderr or "")[:2000]
+        logger.warning(
+            "copy_audio failed (exit %s). stderr head:%s%s",
+            result.exit_code,
+            "\n" if stderr_preview else " ",
+            stderr_preview,
+        )
 
     return FFmpegResult(
         success=success,

@@ -267,7 +267,7 @@ class Settings:
     KEEPALIVE_EXPIRY = 30.0
 
     # File Paths
-    COMBINED_METADATA_FILE = Path("data/combined_metadata.json")
+    COMBINED_METADATA_FILE = Path("samples/test_data/combined_metadata.json")
     ENRICHED_DATA_FILE = Path("data/hardcover_enriched_run.json")
     ENRICHED_BOOKS_FILE = Path("data/hardcover_enriched_books.jsonl")
     ENRICHED_VOCAB_FILE = Path("data/hardcover_keywords.json")

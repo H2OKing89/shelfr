@@ -50,6 +50,7 @@ from shelfr.libation import (
     run_scan,
 )
 from shelfr.metadata import fetch_metadata, generate_mam_json_for_release
+from shelfr.metadata.providers import HardcoverProvider
 from shelfr.mkbrr import create_torrent
 from shelfr.models import AudiobookRelease, ProcessingResult, ReleaseStatus
 from shelfr.qbittorrent import upload_torrent
@@ -174,6 +175,95 @@ def _upload_torrent_with_retry(
     return upload_torrent(torrent_path=torrent_path, save_path=save_path)
 
 
+@dataclass
+class HardcoverResult:
+    """Result from Hardcover API fetch."""
+
+    content_flags: list[str] | None = None
+    genres: list[str] | None = None
+    moods: list[str] | None = None
+
+
+async def _fetch_hardcover_data_async(
+    asin: str,
+    title: str,
+    author: str,
+) -> HardcoverResult:
+    """Fetch content warnings, genres, and moods from Hardcover asynchronously.
+
+    Args:
+        asin: ASIN for cache keying
+        title: Book title for search
+        author: Author name for search
+
+    Returns:
+        HardcoverResult with content_flags, genres, and moods
+    """
+    from shelfr.metadata.providers.types import LookupContext
+
+    settings = get_settings()
+    if not settings.hardcover.enabled:
+        logger.debug("Hardcover disabled in config, skipping")
+        return HardcoverResult()
+
+    provider = HardcoverProvider()
+    try:
+        await provider.startup()
+        ctx = LookupContext(
+            ids={"asin": asin},
+            existing_abs_json={"title": title, "author": author},
+        )
+        result = await provider.fetch(ctx, id_type="asin")
+        if result.success and result.fields:
+            # Extract genres as list of strings
+            genres_raw = result.fields.get("genres", [])
+            genres: list[str] = []
+            for g in genres_raw:
+                name = g.get("name") if isinstance(g, dict) else g
+                if name and isinstance(name, str):
+                    genres.append(name)
+
+            # Get moods safely - it's not a standard MetadataFields key
+            moods: list[str] | None = None
+            if hasattr(result.fields, "get"):
+                raw_moods = getattr(result.fields, "moods", None)
+                if isinstance(raw_moods, list):
+                    moods = raw_moods
+
+            return HardcoverResult(
+                content_flags=result.fields.get("content_flags"),
+                genres=genres if genres else None,
+                moods=moods,
+            )
+        return HardcoverResult()
+    except Exception as e:
+        logger.warning("Hardcover fetch failed: %s", e)
+        return HardcoverResult()
+    finally:
+        await provider.shutdown()
+
+
+def _fetch_hardcover_data(asin: str, title: str, author: str) -> HardcoverResult:
+    """Sync wrapper for Hardcover data fetch.
+
+    Uses asyncio.run() to execute the async provider call from sync context.
+    """
+    import asyncio
+
+    try:
+        return asyncio.run(_fetch_hardcover_data_async(asin, title, author))
+    except Exception as e:
+        logger.warning("Hardcover fetch error: %s", e)
+        return HardcoverResult()
+
+
+# Legacy wrapper for backwards compatibility
+def _fetch_content_warnings(asin: str, title: str, author: str) -> list[str] | None:
+    """Fetch content warnings from Hardcover (legacy wrapper)."""
+    result = _fetch_hardcover_data(asin, title, author)
+    return result.content_flags
+
+
 # =============================================================================
 # Single Release Processing
 # =============================================================================
@@ -280,7 +370,12 @@ def process_single_release(
             sanitize_result = sanitize_release(release, verbose=verbose)
 
             if sanitize_result.skipped_reason:
-                logger.debug("Sanitization skipped: %s", sanitize_result.skipped_reason)
+                # Show warning if sanitize is enabled but ffmpeg disabled (config issue)
+                if "FFmpeg disabled" in sanitize_result.skipped_reason:
+                    print_warning(f"Sanitization skipped: {sanitize_result.skipped_reason}")
+                    print_info("  → Add 'ffmpeg: enabled: true' to config.yaml to enable")
+                else:
+                    logger.debug("Sanitization skipped: %s", sanitize_result.skipped_reason)
             elif sanitize_result.files_modified > 0:
                 print_success(
                     f"Sanitized {sanitize_result.files_modified} file(s) "
@@ -368,6 +463,46 @@ def process_single_release(
                         print_success("MediaInfo extracted")
                 release.status = ReleaseStatus.METADATA_FETCHED
                 checkpoint_stage(release, "metadata")
+
+            # -----------------------------------------------------------------
+            # 2a. Hardcover Data (Content Warnings, Genres, Moods)
+            # -----------------------------------------------------------------
+            if settings.workflow.upload.content_warnings.enabled:
+                logger.debug("Step 2a: Fetching Hardcover data")
+                title = release.title or ""
+                author = release.author or ""
+                if release.asin and title:
+                    if verbose:
+                        print_info(f"Fetching Hardcover data for '{title}' by '{author}'")
+                    hardcover_result = _fetch_hardcover_data(release.asin, title, author)
+
+                    # Store content flags
+                    if hardcover_result.content_flags:
+                        release.content_flags = hardcover_result.content_flags
+                        flags_str = ", ".join(hardcover_result.content_flags)
+                        print_success(f"Content warnings: {flags_str}")
+
+                    # Store genres and moods for category resolution
+                    if hardcover_result.genres:
+                        release.hardcover_genres = hardcover_result.genres
+                        if verbose:
+                            print_info(
+                                f"Hardcover genres: {', '.join(hardcover_result.genres[:5])}"
+                            )
+                    if hardcover_result.moods:
+                        release.hardcover_moods = hardcover_result.moods
+                        if verbose:
+                            print_info(f"Hardcover moods: {', '.join(hardcover_result.moods[:5])}")
+
+                    if not hardcover_result.content_flags and verbose:
+                        print_info("No content warnings found on Hardcover")
+                    elif not hardcover_result.content_flags:
+                        logger.debug("No content warnings found for '%s'", title)
+                else:
+                    if verbose:
+                        print_info("Skipping Hardcover: missing ASIN or title")
+                    else:
+                        logger.debug("Skipping Hardcover: missing ASIN or title")
 
             # -----------------------------------------------------------------
             # 2b. Metadata Validation
@@ -851,6 +986,12 @@ def full_run(
                     print_dry_run(f"METADATA → Fetch Audnex for {release.asin}")
                 if release.main_m4b:
                     print_dry_run(f"METADATA → MediaInfo on {release.main_m4b.name}")
+                # Step 2a: Hardcover data (content warnings, genres, moods)
+                if settings.workflow.upload.content_warnings.enabled and settings.hardcover.enabled:
+                    title = release.title or "unknown"
+                    print_dry_run(
+                        f"HARDCOVER → Fetch content warnings, genres, moods for '{title}'"
+                    )
             else:
                 print_dry_run("METADATA → [SKIPPED]")
 

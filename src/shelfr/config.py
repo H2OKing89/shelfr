@@ -168,6 +168,21 @@ class AudnexConfig:
 
 
 @dataclass
+class HardcoverConfig:
+    """Hardcover API settings (from config.yaml hardcover section).
+
+    Phase 12: Hardcover provider for content warnings and rich metadata.
+    """
+
+    enabled: bool = True  # Enable/disable Hardcover provider
+    # API key from environment variable HARDCOVER_API_KEY (not stored in config)
+    timeout_seconds: int = 30
+    rate_limit_per_minute: int = 60  # Hardcover API limit
+    match_threshold: float = 0.70  # Fuzzy match threshold (0.0-1.0)
+    cache_ttl_days: int = 7  # Cache TTL in days (book metadata changes slowly)
+
+
+@dataclass
 class MediaInfoConfig:
     """MediaInfo settings (from config.yaml mediainfo section)."""
 
@@ -355,10 +370,23 @@ class UploadSanitizeConfig:
 
 
 @dataclass(frozen=True)
+class ContentWarningsConfig:
+    """Content warnings settings for the upload workflow.
+
+    When enabled, fetches content warnings from Hardcover API
+    and maps them to MAM content flags (vio, cLang, sSex, eSex, lgbt).
+    Requires hardcover.enabled = True in global config.
+    """
+
+    enabled: bool = False
+
+
+@dataclass(frozen=True)
 class UploadWorkflowConfig:
     """Upload workflow settings (shelfr run)."""
 
     sanitize: UploadSanitizeConfig = field(default_factory=UploadSanitizeConfig)
+    content_warnings: ContentWarningsConfig = field(default_factory=ContentWarningsConfig)
 
 
 @dataclass(frozen=True)
@@ -536,7 +564,7 @@ class Settings:
     env: str  # .env: SHELFR_ENV
     log_level: str  # .env: LOG_LEVEL
 
-    # From config.yaml
+    # From config.yaml (required - no defaults)
     paths: PathsConfig
     mam: MamConfig
     mkbrr: MkbrrConfig
@@ -548,6 +576,9 @@ class Settings:
     filters: FiltersConfig
     categories: CategoriesConfig
     naming: NamingConfig
+
+    # From config.yaml (optional - with defaults)
+    hardcover: HardcoverConfig = field(default_factory=HardcoverConfig)
     audiobookshelf: AudiobookshelfConfig = field(default_factory=AudiobookshelfConfig)
     workflow: WorkflowConfig = field(default_factory=WorkflowConfig)
 
@@ -865,7 +896,18 @@ def _parse_workflow_config(data: dict[str, Any] | None) -> WorkflowConfig:
         tags=normalized_tags,
     )
 
-    return WorkflowConfig(upload=UploadWorkflowConfig(sanitize=sanitize_config))
+    # Parse content_warnings config
+    content_warnings_data = upload_data.get("content_warnings", {})
+    content_warnings_config = ContentWarningsConfig(
+        enabled=content_warnings_data.get("enabled", False),
+    )
+
+    return WorkflowConfig(
+        upload=UploadWorkflowConfig(
+            sanitize=sanitize_config,
+            content_warnings=content_warnings_config,
+        )
+    )
 
 
 def _load_categories(config_dir: Path) -> CategoriesConfig:

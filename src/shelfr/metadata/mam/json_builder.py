@@ -19,6 +19,7 @@ from shelfr.metadata.mam.categories import (
     _get_audiobook_category,
     _infer_fiction_or_nonfiction,
     _map_genres_to_categories,
+    resolve_audiobook_category,
 )
 from shelfr.metadata.mediainfo import _extract_audio_info, _parse_chapters_from_mediainfo
 from shelfr.models import NormalizedBook
@@ -466,9 +467,32 @@ def build_mam_json(
     mam_json["main_cat"] = main_cat
 
     # Category string (e.g., "Audiobooks - Fantasy")
-    # Uses audiobook_categories.json mapping based on genres
+    # Uses signal scoring from Audnex genres + Hardcover genres/moods
     is_fiction = main_cat == 1
-    mam_json["category"] = _get_audiobook_category(audnex, is_fiction)
+
+    # Get Hardcover genres/moods from release if available
+    hardcover_genres = getattr(release, "hardcover_genres", None)
+    hardcover_moods = getattr(release, "hardcover_moods", None)
+
+    if hardcover_genres or hardcover_moods:
+        # Use CategoryResolver for signal scoring
+        resolution = resolve_audiobook_category(
+            audnex_data=audnex,
+            hardcover_genres=hardcover_genres,
+            hardcover_moods=hardcover_moods,
+            is_fiction=is_fiction,
+        )
+        mam_json["category"] = resolution.category
+        logger.debug(
+            "Category resolved: %s (scores: %s)",
+            resolution.category,
+            {k: f"{v:.2f}" for k, v in resolution.scores.items()}
+            if resolution.scores
+            else "default",
+        )
+    else:
+        # Fallback to legacy method (Audnex only)
+        mam_json["category"] = _get_audiobook_category(audnex, is_fiction)
 
     return mam_json
 
