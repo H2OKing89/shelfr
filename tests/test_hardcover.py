@@ -261,11 +261,22 @@ class TestHardcoverProvider:
         assert provider.is_override is False
 
     def test_can_lookup_requires_asin(self):
-        """Test that can_lookup requires ASIN."""
+        """Test that can_lookup requires ASIN and title."""
+        provider = HardcoverProvider()
+        # Hardcover searches by title, so title must be present
+        ctx = LookupContext(
+            ids={"asin": "B01H0IE2RQ"},
+            existing_abs_json={"title": "Test Book"},
+        )
+
+        assert provider.can_lookup(ctx, "asin") is True
+
+    def test_can_lookup_rejects_no_title(self):
+        """Test that can_lookup rejects context without title."""
         provider = HardcoverProvider()
         ctx = LookupContext(ids={"asin": "B01H0IE2RQ"})
 
-        assert provider.can_lookup(ctx, "asin") is True
+        assert provider.can_lookup(ctx, "asin") is False
 
     def test_can_lookup_rejects_no_asin(self):
         """Test that can_lookup rejects context without ASIN."""

@@ -371,6 +371,10 @@ def build_mam_path(
     if extension and not extension.startswith("."):
         extension = f".{extension}"
 
+    # Sanitize ripper_tag FIRST - needed for accurate budget calculation
+    # (sanitization can expand tags, so we must use the final length for budget math)
+    clean_tag = sanitize_filename(ripper_tag) if ripper_tag else None
+
     # Clean inputs - use filter_series() for series to apply series-specific patterns
     # (e.g., remove " Series", " Trilogy", "[publication order]" suffixes)
     clean_series = filter_series(series, naming_config=naming_config) if series else None
@@ -393,18 +397,18 @@ def build_mam_path(
     clean_asin = sanitize_filename(asin) if asin else None
     asin_str = f"{{ASIN.{clean_asin}}}" if clean_asin else ""
 
-    # Calculate max base length
+    # Calculate max base length using sanitized tag (clean_tag) for accurate overhead
     # For file_only mode (audio_only packaging), base appears once, so more budget available
     # If folder_max_length is set, use min(folder constraint, path constraint)
     # This ensures both folder AND full path stay within their respective limits
     if folder_max_length is not None and not file_only:
         # Folder = "{base} [{tag}]" or just "{base}"
-        tag_overhead = len(f" [{ripper_tag}]") if ripper_tag else 0
+        tag_overhead = len(f" [{clean_tag}]") if clean_tag else 0
         base_from_folder = folder_max_length - tag_overhead
 
         # Also calculate path budget to ensure full path stays within limit
         base_from_path = _calculate_max_base_length(
-            ripper_tag=ripper_tag,
+            ripper_tag=clean_tag,
             extension=extension,
             part_count=part_count,
             max_path_length=max_path_length,
@@ -416,7 +420,7 @@ def build_mam_path(
     else:
         # Use path budget formula only
         max_base_len = _calculate_max_base_length(
-            ripper_tag=ripper_tag,
+            ripper_tag=clean_tag,
             extension=extension,
             part_count=part_count,
             max_path_length=max_path_length,
@@ -467,8 +471,7 @@ def build_mam_path(
     # Check if tag was dropped during truncation (not yet implemented in _build_truncated_base_name)
     # For now, tag is always included if provided - it's handled by the budget formula
 
-    # Sanitize ripper_tag to protect against special characters
-    clean_tag = sanitize_filename(ripper_tag) if ripper_tag else None
+    # NOTE: clean_tag was sanitized earlier (before budget calculation) to ensure accurate math
 
     # Build folder and filename
     # For file_only mode, we still create a staging folder but the torrent path is just the file

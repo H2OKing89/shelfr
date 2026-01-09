@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class HardcoverAuthor(BaseModel):
@@ -52,16 +52,29 @@ class HardcoverBook(BaseModel):
         description: Book description/blurb
     """
 
-    id: int | str
+    id: int  # Coerced from str if needed via validator
     title: str
     authors: list[HardcoverAuthor] = Field(default_factory=list)
     genres: list[HardcoverGenre] = Field(default_factory=list)
     moods: list[HardcoverGenre] = Field(default_factory=list)
     tags: list[HardcoverGenre] = Field(default_factory=list)
     content_warnings: list[HardcoverContentWarning] = Field(default_factory=list)
-    rating: float | None = None
-    rating_count: int | None = None
+    rating: float | None = Field(default=None, ge=0.0, le=5.0)
+    rating_count: int | None = Field(default=None, ge=0)
     description: str | None = None
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def coerce_id_to_int(cls, v: Any) -> int:
+        """Coerce string IDs to int (API sometimes returns strings)."""
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError as e:
+                raise ValueError(f"ID must be numeric, got '{v}'") from e
+        if isinstance(v, int):
+            return v
+        raise TypeError(f"ID must be int or str, got {type(v).__name__}")
 
     @property
     def author_names(self) -> list[str]:
@@ -129,9 +142,9 @@ class HardcoverSearchResult(BaseModel):
     """
 
     book: HardcoverBook
-    match_score: float
+    match_score: float = Field(ge=0.0, le=1.0)
     search_query: str
-    confidence_threshold: float = 0.70
+    confidence_threshold: float = Field(default=0.70, ge=0.0, le=1.0)
 
     @property
     def is_confident_match(self) -> bool:

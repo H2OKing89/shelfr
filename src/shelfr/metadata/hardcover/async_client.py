@@ -100,7 +100,9 @@ class HardcoverAsyncClient:
             match_threshold: Minimum fuzzy match score (default: 0.70)
             timeout: Request timeout in seconds (default: 30.0)
         """
-        self._api_key = api_key or os.getenv("HARDCOVER_API_KEY", "")
+        # Normalize empty string to None for proper "not configured" semantics
+        env_key = os.getenv("HARDCOVER_API_KEY") or None
+        self._api_key: str | None = api_key or env_key
         self._match_threshold = match_threshold
         self._timeout = timeout
 
@@ -116,13 +118,13 @@ class HardcoverAsyncClient:
 
     @property
     def api_key(self) -> str | None:
-        """Get the API key."""
+        """Get the API key (None if not configured)."""
         return self._api_key
 
     @property
     def is_configured(self) -> bool:
         """Check if API key is configured."""
-        return bool(self._api_key)
+        return self._api_key is not None
 
     async def __aenter__(self) -> HardcoverAsyncClient:
         """Enter async context - create HTTP client."""
@@ -322,13 +324,18 @@ class HardcoverAsyncClient:
             logger.debug("No search results for '%s'", search_query)
             return None
 
-        # Results may be JSON string or dict
+        # Results may be JSON string or dict - add type guard
         if isinstance(results, str):
             try:
                 results = json.loads(results)
             except json.JSONDecodeError:
                 logger.error("Failed to parse search results JSON")
                 return None
+
+        # Type guard: ensure results is a dict after potential JSON parsing
+        if not isinstance(results, dict):
+            logger.error("Search results is not a dict: %s", type(results).__name__)
+            return None
 
         hits = results.get("hits", [])
         if not hits:

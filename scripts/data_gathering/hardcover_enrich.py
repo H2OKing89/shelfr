@@ -268,13 +268,16 @@ class Settings:
 
     # File Paths
     # Note: Run scripts/data_gathering/fetch_test_data.py first to generate the default file
-    COMBINED_METADATA_FILE = Path(
-        os.getenv("HARDCOVER_COMBINED_METADATA_FILE", "samples/test_data/combined_metadata.json")
-    )
-    ENRICHED_DATA_FILE = Path("data/hardcover_enriched_run.json")
-    ENRICHED_BOOKS_FILE = Path("data/hardcover_enriched_books.jsonl")
-    ENRICHED_VOCAB_FILE = Path("data/hardcover_keywords.json")
-    SEARCH_CACHE_FILE = Path("data/hardcover_search_cache.json")
+    # Paths are relative to repo root (scripts/data_gathering/../../)
+    _REPO_ROOT = Path(__file__).parent.parent.parent
+    _DEFAULT_COMBINED = _REPO_ROOT / "samples" / "test_data" / "combined_metadata.json"
+    # Env var can override; empty string falls back to default
+    _env_combined = os.getenv("HARDCOVER_COMBINED_METADATA_FILE")
+    COMBINED_METADATA_FILE = Path(_env_combined) if _env_combined else _DEFAULT_COMBINED
+    ENRICHED_DATA_FILE = _REPO_ROOT / "data" / "hardcover_enriched_run.json"
+    ENRICHED_BOOKS_FILE = _REPO_ROOT / "data" / "hardcover_enriched_books.jsonl"
+    ENRICHED_VOCAB_FILE = _REPO_ROOT / "data" / "hardcover_keywords.json"
+    SEARCH_CACHE_FILE = _REPO_ROOT / "data" / "hardcover_search_cache.json"
 
     # Processing
     BATCH_SIZE = 50

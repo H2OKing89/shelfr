@@ -175,7 +175,11 @@ class HardcoverProvider:
         """
         # We need ASIN to form cache key, but we search by title
         # The aggregator should call us AFTER Audnex populates title
-        return id_type == "asin" and ctx.asin is not None
+        if id_type != "asin" or ctx.asin is None:
+            return False
+        # Also require title in existing metadata (we search by title, not ASIN)
+        title = ctx.existing_abs_json.get("title") if ctx.existing_abs_json else None
+        return bool(title)
 
     async def fetch(self, ctx: LookupContext, id_type: IdType) -> ProviderResult:
         """Fetch metadata from Hardcover API.
@@ -234,16 +238,15 @@ class HardcoverProvider:
             result = self._map_to_result(search_result)
 
             # Cache successful results
+            # IMPORTANT: Use result.raw_data (not a subset) to preserve moods/warnings
+            # for cache hits - workflow extracts moods from raw_data
             if result.success:
                 cached_result = CachedResult(
                     provider=self.name,
                     fields=result.fields,
                     confidence=result.confidence,
                     fetched_at=datetime.now(UTC).isoformat(),
-                    raw_data={
-                        "hardcover_id": search_result.book.id,
-                        "match_score": search_result.match_score,
-                    },
+                    raw_data=result.raw_data.copy() if result.raw_data else {},
                 )
                 await self._cache.set(cache_key, cached_result)
 

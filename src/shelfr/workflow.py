@@ -206,7 +206,12 @@ async def _fetch_hardcover_data_async(
         logger.debug("Hardcover disabled in config, skipping")
         return HardcoverResult()
 
-    provider = HardcoverProvider()
+    # Wire config values to provider
+    hc_config = settings.hardcover
+    provider = HardcoverProvider(
+        cache_ttl_seconds=hc_config.cache_ttl_days * 24 * 3600,
+        match_threshold=hc_config.match_threshold,
+    )
     try:
         await provider.startup()
         ctx = LookupContext(

@@ -181,6 +181,18 @@ class HardcoverConfig:
     match_threshold: float = 0.70  # Fuzzy match threshold (0.0-1.0)
     cache_ttl_days: int = 7  # Cache TTL in days (book metadata changes slowly)
 
+    def __post_init__(self) -> None:
+        """Validate field ranges."""
+        if not 0.0 <= self.match_threshold <= 1.0:
+            raise ValueError(f"match_threshold must be 0.0-1.0, got {self.match_threshold}")
+        if self.timeout_seconds < 1:
+            raise ValueError(f"timeout_seconds must be >= 1, got {self.timeout_seconds}")
+        if self.rate_limit_per_minute < 1:
+            rate = self.rate_limit_per_minute
+            raise ValueError(f"rate_limit_per_minute must be >= 1, got {rate}")
+        if self.cache_ttl_days < 0:
+            raise ValueError(f"cache_ttl_days must be >= 0, got {self.cache_ttl_days}")
+
 
 @dataclass
 class MediaInfoConfig:
