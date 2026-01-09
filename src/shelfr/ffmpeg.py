@@ -750,6 +750,20 @@ def copy_audio(
     # Stream copy (no re-encoding)
     ffmpeg_args.extend(["-c", "copy"])
 
+    # Explicitly set output format if output filename has non-standard extension
+    # (e.g., ".m4b.sanitizing.12345" won't be recognized by ffmpeg)
+    # Use input file extension to determine format
+    input_ext = input_path.suffix.lower()
+    output_ext = output_path.suffix.lower()
+    if input_ext in (".m4b", ".m4a", ".mp4") and output_ext not in (
+        ".m4b",
+        ".m4a",
+        ".mp4",
+        ".mov",
+    ):
+        # Force ipod/m4a format for M4B audiobooks
+        ffmpeg_args.extend(["-f", "ipod"])
+
     # Output
     if overwrite:
         ffmpeg_args.append("-y")

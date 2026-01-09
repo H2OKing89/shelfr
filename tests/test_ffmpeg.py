@@ -688,6 +688,69 @@ class TestCopyAudio:
         assert "-metadata title=My Audiobook" in cmd_str
         assert "-metadata artist=Author Name" in cmd_str
 
+    def test_copy_audio_adds_format_for_nonstandard_extension(
+        self, tmp_path: Path, mock_settings: MagicMock
+    ) -> None:
+        """Test copy_audio adds -f ipod when output has non-standard extension."""
+        from shelfr.ffmpeg import copy_audio
+
+        input_file = tmp_path / "input.m4b"
+        # Simulate sanitize temp file naming: .m4b.sanitizing.12345
+        output_file = tmp_path / "output.m4b.sanitizing.12345"
+        input_file.touch()
+
+        mock_result = MagicMock()
+        mock_result.exit_code = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+
+        captured_cmd: list[str] = []
+
+        def capture_cmd(cmd: list[str], **kwargs: Any) -> MagicMock:
+            captured_cmd.extend(cmd)
+            return mock_result
+
+        with (
+            patch("shelfr.ffmpeg.get_settings", return_value=mock_settings),
+            patch("shelfr.ffmpeg._run_docker_command", side_effect=capture_cmd),
+        ):
+            copy_audio(input_file, output_file, overwrite=True)
+
+        # Verify -f ipod is in command for non-standard output extension
+        cmd_str = " ".join(captured_cmd)
+        assert "-f ipod" in cmd_str
+
+    def test_copy_audio_no_format_for_standard_extension(
+        self, tmp_path: Path, mock_settings: MagicMock
+    ) -> None:
+        """Test copy_audio does NOT add -f when output has standard .m4b extension."""
+        from shelfr.ffmpeg import copy_audio
+
+        input_file = tmp_path / "input.m4b"
+        output_file = tmp_path / "output.m4b"  # Standard extension
+        input_file.touch()
+
+        mock_result = MagicMock()
+        mock_result.exit_code = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+
+        captured_cmd: list[str] = []
+
+        def capture_cmd(cmd: list[str], **kwargs: Any) -> MagicMock:
+            captured_cmd.extend(cmd)
+            return mock_result
+
+        with (
+            patch("shelfr.ffmpeg.get_settings", return_value=mock_settings),
+            patch("shelfr.ffmpeg._run_docker_command", side_effect=capture_cmd),
+        ):
+            copy_audio(input_file, output_file, overwrite=True)
+
+        # Verify -f ipod is NOT in command for standard output extension
+        cmd_str = " ".join(captured_cmd)
+        assert "-f ipod" not in cmd_str
+
 
 class TestStripAudibleTags:
     """Tests for strip_audible_tags function."""
