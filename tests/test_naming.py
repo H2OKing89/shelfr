@@ -1818,7 +1818,7 @@ class TestBuildMamPath:
         assert result.filename.endswith(".m4b")
 
     def test_file_only_mode_doubles_budget(self) -> None:
-        """Test that file_only mode provides nearly double the base name budget."""
+        """Test that file_only mode provides more base name budget than folder mode."""
         from shelfr.utils.naming import build_mam_path
 
         # Long series that would require truncation in folder mode
@@ -1836,7 +1836,7 @@ class TestBuildMamPath:
             file_only=False,
         )
 
-        # File-only mode - full_path is just filename
+        # File-only mode - full_path is just filename (with tag on filename)
         file_result = build_mam_path(
             series=long_series,
             title="Test",
@@ -1851,8 +1851,11 @@ class TestBuildMamPath:
         assert file_result.length <= 225
 
         # File-only mode should have longer filenames possible
-        # since there's no folder duplication in path budget
+        # since base name appears only once (vs twice in folder mode)
         assert len(file_result.filename) >= len(folder_result.filename)
+
+        # File-only mode includes tag on filename (file IS the torrent)
+        assert "[H2OKing]" in file_result.filename
 
         # File-only full_path is just filename (no folder/)
         assert file_result.full_path == file_result.filename
@@ -1860,13 +1863,14 @@ class TestBuildMamPath:
 
         # Folder mode full_path includes folder/
         assert folder_result.full_path == f"{folder_result.folder}/{folder_result.filename}"
+        # Folder mode: tag on folder only, not filename
+        assert "[H2OKing]" not in folder_result.filename
 
     def test_file_only_mode_no_truncation_for_107_char_name(self) -> None:
-        """Test that file_only mode doesn't truncate 107-char names (user's example)."""
+        """Test that file_only mode doesn't truncate moderately long names."""
         from shelfr.utils.naming import build_mam_path
 
-        # This is the user's actual example that would be ~107 chars as file only
-        # but ~220 chars in folder mode
+        # This is the user's actual example - should not require truncation
         result = build_mam_path(
             series="The Too-Perfect Saint - Tossed Aside by My Fiancé and Sold to Another Kingdom",
             title="Test",
@@ -1876,15 +1880,18 @@ class TestBuildMamPath:
             file_only=True,
         )
 
-        # Should NOT be truncated - 107 chars is well under 225
+        # Should NOT be truncated - well under 225 char limit
         assert not result.truncated
         assert len(result.dropped_components) == 0
 
-        # Full path (just filename) should be reasonable length
-        assert result.length < 150  # Well under limit
+        # Full path (just filename with tag) should be reasonable length
+        assert result.length < 200  # Well under limit
 
         # ASIN should be preserved intact
         assert "{ASIN.B0GFFS62GK}" in result.filename
+
+        # Tag should be on filename in file_only mode
+        assert "[H2OKing]" in result.filename
 
     def test_file_only_mode_folder_still_created(self) -> None:
         """Test that folder is still generated for staging even in file_only mode."""
@@ -1903,5 +1910,8 @@ class TestBuildMamPath:
         assert result.folder
         assert "[H2OKing]" in result.folder
 
-        # But full_path should be just filename (for MAM path compliance)
+        # In file_only mode, tag is ALSO on filename (file is the torrent content)
+        assert "[H2OKing]" in result.filename
+
+        # full_path should be just filename (for MAM path compliance)
         assert result.full_path == result.filename

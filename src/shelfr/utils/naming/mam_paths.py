@@ -92,15 +92,15 @@ def _calculate_max_base_length(
             path_length = 2*base + overhead
 
     For file-only mode (file_only=True):
-        The base name appears ONCE (just filename), so:
-            path_length = base + extension
+        The base name appears ONCE (just filename with tag), so:
+            path_length = base + tag_overhead + extension
 
     Args:
-        ripper_tag: Optional ripper tag (e.g., "H2OKing") - ignored in file_only mode
+        ripper_tag: Optional ripper tag (e.g., "H2OKing") - included in filename for file_only mode
         extension: File extension including dot (e.g., ".m4b")
         part_count: Number of parts (>1 means multi-file)
         max_path_length: Maximum total path length (default: 225)
-        file_only: If True, path is just filename (no folder duplication)
+        file_only: If True, path is just filename (tag on filename, not folder)
 
     Returns:
         Maximum allowed base name length
@@ -114,10 +114,16 @@ def _calculate_max_base_length(
         ext_len = len(extension)
 
     # For file-only mode (audio_only packaging), base appears only once
-    # Path structure: "{base}{ext}" - no folder, no tag in path
+    # Path structure: "{base} [{tag}]{ext}" - includes tag on filename since file IS the torrent
     if file_only:
-        # Simple formula: max_base = max_path_length - ext_len
-        # Example: 225 - 4 = 221 chars available for base
+        # With tag: filename = "{base} [{tag}]{ext}"
+        # Total = len(base) + 1 + 1 + len(tag) + 1 + ext_len
+        #       = len(base) + len(tag) + ext_len + 3
+        # Without tag: filename = "{base}{ext}"
+        # Total = len(base) + ext_len
+        if ripper_tag:
+            tag_overhead = len(ripper_tag) + 3  # " [" + tag + "]"
+            return max_path_length - ext_len - tag_overhead
         return max_path_length - ext_len
 
     # For folder mode, calculate overhead based on whether we have a tag
@@ -466,9 +472,15 @@ def build_mam_path(
 
     # Build folder and filename
     # For file_only mode, we still create a staging folder but the torrent path is just the file
+    # In file_only mode, the tag goes on the FILENAME (since file is the torrent content)
     folder = f"{base_name} [{clean_tag}]" if clean_tag else base_name
 
-    filename = f"{base_name}{extension}"
+    # In file_only mode, include tag on filename since that's what gets uploaded to MAM
+    # In folder mode, tag is only on folder (per MAM convention)
+    if file_only and clean_tag:
+        filename = f"{base_name} [{clean_tag}]{extension}"
+    else:
+        filename = f"{base_name}{extension}"
 
     # For file_only mode (audio_only packaging), full_path is just filename
     # since that's what gets uploaded to MAM as the torrent
