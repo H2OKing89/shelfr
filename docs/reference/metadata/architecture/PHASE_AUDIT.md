@@ -173,23 +173,23 @@ All primary phases (01-10) are **COMPLETE**. Some items in archived checklists a
 
 ---
 
-### Phase 12: Hardcover Provider 📋 PLANNED
+### Phase 12: Hardcover Provider ✅ SHIPPED
 
-**Status:** Planning phase. Exploratory data gathered.
+**Status:** Core implementation shipped in PR #95.
 
 **Design doc:** [providers/hardcover.md](../providers/hardcover.md)
 
 **Goal:** Add Hardcover as metadata source for richer content warnings and genres.
 
-**Sub-phases (proposed):**
+**Sub-phases:**
 
 | Sub-phase | Status | Description |
 | --------- | ------ | ----------- |
-| 12.1 API Client | 📋 | `HardcoverClient` with GraphQL queries |
-| 12.2 Search & Match | 📋 | Title+author fuzzy matching |
-| 12.3 Provider | 📋 | `HardcoverProvider` implementing `MetadataProvider` |
-| 12.4 Flag Mapping | 📋 | Content warnings → MAM flags |
-| 12.5 Integration | 📋 | Wire into aggregator with caching |
+| 12.1 API Client | ✅ | `HardcoverAsyncClient` with Typesense search |
+| 12.2 Search & Match | ✅ | Title+author fuzzy matching with thresholding |
+| 12.3 Provider | ✅ | `HardcoverProvider` implementing provider interface |
+| 12.4 Flag Mapping | ✅ | `HARDCOVER_TO_MAM_FLAGS` content warnings → MAM flags |
+| 12.5 Integration | ✅ | Wired into workflow with caching, config options |
 
 **Prerequisites from deferred work:**
 

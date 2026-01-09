@@ -125,13 +125,15 @@ class HardcoverSearchResult(BaseModel):
         book: The matched book
         match_score: Fuzzy match score (0.0-1.0)
         search_query: Original search query used
+        confidence_threshold: Threshold for confident match (default: 0.70)
     """
 
     book: HardcoverBook
     match_score: float
     search_query: str
+    confidence_threshold: float = 0.70
 
     @property
     def is_confident_match(self) -> bool:
-        """Check if match score exceeds confidence threshold (70%)."""
-        return self.match_score >= 0.70
+        """Check if match score exceeds confidence threshold."""
+        return self.match_score >= self.confidence_threshold

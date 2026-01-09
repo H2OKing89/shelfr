@@ -167,9 +167,9 @@ class RegionCache:
 
             settings = get_settings()
             fix_ownership(path, settings.target_uid, settings.target_gid)
-        except Exception:
-            # Fail silently - ownership fix is best-effort for cache files
-            pass
+        except Exception as e:
+            # Best-effort for cache files - log at debug for troubleshooting
+            logger.debug("Ownership fix skipped for %s: %s", path, e)
 
     async def load(self) -> None:
         """Load cache from disk.

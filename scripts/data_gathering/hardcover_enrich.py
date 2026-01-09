@@ -267,7 +267,10 @@ class Settings:
     KEEPALIVE_EXPIRY = 30.0
 
     # File Paths
-    COMBINED_METADATA_FILE = Path("samples/test_data/combined_metadata.json")
+    # Note: Run scripts/data_gathering/fetch_test_data.py first to generate the default file
+    COMBINED_METADATA_FILE = Path(
+        os.getenv("HARDCOVER_COMBINED_METADATA_FILE", "samples/test_data/combined_metadata.json")
+    )
     ENRICHED_DATA_FILE = Path("data/hardcover_enriched_run.json")
     ENRICHED_BOOKS_FILE = Path("data/hardcover_enriched_books.jsonl")
     ENRICHED_VOCAB_FILE = Path("data/hardcover_keywords.json")

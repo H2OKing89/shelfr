@@ -474,7 +474,9 @@ def build_mam_json(
     hardcover_genres = getattr(release, "hardcover_genres", None)
     hardcover_moods = getattr(release, "hardcover_moods", None)
 
-    if hardcover_genres or hardcover_moods:
+    # Use is not None check to distinguish "consulted but empty" from "not consulted"
+    # This ensures the resolver runs whenever Hardcover was attempted, even with empty results
+    if hardcover_genres is not None or hardcover_moods is not None:
         # Use CategoryResolver for signal scoring
         resolution = resolve_audiobook_category(
             audnex_data=audnex,
