@@ -164,7 +164,7 @@ def preview_staging(
     if release.source_dir is None:
         raise ValueError("Release has no source_dir set")
 
-    mam_path = compute_staging_path(release)
+    mam_path = compute_staging_path(release, audio_only=audio_only)
     renames: list[tuple[str, str]] = []
 
     max_path_len = settings.mam.max_filename_length
@@ -206,7 +206,8 @@ def stage_release(release: AudiobookRelease, *, audio_only: bool = False) -> Pat
     seed_root.mkdir(parents=True, exist_ok=True)
 
     # Compute MAM-compliant path (validates ASIN, resolves series, etc.)
-    mam_path = compute_staging_path(release)
+    # Pass audio_only so filename gets ripper tag in file-only mode
+    mam_path = compute_staging_path(release, audio_only=audio_only)
 
     # Log truncation info if any
     if mam_path.truncated:
