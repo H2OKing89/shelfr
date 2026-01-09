@@ -256,6 +256,7 @@ def sanitize_file(
             preserve_chapters=True,
             preserve_cover=True,
             overwrite=True,
+            verbose=verbose,
         )
 
         if not result.success:

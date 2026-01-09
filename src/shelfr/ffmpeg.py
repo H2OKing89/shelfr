@@ -655,6 +655,7 @@ def copy_audio(
     preserve_cover: bool = True,
     overwrite: bool = False,
     timeout: int | None = None,
+    verbose: bool = False,
 ) -> FFmpegResult:
     """
     Copy audio file with metadata manipulation (no re-encoding).
@@ -677,6 +678,7 @@ def copy_audio(
         preserve_cover: Keep embedded cover art (default: True)
         overwrite: Whether to overwrite existing output
         timeout: Timeout in seconds
+        verbose: If True, stream FFmpeg output to terminal (like mkbrr)
 
     Returns:
         FFmpegResult with operation status
@@ -774,7 +776,8 @@ def copy_audio(
     logger.debug("Running copy_audio: %s", " ".join(cmd))
 
     try:
-        result = _run_docker_command(cmd, timeout=timeout)
+        # In verbose mode, stream FFmpeg output to terminal (like mkbrr does)
+        result = _run_docker_command(cmd, timeout=timeout, capture_output=not verbose)
     except (CmdError, OSError, TimeoutError) as e:
         return FFmpegResult(
             success=False,
