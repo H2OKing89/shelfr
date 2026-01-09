@@ -1816,3 +1816,92 @@ class TestBuildMamPath:
         )
 
         assert result.filename.endswith(".m4b")
+
+    def test_file_only_mode_doubles_budget(self) -> None:
+        """Test that file_only mode provides nearly double the base name budget."""
+        from shelfr.utils.naming import build_mam_path
+
+        # Long series that would require truncation in folder mode
+        long_series = (
+            "The Too-Perfect Saint - Tossed Aside by My Fiancé and Sold to Another Kingdom"
+        )
+
+        # Folder mode (default) - full_path is folder/filename
+        folder_result = build_mam_path(
+            series=long_series,
+            title="Test",
+            volume_number="2",
+            asin="B0GFFS62GK",
+            ripper_tag="H2OKing",
+            file_only=False,
+        )
+
+        # File-only mode - full_path is just filename
+        file_result = build_mam_path(
+            series=long_series,
+            title="Test",
+            volume_number="2",
+            asin="B0GFFS62GK",
+            ripper_tag="H2OKing",
+            file_only=True,
+        )
+
+        # Both should be within 225 chars
+        assert folder_result.length <= 225
+        assert file_result.length <= 225
+
+        # File-only mode should have longer filenames possible
+        # since there's no folder duplication in path budget
+        assert len(file_result.filename) >= len(folder_result.filename)
+
+        # File-only full_path is just filename (no folder/)
+        assert file_result.full_path == file_result.filename
+        assert "/" not in file_result.full_path
+
+        # Folder mode full_path includes folder/
+        assert folder_result.full_path == f"{folder_result.folder}/{folder_result.filename}"
+
+    def test_file_only_mode_no_truncation_for_107_char_name(self) -> None:
+        """Test that file_only mode doesn't truncate 107-char names (user's example)."""
+        from shelfr.utils.naming import build_mam_path
+
+        # This is the user's actual example that would be ~107 chars as file only
+        # but ~220 chars in folder mode
+        result = build_mam_path(
+            series="The Too-Perfect Saint - Tossed Aside by My Fiancé and Sold to Another Kingdom",
+            title="Test",
+            volume_number="02",
+            asin="B0GFFS62GK",
+            ripper_tag="H2OKing",
+            file_only=True,
+        )
+
+        # Should NOT be truncated - 107 chars is well under 225
+        assert not result.truncated
+        assert len(result.dropped_components) == 0
+
+        # Full path (just filename) should be reasonable length
+        assert result.length < 150  # Well under limit
+
+        # ASIN should be preserved intact
+        assert "{ASIN.B0GFFS62GK}" in result.filename
+
+    def test_file_only_mode_folder_still_created(self) -> None:
+        """Test that folder is still generated for staging even in file_only mode."""
+        from shelfr.utils.naming import build_mam_path
+
+        result = build_mam_path(
+            series="Test Series",
+            title="Test",
+            volume_number="1",
+            asin="B0TEST",
+            ripper_tag="H2OKing",
+            file_only=True,
+        )
+
+        # Folder should still be generated (for staging directory)
+        assert result.folder
+        assert "[H2OKing]" in result.folder
+
+        # But full_path should be just filename (for MAM path compliance)
+        assert result.full_path == result.filename

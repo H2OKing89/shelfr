@@ -25,7 +25,7 @@ from shelfr.utils.permissions import fix_directory_ownership
 logger = logging.getLogger(__name__)
 
 
-def compute_staging_path(release: AudiobookRelease) -> MamPath:
+def compute_staging_path(release: AudiobookRelease, *, audio_only: bool = False) -> MamPath:
     """
     Compute the MAM-compliant staging path for a release (without side effects).
 
@@ -34,6 +34,8 @@ def compute_staging_path(release: AudiobookRelease) -> MamPath:
 
     Args:
         release: AudiobookRelease to compute path for
+        audio_only: If True, compute path for file-only mode (no folder duplication
+                    in path budget). Used for audio_only packaging mode.
 
     Returns:
         MamPath with folder and filename
@@ -81,6 +83,7 @@ def compute_staging_path(release: AudiobookRelease) -> MamPath:
 
     # Build MAM-compliant path using the new Phase 8 function
     # This ensures folder + filename combined fit within 225 chars
+    # For audio_only mode, file_only=True gives more budget since path is just filename
     mam_path = build_mam_path(
         series=series_name,
         title=release.title,
@@ -93,6 +96,7 @@ def compute_staging_path(release: AudiobookRelease) -> MamPath:
         part_count=part_count,
         naming_config=settings.naming,
         max_path_length=settings.mam.max_filename_length,
+        file_only=audio_only,
     )
 
     return mam_path

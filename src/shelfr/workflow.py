@@ -970,6 +970,9 @@ def full_run(
             # Show detailed dry-run info for each step
             print_dry_run("Steps that would be performed:")
 
+            # Determine packaging mode for path calculation
+            audio_only = settings.workflow.upload.packaging == "audio_only"
+
             # Step 0b: Sanitize - check for unwanted metadata tags
             tags_to_strip = preview_sanitization(release)
             if tags_to_strip:
@@ -982,7 +985,7 @@ def full_run(
             if release.source_dir:
                 seed_root = settings.paths.seed_root
                 try:
-                    mam_path = compute_staging_path(release)
+                    mam_path = compute_staging_path(release, audio_only=audio_only)
                     staging_dir = seed_root / mam_path.folder
                     print_dry_run(f"STAGE → {staging_dir}")
                     if mam_path.truncated:
@@ -990,7 +993,7 @@ def full_run(
 
                     # Show file renames
                     try:
-                        renames = preview_staging(release)
+                        renames = preview_staging(release, audio_only=audio_only)
                         for src_name, dst_name in renames:
                             if src_name != dst_name:
                                 print_dry_run(f"  RENAME: {src_name} → {dst_name}")
