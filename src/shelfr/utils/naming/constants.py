@@ -129,7 +129,38 @@ VOL_FROM_NAME_PATTERN = re.compile(r"vol_(\d+(?:\.\d+)?)", re.IGNORECASE)
 # =============================================================================
 
 # Default author role words (fallback if config not available)
-DEFAULT_ROLE_WORDS = ["translator", "illustrator", "editor", "adapter", "contributor", "compiler"]
+# Includes international translations of "translator":
+#   - übersetzer/übersetzerin (German)
+#   - traducteur/traductrice (French)
+#   - traduttore/traduttrice (Italian)
+#   - traductor/traductora (Spanish)
+#   - tradutor/tradutora (Portuguese)
+DEFAULT_ROLE_WORDS = [
+    # English roles
+    "translator",
+    "translated by",
+    "translator annotator",
+    "illustrator",
+    "editor",
+    "adapter",
+    "contributor",
+    "compiler",
+    # German
+    "übersetzer",
+    "übersetzerin",
+    # French
+    "traducteur",
+    "traductrice",
+    # Italian
+    "traduttore",
+    "traduttrice",
+    # Spanish
+    "traductor",
+    "traductora",
+    # Portuguese
+    "tradutor",
+    "tradutora",
+]
 DEFAULT_CREDIT_WORDS = ["afterword", "foreword", "introduction", "cover design", "cover art"]
 
 # =============================================================================

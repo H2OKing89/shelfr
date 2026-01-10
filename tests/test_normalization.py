@@ -189,32 +189,42 @@ class TestDetectSwappedTitleSubtitle:
         assert subtitle == "A Subtitle"
         assert swapped is False
 
-    def test_correct_mapping_not_swapped(self) -> None:
-        """Title has series name, subtitle has arc - no swap needed."""
+    def test_sao_style_swap_needed(self) -> None:
+        """Title is 'Series N', subtitle has meaningful arc - swap to arc name.
+
+        MAM Rule: Series info must NOT be in Title field.
+        "Sword Art Online 7" has series info, so we swap to "Mother's Rosary".
+        """
         title, subtitle, swapped = detect_swapped_title_subtitle(
             "Sword Art Online 7", "Mother's Rosary", "Sword Art Online", "7"
         )
-        assert title == "Sword Art Online 7"
-        assert subtitle == "Mother's Rosary"
-        assert swapped is False
+        assert title == "Mother's Rosary"  # Arc name becomes title
+        assert subtitle == "Sword Art Online 7"  # Original becomes subtitle
+        assert swapped is True
 
-    def test_swapped_series_in_subtitle(self) -> None:
-        """Subtitle has series name, title doesn't - swap detected."""
+    def test_subtitle_has_series_keep_meaningful_title(self) -> None:
+        """Subtitle has 'Series N', title has meaningful name - keep title.
+
+        MAM Rule: When subtitle has series info but title is meaningful,
+        keep the meaningful title (don't swap series info INTO title).
+        """
         title, subtitle, swapped = detect_swapped_title_subtitle(
             "Alicization Exploding", "Sword Art Online 16", "Sword Art Online", "16"
         )
-        assert title == "Sword Art Online 16"
-        assert subtitle == "Alicization Exploding"
-        assert swapped is True
+        assert title == "Alicization Exploding"  # Keep meaningful title
+        assert subtitle == "Sword Art Online 16"  # Keep original
+        assert swapped is False  # No swap needed
 
-    def test_swapped_with_position_in_subtitle(self) -> None:
-        """Subtitle has series position number - swap detected."""
+    def test_tbate_style_no_swap(self) -> None:
+        """TBATE-style: subtitle has 'Series, Book N' pattern - keep meaningful title."""
+        # This is the corrected behavior for MAM compliance:
+        # "Early Years" is a meaningful arc title, not a swap target
         title, subtitle, swapped = detect_swapped_title_subtitle(
             "Early Years", "The Beginning After the End, Book 1", "The Beginning After the End", "1"
         )
-        assert title == "The Beginning After the End, Book 1"
-        assert subtitle == "Early Years"
-        assert swapped is True
+        assert title == "Early Years"  # Keep meaningful arc title
+        assert subtitle == "The Beginning After the End, Book 1"
+        assert swapped is False  # No swap for TBATE-style
 
     def test_both_have_series_not_swapped(self) -> None:
         """Both title and subtitle have series name - no swap."""
@@ -265,8 +275,12 @@ class TestExtractArcName:
 class TestNormalizeAudnexBook:
     """Tests for normalize_audnex_book function."""
 
-    def test_basic_correct_mapping(self) -> None:
-        """Book with correct mapping is normalized without swap."""
+    def test_sao_style_title_has_series_num(self) -> None:
+        """Book with 'Series N' title is swapped to arc name.
+
+        MAM Rule: Series info must NOT be in Title field.
+        When title is 'Sword Art Online 7', we swap to use 'Mother's Rosary'.
+        """
         data = {
             "asin": "B0BHLHRMJH",
             "title": "Sword Art Online 7",
@@ -282,12 +296,16 @@ class TestNormalizeAudnexBook:
         assert result.series_name == "Sword Art Online"
         assert result.series_position == "7"
         assert result.arc_name == "Mother's Rosary"
-        assert result.display_title == "Sword Art Online 7"
+        assert result.display_title == "Mother's Rosary"  # Arc name as title
         assert result.display_subtitle == "Mother's Rosary"
-        assert result.was_swapped is False
+        assert result.was_swapped is True  # Swapped to avoid series in title
 
-    def test_swapped_mapping_is_fixed(self) -> None:
-        """Book with swapped mapping is corrected."""
+    def test_subtitle_has_series_keeps_meaningful_title(self) -> None:
+        """Book with meaningful title and 'Series N' subtitle keeps title.
+
+        MAM Rule: Keep meaningful title, don't swap series info INTO title.
+        'Alicization Exploding' is meaningful, so keep it.
+        """
         data = {
             "asin": "B0DK9TS6D9",
             "title": "Alicization Exploding",
@@ -302,9 +320,9 @@ class TestNormalizeAudnexBook:
         assert result.series_name == "Sword Art Online"
         assert result.series_position == "16"
         assert result.arc_name == "Alicization Exploding"
-        assert result.display_title == "Sword Art Online 16"
+        assert result.display_title == "Alicization Exploding"  # Keep meaningful title
         assert result.display_subtitle == "Alicization Exploding"
-        assert result.was_swapped is True
+        assert result.was_swapped is False  # No swap needed
 
     def test_no_series_passthrough(self) -> None:
         """Book without series passes through unchanged."""

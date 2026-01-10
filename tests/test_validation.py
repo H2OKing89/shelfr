@@ -866,6 +866,26 @@ class TestMetadataValidation:
         narrators_check = next(c for c in result.checks if c.name == "narrators_present")
         assert narrators_check.passed is True
 
+    def test_narrators_missing_warns(self):
+        """Missing narrators should warn with actionable message."""
+        from shelfr.models import AudiobookRelease
+        from shelfr.validation import MetadataValidation
+
+        release = AudiobookRelease(asin="B09GHD1R2R")
+        audnex_data = {
+            "title": "Test",
+            "asin": "B09GHD1R2R",
+            "narrators": [],  # Empty!
+        }
+
+        validator = MetadataValidation()
+        result = validator.validate(release, audnex_data=audnex_data)
+
+        narrators_check = next(c for c in result.checks if c.name == "narrators_present")
+        assert narrators_check.passed is False
+        assert narrators_check.severity == "warning"
+        assert "add manually" in narrators_check.message.lower()
+
     def test_runtime_match_within_tolerance(self):
         """Runtime within tolerance should pass."""
         from shelfr.models import AudiobookRelease

@@ -1336,6 +1336,11 @@ def load_settings(
             author_map=naming.author_map,
             preserve_volume_in_json=naming.preserve_volume_in_json,
             ripper_tag=ripper_tag_value if ripper_tag_value else None,
+            author_roles=naming.author_roles,
+            credit_roles=naming.credit_roles,
+            normalize_title_subtitle=naming.normalize_title_subtitle,
+            log_normalization_swaps=naming.log_normalization_swaps,
+            path_drop_priority=naming.path_drop_priority,
         )
 
     # Parse filters config
