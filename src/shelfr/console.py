@@ -78,11 +78,8 @@ from shelfr.ui import (
 )
 
 __all__ = [
-    # Core
     "SHELFR_THEME",
-    # Dry run
     "DryRunTransform",
-    # Validation
     "RuleTrace",
     "StepResult",
     "confirm",
@@ -93,7 +90,6 @@ __all__ = [
     "format_bitrate",
     "format_duration",
     "format_file_size",
-    # Formatting
     "format_mediainfo_stats",
     "log_title_transform",
     "print_change_analysis",
@@ -108,12 +104,9 @@ __all__ = [
     "print_duplicate_pairs",
     "print_error",
     "print_error_summary",
-    # Errors
     "print_exception",
-    # Panels
     "print_header",
     "print_info",
-    # Progress
     "print_pipeline_progress",
     "print_release_details",
     "print_release_table",
@@ -121,12 +114,10 @@ __all__ = [
     "print_status_table",
     "print_step",
     "print_substep",
-    # Messages
     "print_success",
     "print_summary",
     "print_suspicious_changes",
     "print_trump_comparison_table",
-    # Trumping
     "print_trump_decision",
     "print_trump_summary",
     "print_validation_report",
@@ -134,7 +125,6 @@ __all__ = [
     "print_warning",
     "print_workflow_summary",
     "progress_context",
-    # Tables
     "render_libation_status",
     "status",
     "truncate_path",

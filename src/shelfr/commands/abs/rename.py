@@ -85,10 +85,12 @@ def cmd_abs_rename(args: argparse.Namespace) -> int:
                 print_warning(f"Failed to create ABS client: {e}")
 
     # Run the rename pipeline
-    # Get import ripper_tag from ABS import settings
-    import_ripper_tag = None
-    if hasattr(settings, "audiobookshelf") and settings.audiobookshelf.import_settings:
-        import_ripper_tag = settings.audiobookshelf.import_settings.ripper_tag
+    # Get import ripper_tag from ABS import settings (safe access with getattr)
+    abs_cfg = getattr(settings, "audiobookshelf", None)
+    import_settings = getattr(abs_cfg, "import_settings", None) if abs_cfg else None
+    import_ripper_tag: str | None = (
+        getattr(import_settings, "ripper_tag", None) if import_settings else None
+    )
 
     try:
         results, summary, candidates = run_rename_pipeline(

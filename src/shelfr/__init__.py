@@ -46,7 +46,6 @@ __all__ = [
     "QBittorrentError",
     # Base exception
     "ShelfrError",
-    "ShelfrError",  # Deprecated alias for backward compatibility
     "StagingError",
     "StateCorruptionError",
     # State

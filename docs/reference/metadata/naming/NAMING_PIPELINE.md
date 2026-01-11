@@ -179,9 +179,9 @@ def clean_title(raw_title: str) -> str:
 
 ## Stage 4: Formatting
 
-### 4.1 MLA Title Case (MAM JSON Only)
+### 4.1 MLA Title Case
 
-MAM explicitly requires MLA title case for English-language audiobook metadata. This transformation is applied **only to MAM JSON fields**, not folder/file names.
+MAM explicitly requires MLA title case for English-language audiobook metadata. Shelfr applies MLA title case to **both MAM JSON fields and folder/file names** for consistent capitalization across all outputs.
 
 ```python
 from shelfr.utils.naming import mla_title_case
@@ -205,13 +205,13 @@ series = mla_title_case(series)  # → "The Stormlight Archive"
 
 **Applied To:**
 
-| Field | MLA Applied | Reason |
+| Field | MLA Applied | Notes |
 | --- | --- | --- |
 | MAM JSON `title` | ✅ Yes | MAM requirement |
 | MAM JSON `subtitle` | ✅ Yes | MAM requirement |
 | MAM JSON `series` | ✅ Yes | MAM requirement |
-| Folder name | ❌ No | Uses cleaned title |
-| File name | ❌ No | Uses cleaned title |
+| Folder name | ✅ Yes | MLA applied via `clean_title`/`clean_series` before `_build_truncated_base_name()` |
+| File name | ✅ Yes | MLA applied via `clean_title`/`clean_series` before `_build_truncated_base_name()` |
 
 See [NAMING_RULES.md](./NAMING_RULES.md#mla-title-case) for full MLA rules and examples.
 

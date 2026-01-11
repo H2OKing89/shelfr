@@ -249,8 +249,11 @@ MLA title case is applied to:
 | MAM JSON title | ✅ Yes | Required by MAM |
 | MAM JSON subtitle | ✅ Yes | Required by MAM |
 | MAM JSON series | ✅ Yes | Required by MAM |
-| Folder name title | ❌ No | Uses cleaned title as-is |
-| ABS metadata | ⚠️ Optional | Future consideration |
+| Folder name | ✅ Yes | MLA applied via `clean_title`/`clean_series` before `_build_truncated_base_name()` |
+| File name | ✅ Yes | MLA applied via `clean_title`/`clean_series` before `_build_truncated_base_name()` |
+| ABS metadata.json | ✅ Yes | Applied to title, subtitle, series |
+| OPF sidecar | ✅ Yes | Applied to title, series |
+| BBCode description | ✅ Yes | Applied to title |
 
 ### Reference
 

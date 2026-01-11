@@ -402,7 +402,7 @@ class UploadWorkflowConfig:
     content_warnings: ContentWarningsConfig = field(default_factory=ContentWarningsConfig)
     packaging: str = "folder"  # "folder" or "audio_only"
     # Ripper tag appended to folder names during upload staging (e.g., "H2OKing" -> "[H2OKing]")
-    # Set to None or empty string to disable
+    # Set to None or empty string (normalized to None during parsing) to disable
     ripper_tag: str | None = None
 
 

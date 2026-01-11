@@ -102,7 +102,7 @@ unfixable = []
 "src/shelfr/cli/__init__.py" = ["E402"]
 # Deprecated shim module re-exports after deprecation warning
 "src/shelfr/opf/__init__.py" = ["E402"]
-# TUI module imports textual to check availability
+# TUI module imports textual to check availability (intentional unused import)
 "src/shelfr/tui/__init__.py" = ["F401"]
 
 [tool.ruff.format]

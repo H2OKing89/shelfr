@@ -21,18 +21,14 @@ from .registry import ProviderRegistry, default_registry
 from .types import FieldName, IdType, LookupContext, ProviderResult
 
 __all__ = [
-    # Providers
     "AudnexProvider",
-    # Core types
     "FieldName",
     "HardcoverProvider",
     "IdType",
     "LookupContext",
-    # Protocol
     "MetadataProvider",
     "MockProvider",
     "ProviderKind",
-    # Registry
     "ProviderRegistry",
     "ProviderResult",
     "default_registry",
