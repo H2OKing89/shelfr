@@ -88,13 +88,22 @@ def detect_swapped_title_subtitle(
     """
     Detect and fix swapped title/subtitle using series data as ground truth.
 
-    Audible metadata is inconsistent - the same series can have different
-    title/subtitle arrangements. For example:
-    - SAO Vol 7: Title="Sword Art Online 7", Subtitle="Mother's Rosary" ✓
-    - SAO Vol 16: Title="Alicization Exploding", Subtitle="Sword Art Online 16" ✗
+    MAM RULE: "Series info must NOT be in the Title field."
 
-    Uses seriesPrimary as the source of truth to detect when title/subtitle
-    are swapped.
+    This means we should NEVER swap to put "Series N" in the title. The title
+    should always be the book's actual name, not series+number.
+
+    Patterns handled:
+    - Subtitle is "Series N" or "Series, Book N" → keep original title (meaningful name)
+    - Title is "Series N" and subtitle has meaningful name → swap to use meaningful name
+    - Title is "Series N" and subtitle is a reading line → keep original (no good alternative)
+
+    Examples:
+    - Title="The Enemy", Subtitle="Jack Reacher 8" → Title="The Enemy" ✓
+    - Title="Alicization Exploding", Subtitle="SAO 16" → Title="Alicization Exploding" ✓
+    - Title="Mockingjay", Subtitle="The Hunger Games, Book 3" → Title="Mockingjay" ✓
+    - Title="SAO 7", Subtitle="Mother's Rosary" → Title="Mother's Rosary" ✓ (swap!)
+    - Title="Primal Hunter 2", Subtitle="A LitRPG Adventure" → keep title (no swap)
 
     Args:
         title: Raw title from Audnex
@@ -114,35 +123,115 @@ def detect_swapped_title_subtitle(
     series_lower = series_name.lower()
 
     # Check if series name appears in title vs subtitle
-    subtitle_has_series = series_lower in subtitle_lower
     title_has_series = series_lower in title_lower
+    subtitle_has_series = series_lower in subtitle_lower
 
-    # Heuristic 1: subtitle has series name, title doesn't → swapped
-    if subtitle_has_series and not title_has_series:
+    # Check if TITLE is just series + number pattern (series info that shouldn't be title)
+    # Multiple patterns to catch various formats:
+    # - "Series Name 10" (bare number)
+    # - "Series Name, Vol. 10" / "Series Name, Vol 10"
+    # - "Series Name: Volume 10"
+    # - "Series Name, Book 10"
+    # - "Series Name, Part 1"
+    series_number_patterns = [
+        rf"^{re.escape(series_lower)}\s+\d+(\.\d+)?$",  # "Series 10" or "Series 10.5"
+        rf"^{re.escape(series_lower)},?\s*vol\.?\s*\d+(\.\d+)?$",  # "Series, Vol. 10"
+        rf"^{re.escape(series_lower)}:?\s*volume\s*\d+(\.\d+)?$",  # "Series: Volume 10"
+        rf"^{re.escape(series_lower)},?\s*book\s*\d+(\.\d+)?$",  # "Series, Book 10"
+        rf"^{re.escape(series_lower)},?\s*part\s*\d+(\.\d+)?$",  # "Series, Part 1"
+    ]
+    title_is_series_number = any(
+        re.match(pat, title_lower, re.IGNORECASE) for pat in series_number_patterns
+    )
+
+    # Reading lines / generic subtitles that shouldn't become titles
+    # These are NOT meaningful book names - they're genre descriptors
+    # Pattern uses "an?\s+" to match both "A " and "An "
+    reading_line_patterns = [
+        # LitRPG/GameLit patterns
+        r"^an?\s+[\w-]*lit\s*rpg",  # "A LitRPG", "An H-LitRPG", "A Lit RPG"
+        r"^an?\s+.*\s+lit\s*rpg",  # "An Isekai LitRPG", "A Fantasy LitRPG"
+        r"^an?\s+.*gamelit",  # "A Gamelit Thriller"
+        # Isekai patterns (very common in this genre)
+        r"^an?\s+isekai\b",  # "An Isekai Epic", "An Isekai Fantasy Adventure"
+        r".*\bisekai\b.*\b(story|romance|fantasy|adventure|novel)$",  # "Spicy Isekai Romance"
+        # Dungeon Core patterns
+        r"^an?\s+dungeon\s+core\b",  # "A Dungeon Core LitRPG Tale"
+        r"^an?\s+.*dungeon\s+core",  # "A Dungeon Core Experience"
+        # Generic genre patterns
+        r"^novel$",  # Just "Novel" - a format descriptor, not a title
+        r"^an?\s+.*novel$",  # "A Novel", "A Light Novel"
+        r"^light\s+novel$",
+        r"^an?\s+.*story$",  # "A Fantasy Story"
+        r"^an?\s+slice\s+of\s+life",  # "A Slice of Life Harem LitRPG"
+        r"^an?\s+.*cultivation",  # "A Cultivation Novel"
+        r"^an?\s+.*progression",  # "A Progression Fantasy"
+        r"^an?\s+.*adventure$",  # "An Urban Fantasy Adventure"
+        r"^an?\s+.*fantasy$",  # "An Isekai Fantasy"
+        r"^an?\s+.*thriller$",  # "A Gamelit Thriller"
+        r"^an?\s+.*romance$",  # "An Isekai Romance"
+        r"^an?\s+.*epic$",  # "An Isekai Epic"
+        r"^an?\s+.*tale$",  # "A Dungeon Core LitRPG Tale"
+        r"^an?\s+.*harem$",  # "An Isekai Fantasy Harem"
+        r"^an?\s+.*experience$",  # "A Dungeon Core Experience"
+        # Long descriptive subtitles with multiple genre keywords (not starting with A/An)
+        r".*\b(isekai|litrpg|gamelit)\b.*\b(story|romance|fantasy|adventure|novel|short\s+story)$",
+        # Genre descriptors without "A/An" prefix
+        r"^an?\s+space\s+opera$",  # "A Space Opera"
+        r"^space\s+opera$",  # "Space Opera"
+        # "Light Novel (Series, Book N)" format - NOT a book name
+        r"^light\s+novel\s*\(",  # "Light Novel (Classroom of the Elite, Book 26)"
+        # Subtitles containing LitRPG/genre in parentheses (e.g., "Mana Cultivation (A LitRP...)")
+        r".*\(.*\blit\s*rp",  # "(A LitRPG...)" anywhere
+        r".*\(.*\bgamelit\b",  # "(A Gamelit...)" anywhere
+        r".*\(.*\bprogression\b",  # "(A Progression...)" anywhere
+    ]
+    subtitle_is_reading_line = any(
+        re.match(pattern, subtitle_lower, re.IGNORECASE) for pattern in reading_line_patterns
+    )
+
+    # If title IS series+number and subtitle is a meaningful name (not reading line), swap!
+    if title_is_series_number and not subtitle_has_series and not subtitle_is_reading_line:
         logger.debug(
-            "[normalize] Detected swap (series in subtitle): title=%r, subtitle=%r, series=%r",
+            "[normalize] Title is series+number, swapping to meaningful subtitle: "
+            "title=%r, subtitle=%r, series=%r",
             title,
             subtitle,
             series_name,
         )
         return subtitle, title, True
 
-    # Heuristic 2: subtitle ends with series number, title doesn't have series
-    # This catches patterns like "Sword Art Online 16" as subtitle
-    if (
-        series_position
-        and not title_has_series
-        and re.search(rf"\b{re.escape(series_position)}\b", subtitle_lower)
-    ):
+    # If title is series+number but subtitle is a reading line, keep original
+    # (no good alternative - series+number is better than a reading line)
+    if title_is_series_number and subtitle_is_reading_line:
         logger.debug(
-            "[normalize] Detected swap (position in subtitle): title=%r, subtitle=%r, position=%r",
+            "[normalize] Title is series+number but subtitle is reading line, keeping title: "
+            "title=%r, subtitle=%r, series=%r",
             title,
             subtitle,
-            series_position,
+            series_name,
         )
-        return subtitle, title, True
+        return title, subtitle, False
 
-    # No swap detected
+    # If title has series but is NOT just "Series N", and subtitle doesn't have series
+    # → title might be "Series Name: Arc Title" format, keep it
+    if title_has_series and not title_is_series_number:
+        return title, subtitle, False
+
+    # If subtitle has series (any pattern), keep the original title
+    # This handles: "Series N", "Series, Book N", "Series (Light Novel), Vol. N"
+    # The original title is the meaningful book name
+    if subtitle_has_series:
+        logger.debug(
+            "[normalize] Subtitle has series info, keeping original title: "
+            "title=%r, subtitle=%r, series=%r",
+            title,
+            subtitle,
+            series_name,
+        )
+        return title, subtitle, False
+
+    # Default: no swap needed
     return title, subtitle, False
 
 

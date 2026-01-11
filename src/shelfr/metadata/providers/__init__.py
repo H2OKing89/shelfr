@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from .audnex import AudnexProvider
 from .base import MetadataProvider, ProviderKind
+from .hardcover import HardcoverProvider
 from .mock import MockProvider
 from .registry import ProviderRegistry, default_registry
 from .types import FieldName, IdType, LookupContext, ProviderResult
@@ -33,5 +34,6 @@ __all__ = [
     "default_registry",
     # Providers
     "AudnexProvider",
+    "HardcoverProvider",
     "MockProvider",
 ]

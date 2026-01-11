@@ -267,11 +267,25 @@ class Settings:
     KEEPALIVE_EXPIRY = 30.0
 
     # File Paths
-    COMBINED_METADATA_FILE = Path("data/combined_metadata.json")
-    ENRICHED_DATA_FILE = Path("data/hardcover_enriched_run.json")
-    ENRICHED_BOOKS_FILE = Path("data/hardcover_enriched_books.jsonl")
-    ENRICHED_VOCAB_FILE = Path("data/hardcover_keywords.json")
-    SEARCH_CACHE_FILE = Path("data/hardcover_search_cache.json")
+    # Note: Run scripts/data_gathering/fetch_test_data.py first to generate the default file
+    # Paths are relative to repo root (scripts/data_gathering/../../)
+    _REPO_ROOT = Path(__file__).parent.parent.parent
+    _DEFAULT_COMBINED = _REPO_ROOT / "samples" / "test_data" / "combined_metadata.json"
+    # Env var can override; empty string falls back to default
+    _env_combined = os.getenv("HARDCOVER_COMBINED_METADATA_FILE")
+    if _env_combined:
+        try:
+            COMBINED_METADATA_FILE = Path(_env_combined)
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"Invalid path in HARDCOVER_COMBINED_METADATA_FILE: {_env_combined}"
+            ) from e
+    else:
+        COMBINED_METADATA_FILE = _DEFAULT_COMBINED
+    ENRICHED_DATA_FILE = _REPO_ROOT / "data" / "hardcover_enriched_run.json"
+    ENRICHED_BOOKS_FILE = _REPO_ROOT / "data" / "hardcover_enriched_books.jsonl"
+    ENRICHED_VOCAB_FILE = _REPO_ROOT / "data" / "hardcover_keywords.json"
+    SEARCH_CACHE_FILE = _REPO_ROOT / "data" / "hardcover_search_cache.json"
 
     # Processing
     BATCH_SIZE = 50

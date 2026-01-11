@@ -150,6 +150,60 @@ All primary phases (01-10) are **COMPLETE**. Some items in archived checklists a
 
 ---
 
+### Phase 11: ABS Importer Async ✅ COMPLETE
+
+**Status:** Fully shipped. Async ABS client with parallel operations.
+
+**Archive location:** [phases/11-abs-importer-async.md](phases/11-abs-importer-async.md)
+
+**What shipped:**
+
+- ✅ 11.1: `AbsAsyncClient` with parallel pagination
+- ✅ 11.2: `build_asin_index_async()` for concurrent index building
+- ✅ 11.3: `prefetch_metadata_async()` for parallel metadata resolution
+- ✅ 11.4: `import_batch_async()` hybrid batch import
+- ✅ 11.5: CLI integration with `shelfr abs import --parallel`
+
+**Key files:**
+
+- `src/shelfr/abs/async_client.py` — Async ABS client
+- `src/shelfr/abs/prefetch.py` — Async metadata prefetch
+- `src/shelfr/abs/asin.py` — ASIN index (sync + async)
+- `src/shelfr/abs/importer.py` — ABS importer (sync + async batch)
+
+---
+
+### Phase 12: Hardcover Provider ✅ SHIPPED
+
+**Status:** Core implementation shipped in PR #95.
+
+**Design doc:** [providers/hardcover.md](../providers/hardcover.md)
+
+**Goal:** Add Hardcover as metadata source for richer content warnings and genres.
+
+**Sub-phases:**
+
+| Sub-phase | Status | Description |
+| --------- | ------ | ----------- |
+| 12.1 API Client | ✅ | `HardcoverAsyncClient` with Typesense search |
+| 12.2 Search & Match | ✅ | Title+author fuzzy matching with thresholding |
+| 12.3 Provider | ✅ | `HardcoverProvider` implementing provider interface |
+| 12.4 Flag Mapping | ✅ | `HARDCOVER_TO_MAM_FLAGS` content warnings → MAM flags |
+| 12.5 Integration | ✅ | Wired into workflow with caching, config options |
+
+**Prerequisites from deferred work:**
+
+- Phase 9.2: FlagResolver (needed when multiple flag sources exist)
+- Phase 9.3: Content warnings integration
+
+**Exploratory work completed:**
+
+- ✅ `scripts/data_gathering/hardcover_enrich.py` — Data gathering script
+- ✅ `data/hardcover_keywords.json` — 60 content warnings catalogued
+- ✅ Mapping rules documented in [archive/07-content-flags.md](archive/07-content-flags.md)
+
+---
+
 ## Reconciliation Actions
 
 ### 1. Update Archive Checklists

@@ -702,6 +702,19 @@ class UploadWorkflowSchema(BaseModel):
     """Upload workflow settings (shelfr run)."""
 
     sanitize: UploadSanitizeSchema = Field(default_factory=UploadSanitizeSchema)
+    packaging: str = Field(
+        default="folder",
+        description="Torrent packaging mode: 'folder' (all files) or 'audio_only' (m4b only)",
+    )
+
+    @field_validator("packaging")
+    @classmethod
+    def validate_packaging(cls, v: str) -> str:
+        """Validate packaging mode."""
+        valid_modes = {"folder", "audio_only"}
+        if v.lower() not in valid_modes:
+            raise ValueError(f"Invalid packaging mode '{v}'. Must be one of: {valid_modes}")
+        return v.lower()
 
 
 class WorkflowSchema(BaseModel):

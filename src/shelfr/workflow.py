@@ -50,6 +50,7 @@ from shelfr.libation import (
     run_scan,
 )
 from shelfr.metadata import fetch_metadata, generate_mam_json_for_release
+from shelfr.metadata.providers import HardcoverProvider
 from shelfr.mkbrr import create_torrent
 from shelfr.models import AudiobookRelease, ProcessingResult, ReleaseStatus
 from shelfr.qbittorrent import upload_torrent
@@ -174,6 +175,102 @@ def _upload_torrent_with_retry(
     return upload_torrent(torrent_path=torrent_path, save_path=save_path)
 
 
+@dataclass
+class HardcoverResult:
+    """Result from Hardcover API fetch."""
+
+    content_flags: list[str] | None = None
+    genres: list[str] | None = None
+    moods: list[str] | None = None
+
+
+async def _fetch_hardcover_data_async(
+    asin: str,
+    title: str,
+    author: str,
+) -> HardcoverResult:
+    """Fetch content warnings, genres, and moods from Hardcover asynchronously.
+
+    Args:
+        asin: ASIN for cache keying
+        title: Book title for search
+        author: Author name for search
+
+    Returns:
+        HardcoverResult with content_flags, genres, and moods
+    """
+    from shelfr.metadata.providers.types import LookupContext
+
+    settings = get_settings()
+    if not settings.hardcover.enabled:
+        logger.debug("Hardcover disabled in config, skipping")
+        return HardcoverResult()
+
+    # Wire config values to provider
+    hc_config = settings.hardcover
+    provider = HardcoverProvider(
+        cache_ttl_seconds=hc_config.cache_ttl_days * 24 * 3600,
+        match_threshold=hc_config.match_threshold,
+    )
+    try:
+        await provider.startup()
+        ctx = LookupContext(
+            ids={"asin": asin},
+            existing_abs_json={"title": title, "authors": [{"name": author}] if author else []},
+        )
+        result = await provider.fetch(ctx, id_type="asin")
+        if result.success and result.fields:
+            # Extract genres as list of strings
+            genres_raw = result.fields.get("genres", [])
+            genres: list[str] = []
+            for g in genres_raw:
+                name = g.get("name") if isinstance(g, dict) else g
+                if name and isinstance(name, str):
+                    genres.append(name)
+
+            # Get moods safely - it's not a standard MetadataFields key
+            # Use raw_data which stores the complete Hardcover response
+            moods: list[str] | None = None
+            if result.raw_data:
+                raw_moods = result.raw_data.get("moods")
+                if isinstance(raw_moods, list):
+                    moods = [m for m in raw_moods if isinstance(m, str)]
+                    moods = moods if moods else None
+
+            return HardcoverResult(
+                content_flags=result.fields.get("content_flags"),
+                genres=genres if genres else None,
+                moods=moods,
+            )
+        return HardcoverResult()
+    except Exception as e:
+        logger.warning("Hardcover fetch failed: %s", e)
+        return HardcoverResult()
+    finally:
+        await provider.shutdown()
+
+
+def _fetch_hardcover_data(asin: str, title: str, author: str) -> HardcoverResult:
+    """Sync wrapper for Hardcover data fetch.
+
+    Uses asyncio.run() to execute the async provider call from sync context.
+    """
+    import asyncio
+
+    try:
+        return asyncio.run(_fetch_hardcover_data_async(asin, title, author))
+    except Exception as e:
+        logger.warning("Hardcover fetch error: %s", e)
+        return HardcoverResult()
+
+
+# Legacy wrapper for backwards compatibility
+def _fetch_content_warnings(asin: str, title: str, author: str) -> list[str] | None:
+    """Fetch content warnings from Hardcover (legacy wrapper)."""
+    result = _fetch_hardcover_data(asin, title, author)
+    return result.content_flags
+
+
 # =============================================================================
 # Single Release Processing
 # =============================================================================
@@ -280,7 +377,12 @@ def process_single_release(
             sanitize_result = sanitize_release(release, verbose=verbose)
 
             if sanitize_result.skipped_reason:
-                logger.debug("Sanitization skipped: %s", sanitize_result.skipped_reason)
+                # Show warning if sanitize is enabled but ffmpeg disabled (config issue)
+                if "FFmpeg disabled" in sanitize_result.skipped_reason:
+                    print_warning(f"Sanitization skipped: {sanitize_result.skipped_reason}")
+                    print_info("  → Add 'ffmpeg: enabled: true' to config.yaml to enable")
+                else:
+                    logger.debug("Sanitization skipped: %s", sanitize_result.skipped_reason)
             elif sanitize_result.files_modified > 0:
                 print_success(
                     f"Sanitized {sanitize_result.files_modified} file(s) "
@@ -314,9 +416,12 @@ def process_single_release(
                 )
             release.status = ReleaseStatus.STAGED
         else:
-            notify(ProgressStage.STAGING, "Creating hardlinks...")
-            logger.debug("Step 1: Staging release")
-            staging_dir = stage_release(release)
+            # Determine packaging mode from config
+            audio_only = settings.workflow.upload.packaging == "audio_only"
+            mode_display = "audio_only" if audio_only else "folder"
+            notify(ProgressStage.STAGING, f"Creating hardlinks ({mode_display})...")
+            logger.debug("Step 1: Staging release (packaging=%s)", mode_display)
+            staging_dir = stage_release(release, audio_only=audio_only)
             # Show truncated path - full path available in logs via --verbose
             display_path = truncate_path(str(staging_dir), max_length=60)
             print_success(f"Staged → {display_path}")
@@ -370,6 +475,46 @@ def process_single_release(
                 checkpoint_stage(release, "metadata")
 
             # -----------------------------------------------------------------
+            # 2a. Hardcover Data (Content Warnings, Genres, Moods)
+            # -----------------------------------------------------------------
+            if settings.workflow.upload.content_warnings.enabled:
+                logger.debug("Step 2a: Fetching Hardcover data")
+                title = release.title or ""
+                author = release.author or ""
+                if release.asin and title:
+                    if verbose:
+                        print_info(f"Fetching Hardcover data for '{title}' by '{author}'")
+                    hardcover_result = _fetch_hardcover_data(release.asin, title, author)
+
+                    # Store content flags
+                    if hardcover_result.content_flags:
+                        release.content_flags = hardcover_result.content_flags
+                        flags_str = ", ".join(hardcover_result.content_flags)
+                        print_success(f"Content warnings: {flags_str}")
+
+                    # Store genres and moods for category resolution
+                    if hardcover_result.genres:
+                        release.hardcover_genres = hardcover_result.genres
+                        if verbose:
+                            print_info(
+                                f"Hardcover genres: {', '.join(hardcover_result.genres[:5])}"
+                            )
+                    if hardcover_result.moods:
+                        release.hardcover_moods = hardcover_result.moods
+                        if verbose:
+                            print_info(f"Hardcover moods: {', '.join(hardcover_result.moods[:5])}")
+
+                    if not hardcover_result.content_flags and verbose:
+                        print_info("No content warnings found on Hardcover")
+                    elif not hardcover_result.content_flags:
+                        logger.debug("No content warnings found for '%s'", title)
+                else:
+                    if verbose:
+                        print_info("Skipping Hardcover: missing ASIN or title")
+                    else:
+                        logger.debug("Skipping Hardcover: missing ASIN or title")
+
+            # -----------------------------------------------------------------
             # 2b. Metadata Validation
             # -----------------------------------------------------------------
             logger.debug("Step 2b: Metadata validation")
@@ -418,8 +563,19 @@ def process_single_release(
             notify(ProgressStage.TORRENT, "Creating torrent file...")
             logger.debug("Step 3: Creating torrent")
 
+            # Determine torrent target based on packaging mode
+            audio_only = settings.workflow.upload.packaging == "audio_only"
+            if audio_only and release.main_m4b:
+                # audio_only mode: torrent targets the file directly
+                torrent_target = release.main_m4b
+                logger.debug("Torrent target (audio_only): %s", torrent_target)
+            else:
+                # folder mode: torrent targets the directory
+                torrent_target = staging_dir
+                logger.debug("Torrent target (folder): %s", torrent_target)
+
             mkbrr_result = create_torrent(
-                content_path=staging_dir,
+                content_path=torrent_target,
                 output_dir=release_output_dir,
                 preset=preset or settings.mkbrr.preset,
             )
@@ -493,14 +649,22 @@ def process_single_release(
                 release_title=release.display_name,
             )
 
-        # Use configured save_path (container path) + release folder name
+        # Use configured save_path (container path)
         # Only needed when auto_tmm is disabled
         if settings.qbittorrent.auto_tmm:
             # Auto TMM: qBittorrent manages save path via category
             qb_save_path = None
         elif settings.qbittorrent.save_path:
-            # Manual: build save path from config + release folder
-            qb_save_path = Path(settings.qbittorrent.save_path) / staging_dir.name
+            # Manual: build save path from config
+            audio_only = settings.workflow.upload.packaging == "audio_only"
+            if audio_only:
+                # audio_only: torrent is for file inside staging_dir
+                # save_path = container path to staging_dir (where file lives)
+                qb_save_path = Path(settings.qbittorrent.save_path) / staging_dir.name
+            else:
+                # folder mode: torrent is for staging_dir folder itself
+                # save_path = container path to parent (seed_root)
+                qb_save_path = Path(settings.qbittorrent.save_path)
         else:
             # No save_path configured - let qBittorrent use its default
             qb_save_path = None
@@ -813,6 +977,9 @@ def full_run(
             # Show detailed dry-run info for each step
             print_dry_run("Steps that would be performed:")
 
+            # Determine packaging mode for path calculation
+            audio_only = settings.workflow.upload.packaging == "audio_only"
+
             # Step 0b: Sanitize - check for unwanted metadata tags
             tags_to_strip = preview_sanitization(release)
             if tags_to_strip:
@@ -825,7 +992,7 @@ def full_run(
             if release.source_dir:
                 seed_root = settings.paths.seed_root
                 try:
-                    mam_path = compute_staging_path(release)
+                    mam_path = compute_staging_path(release, audio_only=audio_only)
                     staging_dir = seed_root / mam_path.folder
                     print_dry_run(f"STAGE → {staging_dir}")
                     if mam_path.truncated:
@@ -833,7 +1000,7 @@ def full_run(
 
                     # Show file renames
                     try:
-                        renames = preview_staging(release)
+                        renames = preview_staging(release, audio_only=audio_only)
                         for src_name, dst_name in renames:
                             if src_name != dst_name:
                                 print_dry_run(f"  RENAME: {src_name} → {dst_name}")
@@ -851,6 +1018,14 @@ def full_run(
                     print_dry_run(f"METADATA → Fetch Audnex for {release.asin}")
                 if release.main_m4b:
                     print_dry_run(f"METADATA → MediaInfo on {release.main_m4b.name}")
+                # Step 2a: Hardcover data (content warnings, genres, moods)
+                # Only check content_warnings.enabled here - the internal fetch
+                # handles hardcover.enabled
+                if settings.workflow.upload.content_warnings.enabled:
+                    title = release.title or "unknown"
+                    print_dry_run(
+                        f"HARDCOVER → Fetch content warnings, genres, moods for '{title}'"
+                    )
             else:
                 print_dry_run("METADATA → [SKIPPED]")
 

@@ -19,6 +19,7 @@ from shelfr.metadata.mam.categories import (
     _get_audiobook_category,
     _infer_fiction_or_nonfiction,
     _map_genres_to_categories,
+    resolve_audiobook_category,
 )
 from shelfr.metadata.mediainfo import _extract_audio_info, _parse_chapters_from_mediainfo
 from shelfr.models import NormalizedBook
@@ -29,6 +30,7 @@ from shelfr.utils.naming import (
     filter_series,
     filter_subtitle,
     filter_title,
+    mla_title_case,
     normalize_audnex_book,
     resolve_series,
     transliterate_text,
@@ -73,6 +75,8 @@ def _build_series_list(
         if name:
             cleaned_name = filter_series(name, naming_config=naming_config)
             if cleaned_name:
+                # MAM requires MLA title case for series names
+                cleaned_name = mla_title_case(cleaned_name)
                 seen_names.add(cleaned_name.lower())
                 series_list.append(
                     {
@@ -89,6 +93,8 @@ def _build_series_list(
             cleaned_name = filter_series(name, naming_config=naming_config)
             # Only add if distinct from primary (case-insensitive)
             if cleaned_name and cleaned_name.lower() not in seen_names:
+                # MAM requires MLA title case for series names
+                cleaned_name = mla_title_case(cleaned_name)
                 series_list.append(
                     {
                         "name": cleaned_name,
@@ -166,7 +172,8 @@ def build_mam_json(
             naming_config=naming_config,
             keep_volume=True,
         )
-        mam_json["title"] = cleaned_title
+        # MAM requires MLA title case for English titles
+        mam_json["title"] = mla_title_case(cleaned_title)
 
     # Authors (filter out translators, illustrators, etc. and transliterate Japanese names)
     authors = audnex.get("authors", [])
@@ -242,6 +249,8 @@ def build_mam_json(
             normalized.series_name,
             naming_config=naming_config,
         )
+        # MAM requires MLA title case for series names
+        cleaned_series = mla_title_case(cleaned_series)
         series_number = (
             normalized.series_position
             or release.series_position
@@ -264,6 +273,8 @@ def build_mam_json(
             secondary_name = filter_series(secondary.get("name", ""), naming_config=naming_config)
             # Only add if distinct from primary (case-insensitive)
             if secondary_name and secondary_name.lower() != cleaned_series.lower():
+                # MAM requires MLA title case for series names
+                secondary_name = mla_title_case(secondary_name)
                 series_entries.append(
                     {
                         "name": secondary_name,
@@ -300,6 +311,8 @@ def build_mam_json(
             series_info.name,
             naming_config=naming_config,
         )
+        # MAM requires MLA title case for series names
+        resolved_name = mla_title_case(resolved_name)
         # Always use resolved name for subtitle filtering (it's the cleaned version)
         cleaned_series = resolved_name
 
@@ -466,9 +479,34 @@ def build_mam_json(
     mam_json["main_cat"] = main_cat
 
     # Category string (e.g., "Audiobooks - Fantasy")
-    # Uses audiobook_categories.json mapping based on genres
+    # Uses signal scoring from Audnex genres + Hardcover genres/moods
     is_fiction = main_cat == 1
-    mam_json["category"] = _get_audiobook_category(audnex, is_fiction)
+
+    # Get Hardcover genres/moods from release if available
+    hardcover_genres = getattr(release, "hardcover_genres", None)
+    hardcover_moods = getattr(release, "hardcover_moods", None)
+
+    # Use is not None check to distinguish "consulted but empty" from "not consulted"
+    # This ensures the resolver runs whenever Hardcover was attempted, even with empty results
+    if hardcover_genres is not None or hardcover_moods is not None:
+        # Use CategoryResolver for signal scoring
+        resolution = resolve_audiobook_category(
+            audnex_data=audnex,
+            hardcover_genres=hardcover_genres,
+            hardcover_moods=hardcover_moods,
+            is_fiction=is_fiction,
+        )
+        mam_json["category"] = resolution.category
+        logger.debug(
+            "Category resolved: %s (scores: %s)",
+            resolution.category,
+            {k: f"{v:.2f}" for k, v in resolution.scores.items()}
+            if resolution.scores
+            else "default",
+        )
+    else:
+        # Fallback to legacy method (Audnex only)
+        mam_json["category"] = _get_audiobook_category(audnex, is_fiction)
 
     return mam_json
 

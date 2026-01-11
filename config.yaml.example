@@ -114,6 +114,13 @@ ffmpeg:
 workflow:
   # Upload workflow (shelfr run)
   upload:
+    # Torrent packaging mode - controls how files are staged and torrented
+    # - folder: Hardlink all allowed files (.m4b, .jpg, .pdf, .cue), torrent at folder level
+    #           Results in: FolderName.torrent containing folder with all files
+    # - audio_only: Hardlink only .m4b files, torrent at file level
+    #               Results in: FileName.m4b.torrent for just the audio file
+    packaging: "folder"  # "folder" or "audio_only"
+
     # Sanitize: Strip unwanted metadata tags from audio files before staging
     # Requires ffmpeg.enabled = true
     sanitize:
@@ -122,6 +129,11 @@ workflow:
       # AUDIBLE_ACR: Audible Content Reference - fingerprint for DRM verification
       tags:
         - "AUDIBLE_ACR"
+
+    # Content warnings: Fetch from Hardcover API and map to MAM flags
+    # Requires hardcover.enabled = true (see Hardcover API section below)
+    content_warnings:
+      enabled: false  # Enable to fetch content warnings (vio, cLang, sSex, eSex, lgbt)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # qBittorrent Settings
@@ -178,6 +190,32 @@ audnex:
   # Each ASIN can make 1-10 requests (depending on cache + region race),
   # so asin_concurrency=5 with 3 regions in stage 1 = ~15 concurrent requests max.
   asin_concurrency: 5
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hardcover API (for content warnings and additional metadata)
+# ─────────────────────────────────────────────────────────────────────────────
+# Note: API key is read from .env file:
+#   HARDCOVER_API_KEY=your-jwt-token
+# Get your key at: https://hardcover.app/account/api
+hardcover:
+  # Enable/disable Hardcover metadata provider
+  enabled: false
+
+  # Connection timeout
+  timeout_seconds: 30
+
+  # Rate limiting: Hardcover allows ~60 req/min
+  rate_limit_per_minute: 60
+
+  # Fuzzy match threshold (0.0-1.0): How closely title+author must match
+  # Higher = stricter matching, fewer false positives
+  # Lower = more lenient, may match wrong editions
+  match_threshold: 0.70
+
+  # Cache duration for book metadata (days)
+  # Book metadata rarely changes; longer TTL = fewer API calls
+  cache_ttl_days: 7
 
 
 # ─────────────────────────────────────────────────────────────────────────────

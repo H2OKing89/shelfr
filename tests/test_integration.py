@@ -109,7 +109,7 @@ class TestProcessSingleRelease:
             assert result.torrent_path == torrent_path
 
             # Verify all steps were called
-            mock_stage.assert_called_once_with(release)
+            mock_stage.assert_called_once_with(release, audio_only=False)
             mock_metadata.assert_called_once()
             mock_torrent.assert_called_once()
             mock_upload.assert_called_once()
@@ -617,14 +617,17 @@ class TestWorkflowSavePathLogic:
             # Configure auto_tmm = False with save_path
             mock_settings.return_value.qbittorrent.auto_tmm = False
             mock_settings.return_value.qbittorrent.save_path = "/config/save/path"
+            # Ensure packaging is folder mode (default)
+            mock_settings.return_value.workflow.upload.packaging = "folder"
 
             result = process_single_release(release)
 
             assert result.success
-            # Verify upload was called with constructed save_path
+            # Verify upload was called with save_path (no folder name appended in folder mode)
+            # In folder mode, torrent contains the folder, so qBit save_path = parent dir
             mock_upload.assert_called_once()
             call_kwargs = mock_upload.call_args[1]
-            expected_path = Path("/config/save/path") / staging_dir.name
+            expected_path = Path("/config/save/path")
             assert call_kwargs["save_path"] == expected_path
 
     @patch("shelfr.workflow.get_processed_identifiers")

@@ -1068,7 +1068,7 @@ class MetadataValidation:
             return ValidationCheck(
                 name="narrators_present",
                 passed=False,
-                message="No narrators found in metadata",
+                message="⚠ No narrators in Audnex data - add manually before upload!",
                 severity="warning",
             )
 

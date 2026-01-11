@@ -25,7 +25,7 @@ from shelfr.utils.permissions import fix_directory_ownership
 logger = logging.getLogger(__name__)
 
 
-def compute_staging_path(release: AudiobookRelease) -> MamPath:
+def compute_staging_path(release: AudiobookRelease, *, audio_only: bool = False) -> MamPath:
     """
     Compute the MAM-compliant staging path for a release (without side effects).
 
@@ -34,6 +34,8 @@ def compute_staging_path(release: AudiobookRelease) -> MamPath:
 
     Args:
         release: AudiobookRelease to compute path for
+        audio_only: If True, compute path for file-only mode (no folder duplication
+                    in path budget). Used for audio_only packaging mode.
 
     Returns:
         MamPath with folder and filename
@@ -81,6 +83,7 @@ def compute_staging_path(release: AudiobookRelease) -> MamPath:
 
     # Build MAM-compliant path using the new Phase 8 function
     # This ensures folder + filename combined fit within 225 chars
+    # For audio_only mode, file_only=True gives more budget since path is just filename
     mam_path = build_mam_path(
         series=series_name,
         title=release.title,
@@ -93,6 +96,7 @@ def compute_staging_path(release: AudiobookRelease) -> MamPath:
         part_count=part_count,
         naming_config=settings.naming,
         max_path_length=settings.mam.max_filename_length,
+        file_only=audio_only,
     )
 
     return mam_path
@@ -136,7 +140,9 @@ def compute_dest_name(mam_path: MamPath, src_file: Path, max_path_len: int) -> s
     return dst_name
 
 
-def preview_staging(release: AudiobookRelease) -> list[tuple[str, str]]:
+def preview_staging(
+    release: AudiobookRelease, *, audio_only: bool = False
+) -> list[tuple[str, str]]:
     """
     Preview what file renames would occur during staging (dry-run helper).
 
@@ -145,6 +151,7 @@ def preview_staging(release: AudiobookRelease) -> list[tuple[str, str]]:
 
     Args:
         release: AudiobookRelease to preview staging for
+        audio_only: If True, only preview audio files (.m4b, etc.)
 
     Returns:
         List of (source_filename, destination_filename) tuples
@@ -157,28 +164,30 @@ def preview_staging(release: AudiobookRelease) -> list[tuple[str, str]]:
     if release.source_dir is None:
         raise ValueError("Release has no source_dir set")
 
-    mam_path = compute_staging_path(release)
+    mam_path = compute_staging_path(release, audio_only=audio_only)
     renames: list[tuple[str, str]] = []
 
     max_path_len = settings.mam.max_filename_length
-    for src_file in find_allowed_files(release.source_dir):
+    for src_file in find_allowed_files(release.source_dir, audio_only=audio_only):
         dst_name = compute_dest_name(mam_path, src_file, max_path_len)
         renames.append((src_file.name, dst_name))
 
     return renames
 
 
-def stage_release(release: AudiobookRelease) -> Path:
+def stage_release(release: AudiobookRelease, *, audio_only: bool = False) -> Path:
     """
     Create staging directory and hardlink files for a release.
 
     1. Create directory under seed_root with MAM-compliant naming
-    2. Find all allowed file types in source_dir
+    2. Find allowed file types in source_dir (all or audio-only based on mode)
     3. Hardlink each file with cleaned names
     4. Update release.staging_dir and return the path
 
     Args:
         release: AudiobookRelease to stage
+        audio_only: If True, only hardlink audio files (.m4b, etc.)
+                   If False, hardlink all allowed files (default)
 
     Returns:
         Path to the staging directory
@@ -197,7 +206,8 @@ def stage_release(release: AudiobookRelease) -> Path:
     seed_root.mkdir(parents=True, exist_ok=True)
 
     # Compute MAM-compliant path (validates ASIN, resolves series, etc.)
-    mam_path = compute_staging_path(release)
+    # Pass audio_only so filename gets ripper tag in file-only mode
+    mam_path = compute_staging_path(release, audio_only=audio_only)
 
     # Log truncation info if any
     if mam_path.truncated:
@@ -208,21 +218,22 @@ def stage_release(release: AudiobookRelease) -> Path:
 
     staging_dir = seed_root / mam_path.folder
 
-    logger.info(f"Staging release: {release.display_name}")
+    mode_str = "audio_only" if audio_only else "folder"
+    logger.info(f"Staging release: {release.display_name} (mode: {mode_str})")
     logger.debug(f"  Source: {release.source_dir}")
     logger.debug(f"  Seed dir: {staging_dir}")
     logger.debug(f"  Path length: {mam_path.length} chars")
 
     staging_dir.mkdir(parents=True, exist_ok=True)
 
-    # Find and hardlink allowed files (not recursive - just files in this folder)
+    # Find and hardlink files based on mode
     staged_files = []
     max_path_len = settings.mam.max_filename_length
-    for src_file in find_allowed_files(release.source_dir):
+    for src_file in find_allowed_files(release.source_dir, audio_only=audio_only):
         dst_name = compute_dest_name(mam_path, src_file, max_path_len)
 
-        # Log truncation for ancillary files
-        if src_file.suffix.lower() != ".m4b":
+        # Log truncation for ancillary files (only in folder mode)
+        if not audio_only and src_file.suffix.lower() != ".m4b":
             full_path = f"{mam_path.folder}/{dst_name}"
             base_without_ext = mam_path.filename.removesuffix(".m4b")
             untruncated_name = f"{base_without_ext}{src_file.suffix}"
@@ -280,14 +291,30 @@ def fix_staging_permissions(staging_dir: Path) -> int:
     )
 
 
-def find_allowed_files(source_dir: Path) -> list[Path]:
+# Audio file extensions for audio_only packaging mode
+AUDIO_EXTENSIONS = {".m4b", ".mp3", ".m4a", ".flac", ".ogg", ".opus"}
+
+
+def find_allowed_files(source_dir: Path, *, audio_only: bool = False) -> list[Path]:
     """
     Find all files with allowed extensions in source directory.
 
     Searches recursively but returns flat list.
+
+    Args:
+        source_dir: Directory to search for files
+        audio_only: If True, only return audio files (.m4b, etc.)
+                   If False, return all allowed file types
+
+    Returns:
+        List of paths to allowed files
     """
     settings = get_settings()
-    allowed_exts = {ext.lower() for ext in settings.mam.allowed_extensions}
+
+    if audio_only:
+        allowed_exts = AUDIO_EXTENSIONS
+    else:
+        allowed_exts = {ext.lower() for ext in settings.mam.allowed_extensions}
 
     allowed_files = []
     for path in source_dir.rglob("*"):

@@ -82,18 +82,25 @@ def _calculate_max_base_length(
     extension: str,
     part_count: int,
     max_path_length: int,
+    file_only: bool = False,
 ) -> int:
     """
     Calculate the maximum base name length given the path constraints.
 
-    The base name appears TWICE in the path (folder + filename), so:
-        path_length = 2*base + overhead
+    For folder mode (file_only=False):
+        The base name appears TWICE in the path (folder + filename), so:
+            path_length = 2*base + overhead
+
+    For file-only mode (file_only=True):
+        The base name appears ONCE (just filename with tag), so:
+            path_length = base + tag_overhead + extension
 
     Args:
-        ripper_tag: Optional ripper tag (e.g., "H2OKing")
+        ripper_tag: Optional ripper tag (e.g., "H2OKing") - included in filename for file_only mode
         extension: File extension including dot (e.g., ".m4b")
         part_count: Number of parts (>1 means multi-file)
         max_path_length: Maximum total path length (default: 225)
+        file_only: If True, path is just filename (tag on filename, not folder)
 
     Returns:
         Maximum allowed base name length
@@ -106,7 +113,20 @@ def _calculate_max_base_length(
     else:
         ext_len = len(extension)
 
-    # Calculate overhead based on whether we have a tag
+    # For file-only mode (audio_only packaging), base appears only once
+    # Path structure: "{base} [{tag}]{ext}" - includes tag on filename since file IS the torrent
+    if file_only:
+        # With tag: filename = "{base} [{tag}]{ext}"
+        # Total = len(base) + 1 + 1 + len(tag) + 1 + ext_len
+        #       = len(base) + len(tag) + ext_len + 3
+        # Without tag: filename = "{base}{ext}"
+        # Total = len(base) + ext_len
+        if ripper_tag:
+            tag_overhead = len(ripper_tag) + 3  # " [" + tag + "]"
+            return max_path_length - ext_len - tag_overhead
+        return max_path_length - ext_len
+
+    # For folder mode, calculate overhead based on whether we have a tag
     # Using if/else to preserve the detailed math comments
     if ripper_tag:  # noqa: SIM108
         # With tag: folder = "{base} [{tag}]", filename = "{base}{ext}"
@@ -308,6 +328,7 @@ def build_mam_path(
     naming_config: NamingConfig | None = None,
     max_path_length: int = MAM_MAX_PATH_LENGTH,
     folder_max_length: int | None = None,
+    file_only: bool = False,
 ) -> MamPath:
     """
     Build folder and filename ensuring combined path ≤ max_path_length.
@@ -315,10 +336,15 @@ def build_mam_path(
     This is the CORRECT way to generate MAM paths. The 225-char limit applies
     to the full relative path (folder/filename), not individual components.
 
-    Path structure: "{base} [{tag}]/{base}{ext}"
+    For folder mode (file_only=False):
+        Path structure: "{base} [{tag}]/{base}{ext}"
+        The base name appears TWICE, so every character saved from base saves ~2
+        characters from the total path length.
 
-    The base name appears TWICE, so every character saved from base saves ~2
-    characters from the total path length.
+    For file-only mode (file_only=True):
+        Path structure: "{base}{ext}"
+        The base name appears ONCE, so nearly double the budget is available.
+        This is used for audio_only packaging mode (file-level torrents).
 
     Args:
         series: Series name (cleaned). If None, treated as standalone.
@@ -328,12 +354,13 @@ def build_mam_path(
         year: Release year (4 digits)
         author: Primary author name (cleaned)
         asin: Amazon ASIN (optional - if None, ASIN component is omitted from path)
-        ripper_tag: Optional ripper tag (e.g., "H2OKing")
+        ripper_tag: Optional ripper tag (e.g., "H2OKing") - in file_only mode, included on filename
         extension: File extension (default: ".m4b")
         part_count: Number of parts (>1 adjusts budget for " - Part XX")
         naming_config: NamingConfig for cleaning rules
         max_path_length: Maximum path length (default: 225 for MAM)
         folder_max_length: Optional constraint on folder length only (for legacy callers)
+        file_only: If True, only filename is used (no folder). Used for audio_only packaging.
 
     Returns:
         MamPath with folder, filename, and truncation metadata
@@ -343,6 +370,10 @@ def build_mam_path(
     # Ensure extension starts with dot
     if extension and not extension.startswith("."):
         extension = f".{extension}"
+
+    # Sanitize ripper_tag FIRST - needed for accurate budget calculation
+    # (sanitization can expand tags, so we must use the final length for budget math)
+    clean_tag = sanitize_filename(ripper_tag) if ripper_tag else None
 
     # Clean inputs - use filter_series() for series to apply series-specific patterns
     # (e.g., remove " Series", " Trilogy", "[publication order]" suffixes)
@@ -366,20 +397,22 @@ def build_mam_path(
     clean_asin = sanitize_filename(asin) if asin else None
     asin_str = f"{{ASIN.{clean_asin}}}" if clean_asin else ""
 
-    # Calculate max base length
+    # Calculate max base length using sanitized tag (clean_tag) for accurate overhead
+    # For file_only mode (audio_only packaging), base appears once, so more budget available
     # If folder_max_length is set, use min(folder constraint, path constraint)
     # This ensures both folder AND full path stay within their respective limits
-    if folder_max_length is not None:
+    if folder_max_length is not None and not file_only:
         # Folder = "{base} [{tag}]" or just "{base}"
-        tag_overhead = len(f" [{ripper_tag}]") if ripper_tag else 0
+        tag_overhead = len(f" [{clean_tag}]") if clean_tag else 0
         base_from_folder = folder_max_length - tag_overhead
 
         # Also calculate path budget to ensure full path stays within limit
         base_from_path = _calculate_max_base_length(
-            ripper_tag=ripper_tag,
+            ripper_tag=clean_tag,
             extension=extension,
             part_count=part_count,
             max_path_length=max_path_length,
+            file_only=False,
         )
 
         # Use the stricter of the two constraints
@@ -387,10 +420,11 @@ def build_mam_path(
     else:
         # Use path budget formula only
         max_base_len = _calculate_max_base_length(
-            ripper_tag=ripper_tag,
+            ripper_tag=clean_tag,
             extension=extension,
             part_count=part_count,
             max_path_length=max_path_length,
+            file_only=file_only,
         )
 
     # Build the base name (with truncation if needed)
@@ -437,14 +471,23 @@ def build_mam_path(
     # Check if tag was dropped during truncation (not yet implemented in _build_truncated_base_name)
     # For now, tag is always included if provided - it's handled by the budget formula
 
-    # Sanitize ripper_tag to protect against special characters
-    clean_tag = sanitize_filename(ripper_tag) if ripper_tag else None
+    # NOTE: clean_tag was sanitized earlier (before budget calculation) to ensure accurate math
 
     # Build folder and filename
+    # For file_only mode, we still create a staging folder but the torrent path is just the file
+    # In file_only mode, the tag goes on the FILENAME (since file is the torrent content)
     folder = f"{base_name} [{clean_tag}]" if clean_tag else base_name
 
-    filename = f"{base_name}{extension}"
-    full_path = f"{folder}/{filename}"
+    # In file_only mode, include tag on filename since that's what gets uploaded to MAM
+    # In folder mode, tag is only on folder (per MAM convention)
+    if file_only and clean_tag:
+        filename = f"{base_name} [{clean_tag}]{extension}"
+    else:
+        filename = f"{base_name}{extension}"
+
+    # For file_only mode (audio_only packaging), full_path is just filename
+    # since that's what gets uploaded to MAM as the torrent
+    full_path = filename if file_only else f"{folder}/{filename}"
 
     # Log if truncation occurred
     if truncated:

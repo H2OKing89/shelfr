@@ -1816,3 +1816,102 @@ class TestBuildMamPath:
         )
 
         assert result.filename.endswith(".m4b")
+
+    def test_file_only_mode_doubles_budget(self) -> None:
+        """Test that file_only mode provides more base name budget than folder mode."""
+        from shelfr.utils.naming import build_mam_path
+
+        # Long series that would require truncation in folder mode
+        long_series = (
+            "The Too-Perfect Saint - Tossed Aside by My Fiancé and Sold to Another Kingdom"
+        )
+
+        # Folder mode (default) - full_path is folder/filename
+        folder_result = build_mam_path(
+            series=long_series,
+            title="Test",
+            volume_number="2",
+            asin="B0GFFS62GK",
+            ripper_tag="H2OKing",
+            file_only=False,
+        )
+
+        # File-only mode - full_path is just filename (with tag on filename)
+        file_result = build_mam_path(
+            series=long_series,
+            title="Test",
+            volume_number="2",
+            asin="B0GFFS62GK",
+            ripper_tag="H2OKing",
+            file_only=True,
+        )
+
+        # Both should be within 225 chars
+        assert folder_result.length <= 225
+        assert file_result.length <= 225
+
+        # File-only mode should have longer filenames possible
+        # since base name appears only once (vs twice in folder mode)
+        assert len(file_result.filename) >= len(folder_result.filename)
+
+        # File-only mode includes tag on filename (file IS the torrent)
+        assert "[H2OKing]" in file_result.filename
+
+        # File-only full_path is just filename (no folder/)
+        assert file_result.full_path == file_result.filename
+        assert "/" not in file_result.full_path
+
+        # Folder mode full_path includes folder/
+        assert folder_result.full_path == f"{folder_result.folder}/{folder_result.filename}"
+        # Folder mode: tag on folder only, not filename
+        assert "[H2OKing]" not in folder_result.filename
+
+    def test_file_only_mode_no_truncation_for_107_char_name(self) -> None:
+        """Test that file_only mode doesn't truncate moderately long names."""
+        from shelfr.utils.naming import build_mam_path
+
+        # This is the user's actual example - should not require truncation
+        result = build_mam_path(
+            series="The Too-Perfect Saint - Tossed Aside by My Fiancé and Sold to Another Kingdom",
+            title="Test",
+            volume_number="02",
+            asin="B0GFFS62GK",
+            ripper_tag="H2OKing",
+            file_only=True,
+        )
+
+        # Should NOT be truncated - well under 225 char limit
+        assert not result.truncated
+        assert len(result.dropped_components) == 0
+
+        # Full path (just filename with tag) should be reasonable length
+        assert result.length < 200  # Well under limit
+
+        # ASIN should be preserved intact
+        assert "{ASIN.B0GFFS62GK}" in result.filename
+
+        # Tag should be on filename in file_only mode
+        assert "[H2OKing]" in result.filename
+
+    def test_file_only_mode_folder_still_created(self) -> None:
+        """Test that folder is still generated for staging even in file_only mode."""
+        from shelfr.utils.naming import build_mam_path
+
+        result = build_mam_path(
+            series="Test Series",
+            title="Test",
+            volume_number="1",
+            asin="B0TEST",
+            ripper_tag="H2OKing",
+            file_only=True,
+        )
+
+        # Folder should still be generated (for staging directory)
+        assert result.folder
+        assert "[H2OKing]" in result.folder
+
+        # In file_only mode, tag is ALSO on filename (file is the torrent content)
+        assert "[H2OKing]" in result.filename
+
+        # full_path should be just filename (for MAM path compliance)
+        assert result.full_path == result.filename

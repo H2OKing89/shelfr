@@ -175,35 +175,64 @@ vol_(?P<base>\d+(?:\.\d+)?)
 
 ### Standard Format (Files)
 
-Same as folder name but:
+**Folder mode (`packaging: folder`):**
 
-- No ripper tag (only on folder)
+- No ripper tag on filename (only on folder)
 - Includes file extension
 
-**Series books:**
+**File-only mode (`packaging: audio_only`):**
+
+- Ripper tag IS included on filename (since file is the torrent content)
+- Includes file extension
+
+**Series books (folder mode):**
 
 ```text
 {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN.xxxxx}.m4b
 ```
 
-**Standalone books:**
+**Series books (file-only mode):**
+
+```text
+{Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}].m4b
+```
+
+**Standalone books (folder mode):**
 
 ```text
 {Title} ({Year}) ({Author}) {ASIN.xxxxx}.m4b
 ```
 
+**Standalone books (file-only mode):**
+
+```text
+{Title} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}].m4b
+```
+
 ### Examples (File Names)
 
-**Standalone Book:**
+**Standalone Book (folder mode):**
 
 ```text
 Project Hail Mary (2021) (Andy Weir) {ASIN.B08G9PRS1K}.m4b
 ```
 
-**Series Book:**
+**Standalone Book (file-only mode):**
+
+```text
+Project Hail Mary (2021) (Andy Weir) {ASIN.B08G9PRS1K} [H2OKing].m4b
+```
+
+**Series Book (folder mode):**
 
 ```text
 Stormlight Archive vol_01 The Way of Kings (2010) (Brandon Sanderson) {ASIN.B003ZWFO7E}.m4b
+```
+
+**Series Book (file-only mode):**
+
+```text
+Stormlight Archive vol_01 The Way of Kings (2010) (Brandon Sanderson) {ASIN.B003ZWFO7E} [H2OKing].m4b
 ```
 
 ---

@@ -1,5 +1,11 @@
 # Secrets
 .env
+.admin_issues.md
+.admin_notes
+
+# User config (use config.yaml.example as template)
+config.yaml
+config/config.yaml
 
 # Python
 __pycache__/
@@ -73,6 +79,8 @@ docs/reference/audnex/
 docs/reference/hardcover/
 docs/reference/mam/
 docs/reference/mkbrr/
+docs/reference/audible/
+
 
 # BBCode signature samples (user-specific, generated)
 samples/bbcode_sig*.json

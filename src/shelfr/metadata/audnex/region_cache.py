@@ -24,6 +24,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from shelfr.utils.permissions import fix_ownership
+
 logger = logging.getLogger(__name__)
 
 
@@ -150,6 +152,24 @@ class RegionCache:
         self._max_transient_failures = max_transient_failures
         self._max_entries = max_entries
         self._ttl_days = ttl_days
+
+    def _fix_file_ownership(self, path: Path) -> None:
+        """Fix ownership on a cache file to target UID:GID.
+
+        Uses settings.target_uid/target_gid (defaults to 99:100 for Unraid).
+        Fails silently if settings unavailable or chown fails.
+
+        Args:
+            path: Path to the file to fix ownership on
+        """
+        try:
+            from shelfr.config import get_settings
+
+            settings = get_settings()
+            fix_ownership(path, settings.target_uid, settings.target_gid)
+        except Exception as e:
+            # Best-effort for cache files - log at debug for troubleshooting
+            logger.debug("Ownership fix skipped for %s: %s", path, e)
 
     async def load(self) -> None:
         """Load cache from disk.
@@ -416,6 +436,9 @@ class RegionCache:
             )
             # Atomic replace (cross-platform: works on both POSIX and Windows)
             os.replace(tmp_path, self._path)
+
+            # Fix ownership to target UID:GID (e.g., Unraid's nobody:users 99:100)
+            self._fix_file_ownership(self._path)
         except OSError as e:
             logger.error("Failed to write region cache: %s", e)
             # Clean up temp file if it exists

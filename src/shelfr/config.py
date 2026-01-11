@@ -168,6 +168,34 @@ class AudnexConfig:
 
 
 @dataclass
+class HardcoverConfig:
+    """Hardcover API settings (from config.yaml hardcover section).
+
+    Phase 12: Hardcover provider for content warnings and rich metadata.
+    """
+
+    enabled: bool = True  # Enable/disable Hardcover provider
+    # API key from environment variable HARDCOVER_API_KEY (not stored in config)
+    timeout_seconds: int = 30
+    rate_limit_per_minute: int = 60  # Hardcover API limit
+    match_threshold: float = 0.70  # Fuzzy match threshold (0.0-1.0)
+    cache_ttl_days: int = 7  # Cache TTL in days (book metadata changes slowly)
+
+    def __post_init__(self) -> None:
+        """Validate field ranges."""
+        if not 0.0 <= self.match_threshold <= 1.0:
+            raise ValueError(f"match_threshold must be 0.0-1.0, got {self.match_threshold}")
+        if self.timeout_seconds < 1:
+            raise ValueError(f"timeout_seconds must be >= 1, got {self.timeout_seconds}")
+        if self.rate_limit_per_minute < 1:
+            raise ValueError(
+                f"rate_limit_per_minute must be >= 1, got {self.rate_limit_per_minute}"
+            )
+        if self.cache_ttl_days < 0:
+            raise ValueError(f"cache_ttl_days must be >= 0, got {self.cache_ttl_days}")
+
+
+@dataclass
 class MediaInfoConfig:
     """MediaInfo settings (from config.yaml mediainfo section)."""
 
@@ -355,10 +383,24 @@ class UploadSanitizeConfig:
 
 
 @dataclass(frozen=True)
+class ContentWarningsConfig:
+    """Content warnings settings for the upload workflow.
+
+    When enabled, fetches content warnings from Hardcover API
+    and maps them to MAM content flags (vio, cLang, sSex, eSex, lgbt).
+    Requires hardcover.enabled = True in global config.
+    """
+
+    enabled: bool = False
+
+
+@dataclass(frozen=True)
 class UploadWorkflowConfig:
     """Upload workflow settings (shelfr run)."""
 
     sanitize: UploadSanitizeConfig = field(default_factory=UploadSanitizeConfig)
+    content_warnings: ContentWarningsConfig = field(default_factory=ContentWarningsConfig)
+    packaging: str = "folder"  # "folder" or "audio_only"
 
 
 @dataclass(frozen=True)
@@ -536,7 +578,7 @@ class Settings:
     env: str  # .env: SHELFR_ENV
     log_level: str  # .env: LOG_LEVEL
 
-    # From config.yaml
+    # From config.yaml (required - no defaults)
     paths: PathsConfig
     mam: MamConfig
     mkbrr: MkbrrConfig
@@ -548,6 +590,9 @@ class Settings:
     filters: FiltersConfig
     categories: CategoriesConfig
     naming: NamingConfig
+
+    # From config.yaml (optional - with defaults)
+    hardcover: HardcoverConfig = field(default_factory=HardcoverConfig)
     audiobookshelf: AudiobookshelfConfig = field(default_factory=AudiobookshelfConfig)
     workflow: WorkflowConfig = field(default_factory=WorkflowConfig)
 
@@ -865,7 +910,42 @@ def _parse_workflow_config(data: dict[str, Any] | None) -> WorkflowConfig:
         tags=normalized_tags,
     )
 
-    return WorkflowConfig(upload=UploadWorkflowConfig(sanitize=sanitize_config))
+    # Parse content_warnings config (with type guard)
+    content_warnings_raw = upload_data.get("content_warnings", {})
+    content_warnings_data = content_warnings_raw if isinstance(content_warnings_raw, dict) else {}
+    if not isinstance(content_warnings_raw, dict) and content_warnings_raw is not None:
+        logger.warning(
+            "Invalid content_warnings type '%s', defaulting to disabled",
+            type(content_warnings_raw).__name__,
+        )
+    content_warnings_config = ContentWarningsConfig(
+        enabled=content_warnings_data.get("enabled", False),
+    )
+
+    # Parse packaging mode (with type guard)
+    packaging_raw = upload_data.get("packaging", "folder")
+    if isinstance(packaging_raw, str):
+        packaging_mode = packaging_raw.lower()
+    else:
+        logger.warning(
+            "Invalid packaging mode type '%s', defaulting to 'folder'",
+            type(packaging_raw).__name__,
+        )
+        packaging_mode = "folder"
+    if packaging_mode not in {"folder", "audio_only"}:
+        logger.warning(
+            "Invalid packaging mode '%s', defaulting to 'folder'",
+            packaging_mode,
+        )
+        packaging_mode = "folder"
+
+    return WorkflowConfig(
+        upload=UploadWorkflowConfig(
+            sanitize=sanitize_config,
+            content_warnings=content_warnings_config,
+            packaging=packaging_mode,
+        )
+    )
 
 
 def _load_categories(config_dir: Path) -> CategoriesConfig:
@@ -1271,6 +1351,11 @@ def load_settings(
             author_map=naming.author_map,
             preserve_volume_in_json=naming.preserve_volume_in_json,
             ripper_tag=ripper_tag_value if ripper_tag_value else None,
+            author_roles=naming.author_roles,
+            credit_roles=naming.credit_roles,
+            normalize_title_subtitle=naming.normalize_title_subtitle,
+            log_normalization_swaps=naming.log_normalization_swaps,
+            path_drop_priority=naming.path_drop_priority,
         )
 
     # Parse filters config
@@ -1302,6 +1387,25 @@ def load_settings(
 
     # Load categories from config/categories.json
     categories = _load_categories(config_dir)
+
+    # Parse Hardcover config (with type guard and error wrapping)
+    hardcover_raw = yaml_config.get("hardcover", {})
+    if not isinstance(hardcover_raw, dict):
+        logger.warning(
+            "hardcover config must be a mapping, got '%s'; using defaults",
+            type(hardcover_raw).__name__,
+        )
+        hardcover_raw = {}
+    try:
+        hardcover = HardcoverConfig(
+            enabled=hardcover_raw.get("enabled", True),
+            timeout_seconds=hardcover_raw.get("timeout_seconds", 30),
+            rate_limit_per_minute=hardcover_raw.get("rate_limit_per_minute", 60),
+            match_threshold=hardcover_raw.get("match_threshold", 0.70),
+            cache_ttl_days=hardcover_raw.get("cache_ttl_days", 7),
+        )
+    except ValueError as e:
+        raise ConfigurationError(f"Invalid hardcover configuration: {e}") from e
 
     # Parse Audiobookshelf config
     abs_data = yaml_config.get("audiobookshelf", {})
@@ -1398,6 +1502,7 @@ def load_settings(
         categories=categories,
         naming=naming,
         audiobookshelf=audiobookshelf,
+        hardcover=hardcover,
         workflow=workflow,
     )
 

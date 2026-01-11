@@ -38,6 +38,7 @@ from typing import Any, Protocol
 
 from shelfr.metadata.providers.types import FieldName, IdType
 from shelfr.paths import cache_dir as get_platform_cache_dir
+from shelfr.utils.permissions import fix_ownership
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +250,24 @@ class FileCache:
 
         return self.cache_dir / f"{safe_key}.json"
 
+    def _fix_file_ownership(self, path: Path) -> None:
+        """Fix ownership on a cache file to target UID:GID.
+
+        Uses settings.target_uid/target_gid (defaults to 99:100 for Unraid).
+        Fails silently if settings unavailable or chown fails.
+
+        Args:
+            path: Path to the file to fix ownership on
+        """
+        try:
+            from shelfr.config import get_settings
+
+            settings = get_settings()
+            fix_ownership(path, settings.target_uid, settings.target_gid)
+        except Exception as e:
+            # Best-effort for cache files - log at debug for troubleshooting
+            logger.debug("Ownership fix skipped for %s: %s", path, e)
+
     async def get(self, key: str) -> CachedResult | None:
         """Retrieve cached result from JSON file.
 
@@ -277,6 +296,7 @@ class FileCache:
         """Store result as JSON file with atomic write.
 
         Uses temp file + rename for atomicity (prevents corruption on crashes).
+        Fixes ownership to target UID:GID for Unraid compatibility.
 
         Args:
             key: Cache key
@@ -291,6 +311,9 @@ class FileCache:
             tmp_path = cache_path.with_suffix(".tmp")
             await asyncio.to_thread(tmp_path.write_text, data, encoding="utf-8")
             await asyncio.to_thread(tmp_path.replace, cache_path)
+
+            # Fix ownership to target UID:GID (e.g., Unraid's nobody:users 99:100)
+            await asyncio.to_thread(self._fix_file_ownership, cache_path)
         except OSError as e:
             logger.warning(f"Cache write error for {key}: {e}")
 

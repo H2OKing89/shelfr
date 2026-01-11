@@ -153,30 +153,30 @@ def filter_title(
                 transformations.append((before, result, "volume_patterns"))
 
     # Step 4: Apply naming config patterns (format_indicators, genre_tags, publisher_tags)
+    # CRITICAL: All patterns from ALL categories must be sorted by length DESC together
+    # to prevent partial matches across categories.
+    # e.g., "A Light Novel" (genre_tag) must match before "Light Novel" (format_indicator)
     if naming_config:
-        # Format indicators (case-insensitive phrase matching)
+        # Combine all patterns with their category for logging
+        all_patterns: list[tuple[str, str]] = []  # (phrase, category)
+
         for phrase in naming_config.format_indicators or []:
-            before = result
-            pattern = _compile_phrase_pattern(phrase)
-            result = pattern.sub("", result)
-            if before != result and verbose:
-                transformations.append((before, result, f"format_indicators:{phrase}"))
-
-        # Genre tags (case-insensitive phrase matching)
+            all_patterns.append((phrase, "format_indicators"))
         for phrase in naming_config.genre_tags or []:
-            before = result
-            pattern = _compile_phrase_pattern(phrase)
-            result = pattern.sub("", result)
-            if before != result and verbose:
-                transformations.append((before, result, f"genre_tags:{phrase}"))
-
-        # Publisher tags (case-insensitive phrase matching)
+            all_patterns.append((phrase, "genre_tags"))
         for phrase in naming_config.publisher_tags or []:
+            all_patterns.append((phrase, "publisher_tags"))
+
+        # Sort by length descending - longest patterns first to avoid partial matches
+        all_patterns.sort(key=lambda x: len(x[0]), reverse=True)
+
+        # Apply in sorted order
+        for phrase, category in all_patterns:
             before = result
             pattern = _compile_phrase_pattern(phrase)
             result = pattern.sub("", result)
             if before != result and verbose:
-                transformations.append((before, result, f"publisher_tags:{phrase}"))
+                transformations.append((before, result, f"{category}:{phrase}"))
 
     # Step 5: Apply legacy user-configured phrases (backward compatibility)
     if remove_phrases:

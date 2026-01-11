@@ -65,6 +65,7 @@ from shelfr.utils.naming.string_utils import (
     transliterate_text,
     truncate_filename,
 )
+from shelfr.utils.naming.titlecase import mla_title_case
 from shelfr.utils.naming.volume_parsing import (
     extract_volume_number,
     format_volume_number,
@@ -186,6 +187,8 @@ __all__ = [
     "cleanup_string",
     "transliterate_text",
     "truncate_filename",
+    # Titlecase module
+    "mla_title_case",
     # Volume parsing module
     "extract_volume_number",
     "format_volume_number",
