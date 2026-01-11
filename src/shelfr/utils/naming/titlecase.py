@@ -1,19 +1,27 @@
-"""MLA title case transformation for MAM compliance and general use.
+"""MLA-style title case transformation for MAM compliance and general use.
 
-This module provides MLA (Modern Language Association) title case formatting,
-which MAM explicitly requires for English-language audiobook titles, subtitles,
-and series names.
+This module applies MLA-style title case via the `titlecase` package with
+audiobook-specific customizations (Roman numerals, abbreviations, acronyms).
 
-MLA Rules (implemented by the `titlecase` package):
+MAM explicitly requires MLA-style title case for English-language audiobook titles,
+subtitles, and series names.
+
+Core Rules (titlecase package with NY Times-derived small-word list):
 - Capitalize the first word and the last word
 - Capitalize nouns, pronouns, verbs, adjectives, adverbs, subordinating conjunctions
 - Do NOT capitalize articles (a, an, the)
-- Do NOT capitalize prepositions (regardless of length)
+- Do NOT capitalize prepositions (via titlecase small-word list)
 - Do NOT capitalize coordinating conjunctions (and, but, or, nor)
 - Do NOT capitalize "to" in infinitives
 - Capitalize principal words after hyphens
 
-Reference: https://titlecaseconverter.com/ (select MLA style)
+Note: The titlecase package uses NY Times-derived rules, not strict MLA.
+For strict MLA compliance, all prepositions would be lowercased; titlecase
+lowercases common prepositions but may capitalize less-common ones.
+
+References:
+- https://titlecaseconverter.com/ (online converter with MLA option)
+- https://style.mla.org (MLA Style Center)
 """
 
 from __future__ import annotations

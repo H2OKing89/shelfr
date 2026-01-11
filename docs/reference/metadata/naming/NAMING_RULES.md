@@ -176,19 +176,23 @@ Step 2: "The Book"           (marketing phrase removed)
 
 MAM **explicitly requires MLA (Modern Language Association) title case** for English-language audiobook titles, subtitles, and series names. Shelfr applies MLA title case transformation to ensure compliance.
 
-### MLA Capitalization Rules
+### MLA-Style Capitalization Rules
 
-The `titlecase` package implements MLA rules:
+Shelfr uses the `titlecase` package (NY Times-derived rules) with audiobook-specific
+customizations. Note: This is MLA-style, not strict MLA.
 
 | Capitalize | Do NOT Capitalize |
 | --- | --- |
 | First word | Articles (a, an, the) |
-| Last word | Prepositions (regardless of length) |
+| Last word | Common prepositions (via titlecase small-word list)* |
 | Nouns, pronouns | Coordinating conjunctions (and, but, or, nor) |
 | Verbs, adjectives | "to" in infinitives |
 | Adverbs | |
 | Subordinating conjunctions | |
 | Principal words after hyphens | |
+
+*Strict MLA lowercases all prepositions; titlecase lowercases common ones but may
+capitalize less-common prepositions.
 
 ### Examples
 
@@ -259,7 +263,9 @@ MLA title case is applied to:
 
 - Module: [`src/shelfr/utils/naming/titlecase.py`](/src/shelfr/utils/naming/titlecase.py)
 - Package: [`titlecase`](https://pypi.org/project/titlecase/) (>=2.4)
-- Style guide: [MLA Title Case Rules](https://titlecaseconverter.com/)
+- References:
+  - [TitleCase Converter](https://titlecaseconverter.com/) (online converter with MLA option)
+  - [MLA Style Center](https://style.mla.org) (official MLA style guide)
 
 ---
 
