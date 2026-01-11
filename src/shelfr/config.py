@@ -1509,27 +1509,39 @@ def load_settings(
     # Parse workflow config (with backward compatibility)
     workflow = _parse_workflow_config(yaml_config.get("workflow"))
 
+    # Sanitize deprecated naming.ripper_tag before migration
+    # Apply same normalization as new fields: type-guard, strip, convert empty to None
+    legacy_ripper_tag: str | None = None
+    if naming.ripper_tag is not None:
+        if isinstance(naming.ripper_tag, str):
+            legacy_ripper_tag = naming.ripper_tag.strip() or None
+        else:
+            logger.warning(
+                "naming.ripper_tag must be a string, got '%s'; ignoring",
+                type(naming.ripper_tag).__name__,
+            )
+
     # Backward compatibility: fall back to naming.ripper_tag if workflow.upload.ripper_tag not set
     # This supports the deprecated naming.ripper_tag location during migration period
-    if workflow.upload.ripper_tag is None and naming.ripper_tag is not None:
+    if workflow.upload.ripper_tag is None and legacy_ripper_tag is not None:
         logger.warning(
             "naming.ripper_tag is deprecated for uploads. "
             "Please migrate to workflow.upload.ripper_tag"
         )
         workflow = replace(
             workflow,
-            upload=replace(workflow.upload, ripper_tag=naming.ripper_tag),
+            upload=replace(workflow.upload, ripper_tag=legacy_ripper_tag),
         )
 
     # Backward compatibility: fall back to naming.ripper_tag for ABS import if not set
-    if audiobookshelf.import_settings.ripper_tag is None and naming.ripper_tag is not None:
+    if audiobookshelf.import_settings.ripper_tag is None and legacy_ripper_tag is not None:
         logger.warning(
             "naming.ripper_tag is deprecated for ABS imports. "
             "Please migrate to audiobookshelf.import.ripper_tag"
         )
         audiobookshelf = replace(
             audiobookshelf,
-            import_settings=replace(audiobookshelf.import_settings, ripper_tag=naming.ripper_tag),
+            import_settings=replace(audiobookshelf.import_settings, ripper_tag=legacy_ripper_tag),
         )
 
     # Parse environment section (YAML overrides pydantic-settings values)

@@ -959,16 +959,19 @@ naming:
 """
             )
 
-            settings = load_settings(
-                config_file=config_subdir / "config.yaml",
-                env_file=None,
-                validate=False,
-            )
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
 
             # workflow.upload.ripper_tag should inherit from naming.ripper_tag
             assert settings.workflow.upload.ripper_tag == "LegacyTag"
             # Verify deprecation warning was logged
-            assert "naming.ripper_tag is deprecated" in caplog.text
+            assert any(
+                "naming.ripper_tag is deprecated" in record.message for record in caplog.records
+            )
 
     def test_ripper_tag_workflow_takes_precedence_over_naming(self) -> None:
         """Test workflow.upload.ripper_tag takes precedence over naming.ripper_tag."""
@@ -1190,6 +1193,94 @@ audiobookshelf:
 
             # Explicit value takes precedence
             assert settings.audiobookshelf.import_settings.ripper_tag == "NEW-TAG"
+
+    def test_naming_ripper_tag_invalid_type_logged_and_not_migrated(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test invalid naming.ripper_tag type is not migrated to new fields."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # naming.ripper_tag as integer (invalid type)
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: 456
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # Should not migrate invalid type to new fields
+            assert settings.workflow.upload.ripper_tag is None
+            assert settings.audiobookshelf.import_settings.ripper_tag is None
+            # Should log warning about invalid type
+            assert any(
+                "naming.ripper_tag must be a string" in record.message for record in caplog.records
+            )
+            # Should NOT log deprecation warnings since migration didn't happen
+            assert not any(
+                "naming.ripper_tag is deprecated" in record.message for record in caplog.records
+            )
+
+    def test_naming_ripper_tag_whitespace_becomes_none_and_not_migrated(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test whitespace-only naming.ripper_tag is not migrated to new fields."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # naming.ripper_tag as whitespace-only string
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "   "
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # Should not migrate whitespace-only to new fields
+            assert settings.workflow.upload.ripper_tag is None
+            assert settings.audiobookshelf.import_settings.ripper_tag is None
+            # Should NOT log deprecation warnings since value was normalized to None
+            assert not any(
+                "naming.ripper_tag is deprecated" in record.message for record in caplog.records
+            )
 
     def test_workflow_upload_ripper_tag_invalid_type_logged(
         self, caplog: pytest.LogCaptureFixture
