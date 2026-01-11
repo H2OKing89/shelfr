@@ -99,7 +99,7 @@ def print_error_panel(
         >>> print_error_panel(
         ...     "Connection failed",
         ...     details=["Host: localhost:8080", "Timeout: 30s"],
-        ...     hints=["Check if the server is running", "Verify the port number"]
+        ...     hints=["Check if the server is running", "Verify the port number"],
         ... )
     """
     from rich.panel import Panel

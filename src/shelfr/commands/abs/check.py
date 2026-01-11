@@ -56,9 +56,7 @@ def cmd_abs_check_duplicate(args: argparse.Namespace) -> int:
     Examples:
         >>> # Typical usage via argparse namespace
         >>> args = argparse.Namespace(
-        ...     asin="B09GHD1R2R",
-        ...     config=Path("config/config.yaml"),
-        ...     dry_run=False
+        ...     asin="B09GHD1R2R", config=Path("config/config.yaml"), dry_run=False
         ... )
         >>> exit_code = cmd_abs_check_duplicate(args)
         >>> # Returns 0 if ASIN not found, 1 if exists or error

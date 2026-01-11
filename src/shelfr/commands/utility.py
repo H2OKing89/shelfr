@@ -297,7 +297,7 @@ def cmd_validate_config(args: argparse.Namespace) -> int:
             config_dir = config_parent.parent
             use_subdir = True
     else:
-        config_dir = Path(".")
+        config_dir = Path()
         use_subdir = True
 
     errors_found = False

@@ -24,8 +24,8 @@ if TYPE_CHECKING:
     pass
 
 __all__ = [
-    "MetadataExporter",
     "JsonExporter",
+    "MetadataExporter",
     "OpfExporter",
     "get_exporter",
     "list_exporters",

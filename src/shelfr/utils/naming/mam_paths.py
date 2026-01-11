@@ -108,7 +108,7 @@ def _calculate_max_base_length(
     """
     # Determine extension length (worst case for multi-file)
     # Using if/else to preserve the explanatory comment
-    if part_count > 1:  # noqa: SIM108
+    if part_count > 1:
         # " - Part XX.m4b" = 14 chars worst case
         ext_len = 14
     else:
@@ -129,7 +129,7 @@ def _calculate_max_base_length(
 
     # For folder mode, calculate overhead based on whether we have a tag
     # Using if/else to preserve the detailed math comments
-    if ripper_tag:  # noqa: SIM108
+    if ripper_tag:
         # With tag: folder = "{base} [{tag}]", filename = "{base}{ext}"
         # Total = len(base) + 1 + 1 + len(tag) + 1 + 1 + len(base) + ext_len
         #       = 2*len(base) + len(tag) + ext_len + 4

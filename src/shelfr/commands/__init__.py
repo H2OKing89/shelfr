@@ -48,32 +48,32 @@ from shelfr.commands.utility import (
 )
 
 __all__ = [
-    # Core workflow
-    "cmd_prepare",  # Also available as `shelfr tools prepare`
-    "cmd_run",
-    # Utility
-    "cmd_status",
-    "cmd_check",
-    "cmd_validate",
-    "cmd_validate_config",
-    "cmd_config",
-    # Diagnostics
-    "cmd_preview_naming",
-    "cmd_check_duplicates",
-    "cmd_check_suspicious",
-    # State management
-    "cmd_state",
-    # Libation
-    "cmd_libation",
     "add_libation_parser",
+    "cmd_abs_check_duplicate",
+    "cmd_abs_cleanup",
+    "cmd_abs_import",
     # ABS
     "cmd_abs_init",
-    "cmd_abs_import",
-    "cmd_abs_check_duplicate",
-    "cmd_abs_trump_check",
-    "cmd_abs_restore",
-    "cmd_abs_cleanup",
-    "cmd_abs_rename",
     "cmd_abs_orphans",
+    "cmd_abs_rename",
     "cmd_abs_resolve_asins",
+    "cmd_abs_restore",
+    "cmd_abs_trump_check",
+    "cmd_check",
+    "cmd_check_duplicates",
+    "cmd_check_suspicious",
+    "cmd_config",
+    # Libation
+    "cmd_libation",
+    # Core workflow
+    "cmd_prepare",  # Also available as `shelfr tools prepare`
+    # Diagnostics
+    "cmd_preview_naming",
+    "cmd_run",
+    # State management
+    "cmd_state",
+    # Utility
+    "cmd_status",
+    "cmd_validate",
+    "cmd_validate_config",
 ]

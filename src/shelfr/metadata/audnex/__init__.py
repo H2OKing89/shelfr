@@ -66,18 +66,18 @@ from shelfr.metadata.audnex.region_cache import (
 __all__ = [
     # Public API
     "AudnexAsyncClient",
+    "FailureType",
+    # Region cache (Phase 10.2)
+    "RegionCache",
+    "RegionCacheEntry",
+    # Private (for testing/backward compat)
+    "_fetch_audnex_book_region",
+    "_fetch_audnex_chapters_region",
     "fetch_audnex_author",
     "fetch_audnex_book",
     "fetch_audnex_book_parallel",
     "fetch_audnex_book_with_cache",
     "fetch_audnex_chapters",
-    "save_audnex_json",
-    # Region cache (Phase 10.2)
-    "RegionCache",
-    "RegionCacheEntry",
-    "FailureType",
     "get_default_region_cache",
-    # Private (for testing/backward compat)
-    "_fetch_audnex_book_region",
-    "_fetch_audnex_chapters_region",
+    "save_audnex_json",
 ]

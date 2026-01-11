@@ -82,19 +82,19 @@ create_main_callback(app)
 # This avoids circular import issues while keeping command definitions in
 # separate files.
 
-from shelfr.cli.abs import (  # noqa: E402
+from shelfr.cli.abs import (
     register_abs_commands,
     register_abs_deprecated_aliases,
 )
-from shelfr.cli.audnex import register_audnex_commands  # noqa: E402
-from shelfr.cli.core import register_core_commands  # noqa: E402
-from shelfr.cli.diagnostics import register_diagnostics_commands  # noqa: E402
-from shelfr.cli.edit import register_edit_commands  # noqa: E402
-from shelfr.cli.libation import register_libation_commands  # noqa: E402
-from shelfr.cli.mam import register_mam_commands  # noqa: E402
-from shelfr.cli.mkbrr import register_mkbrr_commands  # noqa: E402
-from shelfr.cli.state import register_state_commands  # noqa: E402
-from shelfr.cli.tools import register_tools_commands  # noqa: E402
+from shelfr.cli.audnex import register_audnex_commands
+from shelfr.cli.core import register_core_commands
+from shelfr.cli.diagnostics import register_diagnostics_commands
+from shelfr.cli.edit import register_edit_commands
+from shelfr.cli.libation import register_libation_commands
+from shelfr.cli.mam import register_mam_commands
+from shelfr.cli.mkbrr import register_mkbrr_commands
+from shelfr.cli.state import register_state_commands
+from shelfr.cli.tools import register_tools_commands
 
 register_core_commands(app)
 register_diagnostics_commands(app)
@@ -159,10 +159,10 @@ def main() -> int:
 # =============================================================================
 
 # Re-export argparse parser for tests
-from shelfr.cli_argparse import build_parser  # noqa: E402
+from shelfr.cli_argparse import build_parser
 
 # Re-export ABS command handlers for external callers
-from shelfr.commands.abs import (  # noqa: E402
+from shelfr.commands.abs import (
     cmd_abs_check_duplicate,
     cmd_abs_cleanup,
     cmd_abs_import,
@@ -173,48 +173,48 @@ from shelfr.commands.abs import (  # noqa: E402
 )
 
 __all__ = [
-    # App instances
-    "app",
-    "state_app",
-    "libation_app",
-    "tools_app",
-    "edit_app",
-    # Entry point
-    "main",
-    # Context
-    "RuntimeContext",
-    "get_runtime_context",
-    # Legacy helpers (deprecated)
-    "ArgsNamespace",
-    "get_args",
-    # Enums
-    "DuplicatePolicy",
-    "TrumpAggressiveness",
-    "CleanupStrategy",
-    "SearchFormat",
-    "ExportFormat",
-    "BookStatus",
-    "BooksFormat",
-    "SetStatusValue",
-    # Type aliases
-    "AsinArg",
-    # Validators
-    "validate_asin_callback",
+    "ABS_COMMANDS",
     # Constants
     "CORE_COMMANDS",
-    "ABS_COMMANDS",
-    "STATE_COMMANDS",
     "DIAG_COMMANDS",
+    "STATE_COMMANDS",
     "TOOLS_COMMANDS",
+    # Legacy helpers (deprecated)
+    "ArgsNamespace",
+    # Type aliases
+    "AsinArg",
+    "BookStatus",
+    "BooksFormat",
+    "CleanupStrategy",
+    # Enums
+    "DuplicatePolicy",
+    "ExportFormat",
+    # Context
+    "RuntimeContext",
+    "SearchFormat",
+    "SetStatusValue",
+    "TrumpAggressiveness",
+    # App instances
+    "app",
     # Backward compatibility
     "build_parser",
-    "cmd_abs_init",
-    "cmd_abs_import",
-    "cmd_abs_cleanup",
     "cmd_abs_check_duplicate",
+    "cmd_abs_cleanup",
+    "cmd_abs_import",
+    "cmd_abs_init",
     "cmd_abs_resolve_asins",
-    "cmd_abs_trump_check",
     "cmd_abs_restore",
+    "cmd_abs_trump_check",
+    "edit_app",
+    "get_args",
+    "get_runtime_context",
+    "libation_app",
+    # Entry point
+    "main",
+    "state_app",
+    "tools_app",
+    # Validators
+    "validate_asin_callback",
 ]
 
 if __name__ == "__main__":

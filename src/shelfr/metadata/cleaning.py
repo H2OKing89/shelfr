@@ -47,6 +47,13 @@ from shelfr.utils.naming import (
 )
 
 __all__ = [
+    # Normalization
+    "clean_series_name",
+    # String utilities
+    "cleanup_string",
+    # MediaInfo extraction
+    "extract_non_authors_from_mediainfo",
+    "extract_translators_from_mediainfo",
     # Author filtering
     "filter_author",
     "filter_authors",
@@ -55,20 +62,13 @@ __all__ = [
     "filter_series",
     "filter_subtitle",
     "filter_title",
-    # Normalization
-    "clean_series_name",
     "normalize_audnex_book",
     "normalize_position",
     # Series resolution
     "parse_series_from_libation_path",
     "parse_series_from_title",
     "resolve_series",
-    # String utilities
-    "cleanup_string",
     "sanitize_filename",
     "transliterate_text",
     "truncate_filename",
-    # MediaInfo extraction
-    "extract_non_authors_from_mediainfo",
-    "extract_translators_from_mediainfo",
 ]

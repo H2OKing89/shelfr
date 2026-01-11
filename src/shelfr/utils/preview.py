@@ -337,14 +337,14 @@ def preview_yaml_structure(
                     branch = tree.add(f"[cyan]{key}[/] [dim](list, {len(value)} items)[/]")
                     add_to_tree(branch, value, depth + 1)
                 else:
-                    tree.add(f"[cyan]{key}[/]: [green]{repr(value)}[/]")
+                    tree.add(f"[cyan]{key}[/]: [green]{value!r}[/]")
         elif isinstance(obj, list):
             for i, item in enumerate(obj[:5]):  # Show first 5
                 if isinstance(item, dict | list):
                     branch = tree.add(f"[dim][{i}][/]")
                     add_to_tree(branch, item, depth + 1)
                 else:
-                    tree.add(f"[dim][{i}][/] [green]{repr(item)}[/]")
+                    tree.add(f"[dim][{i}][/] [green]{item!r}[/]")
             if len(obj) > 5:
                 tree.add(f"[dim]... and {len(obj) - 5} more[/]")
 

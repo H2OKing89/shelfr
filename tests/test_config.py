@@ -317,7 +317,7 @@ audiobookshelf:
             env_path.write_text("QB_HOST=http://localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
 
             with pytest.raises(
-                ConfigurationError, match="Invalid audiobookshelf.import.preferred_asin_region"
+                ConfigurationError, match=r"Invalid audiobookshelf\.import\.preferred_asin_region"
             ):
                 load_settings(env_file=env_path, config_file=config_path, validate=False)
 

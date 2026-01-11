@@ -147,11 +147,6 @@ def ensure_unique_name(name: str, existing: set[str]) -> str:
 
 
 __all__ = [
-    # Authors module
-    "VolumeInfo",
-    "extract_translator",
-    "filter_authors",
-    "is_author_role",
     # Constants module
     "ILLEGAL_CHARS_PATTERN",
     "MAM_MAX_FILENAME_LENGTH",
@@ -159,42 +154,47 @@ __all__ = [
     "MIN_SERIES_LENGTH",
     "NORMALIZE_MAP",
     "VOLUME_ALIASES",
-    # Filters module
-    "extract_non_authors_from_mediainfo",
-    "extract_translators_from_mediainfo",
-    "filter_author",
-    "filter_authors_with_mediainfo",
-    "filter_series",
-    "filter_subtitle",
-    "filter_title",
-    "inherit_the_prefix",
-    "sanitize_filename",
+    # Authors module
+    "VolumeInfo",
     # MAM paths module
     "build_mam_file_name",
     "build_mam_folder_name",
     "build_mam_path",
+    # Utility functions
+    "build_release_dirname",
     # Normalization module
     "clean_series_name",
+    # String utils module
+    "cleanup_string",
     "detect_swapped_title_subtitle",
+    "ensure_unique_name",
     "extract_arc_name",
+    # Filters module
+    "extract_non_authors_from_mediainfo",
     "extract_series_from_title",
+    "extract_translator",
+    "extract_translators_from_mediainfo",
+    # Volume parsing module
+    "extract_volume_number",
+    "filter_author",
+    "filter_authors",
+    "filter_authors_with_mediainfo",
+    "filter_series",
+    "filter_subtitle",
+    "filter_title",
+    "format_volume_number",
+    "inherit_the_prefix",
+    "is_author_role",
+    # Titlecase module
+    "mla_title_case",
     "normalize_audnex_book",
+    "normalize_position",
     # Series parsing module
     "parse_series_from_libation_path",
     "parse_series_from_title",
+    "parse_volume_notation",
     "resolve_series",
-    # String utils module
-    "cleanup_string",
+    "sanitize_filename",
     "transliterate_text",
     "truncate_filename",
-    # Titlecase module
-    "mla_title_case",
-    # Volume parsing module
-    "extract_volume_number",
-    "format_volume_number",
-    "normalize_position",
-    "parse_volume_notation",
-    # Utility functions
-    "build_release_dirname",
-    "ensure_unique_name",
 ]

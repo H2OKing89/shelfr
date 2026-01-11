@@ -27,34 +27,34 @@ from shelfr.exceptions import (
 __version__ = "0.3.0"
 
 __all__ = [
-    "__version__",
+    "AudiobookshelfError",
+    "AudnexError",
+    # Configuration
+    "ConfigurationError",
+    "DiscoveryValidationError",
+    "DockerError",
+    # External tools
+    "ExternalToolError",
+    "LibationError",
+    "MetadataError",
+    "MkbrrError",
+    # Network
+    "NetworkError",
+    # Pipeline stages
+    "PipelineError",
+    "PreUploadValidationError",
+    "QBittorrentError",
     # Base exception
     "ShelfrError",
     "ShelfrError",  # Deprecated alias for backward compatibility
-    # Configuration
-    "ConfigurationError",
-    # Validation
-    "ValidationError",
-    "DiscoveryValidationError",
-    "PreUploadValidationError",
-    # Pipeline stages
-    "PipelineError",
     "StagingError",
-    "MetadataError",
-    "TorrentError",
-    "UploadError",
-    # Network
-    "NetworkError",
-    "AudnexError",
-    "QBittorrentError",
-    "AudiobookshelfError",
+    "StateCorruptionError",
     # State
     "StateError",
     "StateLockError",
-    "StateCorruptionError",
-    # External tools
-    "ExternalToolError",
-    "DockerError",
-    "MkbrrError",
-    "LibationError",
+    "TorrentError",
+    "UploadError",
+    # Validation
+    "ValidationError",
+    "__version__",
 ]

@@ -70,7 +70,7 @@ def get_editor(override: str | None = None) -> str | None:
     Example:
         >>> get_editor()
         'nano'
-        >>> get_editor(override='code --wait')
+        >>> get_editor(override="code --wait")
         'code --wait'
     """
     # Check explicit override
@@ -170,7 +170,7 @@ def edit_file(
         else:
             # For non-wait mode, use Popen to launch without blocking
             # This allows GUI editors to run without being killed by timeout
-            subprocess.Popen(cmd)  # noqa: S603
+            subprocess.Popen(cmd)
             return True
     except subprocess.TimeoutExpired:
         logger.warning("Editor timed out after %d seconds", timeout)

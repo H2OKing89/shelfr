@@ -32,7 +32,7 @@ if not _LEGACY_MODE:
     )
 
 # Re-export everything from the new location
-from shelfr.metadata.opf import (  # noqa: E402
+from shelfr.metadata.opf import (
     LANGUAGE_TO_ISO,
     MARC_RELATOR_CODES,
     CanonicalMetadata,
@@ -57,29 +57,29 @@ from shelfr.metadata.opf import (  # noqa: E402
 )
 
 __all__ = [
+    "LANGUAGE_TO_ISO",
+    "MARC_RELATOR_CODES",
     # Core schemas
     "CanonicalMetadata",
-    "OPFMetadata",
-    "Person",
     "Genre",
-    "Series",
     "OPFCreator",
-    "OPFIdentifier",
-    "OPFSeries",
     # Generator
     "OPFGenerator",
+    "OPFIdentifier",
+    "OPFMetadata",
+    "OPFSeries",
+    "Person",
+    "Series",
+    "clean_role_from_name",
+    "clear_naming_config_cache",
+    "detect_role_from_name",
     "generate_opf",
-    "write_opf",
+    "get_marc_relator",
     # Helpers
     "get_naming_config",
-    "clear_naming_config_cache",
-    "clean_role_from_name",
-    "detect_role_from_name",
+    "is_valid_iso_language",
     "name_to_file_as",
     # Mappings
     "to_iso_language",
-    "is_valid_iso_language",
-    "get_marc_relator",
-    "LANGUAGE_TO_ISO",
-    "MARC_RELATOR_CODES",
+    "write_opf",
 ]
