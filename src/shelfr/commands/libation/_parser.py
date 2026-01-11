@@ -69,7 +69,7 @@ def _validate_override(value: str) -> str:
         raise argparse.ArgumentTypeError(
             f"Invalid override format: '{value}'. Use KEY=VALUE (e.g., FileDownloadQuality=Normal)"
         )
-    key, _, val = value.partition("=")
+    key, _, _val = value.partition("=")
     if not key.strip():
         raise argparse.ArgumentTypeError(f"Override key cannot be empty: '{value}'")
     return value

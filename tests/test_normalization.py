@@ -228,7 +228,7 @@ class TestDetectSwappedTitleSubtitle:
 
     def test_both_have_series_not_swapped(self) -> None:
         """Both title and subtitle have series name - no swap."""
-        title, subtitle, swapped = detect_swapped_title_subtitle(
+        _title, _subtitle, swapped = detect_swapped_title_subtitle(
             "Sword Art Online: Aincrad", "Sword Art Online, Book 1", "Sword Art Online", "1"
         )
         # Both have series - leave as-is (cleaning rules will handle)

@@ -339,7 +339,7 @@ class TestDecideTrump:
         incoming = TrumpableMeta(asin="B0TEST", format="mp3", ripper_tag="SecondTag")
         prefs = TrumpPrefs(own_ripper_tags=("H2OKing", "SecondTag"))
 
-        decision, reason = decide_trump(existing, incoming, prefs)
+        decision, _reason = decide_trump(existing, incoming, prefs)
         assert decision == TrumpDecision.REPLACE_WITH_NEW
 
     def test_own_ripper_tag_non_match_proceeds_normally(self) -> None:
@@ -446,7 +446,7 @@ class TestDecideTrump:
         incoming = TrumpableMeta(asin="B0TEST", format="mp3", bitrate_kbps=320)
         prefs = TrumpPrefs()
 
-        decision, reason = decide_trump(existing, incoming, prefs)
+        decision, _reason = decide_trump(existing, incoming, prefs)
         assert decision == TrumpDecision.REJECT_NEW
 
     def test_bitrate_upgrade_same_format(self) -> None:
@@ -465,7 +465,7 @@ class TestDecideTrump:
         incoming = TrumpableMeta(asin="B0TEST", format="m4b", bitrate_kbps=140)
         prefs = TrumpPrefs(min_bitrate_increase_kbps=64)
 
-        decision, reason = decide_trump(existing, incoming, prefs)
+        decision, _reason = decide_trump(existing, incoming, prefs)
         assert decision == TrumpDecision.KEEP_EXISTING
 
     def test_bitrate_downgrade_rejected(self) -> None:
@@ -508,7 +508,7 @@ class TestDecideTrump:
         incoming = TrumpableMeta(asin="B0TEST", format="m4b", bitrate_kbps=128, has_chapters=True)
         prefs = TrumpPrefs(prefer_chapters=False)
 
-        decision, reason = decide_trump(existing, incoming, prefs)
+        decision, _reason = decide_trump(existing, incoming, prefs)
         assert decision == TrumpDecision.KEEP_EXISTING
 
     def test_stereo_tiebreaker(self) -> None:
@@ -527,7 +527,7 @@ class TestDecideTrump:
         incoming = TrumpableMeta(asin="B0TEST", format="m4b", bitrate_kbps=128, is_stereo=True)
         prefs = TrumpPrefs(prefer_stereo=False)
 
-        decision, reason = decide_trump(existing, incoming, prefs)
+        decision, _reason = decide_trump(existing, incoming, prefs)
         assert decision == TrumpDecision.KEEP_EXISTING
 
     def test_no_improvement_keeps_existing(self) -> None:
@@ -546,7 +546,7 @@ class TestDecideTrump:
         incoming = TrumpableMeta(asin="B0TEST", format="m4b")
         prefs = TrumpPrefs()
 
-        decision, reason = decide_trump(existing, incoming, prefs)
+        decision, _reason = decide_trump(existing, incoming, prefs)
         assert decision == TrumpDecision.KEEP_EXISTING
 
 

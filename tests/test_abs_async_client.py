@@ -1263,7 +1263,7 @@ class TestEnrichFromAudnexWithCache:
                 "uk",
             )
 
-            result_parsed, data, region = enrich_from_audnex(
+            result_parsed, _data, region = enrich_from_audnex(
                 parsed, "B0HASASI01", audnex_cache=None
             )
 

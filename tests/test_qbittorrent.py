@@ -355,7 +355,7 @@ class TestUploadTorrent:
             patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
             patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
-            success, infohash = upload_torrent(
+            success, _infohash = upload_torrent(
                 torrent_path=torrent_file,
                 save_path=tmp_path,
             )
@@ -437,7 +437,7 @@ class TestUploadTorrentAutoTMM:
             patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
             patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
-            success, infohash = upload_torrent(torrent_path=torrent_file)
+            success, _infohash = upload_torrent(torrent_path=torrent_file)
 
         assert success is True
         call_kwargs = mock_client.torrents_add.call_args[1]
@@ -465,7 +465,7 @@ class TestUploadTorrentAutoTMM:
             patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
             patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
-            success, infohash = upload_torrent(torrent_path=torrent_file, save_path=explicit_path)
+            success, _infohash = upload_torrent(torrent_path=torrent_file, save_path=explicit_path)
 
         assert success is True
         call_kwargs = mock_client.torrents_add.call_args[1]
@@ -492,7 +492,7 @@ class TestUploadTorrentAutoTMM:
             patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
             patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
-            success, infohash = upload_torrent(torrent_path=torrent_file)
+            success, _infohash = upload_torrent(torrent_path=torrent_file)
 
         assert success is True
         call_kwargs = mock_client.torrents_add.call_args[1]
@@ -519,7 +519,7 @@ class TestUploadTorrentAutoTMM:
             patch("shelfr.qbittorrent.extract_infohash", return_value="abc123"),
             patch("shelfr.qbittorrent.check_torrent_exists", return_value=False),
         ):
-            success, infohash = upload_torrent(torrent_path=torrent_file)
+            success, _infohash = upload_torrent(torrent_path=torrent_file)
 
         assert success is True
         call_kwargs = mock_client.torrents_add.call_args[1]
