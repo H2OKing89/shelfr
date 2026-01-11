@@ -949,8 +949,14 @@ def _parse_workflow_config(data: dict[str, Any] | None) -> WorkflowConfig:
     # Parse upload ripper_tag (empty string means disabled)
     upload_ripper_tag_raw = upload_data.get("ripper_tag")
     upload_ripper_tag: str | None = None
-    if upload_ripper_tag_raw and isinstance(upload_ripper_tag_raw, str):
-        upload_ripper_tag = upload_ripper_tag_raw.strip() or None
+    if upload_ripper_tag_raw is not None:
+        if isinstance(upload_ripper_tag_raw, str):
+            upload_ripper_tag = upload_ripper_tag_raw.strip() or None
+        else:
+            logger.warning(
+                "workflow.upload.ripper_tag must be a string, got '%s'; ignoring",
+                type(upload_ripper_tag_raw).__name__,
+            )
 
     return WorkflowConfig(
         upload=UploadWorkflowConfig(
@@ -1464,8 +1470,14 @@ def load_settings(
     # Parse import ripper_tag (empty string means disabled)
     import_ripper_tag_raw = abs_import_data.get("ripper_tag")
     import_ripper_tag: str | None = None
-    if import_ripper_tag_raw and isinstance(import_ripper_tag_raw, str):
-        import_ripper_tag = import_ripper_tag_raw.strip() or None
+    if import_ripper_tag_raw is not None:
+        if isinstance(import_ripper_tag_raw, str):
+            import_ripper_tag = import_ripper_tag_raw.strip() or None
+        else:
+            logger.warning(
+                "audiobookshelf.import.ripper_tag must be a string, got '%s'; ignoring",
+                type(import_ripper_tag_raw).__name__,
+            )
 
     audiobookshelf = AudiobookshelfConfig(
         enabled=abs_data.get("enabled", False),

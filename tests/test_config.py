@@ -1191,6 +1191,90 @@ audiobookshelf:
             # Explicit value takes precedence
             assert settings.audiobookshelf.import_settings.ripper_tag == "NEW-TAG"
 
+    def test_workflow_upload_ripper_tag_invalid_type_logged(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test warning logged when workflow.upload.ripper_tag is not a string."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # ripper_tag as integer instead of string
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+workflow:
+  upload:
+    ripper_tag: 123
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # Should default to None and log warning
+            assert settings.workflow.upload.ripper_tag is None
+            assert any(
+                "workflow.upload.ripper_tag must be a string" in record.message
+                for record in caplog.records
+            )
+
+    def test_audiobookshelf_import_ripper_tag_invalid_type_logged(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test warning logged when audiobookshelf.import.ripper_tag is not a string."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # ripper_tag as boolean instead of string
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+audiobookshelf:
+  import:
+    ripper_tag: true
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # Should default to None and log warning
+            assert settings.audiobookshelf.import_settings.ripper_tag is None
+            assert any(
+                "audiobookshelf.import.ripper_tag must be a string" in record.message
+                for record in caplog.records
+            )
+
 
 class TestBuildTrumpPrefs:
     """Tests for build_trump_prefs helper function."""
