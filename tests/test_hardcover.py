@@ -391,7 +391,8 @@ class TestWorkflowContentWarnings:
         # Helper should be callable
         assert callable(_fetch_content_warnings)
 
-    def test_fetch_hardcover_data_returns_empty_when_disabled(self, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_fetch_hardcover_data_returns_empty_when_disabled(self, monkeypatch):
         """Test helper returns empty result when Hardcover is disabled."""
         from shelfr.workflow import _fetch_hardcover_data_async
 
@@ -402,15 +403,9 @@ class TestWorkflowContentWarnings:
             {"hardcover": type("HardcoverConfig", (), {"enabled": False})()},
         )()
 
-        import asyncio
+        monkeypatch.setattr("shelfr.workflow.get_settings", lambda: mock_settings)
+        result = await _fetch_hardcover_data_async("B123", "Test", "Author")
 
-        async def run_test():
-            with pytest.MonkeyPatch.context() as m:
-                m.setattr("shelfr.workflow.get_settings", lambda: mock_settings)
-                result = await _fetch_hardcover_data_async("B123", "Test", "Author")
-                return result
-
-        result = asyncio.run(run_test())
         assert result.content_flags is None
         assert result.genres is None
         assert result.moods is None

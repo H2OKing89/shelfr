@@ -188,8 +188,9 @@ class HardcoverConfig:
         if self.timeout_seconds < 1:
             raise ValueError(f"timeout_seconds must be >= 1, got {self.timeout_seconds}")
         if self.rate_limit_per_minute < 1:
-            rate = self.rate_limit_per_minute
-            raise ValueError(f"rate_limit_per_minute must be >= 1, got {rate}")
+            raise ValueError(
+                f"rate_limit_per_minute must be >= 1, got {self.rate_limit_per_minute}"
+            )
         if self.cache_ttl_days < 0:
             raise ValueError(f"cache_ttl_days must be >= 0, got {self.cache_ttl_days}")
 
@@ -909,14 +910,28 @@ def _parse_workflow_config(data: dict[str, Any] | None) -> WorkflowConfig:
         tags=normalized_tags,
     )
 
-    # Parse content_warnings config
-    content_warnings_data = upload_data.get("content_warnings", {})
+    # Parse content_warnings config (with type guard)
+    content_warnings_raw = upload_data.get("content_warnings", {})
+    content_warnings_data = content_warnings_raw if isinstance(content_warnings_raw, dict) else {}
+    if not isinstance(content_warnings_raw, dict) and content_warnings_raw is not None:
+        logger.warning(
+            "Invalid content_warnings type '%s', defaulting to disabled",
+            type(content_warnings_raw).__name__,
+        )
     content_warnings_config = ContentWarningsConfig(
         enabled=content_warnings_data.get("enabled", False),
     )
 
-    # Parse packaging mode
-    packaging_mode = upload_data.get("packaging", "folder").lower()
+    # Parse packaging mode (with type guard)
+    packaging_raw = upload_data.get("packaging", "folder")
+    if isinstance(packaging_raw, str):
+        packaging_mode = packaging_raw.lower()
+    else:
+        logger.warning(
+            "Invalid packaging mode type '%s', defaulting to 'folder'",
+            type(packaging_raw).__name__,
+        )
+        packaging_mode = "folder"
     if packaging_mode not in {"folder", "audio_only"}:
         logger.warning(
             "Invalid packaging mode '%s', defaulting to 'folder'",
@@ -1373,15 +1388,24 @@ def load_settings(
     # Load categories from config/categories.json
     categories = _load_categories(config_dir)
 
-    # Parse Hardcover config
-    hardcover_data = yaml_config.get("hardcover", {})
-    hardcover = HardcoverConfig(
-        enabled=hardcover_data.get("enabled", True),
-        timeout_seconds=hardcover_data.get("timeout_seconds", 30),
-        rate_limit_per_minute=hardcover_data.get("rate_limit_per_minute", 60),
-        match_threshold=hardcover_data.get("match_threshold", 0.70),
-        cache_ttl_days=hardcover_data.get("cache_ttl_days", 7),
-    )
+    # Parse Hardcover config (with type guard and error wrapping)
+    hardcover_raw = yaml_config.get("hardcover", {})
+    if not isinstance(hardcover_raw, dict):
+        logger.warning(
+            "hardcover config must be a mapping, got '%s'; using defaults",
+            type(hardcover_raw).__name__,
+        )
+        hardcover_raw = {}
+    try:
+        hardcover = HardcoverConfig(
+            enabled=hardcover_raw.get("enabled", True),
+            timeout_seconds=hardcover_raw.get("timeout_seconds", 30),
+            rate_limit_per_minute=hardcover_raw.get("rate_limit_per_minute", 60),
+            match_threshold=hardcover_raw.get("match_threshold", 0.70),
+            cache_ttl_days=hardcover_raw.get("cache_ttl_days", 7),
+        )
+    except ValueError as e:
+        raise ConfigurationError(f"Invalid hardcover configuration: {e}") from e
 
     # Parse Audiobookshelf config
     abs_data = yaml_config.get("audiobookshelf", {})

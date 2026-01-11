@@ -44,7 +44,7 @@ def _shelfr_callback(word: str, **kwargs: object) -> str | None:
 
     # Roman numerals - preserve as uppercase
     roman_pattern = r"^M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$"
-    if re.match(roman_pattern, word_upper) and word_upper:
+    if re.match(roman_pattern, word_upper):
         return word_upper
 
     # Common audiobook volume/part indicators - standardize capitalization

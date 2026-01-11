@@ -273,7 +273,15 @@ class Settings:
     _DEFAULT_COMBINED = _REPO_ROOT / "samples" / "test_data" / "combined_metadata.json"
     # Env var can override; empty string falls back to default
     _env_combined = os.getenv("HARDCOVER_COMBINED_METADATA_FILE")
-    COMBINED_METADATA_FILE = Path(_env_combined) if _env_combined else _DEFAULT_COMBINED
+    if _env_combined:
+        try:
+            COMBINED_METADATA_FILE = Path(_env_combined)
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"Invalid path in HARDCOVER_COMBINED_METADATA_FILE: {_env_combined}"
+            ) from e
+    else:
+        COMBINED_METADATA_FILE = _DEFAULT_COMBINED
     ENRICHED_DATA_FILE = _REPO_ROOT / "data" / "hardcover_enriched_run.json"
     ENRICHED_BOOKS_FILE = _REPO_ROOT / "data" / "hardcover_enriched_books.jsonl"
     ENRICHED_VOCAB_FILE = _REPO_ROOT / "data" / "hardcover_keywords.json"

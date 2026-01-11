@@ -10,6 +10,7 @@ which is the primary value add over Audnex.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import AsyncExitStack
 from datetime import UTC, datetime
@@ -118,6 +119,7 @@ class HardcoverProvider:
         self._client: HardcoverAsyncClient | None = None
         self._stack: AsyncExitStack | None = None
         self._started = False
+        self._startup_lock = asyncio.Lock()
 
     async def startup(self) -> None:
         """Initialize shared async client. Call once at process start.
@@ -128,22 +130,23 @@ class HardcoverProvider:
         Raises:
             RuntimeError: If already started
         """
-        if self._started:
-            raise RuntimeError("HardcoverProvider already started")
+        async with self._startup_lock:
+            if self._started:
+                raise RuntimeError("HardcoverProvider already started")
 
-        self._stack = AsyncExitStack()
-        self._client = await self._stack.enter_async_context(
-            HardcoverAsyncClient(match_threshold=self._match_threshold)
-        )
-        self._started = True
-
-        if not self._client.is_configured:
-            logger.warning(
-                "HardcoverProvider started but API key not configured. "
-                "Set HARDCOVER_API_KEY environment variable."
+            self._stack = AsyncExitStack()
+            self._client = await self._stack.enter_async_context(
+                HardcoverAsyncClient(match_threshold=self._match_threshold)
             )
-        else:
-            logger.info("HardcoverProvider started (async client ready)")
+            self._started = True
+
+            if not self._client.is_configured:
+                logger.warning(
+                    "HardcoverProvider started but API key not configured. "
+                    "Set HARDCOVER_API_KEY environment variable."
+                )
+            else:
+                logger.info("HardcoverProvider started (async client ready)")
 
     async def shutdown(self) -> None:
         """Close shared async client. Call at process end.
