@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -1108,6 +1109,87 @@ audiobookshelf:
 
             # Whitespace-only is stripped and becomes None
             assert settings.audiobookshelf.import_settings.ripper_tag is None
+
+    def test_audiobookshelf_import_ripper_tag_fallback_from_naming(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test audiobookshelf.import.ripper_tag falls back to deprecated naming.ripper_tag."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # Only naming.ripper_tag set (deprecated location)
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "LEGACY-TAG"
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # Fallback applied
+            assert settings.audiobookshelf.import_settings.ripper_tag == "LEGACY-TAG"
+
+            # Deprecation warning logged
+            assert any(
+                "naming.ripper_tag is deprecated for ABS imports" in record.message
+                for record in caplog.records
+            )
+
+    def test_audiobookshelf_import_ripper_tag_precedence_over_naming(self) -> None:
+        """Test explicit audiobookshelf.import.ripper_tag precedence over naming.ripper_tag."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # Both set - explicit audiobookshelf.import.ripper_tag should take precedence
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "LEGACY-TAG"
+
+audiobookshelf:
+  import:
+    ripper_tag: "NEW-TAG"
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # Explicit value takes precedence
+            assert settings.audiobookshelf.import_settings.ripper_tag == "NEW-TAG"
 
 
 class TestBuildTrumpPrefs:

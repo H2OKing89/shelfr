@@ -1508,6 +1508,17 @@ def load_settings(
             upload=replace(workflow.upload, ripper_tag=naming.ripper_tag),
         )
 
+    # Backward compatibility: fall back to naming.ripper_tag for ABS import if not set
+    if audiobookshelf.import_settings.ripper_tag is None and naming.ripper_tag is not None:
+        logger.warning(
+            "naming.ripper_tag is deprecated for ABS imports. "
+            "Please migrate to audiobookshelf.import.ripper_tag"
+        )
+        audiobookshelf = replace(
+            audiobookshelf,
+            import_settings=replace(audiobookshelf.import_settings, ripper_tag=naming.ripper_tag),
+        )
+
     # Parse environment section (YAML overrides pydantic-settings values)
     env_data = yaml_config.get("environment", {})
 
