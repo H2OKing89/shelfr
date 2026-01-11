@@ -44,17 +44,17 @@ from shelfr.metadata.mam.json_builder import (
 )
 
 __all__ = [
-    # Public API
-    "build_mam_json",
-    "save_mam_json",
-    "generate_mam_json_for_release",
     # Category constants
     "FICTION_GENRE_KEYWORDS",
     "NONFICTION_GENRE_KEYWORDS",
+    "_build_series_list",
+    "_get_audiobook_category",
+    "_get_mediainfo_string",
     # Internal helpers (exposed for testing/backward compat)
     "_infer_fiction_or_nonfiction",
-    "_get_audiobook_category",
     "_map_genres_to_categories",
-    "_build_series_list",
-    "_get_mediainfo_string",
+    # Public API
+    "build_mam_json",
+    "generate_mam_json_for_release",
+    "save_mam_json",
 ]

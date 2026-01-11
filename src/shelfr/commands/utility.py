@@ -10,7 +10,6 @@ import argparse
 import json as json_module
 import logging
 from datetime import datetime
-from pathlib import Path
 from typing import cast
 
 import yaml
@@ -290,23 +289,26 @@ def cmd_validate_config(args: argparse.Namespace) -> int:
         config_parent = args.config.parent
         # Check if files exist beside the config file first (standalone layout)
         if (config_parent / "naming.json").exists():
-            config_dir = config_parent
+            cfg_dir = config_parent
             use_subdir = False
         else:
             # Fall back to config/ subdirectory (structured layout: project/config/config.yaml)
-            config_dir = config_parent.parent
+            cfg_dir = config_parent.parent
             use_subdir = True
     else:
-        config_dir = Path(".")
+        # Use project root (parent of config/ directory) when no config specified
+        from shelfr.paths import config_dir as get_config_dir
+
+        cfg_dir = get_config_dir().parent
         use_subdir = True
 
     errors_found = False
 
     # Validate naming.json
     if use_subdir:
-        naming_path = config_dir / "config" / "naming.json"
+        naming_path = cfg_dir / "config" / "naming.json"
     else:
-        naming_path = config_dir / "naming.json"
+        naming_path = cfg_dir / "naming.json"
     console.print(f"\n[bold]Checking:[/] {naming_path}")
 
     if not naming_path.exists():
@@ -354,7 +356,7 @@ def cmd_validate_config(args: argparse.Namespace) -> int:
             errors_found = True
 
     # Validate config.yaml (basic check - loads without error)
-    config_path = args.config if args.config else config_dir / "config" / "config.yaml"
+    config_path = args.config if args.config else cfg_dir / "config" / "config.yaml"
     console.print(f"\n[bold]Checking:[/] {config_path}")
 
     if not config_path.exists():
@@ -388,9 +390,9 @@ def cmd_validate_config(args: argparse.Namespace) -> int:
 
     # Validate categories.json
     if use_subdir:
-        categories_path = config_dir / "config" / "categories.json"
+        categories_path = cfg_dir / "config" / "categories.json"
     else:
-        categories_path = config_dir / "categories.json"
+        categories_path = cfg_dir / "categories.json"
     console.print(f"\n[bold]Checking:[/] {categories_path}")
 
     if not categories_path.exists():

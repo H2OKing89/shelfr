@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -317,7 +318,7 @@ audiobookshelf:
             env_path.write_text("QB_HOST=http://localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
 
             with pytest.raises(
-                ConfigurationError, match="Invalid audiobookshelf.import.preferred_asin_region"
+                ConfigurationError, match=r"Invalid audiobookshelf\.import\.preferred_asin_region"
             ):
                 load_settings(env_file=env_path, config_file=config_path, validate=False)
 
@@ -929,6 +930,441 @@ naming:
 
             # Empty string is converted to None for easier boolean checks
             assert settings.naming.ripper_tag is None
+
+    def test_ripper_tag_fallback_from_naming_to_workflow(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test backward compat: naming.ripper_tag falls back to workflow.upload.ripper_tag."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            # Create minimal naming.json
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # Only naming.ripper_tag set (deprecated location)
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "LegacyTag"
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # workflow.upload.ripper_tag should inherit from naming.ripper_tag
+            assert settings.workflow.upload.ripper_tag == "LegacyTag"
+            # Verify deprecation warning was logged
+            assert any(
+                "naming.ripper_tag is deprecated" in record.message for record in caplog.records
+            )
+
+    def test_ripper_tag_workflow_takes_precedence_over_naming(self) -> None:
+        """Test workflow.upload.ripper_tag takes precedence over naming.ripper_tag."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            # Create minimal naming.json
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # Both set - workflow should take precedence
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "LegacyTag"
+
+workflow:
+  upload:
+    ripper_tag: "NewTag"
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # workflow.upload.ripper_tag should NOT be overridden by naming.ripper_tag
+            assert settings.workflow.upload.ripper_tag == "NewTag"
+
+    def test_audiobookshelf_import_ripper_tag_from_config_yaml(self) -> None:
+        """Test audiobookshelf.import.ripper_tag is loaded from config.yaml."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+audiobookshelf:
+  import:
+    ripper_tag: "ABSTag"
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            assert settings.audiobookshelf.import_settings.ripper_tag == "ABSTag"
+
+    def test_audiobookshelf_import_ripper_tag_empty_becomes_none(self) -> None:
+        """Test audiobookshelf.import.ripper_tag empty string becomes None."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+audiobookshelf:
+  import:
+    ripper_tag: ""
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # Empty string is converted to None
+            assert settings.audiobookshelf.import_settings.ripper_tag is None
+
+    def test_audiobookshelf_import_ripper_tag_whitespace_becomes_none(self) -> None:
+        """Test audiobookshelf.import.ripper_tag whitespace-only becomes None."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+audiobookshelf:
+  import:
+    ripper_tag: "   "
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # Whitespace-only is stripped and becomes None
+            assert settings.audiobookshelf.import_settings.ripper_tag is None
+
+    def test_audiobookshelf_import_ripper_tag_fallback_from_naming(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test audiobookshelf.import.ripper_tag falls back to deprecated naming.ripper_tag."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # Only naming.ripper_tag set (deprecated location)
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "LEGACY-TAG"
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # Fallback applied
+            assert settings.audiobookshelf.import_settings.ripper_tag == "LEGACY-TAG"
+
+            # Deprecation warning logged
+            assert any(
+                "naming.ripper_tag is deprecated for ABS imports" in record.message
+                for record in caplog.records
+            )
+
+    def test_audiobookshelf_import_ripper_tag_precedence_over_naming(self) -> None:
+        """Test explicit audiobookshelf.import.ripper_tag precedence over naming.ripper_tag."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # Both set - explicit audiobookshelf.import.ripper_tag should take precedence
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "LEGACY-TAG"
+
+audiobookshelf:
+  import:
+    ripper_tag: "NEW-TAG"
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # Explicit value takes precedence
+            assert settings.audiobookshelf.import_settings.ripper_tag == "NEW-TAG"
+
+    def test_naming_ripper_tag_invalid_type_logged_and_not_migrated(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test invalid naming.ripper_tag type is not migrated to new fields."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # naming.ripper_tag as integer (invalid type)
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: 456
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # Should not migrate invalid type to new fields
+            assert settings.workflow.upload.ripper_tag is None
+            assert settings.audiobookshelf.import_settings.ripper_tag is None
+            # Should log warning about invalid type
+            assert any(
+                "naming.ripper_tag must be a string" in record.message for record in caplog.records
+            )
+            # Should NOT log deprecation warnings since migration didn't happen
+            assert not any(
+                "naming.ripper_tag is deprecated" in record.message for record in caplog.records
+            )
+
+    def test_naming_ripper_tag_whitespace_becomes_none_and_not_migrated(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test whitespace-only naming.ripper_tag is not migrated to new fields."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # naming.ripper_tag as whitespace-only string
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "   "
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # Should not migrate whitespace-only to new fields
+            assert settings.workflow.upload.ripper_tag is None
+            assert settings.audiobookshelf.import_settings.ripper_tag is None
+            # Should NOT log deprecation warnings since value was normalized to None
+            assert not any(
+                "naming.ripper_tag is deprecated" in record.message for record in caplog.records
+            )
+
+    def test_workflow_upload_ripper_tag_invalid_type_logged(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test warning logged when workflow.upload.ripper_tag is not a string."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # ripper_tag as integer instead of string
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+workflow:
+  upload:
+    ripper_tag: 123
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # Should default to None and log warning
+            assert settings.workflow.upload.ripper_tag is None
+            assert any(
+                "workflow.upload.ripper_tag must be a string" in record.message
+                for record in caplog.records
+            )
+
+    def test_audiobookshelf_import_ripper_tag_invalid_type_logged(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test warning logged when audiobookshelf.import.ripper_tag is not a string."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # ripper_tag as boolean instead of string
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+audiobookshelf:
+  import:
+    ripper_tag: true
+"""
+            )
+
+            with caplog.at_level(logging.WARNING, logger="shelfr.config"):
+                settings = load_settings(
+                    config_file=config_subdir / "config.yaml",
+                    env_file=None,
+                    validate=False,
+                )
+
+            # Should default to None and log warning
+            assert settings.audiobookshelf.import_settings.ripper_tag is None
+            assert any(
+                "audiobookshelf.import.ripper_tag must be a string" in record.message
+                for record in caplog.records
+            )
 
 
 class TestBuildTrumpPrefs:

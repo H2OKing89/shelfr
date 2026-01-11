@@ -65,7 +65,57 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "W",      # pycodestyle warnings
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "PTH",    # flake8-use-pathlib
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "PTH123", # open() vs Path.open() - allow both for flexibility
+    "PTH116", # os.stat - sometimes needed for specific stat operations
+    "PTH105", # os.replace - atomic rename, Path equivalent varies
+    "PTH110", # os.path.exists - allow for legacy compatibility
+    "PTH100", # os.path.abspath - allow when explicit needed
+    "PTH107", # os.remove - allow for explicit file removal
+    "RUF001", # ambiguous unicode - intentional in some strings
+    "RUF003", # ambiguous unicode in comments - intentional
+    "RUF005", # collection-literal-concatenation - sometimes clearer
+    "SIM108", # ternary operator - if/else often more readable
+]
+
+# Allow fix for all enabled rules (when `--fix` is provided)
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and longer lines
+"tests/*" = ["PLR2004", "S101"]
+# CLI module has intentionally deferred imports after docstring/setup
+"src/shelfr/cli/__init__.py" = ["E402"]
+# Deprecated shim module re-exports after deprecation warning
+"src/shelfr/opf/__init__.py" = ["E402"]
+# TUI module imports textual to check availability (intentional unused import)
+"src/shelfr/tui/__init__.py" = ["F401"]
+
+[tool.ruff.format]
+# Use double quotes for strings (like Black)
+quote-style = "double"
+# Indent with spaces (like Black)
+indent-style = "space"
+# Respect magic trailing commas (like Black)
+skip-magic-trailing-comma = false
+# Auto-detect line endings
+line-ending = "auto"
+# Format code examples in docstrings
+docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.11"

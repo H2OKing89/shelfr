@@ -29,6 +29,7 @@ from shelfr.utils.naming import (
     filter_authors,
     filter_subtitle,
     filter_title,
+    mla_title_case,
     transliterate_text,
 )
 
@@ -166,8 +167,9 @@ def render_bbcode_description(
 
     # Extract and clean title from Audnex
     # Apply same filter_title() used for JSON title field for consistency
-    raw_title = audnex_data.get("title", "Unknown Title")
-    title = filter_title(raw_title, naming_config=naming_config, keep_volume=True)
+    # Then apply MLA title case for proper capitalization
+    raw_title = audnex_data.get("title") or "Unknown Title"
+    title = mla_title_case(filter_title(raw_title, naming_config=naming_config, keep_volume=True))
     subtitle = audnex_data.get("subtitle")
 
     # Only add subtitle if it adds new info (not just "Series, Book N")

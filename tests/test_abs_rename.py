@@ -689,7 +689,7 @@ class TestFullPipeline:
         (book / "metadata.json").write_text(json.dumps(metadata))
 
         # Run pipeline in dry-run mode
-        results, summary, candidates = run_rename_pipeline(
+        _results, summary, candidates = run_rename_pipeline(
             source_dir=lib,
             dry_run=True,
         )
@@ -719,7 +719,7 @@ class TestFullPipeline:
         (book / "metadata.json").write_text(json.dumps(metadata))
 
         # Run pipeline
-        results, summary, candidates = run_rename_pipeline(
+        _results, summary, _candidates = run_rename_pipeline(
             source_dir=lib,
             dry_run=False,
         )
@@ -747,7 +747,7 @@ class TestFullPipeline:
         (book / "audio.m4b").touch()
 
         # Run pipeline
-        results, summary, candidates = run_rename_pipeline(
+        _results, summary, _candidates = run_rename_pipeline(
             source_dir=lib,
             dry_run=True,
         )

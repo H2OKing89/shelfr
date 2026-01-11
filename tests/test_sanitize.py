@@ -337,7 +337,7 @@ class TestSanitizeFile:
             patch("shelfr.sanitize.get_chapters", return_value=None),
             patch("shelfr.sanitize.copy_audio", side_effect=create_wrong_size_temp),
         ):
-            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+            modified, _tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
 
         assert modified is False
         assert error is not None
@@ -372,7 +372,7 @@ class TestSanitizeFile:
             patch("shelfr.sanitize.get_chapters", side_effect=chapters_side_effect),
             patch("shelfr.sanitize.copy_audio", side_effect=create_temp),
         ):
-            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+            modified, _tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
 
         assert modified is False
         assert error is not None
@@ -404,7 +404,7 @@ class TestSanitizeFile:
             patch("shelfr.sanitize.get_chapters", return_value=None),
             patch("shelfr.sanitize.copy_audio", side_effect=create_temp),
         ):
-            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+            modified, _tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
 
         assert modified is False
         assert error is not None
@@ -428,7 +428,7 @@ class TestSanitizeFile:
             patch("shelfr.sanitize.get_chapters", return_value=None),
             patch("shelfr.sanitize.copy_audio", side_effect=raise_exception),
         ):
-            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+            modified, _tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
 
         assert modified is False
         assert error is not None
@@ -475,7 +475,7 @@ class TestSanitizeFile:
             patch("shelfr.sanitize.copy_audio", side_effect=create_temp),
             patch("shelfr.sanitize.shutil.move", side_effect=move_side_effect),
         ):
-            modified, tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
+            modified, _tags, error = sanitize_file(test_file, unwanted_tags=DEFAULT_TEST_TAGS)
 
         assert modified is False
         assert error is not None

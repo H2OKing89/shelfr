@@ -1405,7 +1405,7 @@ class HardcoverEnricher:
                         headers = {
                             "authorization": f"Bearer {Settings.API_KEY}",
                             "content-type": "application/json",
-                            "user-agent": "Shelfr-Hardcover-Enrichment/2.0.0",  # noqa: E501
+                            "user-agent": "Shelfr-Hardcover-Enrichment/2.0.0",
                         }
 
                         loop = asyncio.get_running_loop()

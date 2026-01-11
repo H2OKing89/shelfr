@@ -26,11 +26,11 @@ from shelfr.metadata.formatting.html import (
 )
 
 __all__ = [
-    # Public
-    "render_bbcode_description",
-    "html_to_bbcode",
+    "_clean_html",
     # Private (re-exported for backward compat)
     "_convert_newlines_for_mam",
     "_format_release_date",
-    "_clean_html",
+    "html_to_bbcode",
+    # Public
+    "render_bbcode_description",
 ]

@@ -32,6 +32,7 @@ from shelfr.utils.naming.filters import (
     inherit_the_prefix,
     sanitize_filename,
 )
+from shelfr.utils.naming.titlecase import mla_title_case
 from shelfr.utils.naming.volume_parsing import format_volume_number
 
 logger = logging.getLogger(__name__)
@@ -107,7 +108,7 @@ def _calculate_max_base_length(
     """
     # Determine extension length (worst case for multi-file)
     # Using if/else to preserve the explanatory comment
-    if part_count > 1:  # noqa: SIM108
+    if part_count > 1:
         # " - Part XX.m4b" = 14 chars worst case
         ext_len = 14
     else:
@@ -128,7 +129,7 @@ def _calculate_max_base_length(
 
     # For folder mode, calculate overhead based on whether we have a tag
     # Using if/else to preserve the detailed math comments
-    if ripper_tag:  # noqa: SIM108
+    if ripper_tag:
         # With tag: folder = "{base} [{tag}]", filename = "{base}{ext}"
         # Total = len(base) + 1 + 1 + len(tag) + 1 + 1 + len(base) + ext_len
         #       = 2*len(base) + len(tag) + ext_len + 4
@@ -381,6 +382,10 @@ def build_mam_path(
     clean_title = (
         filter_title(title, naming_config=naming_config, keep_volume=False) if title else ""
     )
+
+    # Apply MLA title case for consistent capitalization
+    clean_title = mla_title_case(clean_title) if clean_title else ""
+    clean_series = mla_title_case(clean_series) if clean_series else None
 
     # Inherit "The" prefix from title to series if series lacks it
     # (e.g., title="The Great Cleric", series="Great Cleric" -> series="The Great Cleric")

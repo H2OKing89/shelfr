@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def check_available() -> bool:
     """Check if Textual TUI is available."""
     try:
-        import textual  # noqa: F401
+        import textual
 
         return True
     except ImportError:
@@ -31,6 +31,6 @@ class TUINotAvailableError(ImportError):
 
 
 __all__ = [
-    "check_available",
     "TUINotAvailableError",
+    "check_available",
 ]

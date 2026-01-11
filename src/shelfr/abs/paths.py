@@ -32,9 +32,7 @@ def abs_path_to_host(
 
     Example:
         >>> abs_path_to_host(
-        ...     "/audiobooks/Author/Book",
-        ...     "/audiobooks",
-        ...     "/mnt/user/data/audio/audiobooks"
+        ...     "/audiobooks/Author/Book", "/audiobooks", "/mnt/user/data/audio/audiobooks"
         ... )
         PosixPath('/mnt/user/data/audio/audiobooks/Author/Book')
     """
@@ -83,7 +81,7 @@ def host_path_to_abs(
         >>> host_path_to_abs(
         ...     "/mnt/user/data/audio/audiobooks/Author/Book",
         ...     "/audiobooks",
-        ...     "/mnt/user/data/audio/audiobooks"
+        ...     "/mnt/user/data/audio/audiobooks",
         ... )
         '/audiobooks/Author/Book'
     """

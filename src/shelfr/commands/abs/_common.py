@@ -60,6 +60,8 @@ __all__ = [
     "confirm",
     "console",
     "fatal_error",
+    # Local helpers
+    "logger",
     "print_dry_run",
     "print_error",
     "print_header",
@@ -67,7 +69,5 @@ __all__ = [
     "print_step",
     "print_success",
     "print_warning",
-    # Local helpers
-    "logger",
     "should_ignore",
 ]

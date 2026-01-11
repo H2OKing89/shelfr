@@ -31,6 +31,8 @@ def mock_settings(tmp_path: Path):
     settings.filters.transliterate_japanese = False
     # Add naming config (None uses defaults)
     settings.naming = None
+    # Add workflow config with upload ripper_tag
+    settings.workflow.upload.ripper_tag = None
     return settings
 
 

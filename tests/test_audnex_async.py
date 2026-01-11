@@ -854,7 +854,7 @@ class TestBatchFetch:
                 )
 
                 assert len(results) == 1
-                asin, data, region = results[0]
+                _asin, data, _region = results[0]
                 assert data is not None
                 # chapters is the entire chapters response dict, not just the list
                 assert "chapters" in data

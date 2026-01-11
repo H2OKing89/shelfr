@@ -136,3 +136,19 @@ class TestMlaTitleCaseEdgeCases:
         """Colon separating title and subtitle."""
         result = mla_title_case("defiance of the fall: a cultivation novel")
         assert result == "Defiance of the Fall: A Cultivation Novel"
+
+    def test_longer_prepositions(self) -> None:
+        """Document actual behavior with longer prepositions."""
+        # titlecase uses NY Times-derived small-word list, not strict MLA
+        # Common prepositions are lowercased; less-common ones may be capitalized
+        result1 = mla_title_case("the book throughout the war")
+        result2 = mla_title_case("information regarding the matter")
+        result3 = mla_title_case("journey across the sea")
+        result4 = mla_title_case("tales from beyond the stars")
+
+        # Verify titlecase behavior (may differ from strict MLA)
+        # These assertions document current behavior
+        assert result1 == "The Book Throughout the War"
+        assert result2 == "Information Regarding the Matter"
+        assert result3 == "Journey Across the Sea"
+        assert result4 == "Tales From Beyond the Stars"

@@ -255,13 +255,13 @@ _init_icons()
 
 # Re-export for convenience
 __all__ = [
-    "Icons",
-    "IconMode",
-    "icons",
-    "get_icons",
-    "set_icon_mode",
-    "get_icon_mode",
-    "UNICODE_ICONS",
     "ASCII_ICONS",
     "EMOJI_ICONS",
+    "UNICODE_ICONS",
+    "IconMode",
+    "Icons",
+    "get_icon_mode",
+    "get_icons",
+    "icons",
+    "set_icon_mode",
 ]

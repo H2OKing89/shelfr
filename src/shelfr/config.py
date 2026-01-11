@@ -45,7 +45,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -401,6 +401,9 @@ class UploadWorkflowConfig:
     sanitize: UploadSanitizeConfig = field(default_factory=UploadSanitizeConfig)
     content_warnings: ContentWarningsConfig = field(default_factory=ContentWarningsConfig)
     packaging: str = "folder"  # "folder" or "audio_only"
+    # Ripper tag appended to folder names during upload staging (e.g., "H2OKing" -> "[H2OKing]")
+    # Set to None or empty string (normalized to None during parsing) to disable
+    ripper_tag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -512,6 +515,10 @@ def build_cleanup_prefs(
 class AudiobookshelfImportConfig:
     """Audiobookshelf import settings."""
 
+    # Ripper tag appended to folder names during import (e.g., "H2OKing" -> "[H2OKing]")
+    # Set to None or empty string to disable forced tagging; existing tags in folder names
+    # are preserved via extraction fallback in the rename pipeline
+    ripper_tag: str | None = None
     duplicate_policy: str = "skip"  # skip | warn | overwrite
     trigger_scan: str = "batch"  # none | each | batch
     # Preferred ASIN region when importing to Audiobookshelf.
@@ -939,11 +946,24 @@ def _parse_workflow_config(data: dict[str, Any] | None) -> WorkflowConfig:
         )
         packaging_mode = "folder"
 
+    # Parse upload ripper_tag (empty string means disabled)
+    upload_ripper_tag_raw = upload_data.get("ripper_tag")
+    upload_ripper_tag: str | None = None
+    if upload_ripper_tag_raw is not None:
+        if isinstance(upload_ripper_tag_raw, str):
+            upload_ripper_tag = upload_ripper_tag_raw.strip() or None
+        else:
+            logger.warning(
+                "workflow.upload.ripper_tag must be a string, got '%s'; ignoring",
+                type(upload_ripper_tag_raw).__name__,
+            )
+
     return WorkflowConfig(
         upload=UploadWorkflowConfig(
             sanitize=sanitize_config,
             content_warnings=content_warnings_config,
             packaging=packaging_mode,
+            ripper_tag=upload_ripper_tag,
         )
     )
 
@@ -1447,6 +1467,18 @@ def load_settings(
                 )
             )
 
+    # Parse import ripper_tag (empty string means disabled)
+    import_ripper_tag_raw = abs_import_data.get("ripper_tag")
+    import_ripper_tag: str | None = None
+    if import_ripper_tag_raw is not None:
+        if isinstance(import_ripper_tag_raw, str):
+            import_ripper_tag = import_ripper_tag_raw.strip() or None
+        else:
+            logger.warning(
+                "audiobookshelf.import.ripper_tag must be a string, got '%s'; ignoring",
+                type(import_ripper_tag_raw).__name__,
+            )
+
     audiobookshelf = AudiobookshelfConfig(
         enabled=abs_data.get("enabled", False),
         host=env_settings.abs.host,
@@ -1456,6 +1488,7 @@ def load_settings(
         path_map=abs_path_map,
         libraries=abs_libraries,
         import_settings=AudiobookshelfImportConfig(
+            ripper_tag=import_ripper_tag,
             duplicate_policy=abs_import_data.get("duplicate_policy", "skip"),
             trigger_scan=abs_import_data.get("trigger_scan", "batch"),
             preferred_asin_region=validated_preferred,
@@ -1475,6 +1508,41 @@ def load_settings(
 
     # Parse workflow config (with backward compatibility)
     workflow = _parse_workflow_config(yaml_config.get("workflow"))
+
+    # Sanitize deprecated naming.ripper_tag before migration
+    # Apply same normalization as new fields: type-guard, strip, convert empty to None
+    legacy_ripper_tag: str | None = None
+    if naming.ripper_tag is not None:
+        if isinstance(naming.ripper_tag, str):
+            legacy_ripper_tag = naming.ripper_tag.strip() or None
+        else:
+            logger.warning(
+                "naming.ripper_tag must be a string, got '%s'; ignoring",
+                type(naming.ripper_tag).__name__,
+            )
+
+    # Backward compatibility: fall back to naming.ripper_tag if workflow.upload.ripper_tag not set
+    # This supports the deprecated naming.ripper_tag location during migration period
+    if workflow.upload.ripper_tag is None and legacy_ripper_tag is not None:
+        logger.warning(
+            "naming.ripper_tag is deprecated for uploads. "
+            "Please migrate to workflow.upload.ripper_tag"
+        )
+        workflow = replace(
+            workflow,
+            upload=replace(workflow.upload, ripper_tag=legacy_ripper_tag),
+        )
+
+    # Backward compatibility: fall back to naming.ripper_tag for ABS import if not set
+    if audiobookshelf.import_settings.ripper_tag is None and legacy_ripper_tag is not None:
+        logger.warning(
+            "naming.ripper_tag is deprecated for ABS imports. "
+            "Please migrate to audiobookshelf.import.ripper_tag"
+        )
+        audiobookshelf = replace(
+            audiobookshelf,
+            import_settings=replace(audiobookshelf.import_settings, ripper_tag=legacy_ripper_tag),
+        )
 
     # Parse environment section (YAML overrides pydantic-settings values)
     env_data = yaml_config.get("environment", {})
