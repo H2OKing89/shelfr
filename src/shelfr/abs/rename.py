@@ -448,12 +448,14 @@ def detect_duplicates(candidates: list[RenameCandidate]) -> list[RenameCandidate
 def compute_target_name(
     candidate: RenameCandidate,
     naming_config: NamingConfig | None = None,
+    import_ripper_tag: str | None = None,
 ) -> RenameCandidate:
     """Compute the target folder name using MAM naming schema.
 
     Args:
         candidate: Candidate to compute target for
         naming_config: Optional naming configuration
+        import_ripper_tag: Ripper tag to add during import (overrides parsed tag)
 
     Returns:
         Updated candidate with target_name set
@@ -500,8 +502,8 @@ def compute_target_name(
     # Format volume number
     vol_str = format_volume_number(vol_num) if vol_num else None
 
-    # Ripper tag - preserve from original if present
-    ripper_tag = parsed.ripper_tag
+    # Ripper tag - use import_ripper_tag if provided, otherwise preserve from original
+    ripper_tag = import_ripper_tag if import_ripper_tag else parsed.ripper_tag
 
     # Build edition flags string
     edition_str = None
@@ -740,6 +742,7 @@ def run_rename_pipeline(
     abs_client: AbsClient | None = None,
     abs_search_confidence: float = 0.75,
     naming_config: NamingConfig | None = None,
+    import_ripper_tag: str | None = None,
     dry_run: bool = False,
     interactive: bool = False,
     force: bool = False,
@@ -756,6 +759,7 @@ def run_rename_pipeline(
         abs_client: Optional ABS client for search fallback
         abs_search_confidence: Minimum confidence for ABS search
         naming_config: Optional naming configuration
+        import_ripper_tag: Ripper tag to add during import (overrides parsed tag)
         dry_run: If True, don't actually rename
         interactive: If True, prompt for each rename
         force: If True, rename files inside even when folder names are up-to-date
@@ -837,7 +841,7 @@ def run_rename_pipeline(
 
     # Stage 5: Build target names
     print_step(5, 6, "Computing target names")
-    candidates = [compute_target_name(c, naming_config) for c in candidates]
+    candidates = [compute_target_name(c, naming_config, import_ripper_tag) for c in candidates]
     candidates = check_target_exists(candidates)
 
     # Stage 6: Execute renames

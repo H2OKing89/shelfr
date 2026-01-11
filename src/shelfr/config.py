@@ -401,6 +401,9 @@ class UploadWorkflowConfig:
     sanitize: UploadSanitizeConfig = field(default_factory=UploadSanitizeConfig)
     content_warnings: ContentWarningsConfig = field(default_factory=ContentWarningsConfig)
     packaging: str = "folder"  # "folder" or "audio_only"
+    # Ripper tag appended to folder names during upload staging (e.g., "H2OKing" -> "[H2OKing]")
+    # Set to None or empty string to disable
+    ripper_tag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -512,6 +515,9 @@ def build_cleanup_prefs(
 class AudiobookshelfImportConfig:
     """Audiobookshelf import settings."""
 
+    # Ripper tag appended to folder names during import (e.g., "H2OKing" -> "[H2OKing]")
+    # Set to None or empty string to disable (existing tags still preserved via ripper_tag_preserve)
+    ripper_tag: str | None = None
     duplicate_policy: str = "skip"  # skip | warn | overwrite
     trigger_scan: str = "batch"  # none | each | batch
     # Preferred ASIN region when importing to Audiobookshelf.
@@ -939,11 +945,18 @@ def _parse_workflow_config(data: dict[str, Any] | None) -> WorkflowConfig:
         )
         packaging_mode = "folder"
 
+    # Parse upload ripper_tag (empty string means disabled)
+    upload_ripper_tag_raw = upload_data.get("ripper_tag")
+    upload_ripper_tag: str | None = None
+    if upload_ripper_tag_raw and isinstance(upload_ripper_tag_raw, str):
+        upload_ripper_tag = upload_ripper_tag_raw.strip() or None
+
     return WorkflowConfig(
         upload=UploadWorkflowConfig(
             sanitize=sanitize_config,
             content_warnings=content_warnings_config,
             packaging=packaging_mode,
+            ripper_tag=upload_ripper_tag,
         )
     )
 
@@ -1447,6 +1460,12 @@ def load_settings(
                 )
             )
 
+    # Parse import ripper_tag (empty string means disabled)
+    import_ripper_tag_raw = abs_import_data.get("ripper_tag")
+    import_ripper_tag: str | None = None
+    if import_ripper_tag_raw and isinstance(import_ripper_tag_raw, str):
+        import_ripper_tag = import_ripper_tag_raw.strip() or None
+
     audiobookshelf = AudiobookshelfConfig(
         enabled=abs_data.get("enabled", False),
         host=env_settings.abs.host,
@@ -1456,6 +1475,7 @@ def load_settings(
         path_map=abs_path_map,
         libraries=abs_libraries,
         import_settings=AudiobookshelfImportConfig(
+            ripper_tag=import_ripper_tag,
             duplicate_policy=abs_import_data.get("duplicate_policy", "skip"),
             trigger_scan=abs_import_data.get("trigger_scan", "batch"),
             preferred_asin_region=validated_preferred,

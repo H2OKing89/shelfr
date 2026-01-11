@@ -18,6 +18,7 @@ from shelfr.schemas.abs_metadata import (
     AbsMetadataJson,
     validate_abs_metadata_for_write,
 )
+from shelfr.utils.naming import mla_title_case
 
 if TYPE_CHECKING:
     from shelfr.abs.importer import ParsedFolderName
@@ -38,9 +39,10 @@ def build_abs_metadata_from_audnex(
     Returns:
         AbsMetadataJson model ready for serialization
     """
-    # Title (required)
-    title = audnex_data.get("title", "Unknown Title")
-    subtitle = audnex_data.get("subtitle")
+    # Title (required) - apply MLA title case
+    title = mla_title_case(audnex_data.get("title", "Unknown Title"))
+    subtitle_raw = audnex_data.get("subtitle")
+    subtitle = mla_title_case(subtitle_raw) if subtitle_raw else None
 
     # Authors - extract names from author objects
     authors = [a.get("name") for a in audnex_data.get("authors", []) if a.get("name")]
@@ -48,11 +50,11 @@ def build_abs_metadata_from_audnex(
     # Narrators - extract names from narrator objects
     narrators = [n.get("name") for n in audnex_data.get("narrators", []) if n.get("name")]
 
-    # Series - format as "Series Name #Position"
+    # Series - format as "Series Name #Position" with MLA title case
     series_list: list[str] = []
     primary_series = audnex_data.get("seriesPrimary")
     if primary_series and primary_series.get("name"):
-        series_name = primary_series.get("name")
+        series_name = mla_title_case(primary_series.get("name"))
         series_pos = primary_series.get("position")
         if series_pos:
             series_list.append(f"{series_name} #{series_pos}")
@@ -61,7 +63,7 @@ def build_abs_metadata_from_audnex(
 
     secondary_series = audnex_data.get("seriesSecondary")
     if secondary_series and secondary_series.get("name"):
-        series_name = secondary_series.get("name")
+        series_name = mla_title_case(secondary_series.get("name"))
         series_pos = secondary_series.get("position")
         if series_pos:
             series_list.append(f"{series_name} #{series_pos}")

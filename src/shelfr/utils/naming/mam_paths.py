@@ -32,6 +32,7 @@ from shelfr.utils.naming.filters import (
     inherit_the_prefix,
     sanitize_filename,
 )
+from shelfr.utils.naming.titlecase import mla_title_case
 from shelfr.utils.naming.volume_parsing import format_volume_number
 
 logger = logging.getLogger(__name__)
@@ -381,6 +382,10 @@ def build_mam_path(
     clean_title = (
         filter_title(title, naming_config=naming_config, keep_volume=False) if title else ""
     )
+
+    # Apply MLA title case for consistent capitalization
+    clean_title = mla_title_case(clean_title) if clean_title else ""
+    clean_series = mla_title_case(clean_series) if clean_series else None
 
     # Inherit "The" prefix from title to series if series lacks it
     # (e.g., title="The Great Cleric", series="Great Cleric" -> series="The Great Cleric")

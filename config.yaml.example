@@ -71,10 +71,9 @@ filters:
 # Naming / Output Settings
 # ─────────────────────────────────────────────────────────────────────────────
 naming:
-  # Ripper tag appended to folder names: "[H2OKing]" at end of folder name
-  # Used in both Audiobookshelf library and MAM uploads (folder only, not filename)
-  # Set to null or empty string to disable
-  ripper_tag: "H2OKing"
+  # DEPRECATED: Use workflow.upload.ripper_tag and audiobookshelf.import.ripper_tag instead
+  # This setting is ignored - configure ripper tags separately for uploads and imports
+  ripper_tag: null
 
 # ─────────────────────────────────────────────────────────────────────────────
 # mkbrr Docker Settings
@@ -134,6 +133,11 @@ workflow:
     # Requires hardcover.enabled = true (see Hardcover API section below)
     content_warnings:
       enabled: false  # Enable to fetch content warnings (vio, cLang, sSex, eSex, lgbt)
+
+    # Ripper tag appended to folder names during upload staging: "[YourName]" at end
+    # Example: "Author - Title {ASIN.B00123} [YourName]"
+    # Set to null or empty string to disable
+    ripper_tag: "H2OKing"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # qBittorrent Settings
@@ -269,6 +273,11 @@ audiobookshelf:
 
   # Import settings
   import:
+    # Ripper tag appended to folder names during ABS import: "[YourName]" at end
+    # Example: "Author - Title {ASIN.B00123} [YourName]"
+    # Set to null or empty string to disable (existing tags still preserved via ripper_tag_preserve)
+    ripper_tag: "H2OKing"
+
     # Preferred ASIN region when importing to Audiobookshelf
     # When an audiobook's ASIN is found in a different region (e.g., "es" for Spain),
     # Shelfr will use ABS's Audible search to find the ASIN for your preferred region.

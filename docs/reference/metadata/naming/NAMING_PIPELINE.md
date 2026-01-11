@@ -39,7 +39,7 @@
 │                              ▼                                              │
 │  Stage 4: Formatting                                                       │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ Series formatting → Year formatting → ASIN tag                       │  │
+│  │ MLA title case → Series formatting → Year formatting → ASIN tag      │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 │                              │                                              │
 │                              ▼                                              │
@@ -179,7 +179,43 @@ def clean_title(raw_title: str) -> str:
 
 ## Stage 4: Formatting
 
-### 4.1 Series Formatting
+### 4.1 MLA Title Case (MAM JSON Only)
+
+MAM explicitly requires MLA title case for English-language audiobook metadata. This transformation is applied **only to MAM JSON fields**, not folder/file names.
+
+```python
+from shelfr.utils.naming import mla_title_case
+
+# Before (cleaned from Stage 3)
+title = "the beginning after the end"
+series = "the stormlight archive"
+
+# After MLA title case
+title = mla_title_case(title)    # → "The Beginning After the End"
+series = mla_title_case(series)  # → "The Stormlight Archive"
+```
+
+**Key MLA Rules:**
+
+- Capitalize first and last words
+- Capitalize principal words (nouns, verbs, adjectives)
+- Do NOT capitalize articles (a, an, the)
+- Do NOT capitalize prepositions
+- Preserve Roman numerals (I, II, III, etc.)
+
+**Applied To:**
+
+| Field | MLA Applied | Reason |
+| --- | --- | --- |
+| MAM JSON `title` | ✅ Yes | MAM requirement |
+| MAM JSON `subtitle` | ✅ Yes | MAM requirement |
+| MAM JSON `series` | ✅ Yes | MAM requirement |
+| Folder name | ❌ No | Uses cleaned title |
+| File name | ❌ No | Uses cleaned title |
+
+See [NAMING_RULES.md](./NAMING_RULES.md#mla-title-case) for full MLA rules and examples.
+
+### 4.2 Series Formatting
 
 ```python
 # With series
@@ -197,7 +233,7 @@ def clean_title(raw_title: str) -> str:
 "12"  → "vol_12"
 ```
 
-### 4.2 Year Formatting
+### 4.3 Year Formatting
 
 ```python
 # Year in parentheses
@@ -207,7 +243,7 @@ def clean_title(raw_title: str) -> str:
 "(Unknown)"  # or omitted based on config
 ```
 
-### 4.3 ASIN Tag
+### 4.4 ASIN Tag
 
 ```python
 # Standard format

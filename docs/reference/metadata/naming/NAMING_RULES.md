@@ -170,6 +170,96 @@ Step 2: "The Book"           (marketing phrase removed)
 
 ---
 
+## MLA Title Case
+
+### Overview
+
+MAM **explicitly requires MLA (Modern Language Association) title case** for English-language audiobook titles, subtitles, and series names. Shelfr applies MLA title case transformation to ensure compliance.
+
+### MLA Capitalization Rules
+
+The `titlecase` package implements MLA rules:
+
+| Capitalize | Do NOT Capitalize |
+| --- | --- |
+| First word | Articles (a, an, the) |
+| Last word | Prepositions (regardless of length) |
+| Nouns, pronouns | Coordinating conjunctions (and, but, or, nor) |
+| Verbs, adjectives | "to" in infinitives |
+| Adverbs | |
+| Subordinating conjunctions | |
+| Principal words after hyphens | |
+
+### Examples
+
+| Input | MLA Output |
+| --- | --- |
+| `the beginning after the end` | `The Beginning After the End` |
+| `is it wrong to try to pick up girls in a dungeon?` | `Is It Wrong to Try to Pick Up Girls in a Dungeon?` |
+| `the eminence in shadow, vol. 3` | `The Eminence in Shadow, Vol. 3` |
+| `sword art online 16` | `Sword Art Online 16` |
+| `a game of thrones` | `A Game of Thrones` |
+
+### Shelfr-Specific Handling
+
+The `mla_title_case()` function adds audiobook-specific handling:
+
+**Roman Numerals** — Preserved as uppercase:
+
+```text
+"book iii" → "Book III"
+"volume iv" → "Volume IV"
+```
+
+**Volume Abbreviations** — Standardized capitalization:
+
+```text
+"VOL." → "Vol."
+"BK." → "Bk."
+"PT." → "Pt."
+```
+
+**Acronyms** — 2-5 uppercase letters preserved:
+
+```text
+"USA" → "USA"
+"FBI" → "FBI"
+```
+
+### Implementation
+
+```python
+from shelfr.utils.naming import mla_title_case
+
+# Basic usage
+title = mla_title_case("the way of kings")
+# → "The Way of Kings"
+
+# With series
+series = mla_title_case("the stormlight archive")
+# → "The Stormlight Archive"
+```
+
+### Where Applied
+
+MLA title case is applied to:
+
+| Field | Applied | Notes |
+| --- | --- | --- |
+| MAM JSON title | ✅ Yes | Required by MAM |
+| MAM JSON subtitle | ✅ Yes | Required by MAM |
+| MAM JSON series | ✅ Yes | Required by MAM |
+| Folder name title | ❌ No | Uses cleaned title as-is |
+| ABS metadata | ⚠️ Optional | Future consideration |
+
+### Reference
+
+- Module: [`src/shelfr/utils/naming/titlecase.py`](/src/shelfr/utils/naming/titlecase.py)
+- Package: [`titlecase`](https://pypi.org/project/titlecase/) (>=2.4)
+- Style guide: [MLA Title Case Rules](https://titlecaseconverter.com/)
+
+---
+
 ## Author Map
 
 ### Purpose

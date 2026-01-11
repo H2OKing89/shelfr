@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from pydantic import ValidationError
 
 from shelfr.exceptions import ExportError
+from shelfr.utils.naming import mla_title_case
 
 if TYPE_CHECKING:
     from shelfr.metadata.aggregator import AggregatedResult
@@ -124,14 +125,14 @@ class OpfExporter:
         if isbn := fields.get("isbn"):
             identifiers.append(OPFIdentifier(value=isbn, scheme="ISBN"))
 
-        # Build series list
+        # Build series list (apply MLA title case to series name)
         series: list[OPFSeries] = []
         series_name = fields.get("series_name")
         series_position = fields.get("series_position")
         if series_name:
             series.append(
                 OPFSeries(
-                    name=series_name,
+                    name=mla_title_case(series_name),
                     index=str(series_position) if series_position else "1",
                 )
             )
@@ -161,7 +162,7 @@ class OpfExporter:
         iso_language = to_iso_language(language)
 
         return OPFMetadata(
-            title=fields.get("title", "Unknown"),
+            title=mla_title_case(fields.get("title", "Unknown")),
             language=iso_language,
             creators=creators,
             identifiers=identifiers,
