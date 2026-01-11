@@ -930,7 +930,9 @@ naming:
             # Empty string is converted to None for easier boolean checks
             assert settings.naming.ripper_tag is None
 
-    def test_ripper_tag_fallback_from_naming_to_workflow(self) -> None:
+    def test_ripper_tag_fallback_from_naming_to_workflow(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Test backward compat: naming.ripper_tag falls back to workflow.upload.ripper_tag."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
@@ -964,6 +966,8 @@ naming:
 
             # workflow.upload.ripper_tag should inherit from naming.ripper_tag
             assert settings.workflow.upload.ripper_tag == "LegacyTag"
+            # Verify deprecation warning was logged
+            assert "naming.ripper_tag is deprecated" in caplog.text
 
     def test_ripper_tag_workflow_takes_precedence_over_naming(self) -> None:
         """Test workflow.upload.ripper_tag takes precedence over naming.ripper_tag."""
@@ -1003,6 +1007,107 @@ workflow:
 
             # workflow.upload.ripper_tag should NOT be overridden by naming.ripper_tag
             assert settings.workflow.upload.ripper_tag == "NewTag"
+
+    def test_audiobookshelf_import_ripper_tag_from_config_yaml(self) -> None:
+        """Test audiobookshelf.import.ripper_tag is loaded from config.yaml."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+audiobookshelf:
+  import:
+    ripper_tag: "ABSTag"
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            assert settings.audiobookshelf.import_settings.ripper_tag == "ABSTag"
+
+    def test_audiobookshelf_import_ripper_tag_empty_becomes_none(self) -> None:
+        """Test audiobookshelf.import.ripper_tag empty string becomes None."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+audiobookshelf:
+  import:
+    ripper_tag: ""
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # Empty string is converted to None
+            assert settings.audiobookshelf.import_settings.ripper_tag is None
+
+    def test_audiobookshelf_import_ripper_tag_whitespace_becomes_none(self) -> None:
+        """Test audiobookshelf.import.ripper_tag whitespace-only becomes None."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+audiobookshelf:
+  import:
+    ripper_tag: "   "
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # Whitespace-only is stripped and becomes None
+            assert settings.audiobookshelf.import_settings.ripper_tag is None
 
 
 class TestBuildTrumpPrefs:

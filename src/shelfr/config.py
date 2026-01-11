@@ -45,7 +45,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -1503,13 +1503,9 @@ def load_settings(
             "naming.ripper_tag is deprecated for uploads. "
             "Please migrate to workflow.upload.ripper_tag"
         )
-        workflow = WorkflowConfig(
-            upload=UploadWorkflowConfig(
-                sanitize=workflow.upload.sanitize,
-                content_warnings=workflow.upload.content_warnings,
-                packaging=workflow.upload.packaging,
-                ripper_tag=naming.ripper_tag,
-            )
+        workflow = replace(
+            workflow,
+            upload=replace(workflow.upload, ripper_tag=naming.ripper_tag),
         )
 
     # Parse environment section (YAML overrides pydantic-settings values)
