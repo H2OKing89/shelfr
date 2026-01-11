@@ -930,6 +930,80 @@ naming:
             # Empty string is converted to None for easier boolean checks
             assert settings.naming.ripper_tag is None
 
+    def test_ripper_tag_fallback_from_naming_to_workflow(self) -> None:
+        """Test backward compat: naming.ripper_tag falls back to workflow.upload.ripper_tag."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            # Create minimal naming.json
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # Only naming.ripper_tag set (deprecated location)
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "LegacyTag"
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # workflow.upload.ripper_tag should inherit from naming.ripper_tag
+            assert settings.workflow.upload.ripper_tag == "LegacyTag"
+
+    def test_ripper_tag_workflow_takes_precedence_over_naming(self) -> None:
+        """Test workflow.upload.ripper_tag takes precedence over naming.ripper_tag."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            config_subdir = tmppath / "config"
+            config_subdir.mkdir()
+
+            # Create minimal naming.json
+            (config_subdir / "naming.json").write_text("{}")
+            (config_subdir / "categories.json").write_text('{"default": 0, "mappings": {}}')
+
+            # Both set - workflow should take precedence
+            (config_subdir / "config.yaml").write_text(
+                f"""
+paths:
+  library_root: "{tmpdir}/library"
+  torrent_output: "{tmpdir}/torrents"
+  seed_root: "{tmpdir}/seed"
+  state_file: "{tmpdir}/state.json"
+  log_file: "{tmpdir}/app.log"
+
+naming:
+  ripper_tag: "LegacyTag"
+
+workflow:
+  upload:
+    ripper_tag: "NewTag"
+"""
+            )
+
+            settings = load_settings(
+                config_file=config_subdir / "config.yaml",
+                env_file=None,
+                validate=False,
+            )
+
+            # workflow.upload.ripper_tag should NOT be overridden by naming.ripper_tag
+            assert settings.workflow.upload.ripper_tag == "NewTag"
+
 
 class TestBuildTrumpPrefs:
     """Tests for build_trump_prefs helper function."""

@@ -1496,6 +1496,22 @@ def load_settings(
     # Parse workflow config (with backward compatibility)
     workflow = _parse_workflow_config(yaml_config.get("workflow"))
 
+    # Backward compatibility: fall back to naming.ripper_tag if workflow.upload.ripper_tag not set
+    # This supports the deprecated naming.ripper_tag location during migration period
+    if workflow.upload.ripper_tag is None and naming.ripper_tag is not None:
+        logger.warning(
+            "naming.ripper_tag is deprecated for uploads. "
+            "Please migrate to workflow.upload.ripper_tag"
+        )
+        workflow = WorkflowConfig(
+            upload=UploadWorkflowConfig(
+                sanitize=workflow.upload.sanitize,
+                content_warnings=workflow.upload.content_warnings,
+                packaging=workflow.upload.packaging,
+                ripper_tag=naming.ripper_tag,
+            )
+        )
+
     # Parse environment section (YAML overrides pydantic-settings values)
     env_data = yaml_config.get("environment", {})
 
