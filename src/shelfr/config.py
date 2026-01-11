@@ -516,7 +516,8 @@ class AudiobookshelfImportConfig:
     """Audiobookshelf import settings."""
 
     # Ripper tag appended to folder names during import (e.g., "H2OKing" -> "[H2OKing]")
-    # Set to None or empty string to disable (existing tags still preserved via ripper_tag_preserve)
+    # Set to None or empty string to disable forced tagging; existing tags in folder names
+    # are preserved via extraction fallback in the rename pipeline
     ripper_tag: str | None = None
     duplicate_policy: str = "skip"  # skip | warn | overwrite
     trigger_scan: str = "batch"  # none | each | batch
