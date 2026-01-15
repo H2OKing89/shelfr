@@ -236,7 +236,8 @@ def build_mam_json(
     # Priority:
     #   1) Normalized book (from swap detection) + secondary series from Audnex
     #   2) Audnex via _build_series_list (preserves primary + secondary series)
-    #   3) resolve_series() fallback (Libation path → Title heuristics)
+    #   3) Release.series (from Libation metadata.json - preserves proper punctuation)
+    #   4) resolve_series() fallback (Libation path → Title heuristics)
     #
     # Key principle: resolve_series() is an ENHANCER, not a bulldozer.
     # It fills gaps (missing position) but doesn't overwrite existing multi-series data.
@@ -296,7 +297,29 @@ def build_mam_json(
                 [s.get("name") for s in series_list],
             )
 
-    # Step 3: Use resolve_series() as enhancer or fallback
+    # Step 3: Use release.series (from Libation metadata.json)
+    # This preserves proper punctuation that gets stripped from folder names
+    # Only use if we don't have series from Audnex yet
+    if not series_entries and release.series:
+        cleaned_series = filter_series(
+            release.series,
+            naming_config=naming_config,
+        )
+        # MAM requires MLA title case for series names
+        cleaned_series = mla_title_case(cleaned_series)
+        series_entries = [
+            {
+                "name": cleaned_series,
+                "number": release.series_position or "",
+            }
+        ]
+        logger.debug(
+            "Series from Libation metadata: %s #%s",
+            cleaned_series,
+            release.series_position or "N/A",
+        )
+
+    # Step 4: Use resolve_series() as enhancer or fallback
     # - If no series yet: use as primary source (Libation → Title heuristics)
     # - If we have exactly one series with missing info: fill gaps
     title_for_heuristic = cleaned_title or audnex.get("title") or release.title
