@@ -1194,6 +1194,47 @@ class TestBuildMamJsonCleaning:
         assert "(Light Novel)" not in series_name
         assert "Vol." not in series_name
 
+    def test_swapped_title_subtitle_no_duplicate_subtitle(self):
+        """Test that swapped title/subtitle doesn't duplicate title as subtitle.
+
+        When Audnex has:
+          title: "Series Name, Vol. X"  (series+number, not meaningful)
+          subtitle: "The Actual Book Name"  (meaningful name)
+
+        After swap:
+          title becomes: "The Actual Book Name"
+          subtitle should be: empty (NOT duplicate of title)
+
+        Bug fix: arc_name was returning the title, causing subtitle==title.
+        """
+        from shelfr.models import AudiobookRelease
+
+        release = AudiobookRelease(title="Test", asin="B0G1VBHWH3")
+        audnex = {
+            "asin": "B0G1VBHWH3",
+            "title": "Unnamed Memory, Vol. 1",  # Series + number (not meaningful)
+            "subtitle": "The Witch of the Azure Moon and the Cursed Prince",  # Actual name
+            "seriesPrimary": {"name": "Unnamed Memory", "position": "1"},
+            "authors": [{"name": "Author"}],
+        }
+
+        with (
+            patch("shelfr.metadata.render_bbcode_description", return_value=""),
+            patch(
+                "shelfr.metadata.mam.json_builder.get_settings",
+                return_value=self._get_mock_settings(),
+            ),
+        ):
+            result = build_mam_json(release, audnex_data=audnex)
+
+        # Title should be the meaningful name (from original subtitle)
+        assert "The Witch of the Azure Moon" in result["title"]
+        # Subtitle should NOT be the same as title (should be empty/missing)
+        assert result.get("subtitle") is None or result.get("subtitle") != result["title"]
+        # Series should be populated correctly
+        assert result["series"][0]["name"] == "Unnamed Memory"
+        assert result["series"][0]["number"] == "1"
+
 
 class TestRenderBbcodeDescription:
     """Tests for render_bbcode_description function."""

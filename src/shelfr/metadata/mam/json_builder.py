@@ -346,40 +346,34 @@ def build_mam_json(
                 )
         # else: multiple series entries from Audnex - don't touch them
 
-    # Step 4: Last-ditch fallback - release.series (only if still nothing)
-    if not series_entries and release.series:
-        cleaned_series = filter_series(
-            release.series,
-            naming_config=naming_config,
-        )
-        series_entries = [
-            {
-                "name": cleaned_series,
-                "number": release.series_position or "",
-            }
-        ]
-        logger.debug(
-            "Series from release fallback: %s #%s",
-            cleaned_series,
-            release.series_position or "N/A",
-        )
-
     # Commit series to MAM JSON
     if series_entries:
         mam_json["series"] = series_entries
 
     # Subtitle - use normalized arc_name (from swap detection) or filter raw subtitle
     # Arc name is the meaningful subtitle (e.g., "Alicization Exploding", "Mother's Rosary")
+    #
+    # IMPORTANT: When a title/subtitle swap occurs, the arc_name becomes the title.
+    # In this case, don't set subtitle to arc_name - it would duplicate the title.
+    # Example: "Unnamed Memory, Vol. 1" / "The Witch of the Azure Moon..." swaps to:
+    #   title="The Witch of the Azure Moon..." (meaningful name)
+    #   arc_name="The Witch of the Azure Moon..." (same as title)
+    # We should NOT set subtitle to the same value as title.
     if normalized and normalized.arc_name:
-        # Use arc name directly as subtitle (it's already the "good" part)
-        cleaned_subtitle = filter_subtitle(
-            normalized.arc_name,
-            title=cleaned_title,
-            series=cleaned_series if mam_json.get("series") else None,
-            naming_config=naming_config,
+        # Skip if arc_name equals the display_title (they both became the meaningful name)
+        arc_matches_title = (
+            normalized.arc_name.strip().lower() == (normalized.display_title or "").strip().lower()
         )
-        if cleaned_subtitle:
-            mam_json["subtitle"] = cleaned_subtitle
+        if not arc_matches_title:
+            # Use arc name directly as subtitle (it's already the "good" part)
+            cleaned_subtitle = filter_subtitle(
+                normalized.arc_name,
+                title=cleaned_title,
+                series=cleaned_series if mam_json.get("series") else None,
+                naming_config=naming_config,
+            )
+            if cleaned_subtitle:
+                mam_json["subtitle"] = cleaned_subtitle
     else:
         # Fallback: apply filter_subtitle with full redundancy checking
         subtitle = audnex.get("subtitle")
