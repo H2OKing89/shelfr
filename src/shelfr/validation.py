@@ -762,8 +762,6 @@ class PreflightValidation:
             )
 
         # Check if Docker binary exists
-        from pathlib import Path
-
         docker_bin = Path(self._settings.docker_bin)
         if not docker_bin.exists():
             return ValidationCheck(
@@ -778,7 +776,7 @@ class PreflightValidation:
         from shelfr.ffmpeg import is_available, pull_image
 
         # Check if image exists locally
-        if is_available():
+        if is_available(settings=self._settings):
             return ValidationCheck(
                 name="ffmpeg_docker_image",
                 passed=True,
@@ -793,7 +791,7 @@ class PreflightValidation:
             self._settings.ffmpeg.image,
         )
 
-        if pull_image():
+        if pull_image(settings=self._settings):
             return ValidationCheck(
                 name="ffmpeg_docker_image",
                 passed=True,
