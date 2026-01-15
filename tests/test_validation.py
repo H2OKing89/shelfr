@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from shelfr.config import Settings
 from shelfr.validation import (
     CheckCategory,
@@ -79,6 +81,15 @@ class MockAudnexConfig:
     burst_limit: float = 10.0
     burst_period: float = 5.0
     asin_concurrency: int = 5
+
+
+@pytest.fixture()
+def fake_docker_bin(tmp_path: Path) -> Path:
+    """Create a fake docker binary for testing."""
+    docker_bin = tmp_path / "docker"
+    docker_bin.touch()
+    docker_bin.chmod(0o755)
+    return docker_bin
 
 
 @dataclass
