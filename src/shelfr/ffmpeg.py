@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from shelfr.config import get_settings
 from shelfr.utils.cmd import CmdError, CmdResult, run
@@ -22,6 +22,9 @@ from shelfr.utils.permissions import fix_ownership
 from shelfr.utils.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from shelfr.config import Settings
 
 
 # =============================================================================
