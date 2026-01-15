@@ -41,6 +41,7 @@ class CheckCategory(Enum):
     SERVICES = "Services"
     CATEGORIES = "Categories"
     FILESYSTEM = "Filesystem"
+    DOCKER = "Docker"
 
 
 @dataclass
@@ -538,6 +539,7 @@ class PreflightValidation:
         result.add(self._check_torrent_output_writable())
         result.add(self._check_disk_space(release_size_bytes))
         result.add(self._check_state_file_writable())
+        result.add(self._check_ffmpeg_docker_image())
         return result
 
     def _check_library_root_readable(self) -> ValidationCheck:
@@ -740,6 +742,76 @@ class PreflightValidation:
             message="State file OK",
             severity="info",
             category=CheckCategory.FILESYSTEM,
+        )
+
+    def _check_ffmpeg_docker_image(self) -> ValidationCheck:
+        """Check FFmpeg Docker image is available, auto-pull if missing.
+
+        This is a soft check (warning) because FFmpeg is only needed for
+        metadata sanitization, which is optional. The pipeline can still
+        run without it.
+        """
+        # Skip check if FFmpeg is disabled in config
+        if not self._settings.ffmpeg.enabled:
+            return ValidationCheck(
+                name="ffmpeg_docker_image",
+                passed=True,
+                message="FFmpeg disabled in config (skipped)",
+                severity="info",
+                category=CheckCategory.DOCKER,
+            )
+
+        # Check if Docker binary exists
+        from pathlib import Path
+
+        docker_bin = Path(self._settings.docker_bin)
+        if not docker_bin.exists():
+            return ValidationCheck(
+                name="ffmpeg_docker_image",
+                passed=False,
+                message=f"Docker binary not found: {docker_bin}",
+                severity="warning",
+                category=CheckCategory.DOCKER,
+            )
+
+        # Import ffmpeg functions
+        from shelfr.ffmpeg import is_available, pull_image
+
+        # Check if image exists locally
+        if is_available():
+            return ValidationCheck(
+                name="ffmpeg_docker_image",
+                passed=True,
+                message=f"FFmpeg image OK: {self._settings.ffmpeg.image}",
+                severity="info",
+                category=CheckCategory.DOCKER,
+            )
+
+        # Image not available - try to pull it
+        logger.info(
+            "FFmpeg Docker image not found, pulling: %s",
+            self._settings.ffmpeg.image,
+        )
+
+        if pull_image():
+            return ValidationCheck(
+                name="ffmpeg_docker_image",
+                passed=True,
+                message=f"FFmpeg image pulled: {self._settings.ffmpeg.image}",
+                severity="info",
+                category=CheckCategory.DOCKER,
+            )
+
+        # Pull failed
+        return ValidationCheck(
+            name="ffmpeg_docker_image",
+            passed=False,
+            message=(
+                f"Failed to pull FFmpeg image: {self._settings.ffmpeg.image}. "
+                "Metadata sanitization will be skipped."
+            ),
+            severity="warning",
+            category=CheckCategory.DOCKER,
         )
 
 
