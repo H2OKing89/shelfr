@@ -573,7 +573,7 @@ def get_bitrate(input_path: Path | str) -> int | None:
     return result.bitrate if result.success else None
 
 
-def is_available(*, settings: "Settings" | None = None) -> bool:
+def is_available(*, settings: Settings | None = None) -> bool:
     """
     Check if FFmpeg Docker image is available.
 
@@ -593,7 +593,7 @@ def is_available(*, settings: "Settings" | None = None) -> bool:
         return False
 
 
-def pull_image(*, settings: "Settings" | None = None) -> bool:
+def pull_image(*, settings: Settings | None = None) -> bool:
     """
     Pull the FFmpeg Docker image.
 
