@@ -1246,19 +1246,14 @@ class TestPreflightValidationFFmpeg:
         assert check.severity == "warning"
         assert "not found" in check.message.lower()
 
-    def test_ffmpeg_image_already_available(self, tmp_path):
+    def test_ffmpeg_image_already_available(self, fake_docker_bin):
         """When FFmpeg image exists locally, check should pass."""
         from shelfr.validation import PreflightValidation
-
-        # Create a fake docker binary
-        docker_bin = tmp_path / "docker"
-        docker_bin.touch()
-        docker_bin.chmod(0o755)
 
         mock_settings = MagicMock()
         mock_settings.ffmpeg.enabled = True
         mock_settings.ffmpeg.image = "test/ffmpeg:latest"
-        mock_settings.docker_bin = str(docker_bin)
+        mock_settings.docker_bin = str(fake_docker_bin)
 
         with patch("shelfr.ffmpeg.is_available", return_value=True):
             preflight = PreflightValidation(mock_settings)
@@ -1267,19 +1262,14 @@ class TestPreflightValidationFFmpeg:
         assert check.passed is True
         assert "OK" in check.message
 
-    def test_ffmpeg_image_pulls_when_missing(self, tmp_path):
+    def test_ffmpeg_image_pulls_when_missing(self, fake_docker_bin):
         """When FFmpeg image is missing, it should auto-pull."""
         from shelfr.validation import PreflightValidation
-
-        # Create a fake docker binary
-        docker_bin = tmp_path / "docker"
-        docker_bin.touch()
-        docker_bin.chmod(0o755)
 
         mock_settings = MagicMock()
         mock_settings.ffmpeg.enabled = True
         mock_settings.ffmpeg.image = "test/ffmpeg:latest"
-        mock_settings.docker_bin = str(docker_bin)
+        mock_settings.docker_bin = str(fake_docker_bin)
 
         with (
             patch("shelfr.ffmpeg.is_available", return_value=False),
@@ -1292,19 +1282,14 @@ class TestPreflightValidationFFmpeg:
         assert "pulled" in check.message.lower()
         mock_pull.assert_called_once()
 
-    def test_ffmpeg_image_pull_fails(self, tmp_path):
+    def test_ffmpeg_image_pull_fails(self, fake_docker_bin):
         """When FFmpeg image pull fails, check should warn."""
         from shelfr.validation import PreflightValidation
-
-        # Create a fake docker binary
-        docker_bin = tmp_path / "docker"
-        docker_bin.touch()
-        docker_bin.chmod(0o755)
 
         mock_settings = MagicMock()
         mock_settings.ffmpeg.enabled = True
         mock_settings.ffmpeg.image = "test/ffmpeg:latest"
-        mock_settings.docker_bin = str(docker_bin)
+        mock_settings.docker_bin = str(fake_docker_bin)
 
         with (
             patch("shelfr.ffmpeg.is_available", return_value=False),
