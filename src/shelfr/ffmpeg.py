@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from shelfr.config import get_settings
 from shelfr.utils.cmd import CmdError, CmdResult, run
@@ -22,6 +22,9 @@ from shelfr.utils.permissions import fix_ownership
 from shelfr.utils.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from shelfr.config import Settings
 
 
 # =============================================================================
@@ -570,18 +573,18 @@ def get_bitrate(input_path: Path | str) -> int | None:
     return result.bitrate if result.success else None
 
 
-def is_available() -> bool:
+def is_available(*, settings: Settings | None = None) -> bool:
     """
     Check if FFmpeg Docker image is available.
 
     Returns:
         True if image exists locally
     """
-    settings = get_settings()
+    runtime_settings = settings or get_settings()
 
     try:
         result = run(
-            [settings.docker_bin, "images", "-q", settings.ffmpeg.image],
+            [runtime_settings.docker_bin, "images", "-q", runtime_settings.ffmpeg.image],
             timeout=30,
             capture_output=True,
         )
@@ -590,18 +593,18 @@ def is_available() -> bool:
         return False
 
 
-def pull_image() -> bool:
+def pull_image(*, settings: Settings | None = None) -> bool:
     """
     Pull the FFmpeg Docker image.
 
     Returns:
         True if pull succeeded
     """
-    settings = get_settings()
+    runtime_settings = settings or get_settings()
 
     try:
         result = run(
-            [settings.docker_bin, "pull", settings.ffmpeg.image],
+            [runtime_settings.docker_bin, "pull", runtime_settings.ffmpeg.image],
             timeout=300,
             capture_output=True,
         )

@@ -236,7 +236,8 @@ def build_mam_json(
     # Priority:
     #   1) Normalized book (from swap detection) + secondary series from Audnex
     #   2) Audnex via _build_series_list (preserves primary + secondary series)
-    #   3) resolve_series() fallback (Libation path → Title heuristics)
+    #   3) Release.series (from Libation metadata.json - preserves proper punctuation)
+    #   4) resolve_series() fallback (Libation path → Title heuristics)
     #
     # Key principle: resolve_series() is an ENHANCER, not a bulldozer.
     # It fills gaps (missing position) but doesn't overwrite existing multi-series data.
@@ -296,7 +297,29 @@ def build_mam_json(
                 [s.get("name") for s in series_list],
             )
 
-    # Step 3: Use resolve_series() as enhancer or fallback
+    # Step 3: Use release.series (from Libation metadata.json)
+    # This preserves proper punctuation that gets stripped from folder names
+    # Only use if we don't have series from Audnex yet
+    if not series_entries and release.series:
+        cleaned_series = filter_series(
+            release.series,
+            naming_config=naming_config,
+        )
+        # MAM requires MLA title case for series names
+        cleaned_series = mla_title_case(cleaned_series)
+        series_entries = [
+            {
+                "name": cleaned_series,
+                "number": release.series_position or "",
+            }
+        ]
+        logger.debug(
+            "Series from Libation metadata: %s #%s",
+            cleaned_series,
+            release.series_position or "N/A",
+        )
+
+    # Step 4: Use resolve_series() as enhancer or fallback
     # - If no series yet: use as primary source (Libation → Title heuristics)
     # - If we have exactly one series with missing info: fill gaps
     title_for_heuristic = cleaned_title or audnex.get("title") or release.title
@@ -346,40 +369,34 @@ def build_mam_json(
                 )
         # else: multiple series entries from Audnex - don't touch them
 
-    # Step 4: Last-ditch fallback - release.series (only if still nothing)
-    if not series_entries and release.series:
-        cleaned_series = filter_series(
-            release.series,
-            naming_config=naming_config,
-        )
-        series_entries = [
-            {
-                "name": cleaned_series,
-                "number": release.series_position or "",
-            }
-        ]
-        logger.debug(
-            "Series from release fallback: %s #%s",
-            cleaned_series,
-            release.series_position or "N/A",
-        )
-
     # Commit series to MAM JSON
     if series_entries:
         mam_json["series"] = series_entries
 
     # Subtitle - use normalized arc_name (from swap detection) or filter raw subtitle
     # Arc name is the meaningful subtitle (e.g., "Alicization Exploding", "Mother's Rosary")
+    #
+    # IMPORTANT: When a title/subtitle swap occurs, the arc_name becomes the title.
+    # In this case, don't set subtitle to arc_name - it would duplicate the title.
+    # Example: "Unnamed Memory, Vol. 1" / "The Witch of the Azure Moon..." swaps to:
+    #   title="The Witch of the Azure Moon..." (meaningful name)
+    #   arc_name="The Witch of the Azure Moon..." (same as title)
+    # We should NOT set subtitle to the same value as title.
     if normalized and normalized.arc_name:
-        # Use arc name directly as subtitle (it's already the "good" part)
-        cleaned_subtitle = filter_subtitle(
-            normalized.arc_name,
-            title=cleaned_title,
-            series=cleaned_series if mam_json.get("series") else None,
-            naming_config=naming_config,
+        # Skip if arc_name equals the display_title (they both became the meaningful name)
+        arc_matches_title = (
+            normalized.arc_name.strip().lower() == (normalized.display_title or "").strip().lower()
         )
-        if cleaned_subtitle:
-            mam_json["subtitle"] = cleaned_subtitle
+        if not arc_matches_title:
+            # Use arc name directly as subtitle (it's already the "good" part)
+            cleaned_subtitle = filter_subtitle(
+                normalized.arc_name,
+                title=cleaned_title,
+                series=cleaned_series if mam_json.get("series") else None,
+                naming_config=naming_config,
+            )
+            if cleaned_subtitle:
+                mam_json["subtitle"] = cleaned_subtitle
     else:
         # Fallback: apply filter_subtitle with full redundancy checking
         subtitle = audnex.get("subtitle")
