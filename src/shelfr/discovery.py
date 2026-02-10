@@ -29,9 +29,12 @@ from typing import Any
 from shelfr.config import get_settings
 from shelfr.models import AudiobookRelease, ReleaseStatus
 from shelfr.utils.fuzzy import find_duplicates, similarity_ratio
-from shelfr.utils.state import get_processed_identifiers
+from shelfr.utils.state import load_state
 
 logger = logging.getLogger(__name__)
+
+# Processed entries with these statuses are considered terminal and should not be rediscovered.
+TERMINAL_PROCESSED_STATUSES = frozenset({"COMPLETE", "UPLOADED"})
 
 # Regex to extract ASIN from folder/file name
 # Matches: {ASIN.B09GHD1R2R} or [ASIN.1774248182] (both bracket styles)
@@ -447,23 +450,38 @@ def get_new_releases(
     # Get all releases
     all_releases = scan_library(library_root)
 
-    # Get already processed identifiers
-    processed = get_processed_identifiers()
+    # Load processed entries with status/checkpoint data.
+    # This allows checkpointed (non-terminal) releases to resume on later runs.
+    state = load_state()
+    processed_raw = state.get("processed", {})
+    processed_entries: dict[str, Any] = processed_raw if isinstance(processed_raw, dict) else {}
 
     # Filter to new releases
     new_releases = []
     for release in all_releases:
-        # Check by ASIN (preferred) or source_dir path
+        # Check by ASIN (preferred) or source_dir path.
         identifier = release.asin or str(release.source_dir)
+        source_path = str(release.source_dir)
 
-        if identifier in processed:
-            logger.debug(f"Skipping (already processed): {release.display_name}")
-            continue
+        entry = processed_entries.get(identifier)
+        if entry is None and source_path != identifier:
+            # Fallback by source path in case ASIN changed across scans.
+            entry = processed_entries.get(source_path)
 
-        # Also check by path in case ASIN changed
-        if str(release.source_dir) in processed:
-            logger.debug(f"Skipping (path already processed): {release.display_name}")
-            continue
+        if isinstance(entry, dict):
+            # Legacy entries without a status are treated as terminal COMPLETE.
+            raw_status = entry.get("status")
+            status = str(raw_status).strip().upper() if raw_status is not None else "COMPLETE"
+
+            if status in TERMINAL_PROCESSED_STATUSES:
+                logger.debug(f"Skipping (already processed): {release.display_name}")
+                continue
+
+            logger.info(
+                "Including checkpointed release for resume: %s (status=%s)",
+                identifier,
+                status,
+            )
 
         new_releases.append(release)
 

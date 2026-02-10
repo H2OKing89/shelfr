@@ -492,15 +492,90 @@ class TestGetNewReleases:
             book2.mkdir(parents=True)
             (book2 / "book.m4b").touch()
 
-            # Mock processed identifiers (B001 already processed)
+            # Mock state: B001 is terminally complete (should be skipped)
             with (
                 patch("shelfr.discovery.get_settings", return_value=mock_settings),
-                patch("shelfr.discovery.get_processed_identifiers", return_value={"B001"}),
+                patch(
+                    "shelfr.discovery.load_state",
+                    return_value={
+                        "version": 2,
+                        "processed": {"B001": {"status": "COMPLETE"}},
+                        "failed": {},
+                    },
+                ),
             ):
                 new_releases = get_new_releases(root)
 
             assert len(new_releases) == 1
             assert new_releases[0].asin == "B002"
+
+    def test_includes_checkpointed_non_terminal_releases(self) -> None:
+        """Checkpointed (in-progress) releases should be rediscovered for resume."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_settings = MagicMock()
+            mock_settings.paths.library_root = Path(tmpdir)
+            mock_settings.mam.allowed_extensions = [".m4b"]
+
+            root = Path(tmpdir)
+
+            # Create two books
+            book1 = root / "Author" / "Book1 {ASIN.B001}"
+            book1.mkdir(parents=True)
+            (book1 / "book.m4b").touch()
+
+            book2 = root / "Author" / "Book2 {ASIN.B002}"
+            book2.mkdir(parents=True)
+            (book2 / "book.m4b").touch()
+
+            with (
+                patch("shelfr.discovery.get_settings", return_value=mock_settings),
+                patch(
+                    "shelfr.discovery.load_state",
+                    return_value={
+                        "version": 2,
+                        "processed": {
+                            "B001": {
+                                "status": "STAGED",
+                                "checkpoints": {"staged_at": "2025-01-01"},
+                            },
+                            "B002": {"status": "COMPLETE"},
+                        },
+                        "failed": {"B001": {"error": "network error"}},
+                    },
+                ),
+            ):
+                new_releases = get_new_releases(root)
+
+            assert len(new_releases) == 1
+            assert new_releases[0].asin == "B001"
+
+    def test_legacy_entry_without_status_is_treated_as_processed(self) -> None:
+        """Legacy processed entries without status should still be skipped."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_settings = MagicMock()
+            mock_settings.paths.library_root = Path(tmpdir)
+            mock_settings.mam.allowed_extensions = [".m4b"]
+
+            root = Path(tmpdir)
+
+            book1 = root / "Author" / "Book1 {ASIN.B001}"
+            book1.mkdir(parents=True)
+            (book1 / "book.m4b").touch()
+
+            with (
+                patch("shelfr.discovery.get_settings", return_value=mock_settings),
+                patch(
+                    "shelfr.discovery.load_state",
+                    return_value={
+                        "version": 1,
+                        "processed": {"B001": {"title": "Legacy entry"}},
+                        "failed": {},
+                    },
+                ),
+            ):
+                new_releases = get_new_releases(root)
+
+            assert new_releases == []
 
 
 class TestGetReleaseByAsin:
