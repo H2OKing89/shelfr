@@ -779,8 +779,15 @@ class TestImportSingle:
         self, temp_staging: Path, temp_library: Path, mock_asin_index: dict[str, AsinEntry]
     ) -> None:
         """Overwrite when duplicate policy is overwrite."""
-        # Create existing target
-        target = temp_library / "Author" / "Author - Old Book [B08G9PRS1K]"
+        folder_name = "Author - New Book [B08G9PRS1K]"
+        parsed = parse_mam_folder_name(folder_name)
+        target = build_target_path(
+            temp_library,
+            parsed,
+            temp_staging / folder_name,
+        )
+
+        # Create existing target at final destination
         target.mkdir(parents=True)
         (target / "old.m4b").write_text("old content")
 
@@ -793,7 +800,6 @@ class TestImportSingle:
             author="Author",
         )
 
-        folder_name = "Author - New Book [B08G9PRS1K]"
         staging_folder = create_audiobook_folder(temp_staging, folder_name)
 
         result = import_single(
@@ -805,6 +811,58 @@ class TestImportSingle:
 
         assert result.status == "success"
         assert not staging_folder.exists()
+        assert target.exists()
+        assert not (target / "old.m4b").exists()
+
+    def test_overwrite_rollback_on_move_failure(
+        self,
+        temp_staging: Path,
+        temp_library: Path,
+        mock_asin_index: dict[str, AsinEntry],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Overwrite restores original target if incoming move fails."""
+        folder_name = "Author - New Book [B08G9PRS1K]"
+        parsed = parse_mam_folder_name(folder_name)
+        target = build_target_path(
+            temp_library,
+            parsed,
+            temp_staging / folder_name,
+        )
+        target.mkdir(parents=True)
+        (target / "old.m4b").write_text("old content")
+
+        mock_asin_index["B08G9PRS1K"] = AsinEntry(
+            asin="B08G9PRS1K",
+            path=str(target),
+            library_item_id="li_old",
+            title="Old Book",
+            author="Author",
+        )
+
+        staging_folder = create_audiobook_folder(temp_staging, folder_name)
+
+        original_rename = Path.rename
+
+        def flaky_rename(self: Path, dst: Path) -> Path:
+            if self == staging_folder and dst == target:
+                raise OSError("simulated rename failure")
+            return original_rename(self, dst)
+
+        monkeypatch.setattr(Path, "rename", flaky_rename)
+
+        result = import_single(
+            staging_folder=staging_folder,
+            library_root=temp_library,
+            asin_index=mock_asin_index,
+            duplicate_policy="overwrite",
+        )
+
+        assert result.status == "failed"
+        assert "Move failed" in (result.error or "")
+        assert staging_folder.exists()  # Incoming source remains when move fails
+        assert target.exists()  # Original target restored by rollback
+        assert (target / "old.m4b").exists()
 
     def test_no_asin_homebrew_imports_to_author(
         self,
@@ -889,6 +947,48 @@ class TestImportBatch:
 
         assert result.success_count == 2
         assert result.duplicate_count == 1
+
+    def test_batch_enforces_per_run_asin_uniqueness(
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
+    ) -> None:
+        """Second item with same ASIN in one run is treated as duplicate."""
+        folders = [
+            create_audiobook_folder(temp_staging, "Author - First Book [B0DUPL1234]"),
+            create_audiobook_folder(temp_staging, "Author - Second Book [B0DUPL1234]"),
+        ]
+
+        result = import_batch(
+            staging_folders=folders,
+            library_root=temp_library,
+            asin_index=empty_asin_index,
+            duplicate_policy="skip",
+        )
+
+        assert result.success_count == 1
+        assert result.duplicate_count == 1
+        assert [r.status for r in result.results] == ["success", "duplicate"]
+
+    def test_batch_enforces_per_run_asin_uniqueness_in_dry_run(
+        self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]
+    ) -> None:
+        """Dry-run duplicate behavior matches real run for same-run ASIN collisions."""
+        folders = [
+            create_audiobook_folder(temp_staging, "Author - First Book [B0DUPL1234]"),
+            create_audiobook_folder(temp_staging, "Author - Second Book [B0DUPL1234]"),
+        ]
+
+        result = import_batch(
+            staging_folders=folders,
+            library_root=temp_library,
+            asin_index=empty_asin_index,
+            duplicate_policy="skip",
+            dry_run=True,
+        )
+
+        assert result.success_count == 1
+        assert result.duplicate_count == 1
+        assert [r.status for r in result.results] == ["success", "duplicate"]
+        assert all(folder.exists() for folder in folders)
 
     def test_batch_dry_run(
         self, temp_staging: Path, temp_library: Path, empty_asin_index: dict[str, AsinEntry]

@@ -16,12 +16,14 @@ import json
 import logging
 import os
 import re
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 import httpx
 
@@ -1416,6 +1418,52 @@ def _handle_duplicate(
         )
 
 
+def _normalize_asin_key(asin: str) -> str:
+    """Normalize ASIN key for in-memory index operations."""
+    return asin.strip().upper()
+
+
+def _build_overwrite_backup_path(target_path: Path) -> Path:
+    """Build a collision-safe backup path for overwrite transactions."""
+    return target_path.with_name(f"{target_path.name}.__shelfr_backup__.{uuid4().hex}")
+
+
+def _index_batch_result_asin(
+    asin_index: dict[str, AsinEntry],
+    result: ImportResult,
+    *,
+    index_position: int,
+) -> None:
+    """Index successful batch import results to enforce intra-run ASIN uniqueness."""
+    if result.status not in {"success", "trump_replaced"}:
+        return
+    if not result.asin or result.target_path is None:
+        return
+
+    asin_key = _normalize_asin_key(result.asin)
+    if not asin_key:
+        return
+
+    title = (
+        result.parsed.title if result.parsed and result.parsed.title else result.target_path.name
+    )
+    author = result.parsed.author if result.parsed else None
+    asin_index[asin_key] = AsinEntry(
+        asin=asin_key,
+        path=str(result.target_path),
+        library_item_id=f"batch:{index_position}",
+        title=title,
+        author=author,
+    )
+
+
+def _is_intra_run_index_entry(entry: AsinEntry | None) -> bool:
+    """Return True when an ASIN index entry was created during this import run."""
+    if entry is None:
+        return False
+    return bool(entry.library_item_id and entry.library_item_id.startswith("batch:"))
+
+
 def import_single(
     staging_folder: Path,
     library_root: Path,
@@ -1542,6 +1590,10 @@ def import_single(
             dry_run=dry_run,
         )
 
+    # Normalize ASIN key for deterministic index lookups.
+    asin = _normalize_asin_key(asin)
+    parsed.asin = asin
+
     # Check for duplicates (we have ASIN) - do this BEFORE Audnex enrichment
     # to avoid unnecessary network calls for books we'll skip anyway
     is_dup, existing_path = asin_exists(asin_index, asin)
@@ -1549,11 +1601,14 @@ def import_single(
     # Guard against stale ABS index entries pointing to missing folders
     existing_folder_for_index: Path | None = None
     if is_dup and existing_path:
+        existing_entry = asin_index.get(asin)
         existing_folder_for_index = (
             path_mapper.to_host(existing_path) if path_mapper else Path(existing_path)
         )
 
-        if not existing_folder_for_index.exists():
+        # Intra-run index entries are authoritative even in dry-run where
+        # target paths have not been materialized on disk.
+        if not _is_intra_run_index_entry(existing_entry) and not existing_folder_for_index.exists():
             logger.warning(
                 "ABS index has ASIN %s at %s but folder is missing; "
                 "skipping duplicate/trump checks. Trigger an ABS rescan to clear stale entries.",
@@ -1692,7 +1747,7 @@ def import_single(
         if norm_result.was_normalized:
             # Update ASIN to the normalized (preferred region) version
             old_asin = asin
-            asin = norm_result.normalized_asin
+            asin = _normalize_asin_key(norm_result.normalized_asin)
             parsed.asin = asin
             logger.info(
                 "Using normalized ASIN %s (was %s from %s region)",
@@ -1718,24 +1773,28 @@ def import_single(
 
     # Build target path (preserves nested structure if present)
     target_path = build_target_path(library_root, parsed, staging_folder, staging_root)
+    overwrite_backup_path: Path | None = None
 
     # Check if target already exists on disk
     if target_path.exists():
         if duplicate_policy == "overwrite":
             if not dry_run:
-                import shutil
-
                 try:
-                    shutil.rmtree(target_path)
-                    logger.info("Removed existing target: %s", target_path)
-                except Exception as e:
-                    logger.error("Failed to remove existing target %s: %s", target_path, e)
+                    overwrite_backup_path = _build_overwrite_backup_path(target_path)
+                    target_path.rename(overwrite_backup_path)
+                    logger.info(
+                        "Moved existing target to overwrite backup: %s → %s",
+                        target_path,
+                        overwrite_backup_path,
+                    )
+                except OSError as e:
+                    logger.error("Failed to stage overwrite backup for %s: %s", target_path, e)
                     return ImportResult(
                         staging_path=staging_folder,
                         target_path=target_path,
                         asin=asin,
                         status="failed",
-                        error=f"Failed to remove existing target: {e}",
+                        error=f"Failed to prepare overwrite backup: {e}",
                     )
         else:
             return ImportResult(
@@ -1801,13 +1860,44 @@ def import_single(
         staging_folder.rename(target_path)
         logger.info("Moved: %s → %s", staging_folder.name, target_path)
     except OSError as e:
+        rollback_error: OSError | None = None
+        if overwrite_backup_path is not None:
+            try:
+                overwrite_backup_path.rename(target_path)
+                logger.info(
+                    "Rolled back overwrite backup: %s → %s",
+                    overwrite_backup_path,
+                    target_path,
+                )
+            except OSError as rollback_exc:
+                rollback_error = rollback_exc
+
+        error_msg = f"Move failed: {e}"
+        if rollback_error is not None and overwrite_backup_path is not None:
+            error_msg = (
+                f"{error_msg}; rollback failed: {rollback_error}; "
+                f"backup left at {overwrite_backup_path}"
+            )
         return ImportResult(
             staging_path=staging_folder,
             target_path=target_path,
             asin=asin,
             status="failed",
-            error=f"Move failed: {e}",
+            error=error_msg,
         )
+
+    if overwrite_backup_path is not None:
+        try:
+            if overwrite_backup_path.is_dir():
+                shutil.rmtree(overwrite_backup_path)
+            else:
+                overwrite_backup_path.unlink()
+        except OSError as cleanup_exc:
+            logger.warning(
+                "Imported book but failed to remove overwrite backup %s: %s",
+                overwrite_backup_path,
+                cleanup_exc,
+            )
 
     # Rename files to match clean MAM naming convention
     rename_files_in_folder(target_path, parsed)
@@ -2003,6 +2093,7 @@ def import_batch(
             dry_run=dry_run,
         )
         batch_result.add(result)
+        _index_batch_result_asin(asin_index, result, index_position=i)
 
     return batch_result
 

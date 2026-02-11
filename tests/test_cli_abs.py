@@ -779,6 +779,118 @@ class TestAbsImportCommand:
             result = cmd_abs_import(args)
             assert result == 1  # Should fail with invalid confidence
 
+    def test_abs_import_normalizes_external_paths_to_staging(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """External import paths are staged under configured import_source before import."""
+        from shelfr.abs.importer import BatchImportResult
+        from shelfr.commands.abs import cmd_abs_import
+
+        staging = tmp_path / "staging"
+        external_root = tmp_path / "external"
+        library = tmp_path / "audiobooks"
+        staging.mkdir()
+        external_root.mkdir()
+        library.mkdir()
+
+        external_book = external_root / "Author - External Book [B0EXT00001]"
+        external_book.mkdir()
+        (external_book / "book.m4b").write_text("audio")
+
+        args.paths = [external_book]
+
+        mock_abs_config.path_map = [MockAbsPathMap(host=str(library))]
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = staging
+        mock_settings.paths.seed_root = tmp_path / "seed"
+
+        mock_user = MagicMock()
+        mock_user.username = "testuser"
+        mock_client = MagicMock()
+        mock_client.authorize.return_value = mock_user
+
+        with (
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
+            patch("shelfr.abs.import_batch", return_value=BatchImportResult()) as mock_batch,
+        ):
+            result = cmd_abs_import(args)
+            assert result == 0
+            call_kwargs = mock_batch.call_args.kwargs
+            staged_folder = call_kwargs["staging_folders"][0]
+            assert staged_folder != external_book
+            assert staged_folder.is_relative_to(staging)
+            assert staged_folder.exists()
+
+    def test_abs_import_cleanup_scoped_to_staging_in_dry_run(
+        self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
+    ) -> None:
+        """Cleanup in dry-run uses normalized staging paths, not external inputs."""
+        from shelfr.abs.cleanup import CleanupResult, CleanupStrategy
+        from shelfr.abs.importer import BatchImportResult, ImportResult
+        from shelfr.commands.abs import cmd_abs_import
+
+        args.dry_run = True
+
+        staging = tmp_path / "staging"
+        external_root = tmp_path / "external"
+        library = tmp_path / "audiobooks"
+        staging.mkdir()
+        external_root.mkdir()
+        library.mkdir()
+
+        external_book = external_root / "Author - External Book [B0EXT00002]"
+        external_book.mkdir()
+        (external_book / "book.m4b").write_text("audio")
+        args.paths = [external_book]
+
+        mock_abs_config.path_map = [MockAbsPathMap(host=str(library))]
+        mock_abs_config.import_settings.cleanup.strategy = "hide"
+        mock_abs_config.import_settings.cleanup.require_seed_exists = False
+
+        mock_settings = MagicMock()
+        mock_settings.audiobookshelf = mock_abs_config
+        mock_settings.paths.library_root = staging
+        mock_settings.paths.seed_root = tmp_path / "seed"
+
+        mock_result = BatchImportResult()
+        mock_result.add(
+            ImportResult(
+                staging_path=external_book,
+                target_path=library / "Author" / external_book.name,
+                asin="B0EXT00002",
+                status="success",
+            )
+        )
+
+        mock_user = MagicMock()
+        mock_user.username = "testuser"
+        mock_client = MagicMock()
+        mock_client.authorize.return_value = mock_user
+
+        with (
+            patch("shelfr.config.reload_settings", return_value=mock_settings),
+            patch("shelfr.abs.AbsClient", return_value=mock_client),
+            patch("shelfr.abs.build_asin_index", return_value={}),
+            patch("shelfr.abs.import_batch", return_value=mock_result),
+            patch(
+                "shelfr.abs.cleanup.cleanup_source",
+                return_value=CleanupResult(
+                    source_path=staging / "placeholder",
+                    status="dry_run",
+                    strategy=CleanupStrategy.HIDE,
+                ),
+            ) as mock_cleanup,
+        ):
+            result = cmd_abs_import(args)
+            assert result == 0
+            called_source = mock_cleanup.call_args.kwargs["source_path"]
+            assert called_source.is_relative_to(staging)
+            assert called_source != external_book
+
     def test_abs_import_parallel_flag(
         self, args: argparse.Namespace, mock_abs_config: MagicMock, tmp_path: Path
     ) -> None:

@@ -6,10 +6,13 @@ This module contains the `cmd_abs_import` command handler.
 from __future__ import annotations
 
 import argparse
+import os
 import re as re_cli
-from dataclasses import replace
+import shutil
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from shelfr.commands.abs._common import (
     console,
@@ -29,6 +32,153 @@ if TYPE_CHECKING:
     from rich.progress import TaskID
 
     from shelfr.abs.prefetch import PrefetchSummary
+
+
+@dataclass
+class IntakeNormalization:
+    """Normalized import inputs for staging-first import behavior."""
+
+    import_folders: list[Path]
+    cleanup_sources: dict[Path, Path]  # import_folder -> staging cleanup source
+    normalized_to_original: dict[Path, Path]  # normalized staging path -> original input path
+    intake_root: Path | None
+    already_staged_count: int
+    normalized_count: int
+    hardlinked_files: int
+    copied_files: int
+
+
+def _resolve_for_compare(path: Path) -> Path:
+    """Resolve path without requiring existence (best effort)."""
+    try:
+        return path.resolve()
+    except OSError:
+        return path.absolute()
+
+
+def _is_under(path: Path, root: Path) -> bool:
+    """Return True if path is under root."""
+    path_resolved = _resolve_for_compare(path)
+    root_resolved = _resolve_for_compare(root)
+    try:
+        path_resolved.relative_to(root_resolved)
+        return True
+    except ValueError:
+        return False
+
+
+def _unique_intake_folder(intake_root: Path, folder_name: str, *, used_names: set[str]) -> Path:
+    """Find a unique destination folder name under intake root."""
+    candidate = intake_root / folder_name
+    if folder_name not in used_names and not candidate.exists():
+        used_names.add(folder_name)
+        return candidate
+
+    counter = 2
+    while True:
+        unique_name = f"{folder_name}_{counter}"
+        candidate = intake_root / unique_name
+        if unique_name not in used_names and not candidate.exists():
+            used_names.add(unique_name)
+            return candidate
+        counter += 1
+
+
+def _materialize_folder_link_first(source_folder: Path, staging_folder: Path) -> tuple[int, int]:
+    """Materialize source folder into staging via hardlink-first copy fallback."""
+    if not source_folder.is_dir():
+        raise OSError(f"Source is not a directory: {source_folder}")
+
+    hardlinked_files = 0
+    copied_files = 0
+    staging_folder.mkdir(parents=True, exist_ok=False)
+
+    for root, dirnames, filenames in os.walk(source_folder, topdown=True):
+        root_path = Path(root)
+        rel = root_path.relative_to(source_folder)
+        target_dir = staging_folder if rel == Path() else staging_folder / rel
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        for dirname in dirnames:
+            (target_dir / dirname).mkdir(exist_ok=True)
+
+        for filename in filenames:
+            src_file = root_path / filename
+            dst_file = target_dir / filename
+            try:
+                os.link(src_file, dst_file)
+                hardlinked_files += 1
+            except OSError:
+                shutil.copy2(src_file, dst_file)
+                copied_files += 1
+
+    return hardlinked_files, copied_files
+
+
+def _normalize_import_inputs(
+    input_folders: list[Path],
+    import_source: Path,
+    *,
+    dry_run: bool,
+) -> IntakeNormalization:
+    """Normalize input folders to staging-first import semantics."""
+    import_source_resolved = _resolve_for_compare(import_source)
+    intake_root = import_source / ".__shelfr_abs_intake__" / uuid4().hex[:12]
+
+    import_folders: list[Path] = []
+    cleanup_sources: dict[Path, Path] = {}
+    normalized_to_original: dict[Path, Path] = {}
+    seen_sources: set[str] = set()
+    used_intake_names: set[str] = set()
+
+    already_staged_count = 0
+    normalized_count = 0
+    hardlinked_files = 0
+    copied_files = 0
+
+    for folder in input_folders:
+        source_folder = _resolve_for_compare(folder)
+        source_key = str(source_folder)
+        if source_key in seen_sources:
+            continue
+        seen_sources.add(source_key)
+
+        if _is_under(source_folder, import_source_resolved):
+            import_folder = source_folder
+            cleanup_source = source_folder
+            already_staged_count += 1
+        else:
+            normalized_count += 1
+            cleanup_source = _unique_intake_folder(
+                intake_root,
+                source_folder.name,
+                used_names=used_intake_names,
+            )
+
+            if dry_run:
+                # Dry-run simulates staging paths but imports from original source.
+                import_folder = source_folder
+            else:
+                intake_root.mkdir(parents=True, exist_ok=True)
+                linked, copied = _materialize_folder_link_first(source_folder, cleanup_source)
+                hardlinked_files += linked
+                copied_files += copied
+                import_folder = cleanup_source
+
+        import_folders.append(import_folder)
+        cleanup_sources[import_folder] = cleanup_source
+        normalized_to_original[cleanup_source] = source_folder
+
+    return IntakeNormalization(
+        import_folders=import_folders,
+        cleanup_sources=cleanup_sources,
+        normalized_to_original=normalized_to_original,
+        intake_root=intake_root if normalized_count > 0 else None,
+        already_staged_count=already_staged_count,
+        normalized_count=normalized_count,
+        hardlinked_files=hardlinked_files,
+        copied_files=copied_files,
+    )
 
 
 def cmd_abs_import(args: argparse.Namespace) -> int:
@@ -119,18 +269,45 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
     print_step(2, 6, "Discovering staged books")
     if args.paths:
         # Specific paths provided
-        staging_folders = [p for p in args.paths if p.is_dir()]
-        if not staging_folders:
+        input_folders = [p for p in args.paths if p.is_dir()]
+        if not input_folders:
             print_warning("No valid directories in provided paths")
             return 1
     else:
-        staging_folders = discover_staged_books(import_source)
+        input_folders = discover_staged_books(import_source)
 
-    if not staging_folders:
+    if not input_folders:
         print_info("No staged books to import")
         return 0
 
-    print_info(f"Found {len(staging_folders)} audiobook(s) to import")
+    print_info(f"Found {len(input_folders)} audiobook(s) to import")
+
+    try:
+        normalization = _normalize_import_inputs(
+            input_folders,
+            import_source,
+            dry_run=args.dry_run,
+        )
+    except (OSError, shutil.Error) as e:
+        fatal_error(f"Failed to normalize import paths: {e}")
+        return 1
+
+    staging_folders = normalization.import_folders
+    cleanup_source_paths = normalization.cleanup_sources
+
+    if args.paths:
+        print_info(f"Already staged: {normalization.already_staged_count}")
+        print_info(f"Normalized to staging: {normalization.normalized_count}")
+        if normalization.intake_root is not None:
+            if args.dry_run:
+                print_dry_run(f"Would stage external folders under: {normalization.intake_root}")
+            else:
+                print_info(f"Intake root: {normalization.intake_root}")
+                print_info(
+                    "Intake materialization: "
+                    f"{normalization.hardlinked_files} hardlinked, "
+                    f"{normalization.copied_files} copied"
+                )
 
     # Determine duplicate policy
     dup_policy = args.duplicate_policy or abs_config.import_settings.duplicate_policy
@@ -325,7 +502,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
         "trump_prefs": trump_prefs,
         "path_mapper": path_mapper,
         "cleanup_prefs": None,  # Cleanup runs separately in Step 5
-        "source_paths": {f: f for f in staging_folders},  # 1:1 mapping in staging
+        "source_paths": cleanup_source_paths,
         "seed_root": settings.paths.seed_root,
         "preferred_asin_region": import_settings.preferred_asin_region,
         "generate_metadata_json": import_settings.generate_metadata_json,
@@ -462,8 +639,13 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
             # Classification line with description
             console.print(f"  {class_tag} {class_desc}")
 
-            # Source path
-            console.print(f"  [dim][SRC][/dim] {r.staging_path}")
+            # Source path (staging-first normalization may differ in dry-run)
+            source_path_display = cleanup_source_paths.get(r.staging_path, r.staging_path)
+            if args.dry_run and source_path_display != r.staging_path:
+                console.print(f"  [dim][SRC][/dim] {r.staging_path}")
+                console.print(f"  [dim][STG][/dim] {source_path_display} [dim](normalized)[/dim]")
+            else:
+                console.print(f"  [dim][SRC][/dim] {source_path_display}")
 
             # Destination path and file handling
             if r.status == "success" and r.target_path:
@@ -715,8 +897,15 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
                     folder_name = name[:40] + "..." if len(name) > 40 else name
                     cleanup_progress.update(cleanup_task, completed=i, current_folder=folder_name)
 
-                    # Source path is the staging_path for direct staging imports
-                    source_path = r.staging_path
+                    # Cleanup source is always normalized staging path
+                    source_path = cleanup_source_paths.get(r.staging_path, r.staging_path)
+
+                    # Guardrail: never cleanup paths outside configured staging root
+                    if not _is_under(source_path, import_source):
+                        cleanup_skipped_count += 1
+                        cleanup_would_skip_paths.add(source_path)
+                        print_warning(f"Skipping cleanup outside staging root: {source_path}")
+                        continue
 
                     # Skip cleanup if source was already moved during import
                     # This happens for direct staging imports where staging_folder == source
@@ -771,7 +960,7 @@ def cmd_abs_import(args: argparse.Namespace) -> int:
             # Simulate: remaining = all sources - cleanup successes
             # Trumped folders stay (not imported), cleanup-skipped stay (no seed)
             trumped_paths = {
-                r.staging_path
+                cleanup_source_paths.get(r.staging_path, r.staging_path)
                 for r in result.results
                 if r.status in ("trump_kept_existing", "trump_rejected", "duplicate")
             }

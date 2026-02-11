@@ -292,7 +292,12 @@ audiobookshelf:
     # Valid: us, uk, au, ca, de, es, fr, in, it, jp, or null
     preferred_asin_region: us
 
-    # What to do when ASIN already exists in library
+    # Intake behavior: shelfr abs import [paths...] is always staging-first.
+    # If paths are outside paths.library_root, shelfr normalizes them into
+    # staging intake before import.
+
+    # What to do when ASIN already exists in library.
+    # ASIN uniqueness is enforced within the same import run too (strict per-run).
     duplicate_policy: skip            # skip | warn | overwrite
 
     # How to handle books without ASIN (see docs/UNKNOWN_ASIN_HANDLING.md)
@@ -398,6 +403,8 @@ cache:
     # See docs/audiobookshelf/CLEANUP_PLAN.md for full documentation
     # ───────────────────────────────────────────────────────────────────────
     cleanup:
+      # Cleanup only targets normalized staging sources (under paths.library_root).
+      # External input folders passed to abs import are never cleaned directly.
       # Cleanup strategy for successfully imported books
       # - none: Leave source files in place (default, safest)
       # - hide: Add hidden marker file (prevents Libation re-download detection)

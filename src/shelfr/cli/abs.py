@@ -72,7 +72,12 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
         ctx: typer.Context,
         paths: Annotated[
             list[Path] | None,
-            typer.Argument(help="Specific folder(s) to import."),
+            typer.Argument(
+                help=(
+                    "Specific folder(s) to import. External paths are normalized "
+                    "into configured staging before import."
+                )
+            ),
         ] = None,
         duplicate_policy: Annotated[
             DuplicatePolicy | None,
@@ -133,10 +138,11 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
         """Import staged audiobooks to Audiobookshelf.
 
         Moves staged books to ABS library structure with duplicate detection.
+        Any external input path is first normalized into staging.
 
         [bold]Examples:[/]
           shelfr abs import                    # Import all staged
-          shelfr abs import /path/to/book      # Import specific folder
+          shelfr abs import /path/to/book      # External input is staged first
           shelfr abs import -d skip            # Skip duplicates
           shelfr abs import --parallel         # Parallel metadata prefetch
         """

@@ -394,6 +394,12 @@ shelfr abs cleanup           # Clean orphaned files
 shelfr abs restore           # List/restore archived books
 ```
 
+### Import Safety Invariants
+
+- `shelfr abs import [paths...]` is staging-first. If you pass external folders, shelfr first normalizes them into the configured staging root before import.
+- Destructive operations are scoped: overwrite only replaces the ABS destination path, and cleanup only runs against normalized staging sources (never arbitrary external originals).
+- ASIN uniqueness is strict within each run: once an ASIN is imported (or planned in dry-run), later items in the same batch with that ASIN are treated as duplicates by policy.
+
 ### OPF Sidecar (metadata.opf)
 
 shelfr can optionally generate a Calibre-compatible `metadata.opf` sidecar inside each imported book folder. This is useful for Audiobookshelf metadata ingestion (especially series detection via Calibre-style `meta` fields).
