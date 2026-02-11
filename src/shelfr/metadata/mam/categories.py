@@ -2,11 +2,13 @@
 MAM category mapping and genre inference.
 
 Maps Audnex genres to MAM audiobook categories and infers fiction/nonfiction
-classification.
+classification. Validates category selections against the official MAM schema
+(sibling rules, media type compatibility, main type compatibility).
 """
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
 from collections.abc import Iterable
@@ -252,6 +254,197 @@ def _map_genres_to_categories(genres: list[dict[str, Any]]) -> list[int]:
                     break
 
     return sorted(categories)
+
+
+# =============================================================================
+# MAM Schema Validation
+# =============================================================================
+
+
+@functools.lru_cache(maxsize=1)
+def _get_mam_schema() -> dict[str, dict[str, Any]]:
+    """Load MAM category schema rules from config (cached).
+
+    Returns category dict keyed by category ID string, or empty dict on failure.
+    Access is via .get() for flexibility — unknown/new fields won't break anything.
+    """
+    try:
+        settings = get_settings()
+        return settings.categories.mam_schema.categories
+    except Exception:
+        logger.debug("Failed to load MAM schema for validation")
+        return {}
+
+
+def validate_categories(
+    category_ids: list[int],
+    *,
+    media_type: int = 1,
+    main_type: int | None = None,
+) -> list[int]:
+    """Validate and fix a list of MAM category IDs against the official schema.
+
+    Applies three validation passes in order:
+    1. **Media type filter** — remove categories that don't support the media type
+       (default: 1 = Audiobook).
+    2. **Main type filter** — if ``main_type`` is given (1=Fiction, 2=Nonfiction),
+       remove categories whose ``main_type_ids`` don't include it.
+    3. **Sibling rules** — enforce ``required_siblings`` (auto-add) and
+       ``excluded_siblings`` (remove lower-priority conflicting category).
+
+    The function is intentionally lenient: unknown category IDs pass through,
+    and missing schema fields are silently skipped so future MAM API additions
+    won't cause failures.
+
+    Args:
+        category_ids: Raw list of MAM category IDs to validate.
+        media_type: Media type to check compatibility (default ``1`` = Audiobook).
+        main_type: If set, filter categories not valid for this main type.
+
+    Returns:
+        Validated (and possibly modified) list of unique, sorted category IDs.
+    """
+    schema = _get_mam_schema()
+    if not schema or not category_ids:
+        return sorted(set(category_ids))
+
+    validated: set[int] = set()
+
+    # Pass 1 & 2: media type and main type filtering
+    for cat_id in category_ids:
+        cat_str = str(cat_id)
+        cat_data = schema.get(cat_str)
+
+        # Unknown category — keep it (MAM may have added new ones we don't know)
+        if cat_data is None:
+            validated.add(cat_id)
+            continue
+
+        # Check media type compatibility
+        supported_media = cat_data.get("media_type_ids", [])
+        if supported_media and media_type not in supported_media:
+            logger.debug(
+                "Dropping category %d (%s): media_type %d not in %s",
+                cat_id,
+                cat_data.get("name", "?"),
+                media_type,
+                supported_media,
+            )
+            continue
+
+        # Check main type compatibility
+        if main_type is not None:
+            supported_main = cat_data.get("main_type_ids", [])
+            if supported_main and main_type not in supported_main:
+                logger.debug(
+                    "Dropping category %d (%s): main_type %d not in %s",
+                    cat_id,
+                    cat_data.get("name", "?"),
+                    main_type,
+                    supported_main,
+                )
+                continue
+
+        validated.add(cat_id)
+
+    # Pass 3: sibling rules
+    validated = _enforce_sibling_rules(validated, schema)
+
+    return sorted(validated)
+
+
+def _enforce_sibling_rules(
+    category_ids: set[int],
+    schema: dict[str, dict[str, Any]],
+) -> set[int]:
+    """Enforce required_siblings and excluded_siblings rules.
+
+    - **required_siblings**: if a category requires sibling X, add X automatically.
+    - **excluded_siblings**: if two categories exclude each other, keep the one
+      that appeared first in the original set (lower ID as stable tie-break).
+
+    This runs in a loop to handle transitive requirements (e.g., if adding a
+    required sibling itself has requirements) with a safety limit.
+    """
+    result = set(category_ids)
+
+    # --- Required siblings: add missing required categories ---
+    # Loop to handle transitive requirements (max 5 iterations for safety)
+    for _ in range(5):
+        additions: set[int] = set()
+        for cat_id in list(result):
+            cat_data = schema.get(str(cat_id))
+            if cat_data is None:
+                continue
+            required = cat_data.get("required_siblings", [])
+            for req_id in required:
+                if req_id not in result and req_id not in additions:
+                    additions.add(req_id)
+                    logger.debug(
+                        "Auto-adding required sibling %d for category %d (%s)",
+                        req_id,
+                        cat_id,
+                        cat_data.get("name", "?"),
+                    )
+        if not additions:
+            break
+        result.update(additions)
+
+    # --- Excluded siblings: remove conflicting categories ---
+    # Build a set of exclusion pairs, then resolve by keeping lower ID
+    to_remove: set[int] = set()
+    sorted_cats = sorted(result)  # Deterministic order for conflict resolution
+    for cat_id in sorted_cats:
+        if cat_id in to_remove:
+            continue
+        cat_data = schema.get(str(cat_id))
+        if cat_data is None:
+            continue
+        excluded = cat_data.get("excluded_siblings", [])
+        for excl_id in excluded:
+            if excl_id in result and excl_id not in to_remove:
+                # Conflict: cat_id excludes excl_id. Since we iterate in
+                # sorted order, cat_id has priority (lower ID stays).
+                to_remove.add(excl_id)
+                excl_data = schema.get(str(excl_id), {})
+                logger.debug(
+                    "Removing excluded sibling %d (%s) — conflicts with %d (%s)",
+                    excl_id,
+                    excl_data.get("name", "?"),
+                    cat_id,
+                    cat_data.get("name", "?"),
+                )
+
+    result -= to_remove
+    return result
+
+
+def get_language_id(language_name: str) -> int | None:
+    """Look up MAM language ID by name (case-insensitive).
+
+    Uses the languages section from the MAM schema. Returns None if not found
+    or if schema is unavailable.
+
+    Args:
+        language_name: Language name to look up (e.g., "English", "German").
+
+    Returns:
+        MAM language ID as int, or None.
+    """
+    try:
+        settings = get_settings()
+        languages = settings.categories.mam_schema.languages
+    except Exception:
+        return None
+
+    name_lower = language_name.strip().lower()
+    for lang_id, lang_data in languages.items():
+        if lang_data.get("name", "").lower() == name_lower:
+            try:
+                return int(lang_id)
+            except (ValueError, TypeError):
+                return None
+    return None
 
 
 # =============================================================================

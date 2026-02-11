@@ -19,7 +19,9 @@ from shelfr.metadata.mam.categories import (
     _get_audiobook_category,
     _infer_fiction_or_nonfiction,
     _map_genres_to_categories,
+    get_language_id,
     resolve_audiobook_category,
+    validate_categories,
 )
 from shelfr.metadata.mediainfo import _extract_audio_info, _parse_chapters_from_mediainfo
 from shelfr.models import NormalizedBook
@@ -524,6 +526,29 @@ def build_mam_json(
     else:
         # Fallback to legacy method (Audnex only)
         mam_json["category"] = _get_audiobook_category(audnex, is_fiction)
+
+    # Validate categories against MAM schema (sibling rules, media/main type compat)
+    raw_categories = mam_json.get("categories", [])
+    if raw_categories:
+        validated = validate_categories(
+            raw_categories,
+            media_type=mam_json.get("mediaType", 1),
+            main_type=main_cat,
+        )
+        if validated != raw_categories:
+            logger.debug(
+                "Categories adjusted by validation: %s -> %s",
+                raw_categories,
+                validated,
+            )
+        mam_json["categories"] = validated
+
+    # Resolve language to MAM language ID when possible
+    lang_str = mam_json.get("language")
+    if isinstance(lang_str, str):
+        lang_id = get_language_id(lang_str)
+        if lang_id is not None:
+            mam_json["language_id"] = lang_id
 
     return mam_json
 

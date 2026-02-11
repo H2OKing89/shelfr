@@ -302,6 +302,28 @@ class FiltersConfig:
 
 
 @dataclass
+class MamSchemaConfig:
+    """Official MAM category schema (from config/mam_categories_reference.json).
+
+    Loaded flexibly from JSON — unknown top-level keys are stored in `extra`
+    so MAM API changes never break the loader. Only fields we actively use
+    are typed; everything else stays as raw dicts.
+    """
+
+    # category_id (str) -> category dict (with id, name, main_type_ids,
+    # media_type_ids, required_siblings, excluded_siblings, + any future fields)
+    categories: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # media_type_id (str) -> media type dict
+    media_types: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # main_type_id (str) -> main type dict
+    main_types: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # language_id (str) -> language dict
+    languages: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Catch-all for any future top-level keys MAM adds
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class CategoriesConfig:
     """MAM category mapping (from config/categories.json and audiobook_categories.json)."""
 
@@ -313,6 +335,8 @@ class CategoriesConfig:
     audiobook_nonfiction_map: dict[str, str] = field(default_factory=dict)
     # Default category strings when no genre match
     audiobook_defaults: dict[str, str] = field(default_factory=dict)
+    # Official MAM schema for validation (sibling rules, media type checks, etc.)
+    mam_schema: MamSchemaConfig = field(default_factory=MamSchemaConfig)
 
 
 @dataclass
@@ -1030,11 +1054,75 @@ def _load_categories(config_dir: Path) -> CategoriesConfig:
     else:
         logger.debug(f"audiobook_categories.json not found at {audiobook_path}, using defaults")
 
+    # Load MAM reference schema for validation
+    mam_schema = _load_mam_schema(config_dir)
+
     return CategoriesConfig(
         genre_map=genre_map,
         audiobook_fiction_map=audiobook_fiction_map,
         audiobook_nonfiction_map=audiobook_nonfiction_map,
         audiobook_defaults=audiobook_defaults,
+        mam_schema=mam_schema,
+    )
+
+
+def _load_mam_schema(config_dir: Path) -> MamSchemaConfig:
+    """
+    Load official MAM category schema from config/mam_categories_reference.json.
+
+    This loader is intentionally flexible: it reads known top-level keys into
+    typed fields and stores everything else in ``extra`` so that MAM API
+    additions (new fields on categories, new top-level sections) never break
+    the loader.
+
+    Args:
+        config_dir: Project root directory containing config/
+
+    Returns:
+        MamSchemaConfig populated from JSON, or empty defaults on failure
+    """
+    schema_path = config_dir / "config" / "mam_categories_reference.json"
+    if not schema_path.exists():
+        logger.debug("mam_categories_reference.json not found at %s", schema_path)
+        return MamSchemaConfig()
+
+    try:
+        with open(schema_path, encoding="utf-8") as f:
+            raw = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Failed to load mam_categories_reference.json: %s", e)
+        return MamSchemaConfig()
+
+    if not isinstance(raw, dict):
+        logger.warning("mam_categories_reference.json root must be a JSON object")
+        return MamSchemaConfig()
+
+    # Known top-level keys we consume
+    known_keys = {"categories", "media_types", "main_types", "languages"}
+
+    categories = raw.get("categories", {})
+    media_types = raw.get("media_types", {})
+    main_types = raw.get("main_types", {})
+    languages = raw.get("languages", {})
+
+    # Everything else (including _comment, _source, _updated,
+    # _audiobook_categories, and any future keys) goes into extra
+    extra = {k: v for k, v in raw.items() if k not in known_keys and not k.startswith("_")}
+
+    cat_count = len(categories) if isinstance(categories, dict) else 0
+    logger.debug(
+        "Loaded MAM schema: %d categories, %d media types, %d languages",
+        cat_count,
+        len(media_types) if isinstance(media_types, dict) else 0,
+        len(languages) if isinstance(languages, dict) else 0,
+    )
+
+    return MamSchemaConfig(
+        categories=categories if isinstance(categories, dict) else {},
+        media_types=media_types if isinstance(media_types, dict) else {},
+        main_types=main_types if isinstance(main_types, dict) else {},
+        languages=languages if isinstance(languages, dict) else {},
+        extra=extra,
     )
 
 

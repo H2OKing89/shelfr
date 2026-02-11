@@ -176,6 +176,7 @@
   "supernatural": 36,
   "ghosts": 36,
   "occult": 36,
+  "_comment_occult": "Audible 'occult' tag is fiction (Paranormal=36). For nonfiction occult practices use 'metaphysical' or 'occult practices' which map to 61.",
   "_comment_paranormal_urban": "Audible's 'Paranormal & Urban' tag is used for isekai/portal fantasy (206 uses in test library: Dungeon Crawler Carl, Wandering Inn, etc). Maps to Urban Fantasy (53), not Paranormal (36).",
   "paranormal & urban": 53,
   "philosophy": 37,
@@ -269,5 +270,10 @@
   "urban fantasy": 53,
   "urban": 53,
   "western": 54,
-  "westerns": 54
+  "westerns": 54,
+  "occult practices": 61,
+  "metaphysical": 61,
+  "metaphysical practices": 61,
+  "slice of life": 62,
+  "plays/drama": 60
 }

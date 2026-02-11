@@ -1,7 +1,7 @@
 {
   "_comment": "Official MAM category schema for reference/validation. Do not modify category data - this mirrors MAM's API. Formatting changes are acceptable.",
   "_source": "MyAnonaMouse API",
-  "_updated": "2025-12-20",
+  "_updated": "2026-02-10",
   "categories": {
     "1": {
       "id": "1",
@@ -18,7 +18,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "2": {
       "id": "2",
@@ -35,7 +37,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "3": {
       "id": "3",
@@ -52,7 +56,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "4": {
       "id": "4",
@@ -64,9 +70,13 @@
         1,
         2,
         4,
+        5,
+        6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "5": {
       "id": "5",
@@ -81,6 +91,10 @@
         4,
         5,
         6
+      ],
+      "required_siblings": [],
+      "excluded_siblings": [
+        20
       ]
     },
     "6": {
@@ -91,7 +105,9 @@
       ],
       "media_type_ids": [
         3
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "7": {
       "id": "7",
@@ -103,9 +119,13 @@
         1,
         2,
         4,
+        5,
+        6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "8": {
       "id": "8",
@@ -117,9 +137,12 @@
         1,
         2,
         4,
+        6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "9": {
       "id": "9",
@@ -136,7 +159,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "10": {
       "id": "10",
@@ -148,7 +173,9 @@
       "media_type_ids": [
         1,
         4
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "11": {
       "id": "11",
@@ -159,7 +186,9 @@
       "media_type_ids": [
         1,
         2
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "12": {
       "id": "12",
@@ -171,9 +200,13 @@
         1,
         2,
         4,
+        5,
+        6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "13": {
       "id": "13",
@@ -189,7 +222,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "14": {
       "id": "14",
@@ -201,9 +236,12 @@
         1,
         2,
         4,
+        5,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "15": {
       "id": "15",
@@ -213,7 +251,9 @@
       ],
       "media_type_ids": [
         3
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "16": {
       "id": "16",
@@ -227,7 +267,9 @@
         4,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "17": {
       "id": "17",
@@ -244,7 +286,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "18": {
       "id": "18",
@@ -258,7 +302,9 @@
         4,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "19": {
       "id": "19",
@@ -274,7 +320,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "20": {
       "id": "20",
@@ -290,6 +338,10 @@
         6,
         7,
         8
+      ],
+      "required_siblings": [],
+      "excluded_siblings": [
+        5
       ]
     },
     "21": {
@@ -300,7 +352,9 @@
       ],
       "media_type_ids": [
         3
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "22": {
       "id": "22",
@@ -315,7 +369,9 @@
         4,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "23": {
       "id": "23",
@@ -332,6 +388,10 @@
         6,
         7,
         8
+      ],
+      "required_siblings": [],
+      "excluded_siblings": [
+        55
       ]
     },
     "24": {
@@ -342,8 +402,12 @@
       ],
       "media_type_ids": [
         1,
-        2
-      ]
+        2,
+        7,
+        8
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "25": {
       "id": "25",
@@ -360,7 +424,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "26": {
       "id": "26",
@@ -370,7 +436,9 @@
       ],
       "media_type_ids": [
         3
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "27": {
       "id": "27",
@@ -380,19 +448,26 @@
       ],
       "media_type_ids": [
         3
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "28": {
       "id": "28",
       "name": "Literary Classics",
       "main_type_ids": [
-        1
+        1,
+        2
       ],
       "media_type_ids": [
         1,
         2,
-        4
-      ]
+        4,
+        5,
+        6
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "29": {
       "id": "29",
@@ -407,6 +482,10 @@
         6,
         7,
         8
+      ],
+      "required_siblings": [],
+      "excluded_siblings": [
+        43
       ]
     },
     "30": {
@@ -421,7 +500,9 @@
         4,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "31": {
       "id": "31",
@@ -435,7 +516,9 @@
         4,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "32": {
       "id": "32",
@@ -449,7 +532,9 @@
         4,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "33": {
       "id": "33",
@@ -459,7 +544,9 @@
       ],
       "media_type_ids": [
         3
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "34": {
       "id": "34",
@@ -473,21 +560,28 @@
         4,
         5,
         6
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "35": {
       "id": "35",
       "name": "Nature",
       "main_type_ids": [
+        1,
         2
       ],
       "media_type_ids": [
         1,
         2,
         4,
+        5,
+        6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "36": {
       "id": "36",
@@ -504,18 +598,27 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "37": {
       "id": "37",
       "name": "Philosophy",
       "main_type_ids": [
+        1,
         2
       ],
       "media_type_ids": [
         1,
-        2
-      ]
+        2,
+        5,
+        6,
+        7,
+        8
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "38": {
       "id": "38",
@@ -532,7 +635,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "39": {
       "id": "39",
@@ -544,9 +649,13 @@
         1,
         2,
         4,
+        5,
+        6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "40": {
       "id": "40",
@@ -560,7 +669,9 @@
         2,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "41": {
       "id": "41",
@@ -573,9 +684,13 @@
         1,
         2,
         4,
+        5,
+        6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "42": {
       "id": "42",
@@ -592,7 +707,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "43": {
       "id": "43",
@@ -601,10 +718,13 @@
         1
       ],
       "media_type_ids": [
-        1,
         2,
         7,
         8
+      ],
+      "required_siblings": [],
+      "excluded_siblings": [
+        29
       ]
     },
     "44": {
@@ -617,9 +737,13 @@
         1,
         2,
         4,
+        5,
+        6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "45": {
       "id": "45",
@@ -635,7 +759,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "46": {
       "id": "46",
@@ -647,9 +773,12 @@
         1,
         2,
         4,
+        6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "47": {
       "id": "47",
@@ -659,7 +788,9 @@
       ],
       "media_type_ids": [
         3
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "48": {
       "id": "48",
@@ -669,7 +800,9 @@
       ],
       "media_type_ids": [
         3
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "49": {
       "id": "49",
@@ -686,7 +819,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "50": {
       "id": "50",
@@ -698,9 +833,13 @@
         1,
         2,
         4,
+        5,
+        6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "51": {
       "id": "51",
@@ -714,25 +853,13 @@
         4,
         5,
         6
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "52": {
       "id": "52",
       "name": "Travel",
-      "main_type_ids": [
-        2
-      ],
-      "media_type_ids": [
-        1,
-        2,
-        4,
-        7,
-        8
-      ]
-    },
-    "53": {
-      "id": "53",
-      "name": "Urban Fantasy",
       "main_type_ids": [
         1,
         2
@@ -745,7 +872,29 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
+    },
+    "53": {
+      "id": "53",
+      "name": "Urban Fantasy",
+      "main_type_ids": [
+        1
+      ],
+      "media_type_ids": [
+        1,
+        2,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "required_siblings": [
+        13
+      ],
+      "excluded_siblings": []
     },
     "54": {
       "id": "54",
@@ -759,7 +908,9 @@
         4,
         5,
         6
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "55": {
       "id": "55",
@@ -776,6 +927,10 @@
         6,
         7,
         8
+      ],
+      "required_siblings": [],
+      "excluded_siblings": [
+        23
       ]
     },
     "56": {
@@ -792,7 +947,9 @@
         6,
         7,
         8
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "57": {
       "id": "57",
@@ -803,7 +960,40 @@
       "media_type_ids": [
         1,
         2,
-        4
+        4,
+        5,
+        6
+      ],
+      "required_siblings": [],
+      "excluded_siblings": [
+        1,
+        2,
+        3,
+        5,
+        9,
+        10,
+        13,
+        17,
+        19,
+        20,
+        28,
+        29,
+        34,
+        38,
+        40,
+        41,
+        42,
+        43,
+        45,
+        49,
+        51,
+        53,
+        54,
+        56,
+        58,
+        59,
+        60,
+        62
       ]
     },
     "58": {
@@ -817,7 +1007,11 @@
         2,
         5,
         6
-      ]
+      ],
+      "required_siblings": [
+        13
+      ],
+      "excluded_siblings": []
     },
     "59": {
       "id": "59",
@@ -828,12 +1022,16 @@
       "media_type_ids": [
         1,
         2,
-        4
-      ]
+        4,
+        5,
+        6
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     },
     "60": {
       "id": "60",
-      "name": "Drama/Plays",
+      "name": "Plays/Drama",
       "main_type_ids": [
         1,
         2
@@ -844,7 +1042,40 @@
         4,
         5,
         6
-      ]
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
+    },
+    "61": {
+      "id": "61",
+      "name": "Occult / Metaphysical Practices",
+      "main_type_ids": [
+        2
+      ],
+      "media_type_ids": [
+        1,
+        2,
+        7,
+        8
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
+    },
+    "62": {
+      "id": "62",
+      "name": "Slice of Life",
+      "main_type_ids": [
+        1,
+        2
+      ],
+      "media_type_ids": [
+        1,
+        2,
+        5,
+        6
+      ],
+      "required_siblings": [],
+      "excluded_siblings": []
     }
   },
   "media_types": {
@@ -899,8 +1130,388 @@
       "name": "Nonfiction"
     }
   },
+  "languages": {
+    "1": {
+      "id": "1",
+      "name": "English",
+      "code": "ENG",
+      "image": "/pic/language_flags/eng.svg"
+    },
+    "2": {
+      "id": "2",
+      "name": "Chinese",
+      "code": "CHI",
+      "image": "/pic/flags/cn.svg"
+    },
+    "3": {
+      "id": "3",
+      "name": "Gujarati",
+      "code": "GUJ",
+      "image": "/pic/flags/in.svg"
+    },
+    "4": {
+      "id": "4",
+      "name": "Spanish",
+      "code": "SPA",
+      "image": "/pic/flags/mx.svg"
+    },
+    "5": {
+      "id": "5",
+      "name": "Kannada",
+      "code": "KAN",
+      "image": "/pic/flags/in.svg"
+    },
+    "6": {
+      "id": "6",
+      "name": "Burmese",
+      "code": "MYA",
+      "image": "/pic/flags/mm.svg"
+    },
+    "7": {
+      "id": "7",
+      "name": "Thai",
+      "code": "THA",
+      "image": "/pic/flags/th.svg"
+    },
+    "8": {
+      "id": "8",
+      "name": "Hindi",
+      "code": "HIN",
+      "image": ""
+    },
+    "9": {
+      "id": "9",
+      "name": "Marathi",
+      "code": "MAR",
+      "image": "/pic/flags/in.svg"
+    },
+    "10": {
+      "id": "10",
+      "name": "Telugu",
+      "code": "TEL",
+      "image": "/pic/flags/in.svg"
+    },
+    "11": {
+      "id": "11",
+      "name": "Tamil",
+      "code": "TAM",
+      "image": "/pic/flags/in.svg"
+    },
+    "12": {
+      "id": "12",
+      "name": "Javanese",
+      "code": "JAV",
+      "image": ""
+    },
+    "13": {
+      "id": "13",
+      "name": "Vietnamese",
+      "code": "VIE",
+      "image": "/pic/flags/vn.svg"
+    },
+    "14": {
+      "id": "14",
+      "name": "Punjabi",
+      "code": "PAN",
+      "image": ""
+    },
+    "15": {
+      "id": "15",
+      "name": "Urdu",
+      "code": "URD",
+      "image": ""
+    },
+    "16": {
+      "id": "16",
+      "name": "Russian",
+      "code": "RUS",
+      "image": "/pic/flags/ru.svg"
+    },
+    "17": {
+      "id": "17",
+      "name": "Afrikaans",
+      "code": "AFR",
+      "image": "/pic/flags/za.svg"
+    },
+    "18": {
+      "id": "18",
+      "name": "Bulgarian",
+      "code": "BUL",
+      "image": "/pic/flags/bg.svg"
+    },
+    "19": {
+      "id": "19",
+      "name": "Catalan",
+      "code": "CAT",
+      "image": ""
+    },
+    "20": {
+      "id": "20",
+      "name": "Czech",
+      "code": "CZE",
+      "image": "/pic/flags/cz.svg"
+    },
+    "21": {
+      "id": "21",
+      "name": "Danish",
+      "code": "DAN",
+      "image": "/pic/flags/dk.svg"
+    },
+    "22": {
+      "id": "22",
+      "name": "Dutch",
+      "code": "DUT",
+      "image": "/pic/flags/nl.svg"
+    },
+    "23": {
+      "id": "23",
+      "name": "Finnish",
+      "code": "FIN",
+      "image": "/pic/flags/fi.svg"
+    },
+    "24": {
+      "id": "24",
+      "name": "Scottish Gaelic",
+      "code": "GLA",
+      "image": "/pic/flags/gb-sct.svg"
+    },
+    "25": {
+      "id": "25",
+      "name": "Ukrainian",
+      "code": "UKR",
+      "image": "/pic/flags/ua.svg"
+    },
+    "26": {
+      "id": "26",
+      "name": "Greek",
+      "code": "GRE",
+      "image": "/pic/flags/gr.svg"
+    },
+    "27": {
+      "id": "27",
+      "name": "Hebrew",
+      "code": "HEB",
+      "image": ""
+    },
+    "28": {
+      "id": "28",
+      "name": "Hungarian",
+      "code": "HUN",
+      "image": "/pic/flags/hu.svg"
+    },
+    "29": {
+      "id": "29",
+      "name": "Tagalog",
+      "code": "TGL",
+      "image": "/pic/flags/ph.svg"
+    },
+    "30": {
+      "id": "30",
+      "name": "Romanian",
+      "code": "ROM",
+      "image": "/pic/flags/ro.svg"
+    },
+    "31": {
+      "id": "31",
+      "name": "Serbian",
+      "code": "SRP",
+      "image": "/pic/flags/rs.svg"
+    },
+    "32": {
+      "id": "32",
+      "name": "Arabic",
+      "code": "ARA",
+      "image": "/pic/language_flags/ara.svg"
+    },
+    "33": {
+      "id": "33",
+      "name": "Malay",
+      "code": "MSA",
+      "image": ""
+    },
+    "34": {
+      "id": "34",
+      "name": "Portuguese",
+      "code": "POR",
+      "image": "/pic/flags/pr.svg"
+    },
+    "35": {
+      "id": "35",
+      "name": "Bengali",
+      "code": "BEN",
+      "image": ""
+    },
+    "36": {
+      "id": "36",
+      "name": "French",
+      "code": "FRE",
+      "image": "/pic/flags/fr.svg"
+    },
+    "37": {
+      "id": "37",
+      "name": "German",
+      "code": "GER",
+      "image": "/pic/language_flags/ger.svg"
+    },
+    "38": {
+      "id": "38",
+      "name": "Japanese",
+      "code": "JPN",
+      "image": "/pic/flags/jp.svg"
+    },
+    "39": {
+      "id": "39",
+      "name": "Farsi",
+      "code": "FAS",
+      "image": ""
+    },
+    "40": {
+      "id": "40",
+      "name": "Swedish",
+      "code": "SWE",
+      "image": "/pic/flags/se.svg"
+    },
+    "41": {
+      "id": "41",
+      "name": "Korean",
+      "code": "KOR",
+      "image": "/pic/flags/kr.svg"
+    },
+    "42": {
+      "id": "42",
+      "name": "Turkish",
+      "code": "TUR",
+      "image": "/pic/flags/tr.svg"
+    },
+    "43": {
+      "id": "43",
+      "name": "Italian",
+      "code": "ITA",
+      "image": "/pic/flags/it.svg"
+    },
+    "44": {
+      "id": "44",
+      "name": "Cantonese",
+      "code": "YUE",
+      "image": "/pic/flags/cn.svg"
+    },
+    "45": {
+      "id": "45",
+      "name": "Polish",
+      "code": "POL",
+      "image": "/pic/flags/pl.svg"
+    },
+    "46": {
+      "id": "46",
+      "name": "Latin",
+      "code": "LAT",
+      "image": ""
+    },
+    "47": {
+      "id": "47",
+      "name": "Other",
+      "code": "???",
+      "image": ""
+    },
+    "48": {
+      "id": "48",
+      "name": "Norwegian",
+      "code": "NOR",
+      "image": "/pic/flags/no.svg"
+    },
+    "49": {
+      "id": "49",
+      "name": "Croatian",
+      "code": "HRV",
+      "image": "/pic/flags/hr.svg"
+    },
+    "50": {
+      "id": "50",
+      "name": "Lithuanian",
+      "code": "LIT",
+      "image": "/pic/flags/lt.svg"
+    },
+    "51": {
+      "id": "51",
+      "name": "Bosnian",
+      "code": "BOS",
+      "image": "/pic/flags/ba.svg"
+    },
+    "52": {
+      "id": "52",
+      "name": "Brazilian Portuguese",
+      "code": "POR",
+      "image": "/pic/flags/br.svg"
+    },
+    "53": {
+      "id": "53",
+      "name": "Indonesian",
+      "code": "IND",
+      "image": "/pic/flags/id.svg"
+    },
+    "54": {
+      "id": "54",
+      "name": "Slovenian",
+      "code": "SLV",
+      "image": "/pic/flags/si.svg"
+    },
+    "55": {
+      "id": "55",
+      "name": "Castilian Spanish",
+      "code": "SPA",
+      "image": "/pic/flags/es.svg"
+    },
+    "56": {
+      "id": "56",
+      "name": "Irish",
+      "code": "GLE",
+      "image": "/pic/flags/ie.svg"
+    },
+    "57": {
+      "id": "57",
+      "name": "Manx",
+      "code": "GLV",
+      "image": "/pic/flags/im.svg"
+    },
+    "58": {
+      "id": "58",
+      "name": "Malayalam",
+      "code": "MAL",
+      "image": "/pic/flags/in.svg"
+    },
+    "59": {
+      "id": "59",
+      "name": "Greek, Ancient",
+      "code": "GRC",
+      "image": "/pic/flags/gr.svg"
+    },
+    "60": {
+      "id": "60",
+      "name": "Sanskrit",
+      "code": "SAN",
+      "image": ""
+    },
+    "61": {
+      "id": "61",
+      "name": "Estonian",
+      "code": "EST",
+      "image": "/pic/flags/ee.svg"
+    },
+    "62": {
+      "id": "62",
+      "name": "Latvian",
+      "code": "LAV",
+      "image": "/pic/flags/lv.svg"
+    },
+    "63": {
+      "id": "63",
+      "name": "Icelandic",
+      "code": "ICE",
+      "image": "/pic/flags/is.svg"
+    }
+  },
   "_audiobook_categories": {
-    "_comment": "Categories that support Audiobook (media_type_id=1). Use these IDs for audiobook uploads.",
+    "_comment": "Categories that support Audiobook (media_type_id=1). Auto-derived from categories above.",
     "fiction": [
       1,
       5,
@@ -915,12 +1526,15 @@
       28,
       29,
       34,
+      35,
       36,
+      37,
       38,
       42,
-      43,
       45,
+      49,
       51,
+      52,
       53,
       54,
       55,
@@ -928,7 +1542,8 @@
       57,
       58,
       59,
-      60
+      60,
+      62
     ],
     "nonfiction": [
       1,
@@ -951,6 +1566,7 @@
       23,
       24,
       25,
+      28,
       30,
       31,
       32,
@@ -967,9 +1583,10 @@
       49,
       50,
       52,
-      53,
       55,
-      60
+      60,
+      61,
+      62
     ]
   }
 }

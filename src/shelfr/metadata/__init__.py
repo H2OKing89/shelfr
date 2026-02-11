@@ -147,6 +147,12 @@ from shelfr.metadata.mam.categories import (
 from shelfr.metadata.mam.categories import (
     _map_genres_to_categories as _map_genres_to_categories,
 )
+from shelfr.metadata.mam.categories import (
+    get_language_id as get_language_id,
+)
+from shelfr.metadata.mam.categories import (
+    validate_categories as validate_categories,
+)
 
 # MAM JSON builder - build and save MAM fast-fillout JSON
 from shelfr.metadata.mam.json_builder import (

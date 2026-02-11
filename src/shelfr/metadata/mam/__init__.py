@@ -27,6 +27,12 @@ from shelfr.metadata.mam.categories import (
 from shelfr.metadata.mam.categories import (
     _map_genres_to_categories as _map_genres_to_categories,
 )
+from shelfr.metadata.mam.categories import (
+    get_language_id as get_language_id,
+)
+from shelfr.metadata.mam.categories import (
+    validate_categories as validate_categories,
+)
 from shelfr.metadata.mam.json_builder import (
     _build_series_list as _build_series_list,
 )
@@ -56,5 +62,8 @@ __all__ = [
     # Public API
     "build_mam_json",
     "generate_mam_json_for_release",
+    # Validation
+    "get_language_id",
     "save_mam_json",
+    "validate_categories",
 ]
