@@ -1099,6 +1099,12 @@ def _load_mam_schema(config_dir: Path) -> MamSchemaConfig:
 
     # Known top-level keys we consume
     known_keys = {"categories", "media_types", "main_types", "languages"}
+    allowed_private_extra_keys = {
+        "_comment",
+        "_source",
+        "_updated",
+        "_audiobook_categories",
+    }
 
     categories = raw.get("categories", {})
     media_types = raw.get("media_types", {})
@@ -1107,7 +1113,11 @@ def _load_mam_schema(config_dir: Path) -> MamSchemaConfig:
 
     # Everything else (including _comment, _source, _updated,
     # _audiobook_categories, and any future keys) goes into extra
-    extra = {k: v for k, v in raw.items() if k not in known_keys and not k.startswith("_")}
+    extra = {
+        k: v
+        for k, v in raw.items()
+        if k not in known_keys and (not k.startswith("_") or k in allowed_private_extra_keys)
+    }
 
     cat_count = len(categories) if isinstance(categories, dict) else 0
     logger.debug(

@@ -33,6 +33,8 @@ if TYPE_CHECKING:
 
     from shelfr.abs.prefetch import PrefetchSummary
 
+_MAX_UNIQUE_INTAKE_ATTEMPTS = 1000
+
 
 @dataclass
 class IntakeNormalization:
@@ -75,13 +77,18 @@ def _unique_intake_folder(intake_root: Path, folder_name: str, *, used_names: se
         return candidate
 
     counter = 2
-    while True:
+    while counter <= _MAX_UNIQUE_INTAKE_ATTEMPTS:
         unique_name = f"{folder_name}_{counter}"
         candidate = intake_root / unique_name
         if unique_name not in used_names and not candidate.exists():
             used_names.add(unique_name)
             return candidate
         counter += 1
+
+    raise RuntimeError(
+        f"Could not find unique intake folder for '{folder_name}' in {intake_root} "
+        f"after {_MAX_UNIQUE_INTAKE_ATTEMPTS} attempts"
+    )
 
 
 def _materialize_folder_link_first(source_folder: Path, staging_folder: Path) -> tuple[int, int]:
