@@ -580,6 +580,94 @@ class AudiobookshelfImportSchema(BaseModel):
         return self
 
 
+class AudiobookshelfRenameSchema(BaseModel):
+    """Audiobookshelf rename planning/apply settings."""
+
+    policy_profile: str = Field(default="default")
+    hierarchy_mode: str = Field(default="preserve")
+    arc_policy: str = Field(default="optional")
+    asin_policy: str = Field(default="preserve")
+    ripper_tag_policy: str = Field(default="import_override")
+    # NOTE: The schema default is "import_override" for backward compat,
+    # but resolve_rename_policy() correctly treats this as a non-override
+    # when a named profile (e.g., sao_gold) is active.
+    allowed_ripper_tags: list[str] = Field(default_factory=list)
+    non_allowlisted_tag_action: str = Field(default="keep")
+    series_source: str = Field(
+        default="preserve_existing",
+        description=(
+            "Series metadata source policy: "
+            "preserve_existing (lock to existing parent folder), "
+            "folder_first (prefer parsed folder over ABS), "
+            "abs_first (prefer ABS metadata)"
+        ),
+    )
+    transaction_backup_root: str = Field(default="./data/reports/rename_backups")
+
+    @field_validator("policy_profile")
+    @classmethod
+    def validate_policy_profile(cls, v: str) -> str:
+        valid = {"default", "sao_gold"}
+        if v not in valid:
+            raise ValueError(f"Invalid policy_profile '{v}'. Must be one of: {valid}")
+        return v
+
+    @field_validator("hierarchy_mode")
+    @classmethod
+    def validate_hierarchy_mode(cls, v: str) -> str:
+        valid = {"preserve", "author_series_book"}
+        if v not in valid:
+            raise ValueError(f"Invalid hierarchy_mode '{v}'. Must be one of: {valid}")
+        return v
+
+    @field_validator("arc_policy")
+    @classmethod
+    def validate_arc_policy(cls, v: str) -> str:
+        valid = {"optional", "infer", "manual"}
+        if v not in valid:
+            raise ValueError(f"Invalid arc_policy '{v}'. Must be one of: {valid}")
+        return v
+
+    @field_validator("asin_policy")
+    @classmethod
+    def validate_asin_policy(cls, v: str) -> str:
+        valid = {"preserve", "prefer_b", "strict_b"}
+        if v not in valid:
+            raise ValueError(f"Invalid asin_policy '{v}'. Must be one of: {valid}")
+        return v
+
+    @field_validator("ripper_tag_policy")
+    @classmethod
+    def validate_ripper_tag_policy(cls, v: str) -> str:
+        valid = {"import_override", "preserve_if_in_allowlist", "strip_all"}
+        if v not in valid:
+            raise ValueError(f"Invalid ripper_tag_policy '{v}'. Must be one of: {valid}")
+        return v
+
+    @field_validator("non_allowlisted_tag_action")
+    @classmethod
+    def validate_non_allowlisted_tag_action(cls, v: str) -> str:
+        valid = {"keep", "drop"}
+        if v not in valid:
+            raise ValueError(f"Invalid non_allowlisted_tag_action '{v}'. Must be one of: {valid}")
+        return v
+
+    @field_validator("series_source")
+    @classmethod
+    def validate_series_source(cls, v: str) -> str:
+        valid = {"preserve_existing", "folder_first", "abs_first"}
+        if v not in valid:
+            raise ValueError(f"Invalid series_source '{v}'. Must be one of: {valid}")
+        return v
+
+    @field_validator("transaction_backup_root")
+    @classmethod
+    def validate_transaction_backup_root_absolute(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("transaction_backup_root cannot be empty")
+        return v.rstrip("/")
+
+
 class AudiobookshelfSchema(BaseModel):
     """Audiobookshelf integration settings (credentials come from .env)."""
 
@@ -596,6 +684,10 @@ class AudiobookshelfSchema(BaseModel):
         default_factory=AudiobookshelfImportSchema,
         alias="import",
         description="Import behavior settings",
+    )
+    rename: AudiobookshelfRenameSchema = Field(
+        default_factory=AudiobookshelfRenameSchema,
+        description="Rename planning/apply policy settings",
     )
     index_db: str = Field(default="./data/abs_index.db", description="Index database path")
 

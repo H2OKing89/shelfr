@@ -386,6 +386,54 @@ class TestAbsImportParser:
             assert args_custom.trump_aggressiveness == level
 
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+class TestAbsRenameParser:
+    """Tests for abs-rename parser options."""
+
+    def test_abs_rename_parser_exists(self) -> None:
+        """Test abs-rename subcommand is registered."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-rename"])
+        assert args.command == "abs-rename"
+        assert hasattr(args, "func")
+
+    def test_abs_rename_plan_apply_canary_flags(self, tmp_path: Path) -> None:
+        """Test new plan/apply/canary flags parse correctly."""
+        parser = build_parser()
+        plan_path = tmp_path / "plan.json"
+        apply_path = tmp_path / "approved_plan.json"
+        args = parser.parse_args(
+            [
+                "abs-rename",
+                "--plan-out",
+                str(plan_path),
+                "--apply-from",
+                str(apply_path),
+                "--canary-size",
+                "50",
+                "--canary-strategy",
+                "stratified",
+                "--policy-profile",
+                "sao_gold",
+            ]
+        )
+        assert args.plan_out == plan_path
+        assert args.apply_from == apply_path
+        assert args.canary_size == 50
+        assert args.canary_strategy == "stratified"
+        assert args.policy_profile == "sao_gold"
+
+    def test_abs_rename_defaults(self) -> None:
+        """Test abs-rename defaults for new options."""
+        parser = build_parser()
+        args = parser.parse_args(["abs-rename"])
+        assert args.plan_out is None
+        assert args.apply_from is None
+        assert args.canary_size is None
+        assert args.canary_strategy == "stratified"
+        assert args.policy_profile is None
+
+
 class TestAbsImportCommand:
     """Tests for abs-import command implementation."""
 

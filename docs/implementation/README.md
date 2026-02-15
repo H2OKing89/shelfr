@@ -15,6 +15,7 @@ This folder contains active work items: features being developed, improvements p
 | [IMPROVEMENTS_PLAN.md](IMPROVEMENTS_PLAN.md) | P1+ | Feature roadmap: search, filtering, metadata, workflows | Future |
 | [VALIDATION_PLAN.md](VALIDATION_PLAN.md) | P1 | Input validation hardening and error handling | P1 |
 | [STATE_HARDENING_PLAN.md](STATE_HARDENING_PLAN.md) | P1 | State management and persistence improvements | P1 |
+| [ABS_RENAME_RELIABILITY_TEST_AUDIT.md](ABS_RENAME_RELIABILITY_TEST_AUDIT.md) | P1 | Audit checklist for reliability-first ABS rename rollout | P1 |
 | [PACKAGE_UPGRADE_PLAN.md](PACKAGE_UPGRADE_PLAN.md) | P2 | Dependency upgrades (tenacity, platformdirs, etc.) | P2 |
 | [MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.md) | P2+ | Deferred migrations: subprocess hardening, typing | P2+ |
 

@@ -656,6 +656,39 @@ Libation Management:
         metavar="PATH",
         help="Output JSON report of changes to file",
     )
+    abs_rename_parser.add_argument(
+        "--plan-out",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Write RenamePlanV1 manifest (forces dry-run planning mode)",
+    )
+    abs_rename_parser.add_argument(
+        "--apply-from",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Apply renames from an approved RenamePlanV1 manifest",
+    )
+    abs_rename_parser.add_argument(
+        "--canary-size",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Apply only N planned renames (for canary rollouts)",
+    )
+    abs_rename_parser.add_argument(
+        "--canary-strategy",
+        choices=["stratified", "first"],
+        default="stratified",
+        help="Canary selection strategy when --canary-size is set",
+    )
+    abs_rename_parser.add_argument(
+        "--policy-profile",
+        choices=["default", "sao_gold"],
+        default=None,
+        help="Apply a predefined rename policy profile",
+    )
     abs_rename_parser.set_defaults(func=cmd_abs_rename)
 
     # -------------------------------------------------------------------------

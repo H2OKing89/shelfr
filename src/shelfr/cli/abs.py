@@ -301,6 +301,26 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             str,
             typer.Option(help="Glob pattern to filter folders."),
         ] = "*",
+        policy_profile: Annotated[
+            str | None,
+            typer.Option(help="Naming policy profile (e.g., 'sao_gold')."),
+        ] = None,
+        plan_out: Annotated[
+            Path | None,
+            typer.Option(help="Generate rename plan and save to file (planning mode)."),
+        ] = None,
+        apply_from: Annotated[
+            Path | None,
+            typer.Option(help="Apply rename from previously generated plan file."),
+        ] = None,
+        canary_size: Annotated[
+            int | None,
+            typer.Option(help="Apply to N items only (canary testing)."),
+        ] = None,
+        canary_strategy: Annotated[
+            str,
+            typer.Option(help="Canary selection strategy: 'first' or 'stratified'."),
+        ] = "stratified",
         fetch_metadata: Annotated[
             bool,
             typer.Option("--fetch-metadata", help="Fetch missing metadata from Audnex API."),
@@ -330,6 +350,10 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
 
         Normalizes folder names in your Audiobookshelf library to follow
         the MAM naming convention for consistency.
+
+        Two-phase workflow:
+        1. Generate plan: shelfr abs rename --plan-out plan.json
+        2. Apply plan: shelfr abs rename --apply-from plan.json --canary-size 50
         """
         from shelfr.commands import cmd_abs_rename
 
@@ -337,6 +361,11 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             ctx,
             source=source,
             pattern=pattern,
+            policy_profile=policy_profile,
+            plan_out=plan_out,
+            apply_from=apply_from,
+            canary_size=canary_size,
+            canary_strategy=canary_strategy,
             fetch_metadata=fetch_metadata,
             abs_search=abs_search,
             abs_search_confidence=abs_search_confidence,

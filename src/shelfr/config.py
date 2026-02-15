@@ -570,6 +570,22 @@ class AudiobookshelfImportConfig:
 
 
 @dataclass
+class AudiobookshelfRenameConfig:
+    """Audiobookshelf rename planning/apply settings."""
+
+    policy_profile: str = "default"  # default | sao_gold
+    hierarchy_mode: str = "preserve"  # preserve | author_series_book
+    arc_policy: str = "optional"  # optional | infer | manual
+    asin_policy: str = "preserve"  # preserve | prefer_b | strict_b
+    ripper_tag_policy: str = (
+        "import_override"  # import_override | preserve_if_in_allowlist | strip_all
+    )
+    allowed_ripper_tags: list[str] = field(default_factory=list)
+    non_allowlisted_tag_action: str = "keep"  # keep | drop
+    transaction_backup_root: str = "./data/reports/rename_backups"
+
+
+@dataclass
 class AudiobookshelfConfig:
     """Audiobookshelf integration settings (from config.yaml audiobookshelf section)."""
 
@@ -589,6 +605,8 @@ class AudiobookshelfConfig:
     libraries: list[AudiobookshelfLibrary] = field(default_factory=list)
     # Import settings
     import_settings: AudiobookshelfImportConfig = field(default_factory=AudiobookshelfImportConfig)
+    # Rename planning/apply policy settings
+    rename: AudiobookshelfRenameConfig = field(default_factory=AudiobookshelfRenameConfig)
     # Index database path
     index_db: str = "./data/abs_index.db"
 
@@ -1528,6 +1546,13 @@ def load_settings(
     # Parse Audiobookshelf config
     abs_data = yaml_config.get("audiobookshelf", {})
     abs_import_data = abs_data.get("import", {})
+    abs_rename_data = abs_data.get("rename", {})
+    if not isinstance(abs_rename_data, dict):
+        logger.warning(
+            "audiobookshelf.rename config must be a mapping, got '%s'; using defaults",
+            type(abs_rename_data).__name__,
+        )
+        abs_rename_data = {}
 
     # Validate preferred_asin_region for ABS import (None disables normalization)
     raw_preferred = abs_import_data.get("preferred_asin_region", DEFAULT_ASIN_REGION)
@@ -1600,6 +1625,19 @@ def load_settings(
             generate_metadata_json=abs_import_data.get("generate_metadata_json", True),
             metadata_json_fallback=abs_import_data.get("metadata_json_fallback", True),
             generate_opf_sidecar=abs_import_data.get("generate_opf_sidecar", False),
+        ),
+        rename=AudiobookshelfRenameConfig(
+            policy_profile=abs_rename_data.get("policy_profile", "default"),
+            hierarchy_mode=abs_rename_data.get("hierarchy_mode", "preserve"),
+            arc_policy=abs_rename_data.get("arc_policy", "optional"),
+            asin_policy=abs_rename_data.get("asin_policy", "preserve"),
+            ripper_tag_policy=abs_rename_data.get("ripper_tag_policy", "import_override"),
+            allowed_ripper_tags=abs_rename_data.get("allowed_ripper_tags", []),
+            non_allowlisted_tag_action=abs_rename_data.get("non_allowlisted_tag_action", "keep"),
+            transaction_backup_root=abs_rename_data.get(
+                "transaction_backup_root",
+                "./data/reports/rename_backups",
+            ),
         ),
         index_db=abs_data.get("index_db", "./data/abs_index.db"),
     )

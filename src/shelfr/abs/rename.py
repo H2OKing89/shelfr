@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import hashlib
 import json
 import logging
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -37,7 +39,12 @@ from shelfr.console import (
 )
 from shelfr.schemas.abs_metadata import AbsMetadataJson
 from shelfr.utils.fuzzy import is_suspicious_change, similarity_ratio
-from shelfr.utils.naming import build_mam_folder_name, format_volume_number
+from shelfr.utils.naming import (
+    build_mam_folder_name,
+    filter_series,
+    filter_subtitle,
+    format_volume_number,
+)
 from shelfr.utils.paths import safe_dirname
 
 if TYPE_CHECKING:
@@ -74,6 +81,128 @@ _EDITION_FLAG_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_FOLDER_SCHEMA_PATTERN = re.compile(r"^.+ \(\d{4}\) \([^)]+\) \{ASIN\.[^}]+\}(?: \[[^]]+\])?$")
+
+
+# =============================================================================
+# Rename Policy / Manifest Types
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class RenamePolicy:
+    """Canonical naming policy used by rename planning/apply.
+
+    IMPORTANT: Rename is for ORGANIZING existing library folders.
+    It must NEVER inject ripper tags onto folders that don't already have them.
+    The default ripper_tag_policy is 'preserve_if_in_allowlist' — only keep
+    tags that are already present AND in the allowlist.
+    """
+
+    profile: str = "default"
+    hierarchy_mode: str = "preserve"  # preserve | author_series_book
+    standalone_mode: str = "author_book"  # author_book
+    arc_policy: str = "optional"  # optional | infer | manual
+    asin_policy: str = "preserve"  # preserve | prefer_b | strict_b
+    # preserve_if_in_allowlist | strip_all
+    # NOTE: "import_override" is intentionally NOT the default here.
+    # Rename organizes existing folders; it must never inject tags.
+    ripper_tag_policy: str = "preserve_if_in_allowlist"
+    allowed_ripper_tags: tuple[str, ...] = ("H2OKing",)
+    non_allowlisted_tag_action: str = "drop"  # keep | drop
+    # Series metadata source policy:
+    #   preserve_existing - lock series name to existing parent folder
+    #   folder_first      - prefer parsed folder fields over ABS metadata
+    #   abs_first          - prefer ABS metadata (original behavior)
+    series_source: str = "preserve_existing"
+    transaction_backup_root: Path = Path("data/reports/rename_backups")
+
+    def as_dict(self) -> dict[str, Any]:
+        """Serialize policy for JSON reports/manifests."""
+        return {
+            "profile": self.profile,
+            "hierarchy_mode": self.hierarchy_mode,
+            "standalone_mode": self.standalone_mode,
+            "arc_policy": self.arc_policy,
+            "asin_policy": self.asin_policy,
+            "ripper_tag_policy": self.ripper_tag_policy,
+            "allowed_ripper_tags": list(self.allowed_ripper_tags),
+            "non_allowlisted_tag_action": self.non_allowlisted_tag_action,
+            "series_source": self.series_source,
+            "transaction_backup_root": str(self.transaction_backup_root),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> RenamePolicy:
+        """Deserialize policy from manifest JSON."""
+        return cls(
+            profile=str(data.get("profile", "default")),
+            hierarchy_mode=str(data.get("hierarchy_mode", "preserve")),
+            standalone_mode=str(data.get("standalone_mode", "author_book")),
+            arc_policy=str(data.get("arc_policy", "optional")),
+            asin_policy=str(data.get("asin_policy", "preserve")),
+            ripper_tag_policy=str(data.get("ripper_tag_policy", "preserve_if_in_allowlist")),
+            allowed_ripper_tags=tuple(data.get("allowed_ripper_tags", ("H2OKing",))),
+            non_allowlisted_tag_action=str(data.get("non_allowlisted_tag_action", "drop")),
+            series_source=str(data.get("series_source", "preserve_existing")),
+            transaction_backup_root=Path(
+                str(data.get("transaction_backup_root", "data/reports/rename_backups"))
+            ),
+        )
+
+
+@dataclass
+class RenamePlanItem:
+    """Single item in plan manifest."""
+
+    source_path: str
+    target_path: str | None
+    status: str
+    reasons: list[str] = field(default_factory=list)
+    risk_flags: list[str] = field(default_factory=list)
+    fingerprint: str | None = None
+    components: dict[str, Any] = field(default_factory=dict)
+    similarity_percent: float | None = None
+    conformance: dict[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Serialize for manifest JSON."""
+        return {
+            "source_path": self.source_path,
+            "target_path": self.target_path,
+            "status": self.status,
+            "reasons": self.reasons,
+            "risk_flags": self.risk_flags,
+            "fingerprint": self.fingerprint,
+            "components": self.components,
+            "similarity_percent": self.similarity_percent,
+            "conformance": self.conformance,
+        }
+
+
+@dataclass
+class RenamePlanV1:
+    """Deterministic rename plan manifest."""
+
+    generated_at: str
+    source_dir: str
+    policy: RenamePolicy
+    summary: dict[str, Any]
+    conflicts: dict[str, Any]
+    items: list[RenamePlanItem]
+
+    def as_dict(self) -> dict[str, Any]:
+        """Serialize manifest to JSON-friendly dict."""
+        return {
+            "version": "RenamePlanV1",
+            "generated_at": self.generated_at,
+            "source_dir": self.source_dir,
+            "policy": self.policy.as_dict(),
+            "summary": self.summary,
+            "conflicts": self.conflicts,
+            "items": [item.as_dict() for item in self.items],
+        }
+
 
 # =============================================================================
 # Data Classes
@@ -85,6 +214,7 @@ class AbsMetadata:
     """Parsed ABS metadata.json (post-validation)."""
 
     title: str | None = None
+    subtitle: str | None = None
     authors: list[str] | None = None
     series: str | None = None
     series_position: str | None = None  # String to preserve "1.5", "1-3", "1p1"
@@ -112,12 +242,14 @@ class RenameCandidate:
     current_name: str
     parsed: ParsedFolderName | None = None
     target_name: str | None = None
+    target_path: Path | None = None
     status: RenameStatus = "needs_rename"
     abs_metadata: AbsMetadata | None = None
     normalized_book: NormalizedBook | None = None
     edition_flags: list[str] = field(default_factory=list)
     asin_source: str | None = None
     error_message: str | None = None
+    components: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -144,6 +276,82 @@ class RenameSummary:
     errors: int = 0
 
 
+def resolve_rename_policy(
+    *,
+    policy_profile: str | None = None,
+    config_policy: Any | None = None,
+) -> RenamePolicy:
+    """Resolve effective rename policy from profile + config overrides."""
+    profile = (
+        policy_profile or getattr(config_policy, "policy_profile", None) or "default"
+    ).strip()
+
+    if profile == "sao_gold":
+        policy = RenamePolicy(
+            profile="sao_gold",
+            hierarchy_mode="author_series_book",
+            standalone_mode="author_book",
+            arc_policy="optional",
+            asin_policy="preserve",
+            ripper_tag_policy="preserve_if_in_allowlist",
+            allowed_ripper_tags=("H2OKing",),
+            non_allowlisted_tag_action="drop",
+            series_source="preserve_existing",
+            transaction_backup_root=Path("data/reports/rename_backups"),
+        )
+    else:
+        policy = RenamePolicy()
+
+    if config_policy is None:
+        return policy
+
+    # When a named profile is explicitly requested, it takes precedence.
+    # Only apply config overrides for fields the user explicitly set
+    # (not schema defaults). We detect this by checking if the config
+    # value differs from the schema default — if it matches the schema
+    # default AND a profile is active, the profile wins.
+    _schema_defaults = {
+        "hierarchy_mode": "preserve",
+        "arc_policy": "optional",
+        "asin_policy": "preserve",
+        "ripper_tag_policy": "import_override",
+        "allowed_ripper_tags": [],
+        "non_allowlisted_tag_action": "keep",
+        "series_source": "preserve_existing",
+    }
+
+    def _resolve(field: str, profile_val: Any) -> Any:
+        """Use config value only if it differs from schema default."""
+        cfg_val = getattr(config_policy, field, None)
+        if cfg_val is None:
+            return profile_val
+        schema_default = _schema_defaults.get(field)
+        # If config matches schema default AND a profile overrode it,
+        # keep the profile value (user didn't explicitly set this field).
+        if profile != "default" and cfg_val == schema_default:
+            return profile_val
+        return cfg_val
+
+    allowed_tags = tuple(_resolve("allowed_ripper_tags", list(policy.allowed_ripper_tags)))
+    tx_root = getattr(config_policy, "transaction_backup_root", str(policy.transaction_backup_root))
+
+    return RenamePolicy(
+        profile=profile,
+        hierarchy_mode=_resolve("hierarchy_mode", policy.hierarchy_mode),
+        standalone_mode=getattr(config_policy, "standalone_mode", policy.standalone_mode),
+        arc_policy=_resolve("arc_policy", policy.arc_policy),
+        asin_policy=_resolve("asin_policy", policy.asin_policy),
+        ripper_tag_policy=_resolve("ripper_tag_policy", policy.ripper_tag_policy),
+        allowed_ripper_tags=allowed_tags,
+        non_allowlisted_tag_action=_resolve(
+            "non_allowlisted_tag_action",
+            policy.non_allowlisted_tag_action,
+        ),
+        series_source=_resolve("series_source", policy.series_source),
+        transaction_backup_root=Path(str(tx_root)),
+    )
+
+
 # =============================================================================
 # Discovery Functions
 # =============================================================================
@@ -164,44 +372,75 @@ def has_audio_files(path: Path) -> bool:
         return False
 
 
+def _is_within(path: Path, parent: Path) -> bool:
+    """Return True if path is inside parent (or equal)."""
+    return path == parent or parent in path.parents
+
+
 def discover_rename_candidates(
     source_dir: Path,
     pattern: str = "*",
 ) -> list[Path]:
-    """Find leaf folders that contain audio files.
+    """Find canonical book folders to rename.
 
-    A leaf folder has audio files AND no subdirectory with audio files.
-    This preserves Author/Series hierarchy while only targeting book folders.
+    Discovery order:
+    1. Prefer folders containing ``metadata.json`` when they have audio in subtree.
+    2. Fallback to leaf audio folders when no metadata root covers that subtree.
 
     Args:
         source_dir: Root directory to scan
         pattern: Glob pattern to filter folder names
 
     Returns:
-        Sorted list of leaf folder paths with audio files
+        Sorted list of canonical book folder paths
     """
     import fnmatch
 
-    candidates: list[Path] = []
+    audio_dirs: list[Path] = []
+    metadata_dirs: list[Path] = []
 
-    for root, dirs, _files in os.walk(source_dir):
+    for root, _dirs, files in os.walk(source_dir):
         root_path = Path(root)
+        if "metadata.json" in files:
+            metadata_dirs.append(root_path)
 
-        # Only consider dirs that match pattern
-        if pattern != "*" and not fnmatch.fnmatch(root_path.name, pattern):
+        if any(Path(f).suffix.lower() in AUDIO_EXTS for f in files):
+            audio_dirs.append(root_path)
+
+    # Keep deepest metadata roots first to avoid overlapping parent+child picks.
+    metadata_roots: list[Path] = []
+    for meta_dir in sorted(metadata_dirs, key=lambda p: len(p.parts), reverse=True):
+        has_audio_descendant = any(_is_within(audio_dir, meta_dir) for audio_dir in audio_dirs)
+        if not has_audio_descendant:
             continue
-
-        # Must have audio files
-        if not has_audio_files(root_path):
+        if any(_is_within(selected, meta_dir) for selected in metadata_roots):
             continue
+        metadata_roots.append(meta_dir)
 
-        # Skip if any subdir also has audio (not a leaf)
-        if any(has_audio_files(root_path / d) for d in dirs):
+    # Leaf audio dirs (no deeper audio descendants), used when no metadata root covers the subtree.
+    leaf_audio_dirs: list[Path] = []
+    for audio_dir in audio_dirs:
+        has_audio_descendant = any(
+            _is_within(other_dir, audio_dir) and other_dir != audio_dir for other_dir in audio_dirs
+        )
+        if not has_audio_descendant:
+            leaf_audio_dirs.append(audio_dir)
+
+    candidates: set[Path] = set(metadata_roots)
+    for leaf_dir in leaf_audio_dirs:
+        if any(
+            _is_within(leaf_dir, meta_dir) and leaf_dir != meta_dir for meta_dir in metadata_roots
+        ):
             continue
+        candidates.add(leaf_dir)
 
-        candidates.append(root_path)
-
-    return sorted(candidates)
+    # Optional glob filter by candidate folder name.
+    filtered = [
+        candidate
+        for candidate in candidates
+        if pattern == "*" or fnmatch.fnmatch(candidate.name, pattern)
+    ]
+    return sorted(filtered)
 
 
 # =============================================================================
@@ -251,6 +490,7 @@ def parse_abs_metadata(folder: Path) -> AbsMetadata | None:
 
         return AbsMetadata(
             title=schema.title,
+            subtitle=schema.subtitle,
             authors=schema.authors or None,
             series=series_name,
             series_position=series_pos,
@@ -445,10 +685,381 @@ def detect_duplicates(candidates: list[RenameCandidate]) -> list[RenameCandidate
 # =============================================================================
 
 
+def _infer_author_from_path(source_path: Path, source_dir: Path | None) -> str | None:
+    """Infer author folder from current path layout."""
+    if source_dir is None:
+        return None
+
+    with contextlib.suppress(ValueError):
+        rel = source_path.relative_to(source_dir)
+        if len(rel.parts) >= 2:
+            return rel.parts[0]
+    return None
+
+
+def _detect_series_root(source_path: Path, source_dir: Path | None) -> str | None:
+    """Detect the existing series root from the book's immediate parent folder.
+
+    Uses ``rel.parts[-2]`` (the parent directory of the book folder) when the
+    book sits at depth ≥ 3 below ``source_dir`` (i.e. Author/Series/Book).
+    At depth ≤ 2 (book sits directly under author dir), there is no series
+    root to preserve.
+
+    Returns:
+        The series root folder name, or None if no series root detected.
+    """
+    if source_dir is None:
+        return None
+
+    with contextlib.suppress(ValueError):
+        rel = source_path.relative_to(source_dir)
+        # depth 2+ → parts[-2] is the immediate parent (series dir)
+        # Works for both library-root scope (Author/Series/Book = depth 3)
+        # and author-dir scope (Series/Book = depth 2).
+        if len(rel.parts) >= 2:
+            return rel.parts[-2]
+    return None
+
+
+def _resolve_series(
+    *,
+    parsed: ParsedFolderName | None,
+    abs_meta: AbsMetadata | None,
+    source_path: Path,
+    source_dir: Path | None,
+    policy: RenamePolicy,
+) -> tuple[str | None, bool]:
+    """Single source of truth for series name resolution.
+
+    Applies the ``series_source`` policy to pick the canonical series name:
+
+    * **preserve_existing** (default) — Use the existing parent folder as the
+      series root.  If the book already lives under a series directory, that
+      directory name wins even when ABS metadata disagrees.  Falls back to
+      ABS → parsed when no existing root is detected.
+    * **folder_first** — Prefer the parsed folder series name over ABS.
+    * **abs_first** — Prefer ABS metadata (original behavior).
+
+    Returns:
+        A tuple of (resolved_series_name, series_root_changed) where
+        ``series_root_changed`` is True when the policy prevented a
+        series root move that ABS metadata would have caused.
+    """
+    existing_root = _detect_series_root(source_path, source_dir)
+    abs_series = abs_meta.series if abs_meta and abs_meta.series else None
+    parsed_series = parsed.series if parsed else None
+
+    if policy.series_source == "abs_first":
+        # Original behavior: ABS wins
+        resolved = abs_series or parsed_series
+        changed = bool(existing_root and resolved and resolved != existing_root)
+        return resolved, changed
+
+    if policy.series_source == "folder_first":
+        # Parsed folder name wins over ABS
+        resolved = parsed_series or abs_series
+        changed = bool(existing_root and resolved and resolved != existing_root)
+        return resolved, changed
+
+    # preserve_existing (default):
+    # If the book already lives under a series directory, keep that name.
+    # Guard: only trust existing_root if at least one metadata source
+    # also says this is a series book.  This prevents depth-2 standalone
+    # books (library_root/Author/Book) from misinterpreting the author
+    # directory as a series root.
+    if existing_root and (abs_series or parsed_series):
+        # The book is in a series dir — lock to it.
+        # Flag if ABS would have moved it to a different series root.
+        changed = bool(abs_series and abs_series != existing_root)
+        return existing_root, changed
+
+    # No existing series root: fall back to ABS → parsed.
+    resolved = abs_series or parsed_series
+    return resolved, False
+
+
+def _select_ripper_tag(
+    parsed_tag: str | None,
+    import_ripper_tag: str | None,
+    policy: RenamePolicy,
+) -> str | None:
+    """Apply policy to determine final ripper tag."""
+    if policy.ripper_tag_policy == "strip_all":
+        return None
+
+    if policy.ripper_tag_policy == "import_override":
+        return import_ripper_tag if import_ripper_tag else parsed_tag
+
+    if policy.ripper_tag_policy == "preserve_if_in_allowlist":
+        if not parsed_tag:
+            return None
+        if parsed_tag in policy.allowed_ripper_tags:
+            return parsed_tag
+        if policy.non_allowlisted_tag_action == "drop":
+            return None
+        return parsed_tag
+
+    return parsed_tag
+
+
+def _strip_edition_tags(text: str) -> str:
+    """Strip edition tags like (Full-Cast) from a string."""
+    return _EDITION_FLAG_PATTERN.sub("", text).strip()
+
+
+def _extract_arc_from_libation_title(
+    title: str,
+    series: str,
+    series_position: str | None,
+) -> str:
+    """Extract just the arc/subtitle portion from a Libation-format parsed title.
+
+    For Libation-format folders (no ``" - "`` separator),
+    ``parse_mam_folder_name`` sets ``parsed.title`` to the **entire**
+    remaining string including the series name, volume number, and any
+    leftover parentheticals (e.g. author).  Before using this as an arc
+    candidate we must strip those prefixes and suffixes so that only the
+    arc text remains.
+
+    Examples::
+
+        >>> _extract_arc_from_libation_title(
+        ...     "Harry Potter vol_01 and the Philosopher's Stone (J.K. Rowling)",
+        ...     "Harry Potter", "01")
+        "and the Philosopher's Stone"
+
+        >>> _extract_arc_from_libation_title(
+        ...     "Harry Potter vol_04 and the Goblet of Fire",
+        ...     "Harry Potter", "04")
+        "and the Goblet of Fire"
+    """
+    result = title
+
+    # Strip leading series name (case-insensitive)
+    if result.lower().startswith(series.lower()):
+        result = result[len(series) :].strip()
+
+    # Strip leading volume token (vol_01, vol.2, vol 3, etc.)
+    result = re.sub(r"^vol[_.]?\s*\d+(?:\.\d+)?\s*", "", result, flags=re.IGNORECASE).strip()
+
+    # Strip trailing parentheticals — leftover (Author) from Libation parser
+    result = re.sub(r"\s*\([^)]*\)\s*$", "", result).strip()
+
+    return result
+
+
+def _resolve_arc_name(
+    *,
+    candidate: RenameCandidate,
+    title: str | None,
+    series: str | None,
+    naming_config: NamingConfig | None,
+    policy: RenamePolicy,
+) -> str | None:
+    """Resolve optional arc/subtitle token based on policy.
+
+    With folder-first policies (preserve_existing, folder_first), the
+    parsed folder title is tried first before ABS subtitle.  Edition
+    tags like ``(Full-Cast)`` are stripped before using a parsed title
+    as an arc name since they duplicate the edition_flags field.
+
+    For Libation-format folders, ``parsed.title`` includes the series
+    name and volume prefix (e.g.
+    ``"Harry Potter vol_01 and the Philosopher's Stone (J.K. Rowling)"``).
+    The series+volume prefix and trailing parentheticals are stripped via
+    :func:`_extract_arc_from_libation_title` before the candidate is
+    tested, so that the arc resolves to just ``"and the Philosopher's
+    Stone"``.
+    """
+    if policy.arc_policy == "manual":
+        return None
+
+    abs_meta = candidate.abs_metadata
+    parsed = candidate.parsed
+    use_folder_first = policy.series_source in ("preserve_existing", "folder_first")
+
+    # ── Folder-first arc sourcing ────────────────────────────────────
+    if use_folder_first and parsed and parsed.series and parsed.title:
+        candidate_arc = _strip_edition_tags(parsed.title)
+
+        # Libation-format folders set parsed.title to the full remaining
+        # string including series+vol prefix.  Strip that prefix so we
+        # get only the arc portion (e.g. "and the Philosopher's Stone").
+        if candidate_arc.lower().startswith(parsed.series.lower()):
+            candidate_arc = _extract_arc_from_libation_title(
+                candidate_arc, parsed.series, parsed.series_position
+            )
+
+        if candidate_arc and (
+            not series or candidate_arc.strip().lower() != series.strip().lower()
+        ):
+            filtered = filter_subtitle(
+                candidate_arc,
+                title=title,
+                series=series,
+                naming_config=naming_config,
+            )
+            if filtered:
+                return filtered
+
+    # ── ABS subtitle (original default source) ───────────────────────
+    if abs_meta and abs_meta.subtitle:
+        filtered = filter_subtitle(
+            abs_meta.subtitle,
+            title=title,
+            series=series,
+            naming_config=naming_config,
+        )
+        if filtered:
+            return filtered
+
+    # ── Infer mode: fallback to parsed title as arc ──────────────────
+    if (
+        policy.arc_policy == "infer"
+        and not use_folder_first
+        and parsed
+        and parsed.series
+        and parsed.title
+        and (not series or parsed.title.strip().lower() != series.strip().lower())
+    ):
+        return parsed.title
+
+    return None
+
+
+def _build_target_path(
+    *,
+    source_dir: Path | None,
+    source_path: Path,
+    target_name: str,
+    author: str,
+    series: str | None,
+    naming_config: NamingConfig | None,
+    policy: RenamePolicy,
+) -> Path:
+    """Build destination path under selected hierarchy policy.
+
+    Detects the hierarchy level that ``source_dir`` represents by measuring
+    the depth of ``source_path`` relative to ``source_dir``:
+
+    * **depth ≥ 3** (e.g. ``library/Author/Series/Book``) →
+      ``source_dir`` is the **library root**; build full
+      ``Author/Series/Book`` hierarchy.
+    * **depth 1-2** (e.g. ``AuthorDir/Book`` or ``AuthorDir/Series/Book``) ->
+      ``source_dir`` is an **author directory**; for series books always
+      build ``Series/Book`` (creating the series dir if needed); for
+      standalone books place directly under ``source_dir``.
+    """
+    if source_dir is None or policy.hierarchy_mode != "author_series_book":
+        return source_path.parent / target_name
+
+    clean_author = safe_dirname(author) if author else "Unknown Author"
+
+    # Determine what level source_dir represents by measuring depth.
+    try:
+        rel = source_path.relative_to(source_dir)
+    except ValueError:
+        return source_path.parent / target_name
+    depth = len(rel.parts)  # components below source_dir
+
+    if series:
+        clean_series = safe_dirname(filter_series(series, naming_config=naming_config))
+        if depth >= 3:
+            # source_dir is library root → Author/Series/Book
+            return source_dir / clean_author / clean_series / target_name
+        # depth 1-2: source_dir is author-level; always group into Series/Book
+        # (covers both items already in a series subdir AND flat items that
+        # need a series directory created for them, e.g. Fantastic Beasts
+        # sitting directly under the author folder)
+        return source_dir / clean_series / target_name
+
+    # Standalone (no series)
+    if depth >= 2:
+        # source_dir is library root → Author/Book
+        return source_dir / clean_author / target_name
+    # source_dir is already the author dir
+    return source_dir / target_name
+
+
+def _compute_conformance(
+    *,
+    target_path: Path | None,
+    components: dict[str, Any],
+    policy: RenamePolicy,
+) -> dict[str, Any]:
+    """Compute schema conformance checks for a planned target."""
+    if target_path is None:
+        return {
+            "score": 0,
+            "checks": {},
+            "violations": ["missing_target_path"],
+        }
+
+    folder_name = target_path.name
+    checks: dict[str, bool] = {}
+    violations: list[str] = []
+
+    checks["token_order"] = bool(_FOLDER_SCHEMA_PATTERN.match(folder_name))
+    if not checks["token_order"]:
+        violations.append("token_order")
+
+    checks["asin_placement"] = "{ASIN." in folder_name and folder_name.rfind("{ASIN.") > 0
+    if not checks["asin_placement"]:
+        violations.append("asin_placement")
+
+    tag = components.get("ripper_tag")
+    if policy.ripper_tag_policy == "preserve_if_in_allowlist" and tag:
+        checks["tag_policy"] = tag in policy.allowed_ripper_tags
+    elif policy.ripper_tag_policy == "strip_all":
+        checks["tag_policy"] = "[" not in folder_name
+    else:
+        checks["tag_policy"] = True
+    if not checks["tag_policy"]:
+        violations.append("tag_policy")
+
+    arc = components.get("arc")
+    if policy.arc_policy == "optional":
+        checks["arc_policy"] = True
+    else:
+        checks["arc_policy"] = bool(arc)
+    if not checks["arc_policy"]:
+        violations.append("arc_policy")
+
+    if policy.hierarchy_mode == "author_series_book":
+        series = components.get("series")
+        author = str(components.get("author") or "Unknown Author")
+        author_dir = safe_dirname(author) if author else "Unknown Author"
+        if series:
+            series_dir = safe_dirname(filter_series(str(series)))
+            checks["hierarchy"] = (
+                len(target_path.parents) >= 2
+                and target_path.parent.name == series_dir
+                and target_path.parent.parent.name == author_dir
+            )
+        else:
+            checks["hierarchy"] = target_path.parent.name == author_dir
+    else:
+        checks["hierarchy"] = True
+    if not checks["hierarchy"]:
+        violations.append("hierarchy")
+
+    passed = sum(1 for ok in checks.values() if ok)
+    score = round((passed / len(checks)) * 100) if checks else 0
+
+    return {
+        "score": score,
+        "checks": checks,
+        "violations": violations,
+    }
+
+
 def compute_target_name(
     candidate: RenameCandidate,
     naming_config: NamingConfig | None = None,
     import_ripper_tag: str | None = None,
+    *,
+    source_dir: Path | None = None,
+    policy: RenamePolicy | None = None,
 ) -> RenameCandidate:
     """Compute the target folder name using MAM naming schema.
 
@@ -460,6 +1071,8 @@ def compute_target_name(
     Returns:
         Updated candidate with target_name set
     """
+    effective_policy = policy or RenamePolicy()
+
     # Skip if already processed (error, missing ASIN, etc.)
     if candidate.status not in ("needs_rename", "up_to_date"):
         return candidate
@@ -480,17 +1093,39 @@ def compute_target_name(
     if not asin:
         return dataclasses.replace(candidate, status="missing_asin")
 
-    # Gather metadata - prefer ABS metadata, fallback to parsed
-    series = abs_meta.series if abs_meta and abs_meta.series else parsed.series
-    title = abs_meta.title if abs_meta and abs_meta.title else parsed.title
-    year = str(abs_meta.year) if abs_meta and abs_meta.year else parsed.year
+    # ── Series resolution (single source of truth) ───────────────────
+    series, series_root_changed = _resolve_series(
+        parsed=parsed,
+        abs_meta=abs_meta,
+        source_path=candidate.source_path,
+        source_dir=source_dir,
+        policy=effective_policy,
+    )
 
-    # Author - prefer ABS metadata
-    author = None
+    # ── Title / Year resolution (folder-first when applicable) ───────
+    use_folder_first = effective_policy.series_source in (
+        "preserve_existing",
+        "folder_first",
+    )
+
+    if use_folder_first:
+        title = parsed.title or (abs_meta.title if abs_meta else None)
+        year = parsed.year or (str(abs_meta.year) if abs_meta and abs_meta.year else None)
+    else:
+        # abs_first: original behavior
+        title = abs_meta.title if abs_meta and abs_meta.title else parsed.title
+        year = str(abs_meta.year) if abs_meta and abs_meta.year else parsed.year
+
+    # Author precedence: ABS metadata -> parsed -> inferred from path -> fallback
+    author: str | None = None
     if abs_meta and abs_meta.authors:
         author = abs_meta.authors[0]
-    elif parsed.author:
+    elif parsed.author and parsed.author != "Unknown":
         author = parsed.author
+    elif inferred_author := _infer_author_from_path(candidate.source_path, source_dir):
+        author = inferred_author
+    else:
+        author = "Unknown Author"
 
     # Volume number
     vol_num = None
@@ -502,8 +1137,21 @@ def compute_target_name(
     # Format volume number
     vol_str = format_volume_number(vol_num) if vol_num else None
 
-    # Ripper tag - use import_ripper_tag if provided, otherwise preserve from original
-    ripper_tag = import_ripper_tag if import_ripper_tag else parsed.ripper_tag
+    # Arc/subtitle token (optional for sao_gold policy)
+    arc = _resolve_arc_name(
+        candidate=candidate,
+        title=title,
+        series=series,
+        naming_config=naming_config,
+        policy=effective_policy,
+    )
+
+    # Ripper tag policy
+    ripper_tag = _select_ripper_tag(
+        parsed.ripper_tag,
+        import_ripper_tag,
+        effective_policy,
+    )
 
     # Build edition flags string
     edition_str = None
@@ -515,8 +1163,9 @@ def compute_target_name(
     # so we'll need to inject them manually after author
     target = build_mam_folder_name(
         series=series,
-        title=title,
+        title=title or "",
         volume_number=vol_str.replace("vol_", "") if vol_str else None,
+        arc=arc,
         year=year,
         author=author,
         asin=asin,
@@ -535,9 +1184,44 @@ def compute_target_name(
     # Apply pathvalidate safety
     target = safe_dirname(target)
 
-    # Check if rename is needed
-    if target == candidate.current_name:
-        return dataclasses.replace(candidate, target_name=target, status="up_to_date")
+    target_path = _build_target_path(
+        source_dir=source_dir,
+        source_path=candidate.source_path,
+        target_name=target,
+        author=author,
+        series=series,
+        naming_config=naming_config,
+        policy=effective_policy,
+    )
+
+    components: dict[str, Any] = {
+        "author": author,
+        "series": series,
+        "volume": vol_str,
+        "title": title,
+        "year": year,
+        "asin": asin,
+        "arc": arc,
+        "ripper_tag": ripper_tag,
+    }
+    components["conformance"] = _compute_conformance(
+        target_path=target_path,
+        components=components,
+        policy=effective_policy,
+    )
+
+    if series_root_changed:
+        components["series_root_changed"] = True
+
+    # Check if rename is needed (path-aware, not just folder name).
+    if target_path == candidate.source_path:
+        return dataclasses.replace(
+            candidate,
+            target_name=target,
+            target_path=target_path,
+            components=components,
+            status="up_to_date",
+        )
 
     # Check for suspicious changes (too different)
     if is_suspicious_change(candidate.current_name, target, threshold=30):
@@ -546,7 +1230,12 @@ def compute_target_name(
             f"similarity={similarity_ratio(candidate.current_name, target):.1f}%"
         )
 
-    return dataclasses.replace(candidate, target_name=target)
+    return dataclasses.replace(
+        candidate,
+        target_name=target,
+        target_path=target_path,
+        components=components,
+    )
 
 
 def check_target_exists(
@@ -563,10 +1252,10 @@ def check_target_exists(
     result = list(candidates)
 
     for i, c in enumerate(result):
-        if c.status != "needs_rename" or not c.target_name:
+        if c.status != "needs_rename" or c.target_path is None:
             continue
 
-        target_path = c.source_path.parent / c.target_name
+        target_path = c.target_path
 
         # Check if target path exists and is different from source
         if target_path.exists() and target_path != c.source_path:
@@ -699,7 +1388,7 @@ def rename_folder(
             error="No target name computed",
         )
 
-    target_path = candidate.source_path.parent / candidate.target_name
+    target_path = candidate.target_path or (candidate.source_path.parent / candidate.target_name)
 
     if dry_run:
         return RenameResult(
@@ -709,10 +1398,11 @@ def rename_folder(
         )
 
     try:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
         candidate.source_path.rename(target_path)
 
         # Always rename media files inside the folder to match new folder name
-        files_renamed = _rename_files_inside(target_path, candidate.target_name)
+        files_renamed = _rename_files_inside(target_path, target_path.name)
 
         return RenameResult(
             source_path=candidate.source_path,
@@ -743,6 +1433,7 @@ def run_rename_pipeline(
     abs_search_confidence: float = 0.75,
     naming_config: NamingConfig | None = None,
     import_ripper_tag: str | None = None,
+    policy: RenamePolicy | None = None,
     dry_run: bool = False,
     interactive: bool = False,
     force: bool = False,
@@ -760,6 +1451,7 @@ def run_rename_pipeline(
         abs_search_confidence: Minimum confidence for ABS search
         naming_config: Optional naming configuration
         import_ripper_tag: Ripper tag to add during import (overrides parsed tag)
+        policy: Canonical naming policy
         dry_run: If True, don't actually rename
         interactive: If True, prompt for each rename
         force: If True, rename files inside even when folder names are up-to-date
@@ -841,7 +1533,17 @@ def run_rename_pipeline(
 
     # Stage 5: Build target names
     print_step(5, 6, "Computing target names")
-    candidates = [compute_target_name(c, naming_config, import_ripper_tag) for c in candidates]
+    effective_policy = policy or RenamePolicy()
+    candidates = [
+        compute_target_name(
+            c,
+            naming_config,
+            import_ripper_tag,
+            source_dir=source_dir,
+            policy=effective_policy,
+        )
+        for c in candidates
+    ]
     candidates = check_target_exists(candidates)
 
     # Stage 6: Execute renames
@@ -860,7 +1562,12 @@ def run_rename_pipeline(
                 print("  → (rename files inside only)")
             else:
                 print(f"\n{candidate.current_name}")
-                print(f"  → {candidate.target_name}")
+                target_preview = (
+                    str(candidate.target_path)
+                    if candidate.target_path is not None
+                    else str(candidate.target_name)
+                )
+                print(f"  → {target_preview}")
 
             if not confirm("Rename this folder?"):
                 result = RenameResult(
@@ -909,6 +1616,478 @@ def run_rename_pipeline(
         print_warning(f"Errors: {summary.errors}")
 
     return results, summary, candidates
+
+
+def _compute_path_fingerprint(path: Path) -> str | None:
+    """Compute a stable fingerprint for stale-manifest detection."""
+    if not path.exists():
+        return None
+
+    hasher = hashlib.sha256()
+    file_count = 0
+    total_size = 0
+    latest_mtime_ns = 0
+
+    if path.is_file():
+        stat = path.stat()
+        hasher.update(path.name.encode("utf-8", "ignore"))
+        hasher.update(str(stat.st_size).encode("ascii"))
+        hasher.update(str(stat.st_mtime_ns).encode("ascii"))
+        return hasher.hexdigest()
+
+    for file_path in sorted(path.rglob("*")):
+        if not file_path.is_file():
+            continue
+        try:
+            stat = file_path.stat()
+        except OSError:
+            continue
+
+        rel = file_path.relative_to(path)
+        hasher.update(str(rel).encode("utf-8", "ignore"))
+        hasher.update(str(stat.st_size).encode("ascii"))
+        hasher.update(str(stat.st_mtime_ns).encode("ascii"))
+        file_count += 1
+        total_size += stat.st_size
+        latest_mtime_ns = max(latest_mtime_ns, stat.st_mtime_ns)
+
+    hasher.update(str(file_count).encode("ascii"))
+    hasher.update(str(total_size).encode("ascii"))
+    hasher.update(str(latest_mtime_ns).encode("ascii"))
+    return hasher.hexdigest()
+
+
+def _derive_plan_reasons(candidate: RenameCandidate) -> list[str]:
+    """Generate deterministic reason codes for plan review."""
+    reasons: list[str] = []
+    if candidate.status == "missing_asin":
+        reasons.append("missing_asin")
+    if candidate.status == "duplicate_asin":
+        reasons.append("duplicate_asin")
+    if candidate.status == "target_exists":
+        reasons.append("target_exists")
+    if candidate.status == "up_to_date":
+        reasons.append("already_canonical")
+    if candidate.status == "needs_rename":
+        reasons.append("canonicalization_required")
+
+    if candidate.target_path and candidate.target_path.parent != candidate.source_path.parent:
+        reasons.append("hierarchy_move")
+    if candidate.target_name and candidate.target_name != candidate.current_name:
+        reasons.append("name_change")
+    return reasons
+
+
+def _derive_risk_flags(candidate: RenameCandidate) -> list[str]:
+    """Assign risk flags used for canary stratification."""
+    flags: list[str] = []
+    if candidate.target_name:
+        sim = similarity_ratio(candidate.current_name, candidate.target_name)
+        if sim < 30:
+            flags.append("low_similarity")
+
+    if candidate.target_path and candidate.target_path.parent != candidate.source_path.parent:
+        flags.append("hierarchy_move")
+
+    parsed_tag = candidate.parsed.ripper_tag if candidate.parsed else None
+    planned_tag = candidate.components.get("ripper_tag")
+    if parsed_tag and not planned_tag:
+        flags.append("tag_removed")
+
+    asin = candidate.parsed.asin if candidate.parsed else None
+    if asin and asin.isdigit():
+        flags.append("edge_case_numeric_asin")
+
+    if candidate.components.get("series_root_changed"):
+        flags.append("series_root_change")
+
+    return sorted(set(flags))
+
+
+def build_rename_plan(
+    *,
+    source_dir: Path,
+    candidates: list[RenameCandidate],
+    summary: RenameSummary,
+    policy: RenamePolicy,
+) -> RenamePlanV1:
+    """Build deterministic plan manifest from pipeline candidates."""
+    items: list[RenamePlanItem] = []
+    conflicts: dict[str, Any] = {
+        "missing_asin": [],
+        "duplicate_asin": {},
+        "target_exists": [],
+    }
+
+    for candidate in sorted(candidates, key=lambda c: str(c.source_path)):
+        if candidate.status in {"missing_asin", "target_exists"}:
+            conflicts[candidate.status].append(str(candidate.source_path))
+        elif candidate.status == "duplicate_asin":
+            asin = candidate.parsed.asin if candidate.parsed else None
+            key = asin or "UNKNOWN_ASIN"
+            duplicate_groups = conflicts["duplicate_asin"]
+            duplicate_groups.setdefault(key, []).append(str(candidate.source_path))
+
+        similarity = None
+        if candidate.target_name:
+            similarity = round(similarity_ratio(candidate.current_name, candidate.target_name), 1)
+
+        item = RenamePlanItem(
+            source_path=str(candidate.source_path),
+            target_path=str(candidate.target_path) if candidate.target_path else None,
+            status=candidate.status,
+            reasons=_derive_plan_reasons(candidate),
+            risk_flags=_derive_risk_flags(candidate),
+            fingerprint=_compute_path_fingerprint(candidate.source_path),
+            components={
+                **candidate.components,
+                "current_name": candidate.current_name,
+                "target_name": candidate.target_name,
+                "asin_source": candidate.asin_source,
+            },
+            similarity_percent=similarity,
+            conformance=(
+                candidate.components.get("conformance", {})
+                if candidate.components
+                else _compute_conformance(
+                    target_path=candidate.target_path,
+                    components={"ripper_tag": None, "arc": None},
+                    policy=policy,
+                )
+            ),
+        )
+        items.append(item)
+
+    manifest_summary = {
+        "total_candidates": summary.total_candidates,
+        "needs_rename": sum(1 for c in candidates if c.status == "needs_rename"),
+        "up_to_date": sum(1 for c in candidates if c.status == "up_to_date"),
+        "missing_asin": summary.skipped_missing_asin,
+        "duplicate_asin": summary.skipped_duplicate_asin,
+        "target_exists": summary.skipped_target_exists,
+        "errors": summary.errors,
+    }
+
+    return RenamePlanV1(
+        generated_at=datetime.now(UTC).isoformat(),
+        source_dir=str(source_dir),
+        policy=policy,
+        summary=manifest_summary,
+        conflicts=conflicts,
+        items=items,
+    )
+
+
+def write_rename_plan(plan: RenamePlanV1, output_path: Path) -> dict[str, Any]:
+    """Write rename plan manifest JSON to disk."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = plan.as_dict()
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    return payload
+
+
+def _select_canary_items(
+    items: list[dict[str, Any]],
+    *,
+    canary_size: int | None,
+    canary_strategy: str,
+) -> list[dict[str, Any]]:
+    """Select a deterministic canary subset."""
+    if not canary_size or canary_size <= 0 or canary_size >= len(items):
+        return items
+
+    ordered = sorted(items, key=lambda item: str(item.get("source_path", "")))
+    if canary_strategy != "stratified":
+        return ordered[:canary_size]
+
+    buckets: dict[str, list[dict[str, Any]]] = {
+        "high": [],
+        "tag": [],
+        "hierarchy": [],
+        "edge": [],
+        "low": [],
+    }
+    for item in ordered:
+        flags = set(item.get("risk_flags", []))
+        if "low_similarity" in flags:
+            buckets["high"].append(item)
+        elif "tag_removed" in flags:
+            buckets["tag"].append(item)
+        elif "hierarchy_move" in flags:
+            buckets["hierarchy"].append(item)
+        elif any(flag.startswith("edge_case_") for flag in flags):
+            buckets["edge"].append(item)
+        else:
+            buckets["low"].append(item)
+
+    selected: list[dict[str, Any]] = []
+    order = ("high", "tag", "hierarchy", "edge", "low")
+    idx = 0
+    while len(selected) < canary_size and any(buckets.values()):
+        bucket_name = order[idx % len(order)]
+        idx += 1
+        if not buckets[bucket_name]:
+            continue
+        selected.append(buckets[bucket_name].pop(0))
+    return selected
+
+
+def apply_rename_plan(
+    plan_path: Path,
+    *,
+    dry_run: bool = False,
+    canary_size: int | None = None,
+    canary_strategy: str = "stratified",
+) -> dict[str, Any]:
+    """Apply renames from an approved plan manifest."""
+    with open(plan_path, encoding="utf-8") as f:
+        plan_payload = json.load(f)
+
+    if plan_payload.get("version") != "RenamePlanV1":
+        raise ValueError(f"Unsupported plan version: {plan_payload.get('version')}")
+
+    policy = RenamePolicy.from_dict(plan_payload.get("policy", {}))
+    all_items = [
+        item
+        for item in plan_payload.get("items", [])
+        if item.get("status") == "needs_rename" and item.get("target_path")
+    ]
+    selected_items = _select_canary_items(
+        all_items,
+        canary_size=canary_size,
+        canary_strategy=canary_strategy,
+    )
+    duplicate_asin_groups = plan_payload.get("conflicts", {}).get("duplicate_asin", {})
+    if not isinstance(duplicate_asin_groups, dict):
+        duplicate_asin_groups = {}
+    suspicious_changes = [
+        {
+            "source_path": item.get("source_path"),
+            "target_path": item.get("target_path"),
+            "similarity_percent": item.get("similarity_percent"),
+        }
+        for item in selected_items
+        if "low_similarity" in set(item.get("risk_flags", []))
+    ]
+
+    backup_root = policy.transaction_backup_root / datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+
+    # Preflight all selected items before mutating filesystem.
+    apply_results: list[dict[str, Any]] = []
+    target_to_rows: dict[str, list[int]] = {}
+    for idx, item in enumerate(selected_items):
+        target_to_rows.setdefault(str(item.get("target_path", "")), []).append(idx)
+
+    blocked_rows: set[int] = set()
+    for _target, rows in target_to_rows.items():
+        if len(rows) <= 1:
+            continue
+        for row_num in rows:
+            blocked_rows.add(row_num)
+            item = selected_items[row_num]
+            apply_results.append(
+                {
+                    "source_path": str(item["source_path"]),
+                    "target_path": str(item["target_path"]),
+                    "status": "failed",
+                    "error": "duplicate_target_in_plan",
+                    "rollback_ok": True,
+                }
+            )
+
+    for row_idx, item in enumerate(selected_items):
+        if row_idx in blocked_rows:
+            continue
+
+        source_path = Path(item["source_path"])
+        target_path = Path(item["target_path"])
+        expected_fingerprint = item.get("fingerprint")
+        current_fingerprint = _compute_path_fingerprint(source_path)
+
+        if not source_path.exists():
+            apply_results.append(
+                {
+                    "source_path": str(source_path),
+                    "target_path": str(target_path),
+                    "status": "failed",
+                    "error": "source_missing",
+                    "rollback_ok": True,
+                }
+            )
+            blocked_rows.add(row_idx)
+            continue
+
+        if expected_fingerprint and current_fingerprint != expected_fingerprint:
+            apply_results.append(
+                {
+                    "source_path": str(source_path),
+                    "target_path": str(target_path),
+                    "status": "failed",
+                    "error": "fingerprint_mismatch",
+                    "rollback_ok": True,
+                }
+            )
+            blocked_rows.add(row_idx)
+            continue
+
+        if target_path.exists() and target_path != source_path:
+            apply_results.append(
+                {
+                    "source_path": str(source_path),
+                    "target_path": str(target_path),
+                    "status": "failed",
+                    "error": "target_conflict",
+                    "rollback_ok": True,
+                }
+            )
+            blocked_rows.add(row_idx)
+
+    # Reliability-first: abort apply if any preflight issue exists.
+    if blocked_rows:
+        by_status: dict[str, list[dict[str, Any]]] = {}
+        for result_row in apply_results:
+            by_status.setdefault(result_row["status"], []).append(result_row)
+
+        summary = {
+            "selected": len(selected_items),
+            "success": 0,
+            "dry_run": 0,
+            "failed": len(by_status.get("failed", [])),
+        }
+
+        return {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "plan_path": str(plan_path),
+            "dry_run": dry_run,
+            "policy": policy.as_dict(),
+            "canary": {
+                "strategy": canary_strategy,
+                "requested_size": canary_size,
+                "selected_size": len(selected_items),
+            },
+            "summary": summary,
+            "warnings": {
+                "preflight_failed": True,
+                "suspicious_changes_count": len(suspicious_changes),
+                "suspicious_changes": suspicious_changes,
+                "duplicate_asin_groups": duplicate_asin_groups,
+            },
+            "by_status": by_status,
+            "results": apply_results,
+        }
+
+    if not dry_run:
+        backup_root.mkdir(parents=True, exist_ok=True)
+
+    for index, item in enumerate(selected_items, start=1):
+        source_path = Path(item["source_path"])
+        target_path = Path(item["target_path"])
+
+        if dry_run:
+            apply_results.append(
+                {
+                    "source_path": str(source_path),
+                    "target_path": str(target_path),
+                    "status": "dry_run",
+                    "error": None,
+                    "rollback_ok": True,
+                }
+            )
+            continue
+
+        item_backup_dir = backup_root / f"{index:05d}"
+        source_backup = item_backup_dir / "source_backup"
+        target_backup = item_backup_dir / "target_backup"
+        target_was_displaced = False
+        rollback_ok = True
+
+        try:
+            item_backup_dir.mkdir(parents=True, exist_ok=True)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if target_path.exists() and target_path != source_path:
+                target_path.rename(target_backup)
+                target_was_displaced = True
+
+            source_path.rename(source_backup)
+            source_backup.rename(target_path)
+            files_renamed = _rename_files_inside(target_path, target_path.name)
+
+            # Cleanup empty per-item backup dir after successful commit.
+            with contextlib.suppress(OSError):
+                if item_backup_dir.exists() and not any(item_backup_dir.iterdir()):
+                    item_backup_dir.rmdir()
+
+            apply_results.append(
+                {
+                    "source_path": str(source_path),
+                    "target_path": str(target_path),
+                    "status": "success",
+                    "error": None,
+                    "files_renamed": files_renamed,
+                    "rollback_ok": True,
+                }
+            )
+        except OSError as e:
+            # Best-effort rollback per item transaction.
+            if target_path.exists() and not source_path.exists():
+                with contextlib.suppress(OSError):
+                    target_path.rename(source_path)
+                rollback_ok = rollback_ok and source_path.exists()
+            elif source_backup.exists() and not source_path.exists():
+                with contextlib.suppress(OSError):
+                    source_backup.rename(source_path)
+                rollback_ok = rollback_ok and source_path.exists()
+
+            if target_was_displaced and target_backup.exists():
+                if not target_path.exists():
+                    with contextlib.suppress(OSError):
+                        target_backup.rename(target_path)
+                    rollback_ok = rollback_ok and target_path.exists()
+                else:
+                    rollback_ok = False
+
+            apply_results.append(
+                {
+                    "source_path": str(source_path),
+                    "target_path": str(target_path),
+                    "status": "failed",
+                    "error": str(e),
+                    "rollback_ok": rollback_ok,
+                }
+            )
+
+    final_by_status: dict[str, list[dict[str, Any]]] = {}
+    for result_row in apply_results:
+        final_by_status.setdefault(result_row["status"], []).append(result_row)
+
+    summary = {
+        "selected": len(selected_items),
+        "success": len(final_by_status.get("success", [])),
+        "dry_run": len(final_by_status.get("dry_run", [])),
+        "failed": len(final_by_status.get("failed", [])),
+    }
+
+    return {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "plan_path": str(plan_path),
+        "dry_run": dry_run,
+        "policy": policy.as_dict(),
+        "canary": {
+            "strategy": canary_strategy,
+            "requested_size": canary_size,
+            "selected_size": len(selected_items),
+        },
+        "summary": summary,
+        "warnings": {
+            "suspicious_changes_count": len(suspicious_changes),
+            "suspicious_changes": suspicious_changes,
+            "duplicate_asin_groups": duplicate_asin_groups,
+        },
+        "by_status": final_by_status,
+        "results": apply_results,
+    }
 
 
 # =============================================================================
