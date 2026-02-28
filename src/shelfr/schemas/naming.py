@@ -177,6 +177,44 @@ class PathTruncationConfig(BaseModel):
         return v
 
 
+class EditionFlagsConfig(BaseModel):
+    """Edition flags detection and normalization config."""
+
+    flags: list[str] = Field(
+        default_factory=lambda: [
+            "Full-Cast",
+            "Full Cast",
+            "Dolby Atmos",
+            "Atmos",
+            "Unabridged",
+            "Abridged",
+            "Dramatized",
+            "Graphic Audio",
+            "Publisher's Pack",
+            "Publishers Pack",
+            "AIT",
+        ],
+        description="Tokens detected in parentheses and preserved as edition flags",
+    )
+    aliases: dict[str, str] = Field(
+        default_factory=lambda: {
+            "full cast": "Full-Cast",
+            "atmos": "Dolby Atmos",
+            "publishers pack": "Publisher's Pack",
+            "ait": "AIT",
+        },
+        description="Lowercase key -> canonical form, applied after detection",
+    )
+
+    @field_validator("aliases", mode="before")
+    @classmethod
+    def filter_alias_comments(cls, v: dict[str, str]) -> dict[str, str]:
+        """Filter out comment keys starting with underscore."""
+        if isinstance(v, dict):
+            return {k: val for k, val in v.items() if not k.startswith("_")}
+        return v
+
+
 class NamingSchema(BaseModel):
     """
     Pydantic schema for naming.json validation.
@@ -227,6 +265,13 @@ class NamingSchema(BaseModel):
     # Author name mapping (foreign name -> romanized name)
     author_map: dict[str, str] = Field(default_factory=dict)
 
+    # Edition flags detection and normalization
+    edition_flags: EditionFlagsConfig = Field(default_factory=EditionFlagsConfig)
+
+    # Series aliases: canonical name -> list of alternate spellings/punctuation
+    # Used by ABS rename to merge series with minor differences (trailing !, case, etc.)
+    series_aliases: dict[str, list[str]] = Field(default_factory=dict)
+
     # Patterns preserved in JSON but removed from folder/file names
     preserve_in_json: PreserveInJsonConfig = Field(default_factory=PreserveInJsonConfig)
 
@@ -238,6 +283,19 @@ class NamingSchema(BaseModel):
     def filter_comment_keys(cls, v: dict[str, str]) -> dict[str, str]:
         """Filter out comment keys starting with underscore."""
         return {k: val for k, val in v.items() if not k.startswith("_") and isinstance(val, str)}
+
+    @field_validator("series_aliases", mode="before")
+    @classmethod
+    def filter_series_alias_comments(
+        cls,
+        v: dict[str, Any] | Any,
+    ) -> dict[str, list[str]] | Any:
+        """Filter out comment keys starting with underscore."""
+        if isinstance(v, dict):
+            return {
+                k: val for k, val in v.items() if not k.startswith("_") and isinstance(val, list)
+            }
+        return v
 
     @model_validator(mode="before")
     @classmethod

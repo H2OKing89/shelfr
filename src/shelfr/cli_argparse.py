@@ -689,6 +689,90 @@ Libation Management:
         default=None,
         help="Apply a predefined rename policy profile",
     )
+    ollama_audit_group = abs_rename_parser.add_mutually_exclusive_group()
+    ollama_audit_group.add_argument(
+        "--ollama-audit",
+        dest="ollama_audit",
+        action="store_true",
+        help="Run advisory Ollama audit after --plan-out",
+    )
+    ollama_audit_group.add_argument(
+        "--no-ollama-audit",
+        dest="ollama_audit",
+        action="store_false",
+        help="Disable advisory Ollama audit for this run",
+    )
+    abs_rename_parser.set_defaults(ollama_audit=None)
+    abs_rename_parser.add_argument(
+        "--ollama-model",
+        type=str,
+        default=None,
+        metavar="MODEL",
+        help="Pinned Ollama model tag for advisory audit",
+    )
+    abs_rename_parser.add_argument(
+        "--ollama-endpoint",
+        action="append",
+        default=None,
+        metavar="URL",
+        help="Priority-ordered Ollama endpoint (repeatable)",
+    )
+    abs_rename_parser.add_argument(
+        "--ollama-endpoints",
+        type=str,
+        default=None,
+        metavar="URLS",
+        help="Comma-separated Ollama endpoints, merged with --ollama-endpoint",
+    )
+    abs_rename_parser.add_argument(
+        "--ollama-timeout-seconds",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Timeout for Ollama audit requests",
+    )
+    abs_rename_parser.add_argument(
+        "--ollama-max-items",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Maximum plan items to review with Ollama",
+    )
+    abs_rename_parser.add_argument(
+        "--ollama-batch-size",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Items per Ollama audit batch",
+    )
+    abs_rename_parser.add_argument(
+        "--ollama-workers",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Ollama audit worker count (default: 1)",
+    )
+    abs_rename_parser.add_argument(
+        "--ollama-retry-count",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Retries per endpoint before failover",
+    )
+    abs_rename_parser.add_argument(
+        "--ollama-report-out",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Output advisory Ollama audit JSON report",
+    )
+    abs_rename_parser.add_argument(
+        "--ollama-debug-dump-dir",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Optional debug dump directory for Ollama prompts/responses",
+    )
     abs_rename_parser.set_defaults(func=cmd_abs_rename)
 
     # -------------------------------------------------------------------------

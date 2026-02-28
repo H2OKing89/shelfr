@@ -272,6 +272,47 @@ paths:
                 "",
             ]  # May vary based on test isolation
 
+    def test_loads_abs_rename_ollama_settings(self) -> None:
+        """Test audiobookshelf.rename ollama fields load into dataclass config."""
+        yaml_content = """
+paths:
+  library_root: "/tmp/library"
+  torrent_output: "/tmp/torrents"
+  seed_root: "/tmp/seed"
+
+audiobookshelf:
+  rename:
+    ollama_enabled: true
+    ollama_model: "llama3.1:8b-instruct-q4_K_M"
+    ollama_endpoints:
+      - "http://primary:11434/"
+      - "http://secondary:11434"
+    ollama_timeout_seconds: 45
+    ollama_max_items: 180
+    ollama_batch_size: 10
+    ollama_workers: 2
+    ollama_retry_count: 3
+    ollama_debug_dump_dir: "/tmp/ollama_debug"
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.yaml"
+            config_path.write_text(yaml_content)
+            env_path = Path(tmpdir) / ".env"
+            env_path.write_text("QB_HOST=http://localhost\nQB_USERNAME=admin\nQB_PASSWORD=secret\n")
+
+            settings = load_settings(env_file=env_path, config_file=config_path, validate=False)
+
+            rename_cfg = settings.audiobookshelf.rename
+            assert rename_cfg.ollama_enabled is True
+            assert rename_cfg.ollama_model == "llama3.1:8b-instruct-q4_K_M"
+            assert rename_cfg.ollama_endpoints == ["http://primary:11434", "http://secondary:11434"]
+            assert rename_cfg.ollama_timeout_seconds == 45
+            assert rename_cfg.ollama_max_items == 180
+            assert rename_cfg.ollama_batch_size == 10
+            assert rename_cfg.ollama_workers == 2
+            assert rename_cfg.ollama_retry_count == 3
+            assert rename_cfg.ollama_debug_dump_dir == "/tmp/ollama_debug"
+
     def test_rejects_invalid_audnex_region(self) -> None:
         """Test that invalid audnex region raises ConfigurationError."""
         from shelfr.config import ConfigurationError

@@ -432,6 +432,180 @@ class TestAbsRenameParser:
         assert args.canary_size is None
         assert args.canary_strategy == "stratified"
         assert args.policy_profile is None
+        assert args.ollama_audit is None
+        assert args.ollama_model is None
+        assert args.ollama_endpoint is None
+        assert args.ollama_endpoints is None
+        assert args.ollama_timeout_seconds is None
+        assert args.ollama_max_items is None
+        assert args.ollama_batch_size is None
+        assert args.ollama_workers is None
+        assert args.ollama_retry_count is None
+        assert args.ollama_report_out is None
+        assert args.ollama_debug_dump_dir is None
+
+    def test_abs_rename_ollama_flags_parse(self, tmp_path: Path) -> None:
+        """Test Ollama advisory flags parse correctly including endpoint merge inputs."""
+        parser = build_parser()
+        report_path = tmp_path / "audit.json"
+        dump_dir = tmp_path / "debug"
+        args = parser.parse_args(
+            [
+                "abs-rename",
+                "--plan-out",
+                str(tmp_path / "plan.json"),
+                "--ollama-audit",
+                "--ollama-model",
+                "llama3.1:8b-instruct-q4_K_M",
+                "--ollama-endpoint",
+                "http://a:11434",
+                "--ollama-endpoint",
+                "http://b:11434",
+                "--ollama-endpoints",
+                "http://c:11434,http://d:11434",
+                "--ollama-timeout-seconds",
+                "45",
+                "--ollama-max-items",
+                "180",
+                "--ollama-batch-size",
+                "15",
+                "--ollama-workers",
+                "1",
+                "--ollama-retry-count",
+                "2",
+                "--ollama-report-out",
+                str(report_path),
+                "--ollama-debug-dump-dir",
+                str(dump_dir),
+            ]
+        )
+        assert args.ollama_audit is True
+        assert args.ollama_model == "llama3.1:8b-instruct-q4_K_M"
+        assert args.ollama_endpoint == ["http://a:11434", "http://b:11434"]
+        assert args.ollama_endpoints == "http://c:11434,http://d:11434"
+        assert args.ollama_timeout_seconds == 45
+        assert args.ollama_max_items == 180
+        assert args.ollama_batch_size == 15
+        assert args.ollama_workers == 1
+        assert args.ollama_retry_count == 2
+        assert args.ollama_report_out == report_path
+        assert args.ollama_debug_dump_dir == dump_dir
+
+
+class TestAbsRenameOllamaResolution:
+    """Tests for CLI/config/default precedence of advisory audit settings."""
+
+    def test_cli_overrides_config_for_ollama_settings(self, tmp_path: Path) -> None:
+        from shelfr.commands.abs.rename import _resolve_ollama_audit_config
+
+        policy_cfg = argparse.Namespace(
+            ollama_enabled=False,
+            ollama_model="cfg-model",
+            ollama_endpoints=["http://cfg:11434"],
+            ollama_timeout_seconds=60,
+            ollama_max_items=200,
+            ollama_batch_size=15,
+            ollama_workers=1,
+            ollama_retry_count=1,
+            ollama_debug_dump_dir="/tmp/cfg-dumps",
+        )
+        args = argparse.Namespace(
+            ollama_audit=True,
+            ollama_model="cli-model",
+            ollama_endpoint=["http://a:11434", "http://b:11434"],
+            ollama_endpoints="http://c:11434,http://a:11434",
+            ollama_timeout_seconds=45,
+            ollama_max_items=180,
+            ollama_batch_size=10,
+            ollama_workers=2,
+            ollama_retry_count=3,
+            ollama_debug_dump_dir=tmp_path / "cli-dumps",
+        )
+
+        enabled, cfg = _resolve_ollama_audit_config(args, policy_cfg)
+        assert enabled is True
+        assert cfg.model == "cli-model"
+        assert cfg.endpoints == ["http://a:11434", "http://b:11434", "http://c:11434"]
+        assert cfg.timeout_seconds == 45
+        assert cfg.max_items == 180
+        assert cfg.batch_size == 10
+        assert cfg.workers == 2
+        assert cfg.retry_count == 3
+        assert cfg.debug_dump_dir == tmp_path / "cli-dumps"
+
+    def test_config_used_when_cli_omits_ollama_settings(self) -> None:
+        from shelfr.commands.abs.rename import _resolve_ollama_audit_config
+
+        policy_cfg = argparse.Namespace(
+            ollama_enabled=True,
+            ollama_model="cfg-model",
+            ollama_endpoints=["http://cfg:11434"],
+            ollama_timeout_seconds=42,
+            ollama_max_items=150,
+            ollama_batch_size=12,
+            ollama_workers=1,
+            ollama_retry_count=2,
+            ollama_debug_dump_dir="/tmp/cfg-dumps",
+        )
+        args = argparse.Namespace(
+            ollama_audit=None,
+            ollama_model=None,
+            ollama_endpoint=None,
+            ollama_endpoints=None,
+            ollama_timeout_seconds=None,
+            ollama_max_items=None,
+            ollama_batch_size=None,
+            ollama_workers=None,
+            ollama_retry_count=None,
+            ollama_debug_dump_dir=None,
+        )
+
+        enabled, cfg = _resolve_ollama_audit_config(args, policy_cfg)
+        assert enabled is True
+        assert cfg.model == "cfg-model"
+        assert cfg.endpoints == ["http://cfg:11434"]
+        assert cfg.timeout_seconds == 42
+        assert cfg.max_items == 150
+        assert cfg.batch_size == 12
+        assert cfg.workers == 1
+        assert cfg.retry_count == 2
+        assert cfg.debug_dump_dir == Path("/tmp/cfg-dumps")
+
+    def test_defaults_used_when_cli_and_config_missing(self) -> None:
+        from shelfr.abs.rename_ollama_audit import (
+            DEFAULT_OLLAMA_BATCH_SIZE,
+            DEFAULT_OLLAMA_ENDPOINTS,
+            DEFAULT_OLLAMA_MAX_ITEMS,
+            DEFAULT_OLLAMA_MODEL,
+            DEFAULT_OLLAMA_RETRY_COUNT,
+            DEFAULT_OLLAMA_TIMEOUT_SECONDS,
+            DEFAULT_OLLAMA_WORKERS,
+        )
+        from shelfr.commands.abs.rename import _resolve_ollama_audit_config
+
+        args = argparse.Namespace(
+            ollama_audit=None,
+            ollama_model=None,
+            ollama_endpoint=None,
+            ollama_endpoints=None,
+            ollama_timeout_seconds=None,
+            ollama_max_items=None,
+            ollama_batch_size=None,
+            ollama_workers=None,
+            ollama_retry_count=None,
+            ollama_debug_dump_dir=None,
+        )
+
+        enabled, cfg = _resolve_ollama_audit_config(args, None)
+        assert enabled is False
+        assert cfg.model == DEFAULT_OLLAMA_MODEL
+        assert cfg.endpoints == list(DEFAULT_OLLAMA_ENDPOINTS)
+        assert cfg.timeout_seconds == DEFAULT_OLLAMA_TIMEOUT_SECONDS
+        assert cfg.max_items == DEFAULT_OLLAMA_MAX_ITEMS
+        assert cfg.batch_size == DEFAULT_OLLAMA_BATCH_SIZE
+        assert cfg.workers == DEFAULT_OLLAMA_WORKERS
+        assert cfg.retry_count == DEFAULT_OLLAMA_RETRY_COUNT
+        assert cfg.debug_dump_dir is None
 
 
 class TestAbsImportCommand:

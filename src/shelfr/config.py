@@ -283,6 +283,34 @@ class NamingConfig:
     # Path truncation: order to drop components when path exceeds 225 chars
     # Valid components: "arc", "author", "year" (dropped in order, first dropped first)
     path_drop_priority: list[str] = field(default_factory=lambda: ["arc", "author", "year"])
+    # Edition flags: tokens in parentheses detected and preserved in target name
+    edition_flags: list[str] = field(
+        default_factory=lambda: [
+            "Full-Cast",
+            "Full Cast",
+            "Dolby Atmos",
+            "Atmos",
+            "Unabridged",
+            "Abridged",
+            "Dramatized",
+            "Graphic Audio",
+            "Publisher's Pack",
+            "Publishers Pack",
+            "AIT",
+        ]
+    )
+    # Edition flag aliases: lowercase variant -> canonical form
+    edition_flag_aliases: dict[str, str] = field(
+        default_factory=lambda: {
+            "full cast": "Full-Cast",
+            "atmos": "Dolby Atmos",
+            "publishers pack": "Publisher's Pack",
+            "ait": "AIT",
+        }
+    )
+    # Series aliases: canonical name -> list of alternate names
+    # Used by ABS rename to merge series with punctuation/spelling variants
+    series_aliases: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -582,7 +610,17 @@ class AudiobookshelfRenameConfig:
     )
     allowed_ripper_tags: list[str] = field(default_factory=list)
     non_allowlisted_tag_action: str = "keep"  # keep | drop
+    series_source: str = "preserve_existing"  # preserve_existing | folder_first | abs_first
     transaction_backup_root: str = "./data/reports/rename_backups"
+    ollama_enabled: bool = False
+    ollama_model: str = "llama3.1:8b-instruct-q4_K_M"
+    ollama_endpoints: list[str] = field(default_factory=lambda: ["http://127.0.0.1:11434"])
+    ollama_timeout_seconds: int = 60
+    ollama_max_items: int = 200
+    ollama_batch_size: int = 15
+    ollama_workers: int = 1
+    ollama_retry_count: int = 1
+    ollama_debug_dump_dir: str | None = None
 
 
 @dataclass
@@ -1249,6 +1287,30 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
         path_truncation_data = data.get("path_truncation", {})
         path_drop_priority = path_truncation_data.get("drop_priority", ["arc", "author", "year"])
 
+        # Extract edition flags (tokens in parentheses preserved in target name)
+        edition_data = data.get("edition_flags", {})
+        edition_flags_raw = edition_data.get("flags", None)
+        # Use NamingConfig defaults when naming.json has no edition_flags section
+        _defaults = NamingConfig()
+        edition_flags = (
+            edition_flags_raw if edition_flags_raw is not None else _defaults.edition_flags
+        )
+        edition_flag_aliases: dict[str, str] = {
+            k: v
+            for k, v in edition_data.get("aliases", {}).items()
+            if not k.startswith("_") and isinstance(v, str)
+        }
+        if not edition_flag_aliases and edition_flags_raw is None:
+            edition_flag_aliases = _defaults.edition_flag_aliases
+
+        # Extract series aliases (canonical name -> list of alternate names)
+        series_aliases_data = data.get("series_aliases", {})
+        series_aliases: dict[str, list[str]] = {
+            k: v
+            for k, v in series_aliases_data.items()
+            if not k.startswith("_") and isinstance(v, list)
+        }
+
         logger.debug(
             f"Loaded naming.json v{data.get('_version', '?')}: "
             f"{len(format_indicators)} format indicators, "
@@ -1257,6 +1319,7 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
             f"{len(subtitle_redundancy_rules)} redundancy rules, "
             f"{len(author_map)} author mappings, "
             f"{len(author_roles)} author roles, {len(credit_roles)} credit roles, "
+            f"{len(edition_flags)} edition flags, "
             f"normalize_title_subtitle={normalize_title_subtitle}"
         )
 
@@ -1278,6 +1341,9 @@ def _load_naming_config(config_dir: Path) -> NamingConfig:
             normalize_title_subtitle=normalize_title_subtitle,
             log_normalization_swaps=log_normalization_swaps,
             path_drop_priority=path_drop_priority,
+            edition_flags=edition_flags,
+            edition_flag_aliases=edition_flag_aliases,
+            series_aliases=series_aliases,
         )
 
     except (json.JSONDecodeError, OSError) as e:
@@ -1602,6 +1668,39 @@ def load_settings(
                 type(import_ripper_tag_raw).__name__,
             )
 
+    ollama_model_raw = abs_rename_data.get("ollama_model", "llama3.1:8b-instruct-q4_K_M")
+    ollama_model = (
+        ollama_model_raw.strip()
+        if isinstance(ollama_model_raw, str) and ollama_model_raw.strip()
+        else "llama3.1:8b-instruct-q4_K_M"
+    )
+
+    ollama_endpoints_raw = abs_rename_data.get("ollama_endpoints", ["http://127.0.0.1:11434"])
+    endpoints_input: list[str]
+    if isinstance(ollama_endpoints_raw, str):
+        endpoints_input = list(ollama_endpoints_raw.split(","))
+    elif isinstance(ollama_endpoints_raw, list):
+        endpoints_input = [str(item) for item in ollama_endpoints_raw]
+    else:
+        endpoints_input = []
+    ollama_endpoints: list[str] = []
+    seen_endpoints: set[str] = set()
+    for endpoint in endpoints_input:
+        cleaned = endpoint.strip().rstrip("/")
+        if not cleaned or cleaned in seen_endpoints:
+            continue
+        ollama_endpoints.append(cleaned)
+        seen_endpoints.add(cleaned)
+    if not ollama_endpoints:
+        ollama_endpoints = ["http://127.0.0.1:11434"]
+
+    ollama_debug_dump_dir_raw = abs_rename_data.get("ollama_debug_dump_dir")
+    ollama_debug_dump_dir = (
+        str(ollama_debug_dump_dir_raw).strip() if ollama_debug_dump_dir_raw is not None else None
+    )
+    if not ollama_debug_dump_dir:
+        ollama_debug_dump_dir = None
+
     audiobookshelf = AudiobookshelfConfig(
         enabled=abs_data.get("enabled", False),
         host=env_settings.abs.host,
@@ -1634,10 +1733,20 @@ def load_settings(
             ripper_tag_policy=abs_rename_data.get("ripper_tag_policy", "import_override"),
             allowed_ripper_tags=abs_rename_data.get("allowed_ripper_tags", []),
             non_allowlisted_tag_action=abs_rename_data.get("non_allowlisted_tag_action", "keep"),
+            series_source=abs_rename_data.get("series_source", "preserve_existing"),
             transaction_backup_root=abs_rename_data.get(
                 "transaction_backup_root",
                 "./data/reports/rename_backups",
             ),
+            ollama_enabled=abs_rename_data.get("ollama_enabled", False),
+            ollama_model=ollama_model,
+            ollama_endpoints=ollama_endpoints,
+            ollama_timeout_seconds=abs_rename_data.get("ollama_timeout_seconds", 60),
+            ollama_max_items=abs_rename_data.get("ollama_max_items", 200),
+            ollama_batch_size=abs_rename_data.get("ollama_batch_size", 15),
+            ollama_workers=abs_rename_data.get("ollama_workers", 1),
+            ollama_retry_count=abs_rename_data.get("ollama_retry_count", 1),
+            ollama_debug_dump_dir=ollama_debug_dump_dir,
         ),
         index_db=abs_data.get("index_db", "./data/abs_index.db"),
     )

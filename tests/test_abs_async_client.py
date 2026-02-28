@@ -1185,7 +1185,6 @@ class TestEnrichFromAudnexWithCache:
             series=None,
             series_position=None,
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1221,7 +1220,6 @@ class TestEnrichFromAudnexWithCache:
             series=None,
             series_position=None,
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1249,7 +1247,6 @@ class TestEnrichFromAudnexWithCache:
             series=None,
             series_position=None,
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )

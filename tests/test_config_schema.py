@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from shelfr.schemas.config import (
+    AudiobookshelfRenameSchema,
     AudnexSchema,
     EnvironmentSchema,
     FiltersSchema,
@@ -292,6 +293,38 @@ class TestFiltersSchema:
         data = schema.model_dump()
         assert "remove_phrases" not in data
         assert "author_map" not in data
+
+
+class TestAudiobookshelfRenameSchema:
+    """Tests for Audiobookshelf rename schema including Ollama fields."""
+
+    def test_valid_ollama_defaults(self) -> None:
+        schema = AudiobookshelfRenameSchema()
+        assert schema.ollama_enabled is False
+        assert schema.ollama_model
+        assert schema.ollama_endpoints == ["http://127.0.0.1:11434"]
+        assert schema.ollama_timeout_seconds == 60
+        assert schema.ollama_max_items == 200
+        assert schema.ollama_batch_size == 15
+        assert schema.ollama_workers == 1
+        assert schema.ollama_retry_count == 1
+        assert schema.ollama_debug_dump_dir is None
+
+    def test_ollama_endpoints_validation(self) -> None:
+        schema = AudiobookshelfRenameSchema(
+            ollama_endpoints=["http://a:11434/", "http://a:11434", "https://b:11434/"],
+        )
+        assert schema.ollama_endpoints == ["http://a:11434", "https://b:11434"]
+
+        with pytest.raises(ValidationError, match="must start with http:// or https://"):
+            AudiobookshelfRenameSchema(ollama_endpoints=["a:11434"])
+
+        with pytest.raises(ValidationError, match="must include at least one endpoint"):
+            AudiobookshelfRenameSchema(ollama_endpoints=[" ", ""])
+
+    def test_ollama_model_cannot_be_empty(self) -> None:
+        with pytest.raises(ValidationError, match="ollama_model cannot be empty"):
+            AudiobookshelfRenameSchema(ollama_model="  ")
 
 
 class TestConfigSchema:

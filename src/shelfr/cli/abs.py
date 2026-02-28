@@ -345,6 +345,54 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             Path | None,
             typer.Option(help="Output JSON report of changes to file."),
         ] = None,
+        # --- Ollama audit flags ---
+        ollama_audit: Annotated[
+            bool | None,
+            typer.Option(
+                "--ollama-audit/--no-ollama-audit",
+                help="Run advisory Ollama audit after --plan-out.",
+            ),
+        ] = None,
+        ollama_model: Annotated[
+            str | None,
+            typer.Option(help="Pinned Ollama model tag for advisory audit."),
+        ] = None,
+        ollama_endpoint: Annotated[
+            list[str] | None,
+            typer.Option(help="Priority-ordered Ollama endpoint (repeatable)."),
+        ] = None,
+        ollama_endpoints: Annotated[
+            str | None,
+            typer.Option(help="Comma-separated Ollama endpoints."),
+        ] = None,
+        ollama_timeout_seconds: Annotated[
+            int | None,
+            typer.Option(help="Timeout for Ollama audit requests."),
+        ] = None,
+        ollama_max_items: Annotated[
+            int | None,
+            typer.Option(help="Maximum plan items to review with Ollama."),
+        ] = None,
+        ollama_batch_size: Annotated[
+            int | None,
+            typer.Option(help="Items per Ollama audit batch."),
+        ] = None,
+        ollama_workers: Annotated[
+            int | None,
+            typer.Option(help="Ollama audit worker count (default: 1)."),
+        ] = None,
+        ollama_retry_count: Annotated[
+            int | None,
+            typer.Option(help="Retries per endpoint before failover."),
+        ] = None,
+        ollama_report_out: Annotated[
+            Path | None,
+            typer.Option(help="Output advisory Ollama audit JSON report."),
+        ] = None,
+        ollama_debug_dump_dir: Annotated[
+            Path | None,
+            typer.Option(help="Debug dump directory for Ollama prompts/responses."),
+        ] = None,
     ) -> None:
         """Rename folders to match MAM naming schema.
 
@@ -372,6 +420,17 @@ def register_abs_commands(abs_app: typer.Typer) -> None:
             interactive=interactive,
             force=force,
             report=report,
+            ollama_audit=ollama_audit,
+            ollama_model=ollama_model,
+            ollama_endpoint=ollama_endpoint,
+            ollama_endpoints=ollama_endpoints,
+            ollama_timeout_seconds=ollama_timeout_seconds,
+            ollama_max_items=ollama_max_items,
+            ollama_batch_size=ollama_batch_size,
+            ollama_workers=ollama_workers,
+            ollama_retry_count=ollama_retry_count,
+            ollama_report_out=ollama_report_out,
+            ollama_debug_dump_dir=ollama_debug_dump_dir,
             command="abs rename",
         )
         result = cmd_abs_rename(args)

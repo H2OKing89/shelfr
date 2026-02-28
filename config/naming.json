@@ -1,6 +1,6 @@
 {
   "_comment": "Naming rules for shelfr. See docs/NAMING_PLAN.md for details.",
-  "_version": "1.7.0",
+  "_version": "1.9.0",
   "title_subtitle_normalization": {
     "_comment": "Fix Audible's inconsistent title/subtitle swaps using seriesPrimary as source of truth.",
     "enabled": true,
@@ -59,7 +59,8 @@
       "(Unabridged)",
       "Unabridged",
       "(Audiobook)",
-      "Audiobook"
+      "Audiobook",
+      "The Complete Manga Collection"
     ]
   },
   "genre_tags": {
@@ -127,6 +128,7 @@
       "An Isekai Epic",
       "A Druid LitRPG",
       "A Litrpg Dungeon",
+      "A Harry Potter Hogwarts Library Book",
       "A Sci-Fi Light Novel",
       "A Fantasy Adventure",
       "A LitRPG Adventure",
@@ -278,12 +280,46 @@
     "\u6a58 \u7531\u83ef": "Tachibana Yuka",
     "\u6faa\u4e9c": "Mio-A"
   },
+  "edition_flags": {
+    "_comment": "Tokens detected in parentheses or brackets and preserved as edition flags. Aliases normalize variant spellings to a canonical form.",
+    "flags": [
+      "Full-Cast",
+      "Full Cast",
+      "Dolby Atmos",
+      "Atmos",
+      "Abridged",
+      "Dramatized",
+      "Dramatized Adaptation",
+      "Graphic Audio",
+      "Publisher's Pack",
+      "Publishers Pack",
+      "AIT",
+      "GA",
+      "DA"
+    ],
+    "aliases": {
+      "_comment": "Lowercase key -> canonical form. Applied after detection.",
+      "full cast": "Full-Cast",
+      "atmos": "Dolby Atmos",
+      "publishers pack": "Publisher's Pack",
+      "ait": "AIT",
+      "ga": "Graphic Audio",
+      "da": "Dramatized",
+      "dramatized adaptation": "Dramatized"
+    }
+  },
   "preserve_in_json": {
     "_comment": "Patterns kept in MAM JSON but normalized/removed from folder/file names.",
     "volume_patterns": [
       "Vol\\. \\d+",
       "Volume \\d+",
       "Book \\d+"
+    ]
+  },
+  "series_aliases": {
+    "_comment": "Canonical series name -> list of alternate names. Used by ABS rename to merge series with punctuation/spelling variants.",
+    "I'm the Evil Lord of an Intergalactic Empire": [
+      "I'm the Evil Lord of an Intergalactic Empire!"
     ]
   }
 }

@@ -9,6 +9,7 @@ import argparse
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from shelfr.commands.abs._common import (
     fatal_error,
@@ -17,6 +18,101 @@ from shelfr.commands.abs._common import (
     print_success,
     print_warning,
 )
+
+if TYPE_CHECKING:
+    from shelfr.abs.rename_ollama_audit import OllamaAuditConfig
+
+
+def _resolve_cli_ollama_endpoints(args: argparse.Namespace) -> list[str]:
+    """Merge repeatable and comma-list endpoint flags with stable dedupe."""
+    merged: list[str] = []
+    if args.ollama_endpoint:
+        merged.extend(str(row).strip() for row in args.ollama_endpoint if str(row).strip())
+    if args.ollama_endpoints:
+        merged.extend(row.strip() for row in str(args.ollama_endpoints).split(",") if row.strip())
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for endpoint in merged:
+        cleaned = endpoint.rstrip("/")
+        if cleaned in seen:
+            continue
+        deduped.append(cleaned)
+        seen.add(cleaned)
+    return deduped
+
+
+def _resolve_ollama_audit_config(
+    args: argparse.Namespace, policy_cfg: object | None
+) -> tuple[bool, OllamaAuditConfig]:
+    """Resolve advisory audit enablement and config with CLI>config>defaults precedence."""
+    from shelfr.abs.rename_ollama_audit import (
+        DEFAULT_OLLAMA_BATCH_SIZE,
+        DEFAULT_OLLAMA_ENDPOINTS,
+        DEFAULT_OLLAMA_MAX_ITEMS,
+        DEFAULT_OLLAMA_MODEL,
+        DEFAULT_OLLAMA_RETRY_COUNT,
+        DEFAULT_OLLAMA_TIMEOUT_SECONDS,
+        DEFAULT_OLLAMA_WORKERS,
+        OllamaAuditConfig,
+    )
+
+    enabled = (
+        bool(args.ollama_audit)
+        if args.ollama_audit is not None
+        else bool(getattr(policy_cfg, "ollama_enabled", False))
+    )
+
+    cli_endpoints = _resolve_cli_ollama_endpoints(args)
+    if cli_endpoints:
+        resolved_endpoints = cli_endpoints
+    elif policy_cfg and hasattr(policy_cfg, "ollama_endpoints") and policy_cfg.ollama_endpoints:
+        resolved_endpoints = list(policy_cfg.ollama_endpoints)
+    else:
+        resolved_endpoints = list(DEFAULT_OLLAMA_ENDPOINTS)
+
+    debug_dump_dir_raw = (
+        args.ollama_debug_dump_dir
+        if args.ollama_debug_dump_dir is not None
+        else getattr(policy_cfg, "ollama_debug_dump_dir", None)
+    )
+    debug_dump_dir = Path(debug_dump_dir_raw) if debug_dump_dir_raw else None
+
+    cfg = OllamaAuditConfig(
+        model=(
+            args.ollama_model
+            if args.ollama_model is not None
+            else getattr(policy_cfg, "ollama_model", DEFAULT_OLLAMA_MODEL)
+        ),
+        endpoints=resolved_endpoints,
+        timeout_seconds=(
+            args.ollama_timeout_seconds
+            if args.ollama_timeout_seconds is not None
+            else int(getattr(policy_cfg, "ollama_timeout_seconds", DEFAULT_OLLAMA_TIMEOUT_SECONDS))
+        ),
+        max_items=(
+            args.ollama_max_items
+            if args.ollama_max_items is not None
+            else int(getattr(policy_cfg, "ollama_max_items", DEFAULT_OLLAMA_MAX_ITEMS))
+        ),
+        batch_size=(
+            args.ollama_batch_size
+            if args.ollama_batch_size is not None
+            else int(getattr(policy_cfg, "ollama_batch_size", DEFAULT_OLLAMA_BATCH_SIZE))
+        ),
+        workers=(
+            args.ollama_workers
+            if args.ollama_workers is not None
+            else int(getattr(policy_cfg, "ollama_workers", DEFAULT_OLLAMA_WORKERS))
+        ),
+        retry_count=(
+            args.ollama_retry_count
+            if args.ollama_retry_count is not None
+            else int(getattr(policy_cfg, "ollama_retry_count", DEFAULT_OLLAMA_RETRY_COUNT))
+        ),
+        debug_dump_dir=debug_dump_dir,
+    )
+    return enabled, cfg
 
 
 def cmd_abs_rename(args: argparse.Namespace) -> int:
@@ -114,6 +210,8 @@ def cmd_abs_rename(args: argparse.Namespace) -> int:
 
     if args.plan_out and not args.dry_run:
         print_warning("--plan-out requested; forcing dry-run planning mode")
+    if args.ollama_audit and not args.plan_out:
+        print_warning("--ollama-audit is only applied when --plan-out is used; skipping audit")
 
     # Optionally create ABS client for search
     abs_client = None
@@ -162,6 +260,7 @@ def cmd_abs_rename(args: argparse.Namespace) -> int:
         plan_path = Path(args.plan_out)
         if plan_path.suffix.lower() != ".json":
             plan_path = plan_path.with_suffix(".json")
+        plan_written = False
         try:
             plan = build_rename_plan(
                 source_dir=source_dir,
@@ -170,7 +269,40 @@ def cmd_abs_rename(args: argparse.Namespace) -> int:
                 policy=policy,
             )
             plan_payload = write_rename_plan(plan, plan_path)
+            plan_written = True
             print_success(f"Plan manifest written to {plan_path}")
+
+            # Optional advisory-only Ollama review (never mutates plan/apply behavior).
+            policy_cfg = getattr(abs_cfg, "rename", None) if abs_cfg else None
+            ollama_enabled, audit_cfg = _resolve_ollama_audit_config(args, policy_cfg)
+            if ollama_enabled:
+                from shelfr.abs.rename_ollama_audit import audit_rename_plan_with_ollama
+
+                try:
+                    audit_report = audit_rename_plan_with_ollama(plan_path=plan_path, cfg=audit_cfg)
+                    audit_report_path = (
+                        Path(args.ollama_report_out)
+                        if args.ollama_report_out
+                        else Path("data/reports")
+                        / (
+                            f"rename_plan_"
+                            f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.llm_audit.json"
+                        )
+                    )
+                    audit_report_path.parent.mkdir(parents=True, exist_ok=True)
+                    audit_report_path.write_text(
+                        json.dumps(audit_report.as_dict(), indent=2),
+                        encoding="utf-8",
+                    )
+                    print_success(f"Ollama advisory report written to {audit_report_path}")
+                    if audit_report.warnings:
+                        for warning in audit_report.warnings:
+                            print_warning(f"Ollama advisory warning: {warning}")
+                except OSError as e:
+                    print_warning(f"Failed to write Ollama advisory report: {e}")
+                except Exception as e:
+                    # Advisory-only: never fail rename planning due to audit issues.
+                    print_warning(f"Ollama advisory audit failed (non-blocking): {e}")
 
             html_path = plan_path.with_suffix(".html")
             plan_items = plan_payload.get("items", [])
@@ -228,6 +360,8 @@ def cmd_abs_rename(args: argparse.Namespace) -> int:
             print_success(f"Plan HTML report written to {html_path}")
         except OSError as e:
             print_warning(f"Failed to write plan artifact: {e}")
+        if args.ollama_audit and not plan_written:
+            print_warning("Ollama advisory audit skipped because plan manifest was not written")
 
     # Generate report if requested
     if args.report:

@@ -55,6 +55,13 @@ def _shelfr_callback(word: str, **kwargs: object) -> str | None:
     if re.match(roman_pattern, word_upper):
         return word_upper
 
+    # MAM-convention volume tokens (vol_01, vol_01_02, vol_01p2) — preserve
+    # as lowercase since these are structured tokens, not natural-language
+    # words.  Must be checked BEFORE the abbreviation map so "vol_01" is
+    # not partially matched as "Vol".
+    if re.match(r"^vol[_.]\d+", word, re.IGNORECASE):
+        return word.lower()
+
     # Common audiobook volume/part indicators - standardize capitalization
     abbrev_map = {
         "VOL": "Vol",

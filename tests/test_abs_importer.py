@@ -94,7 +94,7 @@ class TestParseMamFolderName:
         """Parse series book with all metadata."""
         folder = (
             "Brandon Sanderson - Mistborn vol_01 - The Final Empire "
-            "(2006) (Narrator) {H2OKing} [ASIN.B0C1234567]"
+            "(2006) {H2OKing} [ASIN.B0C1234567]"
         )
         result = parse_mam_folder_name(folder)
         assert result.author == "Brandon Sanderson"
@@ -102,7 +102,6 @@ class TestParseMamFolderName:
         assert result.series_position == "01"
         assert result.title == "The Final Empire"
         assert result.year == "2006"
-        assert result.narrator == "Narrator"
         assert result.ripper_tag == "H2OKing"
         assert result.asin == "B0C1234567"
         assert result.is_standalone is False
@@ -119,14 +118,13 @@ class TestParseMamFolderName:
     def test_standalone_book(self) -> None:
         """Parse standalone book (no series)."""
         result = parse_mam_folder_name(
-            "Andy Weir - Project Hail Mary (2021) (Ray Porter) {H2OKing} [ASIN.B08G9PRS1K]"
+            "Andy Weir - Project Hail Mary (2021) {H2OKing} [ASIN.B08G9PRS1K]"
         )
         assert result.author == "Andy Weir"
         assert result.title == "Project Hail Mary"
         assert result.series is None
         assert result.series_position is None
         assert result.year == "2021"
-        assert result.narrator == "Ray Porter"
         assert result.asin == "B08G9PRS1K"
         assert result.is_standalone is True
 
@@ -172,11 +170,48 @@ class TestParseMamFolderName:
 
     def test_multiple_parentheticals(self) -> None:
         """Parse folder with multiple parentheticals."""
-        result = parse_mam_folder_name("Author - Title (Part One) (2020) (Narrator Name)")
+        result = parse_mam_folder_name("Author - Title (Part One) (2020)")
         assert result.year == "2020"
-        assert result.narrator == "Narrator Name"
         # Title should include "(Part One)"
         assert "Part One" in result.title or result.title == "Title (Part One)"
+
+    # ── Bug 3: bracket year [YYYY] extraction ────────────────────────
+
+    def test_bracket_year_extracted_and_stripped(self) -> None:
+        """Bug 3: [YYYY] should be extracted as year and stripped from title."""
+        result = parse_mam_folder_name(
+            "Kaiju Battlefield Surgeon [2020] [Matt Dinniman] [ASIN.1705209602]"
+        )
+        assert result.title == "Kaiju Battlefield Surgeon"
+        assert result.year == "2020"
+        assert "[2020]" not in result.title
+
+    def test_bracket_year_with_braces_asin(self) -> None:
+        """Bracket year extraction when ASIN uses {ASIN.xxx} format."""
+        result = parse_mam_folder_name("I Have a Secret [2025] [Author Name] {ASIN.B0D1234567}")
+        assert result.year == "2025"
+        assert "[2025]" not in result.title
+
+    def test_parenthetical_year_takes_precedence_over_bracket(self) -> None:
+        """When both (YYYY) and [YYYY] exist, parenthetical wins."""
+        result = parse_mam_folder_name("Author - Title [2019] (2020) (Narrator) {ASIN.B012345678}")
+        assert result.year == "2020"
+
+    # ── Bug 5: malformed ripper tag {Tag] ────────────────────────────
+
+    def test_malformed_ripper_tag_brace_bracket(self) -> None:
+        """Bug 5: {Tag] with mismatched brackets should be parsed as ripper_tag."""
+        result = parse_mam_folder_name("Author - Title (2023) {H2OKing] [ASIN.B012345678]")
+        assert result.ripper_tag == "H2OKing"
+        assert "{H2OKing]" not in result.title
+
+    def test_malformed_ripper_tag_does_not_affect_normal(self) -> None:
+        """Normal {Tag} and [Tag] formats still work correctly."""
+        result_braces = parse_mam_folder_name("Author - Title {H2OKing} [ASIN.B012345678]")
+        assert result_braces.ripper_tag == "H2OKing"
+
+        result_brackets = parse_mam_folder_name("Author - Title [H2OKing] [ASIN.B012345678]")
+        assert result_brackets.ripper_tag == "H2OKing"
 
 
 # =============================================================================
@@ -200,7 +235,6 @@ class TestEnrichFromAudnex:
             series_position=None,
             asin="B0TEST1234",
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -236,7 +270,6 @@ class TestEnrichFromAudnex:
             series_position=None,
             asin="B0TEST1234",
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -269,7 +302,6 @@ class TestEnrichFromAudnex:
             series_position=None,
             asin="B0TEST1234",
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -301,7 +333,6 @@ class TestEnrichFromAudnex:
             series_position=None,
             asin="B0TEST1234",
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -336,7 +367,6 @@ class TestEnrichFromAudnex:
             series_position=None,
             asin="B0FZLQ9LQD",
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -371,7 +401,6 @@ class TestEnrichFromAudnex:
             series_position=None,
             asin="B012345678",
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -401,7 +430,6 @@ class TestEnrichFromAudnex:
             series_position=None,
             asin="B012345678",
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -441,7 +469,6 @@ class TestEnrichFromAudnex:
             series_position="04",
             asin="B0BN2GGTCK",
             year="2022",
-            narrator=None,
             ripper_tag="H2OKing",
             is_standalone=False,
         )
@@ -482,7 +509,6 @@ class TestBuildTargetPath:
             series_position="1",
             asin="B0123456789",
             year="2006",
-            narrator="Michael Kramer",
             ripper_tag="H2OKing",
             is_standalone=False,
         )
@@ -506,7 +532,6 @@ class TestBuildTargetPath:
             series_position=None,
             asin="B08G9PRS1K",
             year="2021",
-            narrator="Ray Porter",
             ripper_tag="H2OKing",
             is_standalone=True,
         )
@@ -533,7 +558,6 @@ class TestBuildTargetPath:
             series_position="2",
             asin="B0C5NSRFWC",
             year="2023",
-            narrator=None,
             ripper_tag="H2OKing",
             is_standalone=False,
         )
@@ -560,7 +584,6 @@ class TestBuildTargetPath:
             series_position=None,
             asin="B012345678",
             year="2024",
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1321,7 +1344,6 @@ class TestUnknownAsinClassification:
             series_position=None,
             asin=None,
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1336,7 +1358,6 @@ class TestUnknownAsinClassification:
             series_position=None,
             asin=None,
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1351,7 +1372,6 @@ class TestUnknownAsinClassification:
             series_position=None,
             asin="B0123456789",
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1366,7 +1386,6 @@ class TestUnknownAsinClassification:
             series_position=None,
             asin=None,
             year="2024",
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1430,7 +1449,6 @@ class TestUnknownAsinTargetPath:
                 series_position=None,
                 asin=None,
                 year="2024",
-                narrator=None,
                 ripper_tag=None,
                 is_standalone=True,
             ),
@@ -1456,7 +1474,6 @@ class TestUnknownAsinTargetPath:
                 series_position=None,
                 asin=None,
                 year=None,
-                narrator=None,
                 ripper_tag=None,
                 is_standalone=True,
             ),
@@ -1509,7 +1526,6 @@ class TestUnknownAsinSidecar:
                 series_position="1",
                 asin=None,
                 year="2024",
-                narrator="Test Narrator",
                 ripper_tag=None,
                 is_standalone=False,
             ),

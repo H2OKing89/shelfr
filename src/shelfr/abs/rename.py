@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import re
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -43,6 +44,7 @@ from shelfr.utils.naming import (
     build_mam_folder_name,
     filter_series,
     filter_subtitle,
+    filter_title,
     format_volume_number,
 )
 from shelfr.utils.paths import safe_dirname
@@ -61,27 +63,112 @@ logger = logging.getLogger(__name__)
 # Audio extensions (shared with asin.py)
 AUDIO_EXTS = frozenset({".m4b", ".mp3", ".m4a", ".flac", ".ogg", ".opus"})
 
-# Edition flags to detect and preserve
-EDITION_FLAGS = [
+# Edition flags to detect and preserve (hardcoded defaults; overridden by naming.json)
+_DEFAULT_EDITION_FLAGS = [
     "Full-Cast",
     "Full Cast",
     "Dolby Atmos",
     "Atmos",
-    "Unabridged",
     "Abridged",
     "Dramatized",
     "Graphic Audio",
     "Publisher's Pack",
     "Publishers Pack",
+    "AIT",
 ]
 
-# Patterns for edition flag extraction (case-insensitive)
-_EDITION_FLAG_PATTERN = re.compile(
-    r"\((" + "|".join(re.escape(f) for f in EDITION_FLAGS) + r")\)",
-    re.IGNORECASE,
+# Default aliases: lowercase variant -> canonical form
+_DEFAULT_EDITION_FLAG_ALIASES: dict[str, str] = {
+    "full cast": "Full-Cast",
+    "atmos": "Dolby Atmos",
+    "publishers pack": "Publisher's Pack",
+    "ait": "AIT",
+    "ga": "Graphic Audio",
+    "da": "Dramatized",
+    "dramatized adaptation": "Dramatized",
+}
+
+# Keep EDITION_FLAGS as a public alias for backward compatibility
+EDITION_FLAGS = _DEFAULT_EDITION_FLAGS
+
+
+def _build_edition_pattern(
+    flags: list[str],
+    aliases: dict[str, str] | None = None,
+) -> re.Pattern[str]:
+    """Build a compiled regex for matching edition flags in parentheses or brackets.
+
+    Matches both individual ``(Flag)`` / ``[Flag]`` and combined
+    ``(Flag1, Flag2)`` formats so that the engine's own consolidated output
+    is recognised on subsequent passes.  Alias keys (e.g. "GA", "DA") are
+    included in the alternation so short-form tags are also detected.
+    """
+    # Include alias keys in the alternation so short forms like (GA) match
+    all_keys = list(flags)
+    if aliases:
+        all_keys.extend(aliases.keys())
+    flag_alt = "|".join(re.escape(f) for f in all_keys)
+    # Individual: (Flag) or [Flag]
+    # Combined:   (Flag1, Flag2[, Flag3 ...])
+    single = rf"(?:{flag_alt})"
+    combined = rf"{single}(?:,\s*{single})+"
+    return re.compile(
+        r"[(\[](" + combined + "|" + flag_alt + r")[)\]]",
+        re.IGNORECASE,
+    )
+
+
+# Default pattern (used when no NamingConfig is available)
+_DEFAULT_EDITION_FLAG_PATTERN = _build_edition_pattern(
+    _DEFAULT_EDITION_FLAGS, _DEFAULT_EDITION_FLAG_ALIASES
 )
 
 _FOLDER_SCHEMA_PATTERN = re.compile(r"^.+ \(\d{4}\) \([^)]+\) \{ASIN\.[^}]+\}(?: \[[^]]+\])?$")
+RENAME_PLAN_SCHEMA_VERSION = 2
+
+# Leading articles stripped for fuzzy series-vs-arc comparison.
+_LEADING_ARTICLES = ("the ", "a ", "an ")
+
+
+def _strip_leading_articles(text: str) -> str:
+    """Strip leading articles (The/A/An) for fuzzy series-vs-arc comparison."""
+    for article in _LEADING_ARTICLES:
+        if text.startswith(article):
+            return text[len(article) :]
+    return text
+
+
+# Trailing punctuation that can vary between editions/metadata sources
+_TRAILING_PUNCT_RE = re.compile(r"[!?.:;,]+$")
+
+
+def _normalize_series_key(name: str) -> str:
+    """Normalize series name for comparison.
+
+    Strips leading articles (The/A/An) and trailing punctuation (!?.:)
+    so that ``"I'm the Evil Lord of an Intergalactic Empire!"`` matches
+    ``"I'm the Evil Lord of an Intergalactic Empire"``.
+    """
+    key = _strip_leading_articles(name.strip().lower())
+    return _TRAILING_PUNCT_RE.sub("", key).strip()
+
+
+def _resolve_series_alias(name: str, naming_config: NamingConfig | None) -> str:
+    """Resolve a series name through aliases if configured.
+
+    Returns the canonical name if an alias matches, otherwise the original.
+    """
+    if not naming_config or not naming_config.series_aliases:
+        return name
+    # Check exact aliases first (case-insensitive)
+    lower = name.strip().lower()
+    for canonical, aliases in naming_config.series_aliases.items():
+        if lower == canonical.lower():
+            return canonical
+        for alias in aliases:
+            if lower == alias.lower():
+                return canonical
+    return name
 
 
 # =============================================================================
@@ -155,6 +242,7 @@ class RenamePolicy:
 class RenamePlanItem:
     """Single item in plan manifest."""
 
+    plan_item_id: str
     source_path: str
     target_path: str | None
     status: str
@@ -168,6 +256,7 @@ class RenamePlanItem:
     def as_dict(self) -> dict[str, Any]:
         """Serialize for manifest JSON."""
         return {
+            "plan_item_id": self.plan_item_id,
             "source_path": self.source_path,
             "target_path": self.target_path,
             "status": self.status,
@@ -190,11 +279,13 @@ class RenamePlanV1:
     summary: dict[str, Any]
     conflicts: dict[str, Any]
     items: list[RenamePlanItem]
+    schema_version: int = RENAME_PLAN_SCHEMA_VERSION
 
     def as_dict(self) -> dict[str, Any]:
         """Serialize manifest to JSON-friendly dict."""
         return {
             "version": "RenamePlanV1",
+            "schema_version": self.schema_version,
             "generated_at": self.generated_at,
             "source_dir": self.source_dir,
             "policy": self.policy.as_dict(),
@@ -221,6 +312,52 @@ class AbsMetadata:
     year: int | None = None
     asin: str | None = None
     narrators: list[str] | None = None
+    # All series entries from metadata.json (may have multiple).
+    # Each entry is (series_name, position_or_None).
+    all_series: list[tuple[str, str | None]] = dataclasses.field(default_factory=list)
+
+    def position_for_series(self, resolved_series: str | None) -> str | None:
+        """Return the position from the series entry best matching *resolved_series*.
+
+        When ABS metadata contains multiple series (e.g. a spin-off listed
+        under both the parent franchise and its own sub-series), blindly
+        using ``series_position`` (from ``series[0]``) gives the wrong
+        volume number.  This method picks the entry whose name is closest
+        to the resolved series so the volume number stays consistent.
+
+        Falls back to ``self.series_position`` when no match is found or
+        when only one series entry exists.
+        """
+        if not resolved_series or len(self.all_series) <= 1:
+            return self.series_position
+
+        resolved_key = _normalize_series_key(resolved_series)
+
+        # Exact normalized match first
+        for name, pos in self.all_series:
+            if _normalize_series_key(name) == resolved_key:
+                return pos
+
+        # Separator-agnostic match: folder may use " - " where ABS uses
+        # ": " (e.g. "Mushoku Tensei - Redundant Reincarnation" vs
+        # "Mushoku Tensei: Redundant Reincarnation").  Collapse both
+        # separators to a single space for comparison.
+        def _collapse_separators(s: str) -> str:
+            return re.sub(r"\s*[:–—\-]+\s*", " ", s).strip()
+
+        resolved_collapsed = _collapse_separators(resolved_key)
+        for name, pos in self.all_series:
+            if _collapse_separators(_normalize_series_key(name)) == resolved_collapsed:
+                return pos
+
+        # Substring / containment match after collapsing separators
+        for name, pos in self.all_series:
+            n_collapsed = _collapse_separators(_normalize_series_key(name))
+            if n_collapsed in resolved_collapsed or resolved_collapsed in n_collapsed:
+                return pos
+
+        # No match — fall back to primary (series[0])
+        return self.series_position
 
 
 # Rename status type
@@ -377,6 +514,88 @@ def _is_within(path: Path, parent: Path) -> bool:
     return path == parent or parent in path.parents
 
 
+# Episode/part/disc folder names that indicate sub-tracks within a single
+# audiobook release (e.g. AIT episodes, multi-disc rips).  When the
+# majority of sibling leaf audio dirs match this pattern, their parent
+# is promoted to the book-root candidate instead.
+_EPISODE_FOLDER_RE = re.compile(
+    r"^(?:"
+    r"E\d+"  # E01, E02
+    r"|Part\s*\d+"  # Part 1, Part2
+    r"|Disc\s*\d+"  # Disc 1, Disc2
+    r"|D\d+"  # D1, D2
+    r"|S\d+E\d+"  # S01E01
+    r"|Chapter\s*\d+"  # Chapter 1
+    r"|CD\s*\d+"  # CD1, CD 2
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _collapse_episode_siblings(
+    leaf_dirs: list[Path],
+    source_dir: Path,
+) -> list[Path]:
+    """Collapse sibling episode/part leaves into their shared parent.
+
+    When multiple leaf audio directories share the same parent, and ≥50%
+    of them have episode-like names (``E01``, ``Part 1``, ``Disc 2``,
+    etc.), they almost certainly represent tracks within a single
+    audiobook (e.g. an AIT release).  In that case, we promote the
+    parent directory to the candidate list instead of each episode.
+
+    The parent must not be ``source_dir`` itself (that would be the
+    author root or scan root, not a book).
+
+    Args:
+        leaf_dirs: Leaf audio directories (no deeper audio children).
+        source_dir: Top-level scan root — never promoted.
+
+    Returns:
+        Updated list with episode leaves replaced by their parents.
+    """
+    # Group leaves by parent
+    parent_to_leaves: dict[Path, list[Path]] = {}
+    for leaf in leaf_dirs:
+        parent_to_leaves.setdefault(leaf.parent, []).append(leaf)
+
+    result: list[Path] = []
+    collapsed_parents: set[Path] = set()
+    collapsed_leaves: set[Path] = set()
+
+    for parent, siblings in parent_to_leaves.items():
+        if len(siblings) < 2:
+            continue
+        if parent == source_dir:
+            continue
+        episode_count = sum(1 for sib in siblings if _EPISODE_FOLDER_RE.match(sib.name))
+        if episode_count >= len(siblings) * 0.5:
+            collapsed_parents.add(parent)
+            collapsed_leaves.update(siblings)
+            logger.debug(
+                "Collapsed %d episode subfolders into parent: %s",
+                len(siblings),
+                parent,
+            )
+
+    # Build result: replace collapsed leaves with their parent, keep others.
+    # Also suppress remaining leaves that live inside a collapsed parent
+    # (handles nested structures like E03/E03/audio.m4b where the leaf is
+    # two levels deep but the outer E03 dir was an episode sibling).
+    for leaf in leaf_dirs:
+        if leaf in collapsed_leaves:
+            if leaf.parent not in set(result):
+                result.append(leaf.parent)
+        elif any(_is_within(leaf, cp) for cp in collapsed_parents):
+            # Leaf is a descendant of a collapsed parent — skip it,
+            # the parent is already (or will be) in the result list.
+            continue
+        else:
+            result.append(leaf)
+
+    return result
+
+
 def discover_rename_candidates(
     source_dir: Path,
     pattern: str = "*",
@@ -385,7 +604,9 @@ def discover_rename_candidates(
 
     Discovery order:
     1. Prefer folders containing ``metadata.json`` when they have audio in subtree.
-    2. Fallback to leaf audio folders when no metadata root covers that subtree.
+    2. Collapse sibling leaf audio folders that look like episodes/parts/discs
+       into their shared parent directory as the book root.
+    3. Fallback to leaf audio folders when no metadata root covers that subtree.
 
     Args:
         source_dir: Root directory to scan
@@ -425,6 +646,9 @@ def discover_rename_candidates(
         )
         if not has_audio_descendant:
             leaf_audio_dirs.append(audio_dir)
+
+    # Collapse sibling episode/part leaves into their shared parent.
+    leaf_audio_dirs = _collapse_episode_siblings(leaf_audio_dirs, source_dir)
 
     candidates: set[Path] = set(metadata_roots)
     for leaf_dir in leaf_audio_dirs:
@@ -468,19 +692,26 @@ def parse_abs_metadata(folder: Path) -> AbsMetadata | None:
         # Validate with Pydantic (using unified schema from schemas/)
         schema = AbsMetadataJson.model_validate(data)
 
-        # Parse series from "Series Name #N" format
+        # Parse series from "Series Name #N" format.
+        # ABS metadata can contain *multiple* series entries — e.g. a
+        # spin-off listed under both the parent franchise (#29) and its
+        # own sub-series (#1).  We parse them all and let downstream
+        # code pick the entry that matches the resolved series name.
+        all_series: list[tuple[str, str | None]] = []
         series_name = None
         series_pos = None
         if schema.series:
-            series_str = schema.series[0]
-            if "#" in series_str:
-                parts = series_str.rsplit("#", 1)
-                series_name = parts[0].strip()
-                pos_str = parts[1].strip()
-                # Keep as string to preserve decimal/part/range notation
-                series_pos = pos_str
-            else:
-                series_name = series_str
+            for series_str in schema.series:
+                if "#" in series_str:
+                    parts = series_str.rsplit("#", 1)
+                    s_name = parts[0].strip()
+                    s_pos = parts[1].strip()
+                    all_series.append((s_name, s_pos))
+                else:
+                    all_series.append((series_str, None))
+            # Primary series = first entry (backward compat)
+            if all_series:
+                series_name, series_pos = all_series[0]
 
         # Parse year (can be int or string via published_year alias)
         year = None
@@ -497,6 +728,7 @@ def parse_abs_metadata(folder: Path) -> AbsMetadata | None:
             year=year,
             asin=schema.asin,
             narrators=schema.narrators or None,
+            all_series=all_series,
         )
     except (json.JSONDecodeError, ValidationError) as e:
         logger.debug(f"Failed to parse ABS metadata.json in {folder}: {e}")
@@ -506,27 +738,42 @@ def parse_abs_metadata(folder: Path) -> AbsMetadata | None:
         return None
 
 
-def detect_edition_flags(name: str) -> list[str]:
+def detect_edition_flags(
+    name: str,
+    naming_config: NamingConfig | None = None,
+) -> list[str]:
     """Detect edition flags in folder name.
 
     Args:
         name: Folder name to check
+        naming_config: Optional naming configuration with custom flags/aliases.
+            Falls back to hardcoded defaults when ``None``.
 
     Returns:
         List of detected edition flags (e.g., ["Full-Cast", "Dolby Atmos"])
     """
+    if naming_config is not None:
+        pattern = _build_edition_pattern(
+            naming_config.edition_flags, naming_config.edition_flag_aliases
+        )
+        aliases = naming_config.edition_flag_aliases
+    else:
+        pattern = _DEFAULT_EDITION_FLAG_PATTERN
+        aliases = _DEFAULT_EDITION_FLAG_ALIASES
+
     flags: list[str] = []
-    # Check for flags in parentheses
-    for match in _EDITION_FLAG_PATTERN.finditer(name):
-        flag = match.group(1)
-        # Normalize some variants
-        if flag.lower() == "full cast":
-            flag = "Full-Cast"
-        elif flag.lower() == "atmos":
-            flag = "Dolby Atmos"
-        elif flag.lower() == "publishers pack":
-            flag = "Publisher's Pack"
-        flags.append(flag)
+    for match in pattern.finditer(name):
+        raw = match.group(1)
+        # Split combined matches like "Full-Cast, Dolby Atmos" into
+        # individual flags so they are normalised independently.
+        parts = [p.strip() for p in raw.split(",")]
+        for part in parts:
+            # Normalize via aliases (e.g. "full cast" -> "Full-Cast")
+            canonical = aliases.get(part.lower())
+            if canonical:
+                part = canonical
+            if part and part not in flags:
+                flags.append(part)
     return flags
 
 
@@ -535,11 +782,15 @@ def detect_edition_flags(name: str) -> list[str]:
 # =============================================================================
 
 
-def parse_candidate(folder: Path) -> RenameCandidate:
+def parse_candidate(
+    folder: Path,
+    naming_config: NamingConfig | None = None,
+) -> RenameCandidate:
     """Parse folder name and create a RenameCandidate.
 
     Args:
         folder: Path to the folder
+        naming_config: Optional naming configuration with custom edition flags.
 
     Returns:
         RenameCandidate with parsed information
@@ -550,7 +801,22 @@ def parse_candidate(folder: Path) -> RenameCandidate:
     parsed = parse_mam_folder_name(name)
 
     # Detect edition flags
-    flags = detect_edition_flags(name)
+    flags = detect_edition_flags(name, naming_config=naming_config)
+
+    # If the parser consumed an edition flag as a ripper tag, clear it.
+    # This happens when the flag is the last [bracket] token in the name,
+    # e.g. "[Dramatized Adaptation]" at end of folder name.
+    if parsed.ripper_tag:
+        tag_lower = parsed.ripper_tag.lower()
+        known_flags = {
+            f.lower()
+            for f in (naming_config.edition_flags if naming_config else _DEFAULT_EDITION_FLAGS)
+        }
+        known_aliases = (
+            naming_config.edition_flag_aliases if naming_config else _DEFAULT_EDITION_FLAG_ALIASES
+        )
+        if tag_lower in known_flags or tag_lower in known_aliases:
+            parsed = dataclasses.replace(parsed, ripper_tag=None)
 
     return RenameCandidate(
         source_path=folder,
@@ -685,8 +951,40 @@ def detect_duplicates(candidates: list[RenameCandidate]) -> list[RenameCandidate
 # =============================================================================
 
 
+# Generic directory names that should never be used as inferred author.
+_LIBRARY_ROOT_NAMES = frozenset(
+    {
+        "audiobooks",
+        "audiobook",
+        "audio",
+        "books",
+        "library",
+        "media",
+        "data",
+        "content",
+        "uploads",
+        "downloads",
+        "seed",
+        "seedvault",
+        "staging",
+        "import",
+        "imports",
+    }
+)
+
+
 def _infer_author_from_path(source_path: Path, source_dir: Path | None) -> str | None:
-    """Infer author folder from current path layout."""
+    """Infer author folder from current path layout.
+
+    Handles two scoping modes:
+    * **library-root scope**: ``source_dir = /audiobooks`` →
+      ``rel = Author/Book`` → ``rel.parts[0]`` is the author.
+    * **author-dir scope**: ``source_dir = /audiobooks/Author`` →
+      ``rel = Book`` (depth 1) → ``source_dir.name`` is the author.
+
+    Returns None when the inferred name looks like a generic directory
+    (e.g. "audiobooks", "media") rather than a person's name.
+    """
     if source_dir is None:
         return None
 
@@ -694,6 +992,13 @@ def _infer_author_from_path(source_path: Path, source_dir: Path | None) -> str |
         rel = source_path.relative_to(source_dir)
         if len(rel.parts) >= 2:
             return rel.parts[0]
+        # BUG-20a: When book is a direct child of source_dir (depth 1),
+        # source_dir itself is likely the author directory.  Use its
+        # name unless it looks like a generic library root.
+        if len(rel.parts) == 1:
+            dir_name = source_dir.name
+            if dir_name.lower() not in _LIBRARY_ROOT_NAMES:
+                return dir_name
     return None
 
 
@@ -728,6 +1033,7 @@ def _resolve_series(
     source_path: Path,
     source_dir: Path | None,
     policy: RenamePolicy,
+    naming_config: NamingConfig | None = None,
 ) -> tuple[str | None, bool]:
     """Single source of truth for series name resolution.
 
@@ -739,6 +1045,10 @@ def _resolve_series(
       ABS → parsed when no existing root is detected.
     * **folder_first** — Prefer the parsed folder series name over ABS.
     * **abs_first** — Prefer ABS metadata (original behavior).
+
+    After resolution, the series name is passed through ``series_aliases``
+    (from naming.json) so that variant spellings map to a single canonical
+    key.
 
     Returns:
         A tuple of (resolved_series_name, series_root_changed) where
@@ -752,12 +1062,14 @@ def _resolve_series(
     if policy.series_source == "abs_first":
         # Original behavior: ABS wins
         resolved = abs_series or parsed_series
+        resolved = _resolve_series_alias(resolved, naming_config) if resolved else resolved
         changed = bool(existing_root and resolved and resolved != existing_root)
         return resolved, changed
 
     if policy.series_source == "folder_first":
         # Parsed folder name wins over ABS
         resolved = parsed_series or abs_series
+        resolved = _resolve_series_alias(resolved, naming_config) if resolved else resolved
         changed = bool(existing_root and resolved and resolved != existing_root)
         return resolved, changed
 
@@ -768,13 +1080,43 @@ def _resolve_series(
     # books (library_root/Author/Book) from misinterpreting the author
     # directory as a series root.
     if existing_root and (abs_series or parsed_series):
+        # Check whether the existing root differs from ABS metadata only
+        # by a leading article or trailing punctuation (e.g.
+        # "Rising of the Shield Hero" vs "The Rising of the Shield Hero",
+        # or "I'm the Evil Lord...!" vs "I'm the Evil Lord...").
+        # When that is the case, adopt the ABS canonical name so all
+        # volumes consolidate into one folder instead of staying fragmented.
+        if (
+            abs_series
+            and abs_series != existing_root
+            and _normalize_series_key(abs_series) == _normalize_series_key(existing_root)
+        ):
+            # Same series modulo article/punctuation – under
+            # preserve_existing, keep the existing root name since
+            # that's what the user has on disk.  This preserves
+            # "The Empyrean" when ABS says "Empyrean".
+            resolved = _resolve_series_alias(existing_root, naming_config)
+            return resolved, False
+
         # The book is in a series dir — lock to it.
         # Flag if ABS would have moved it to a different series root.
-        changed = bool(abs_series and abs_series != existing_root)
-        return existing_root, changed
+        resolved = _resolve_series_alias(existing_root, naming_config)
+        changed = bool(
+            abs_series and _normalize_series_key(abs_series) != _normalize_series_key(existing_root)
+        )
+        return resolved, changed
 
-    # No existing series root: fall back to ABS → parsed.
+    # No existing series root.
+    # Under preserve_existing, a flat-on-disk book stays flat —
+    # we never introduce a new series folder that the user didn't
+    # already create.  Only abs_first / folder_first promote books
+    # into series directories from metadata alone.
+    if policy.series_source == "preserve_existing":
+        return None, False
+
+    # abs_first / folder_first: fall back to ABS → parsed.
     resolved = abs_series or parsed_series
+    resolved = _resolve_series_alias(resolved, naming_config) if resolved else resolved
     return resolved, False
 
 
@@ -802,9 +1144,18 @@ def _select_ripper_tag(
     return parsed_tag
 
 
-def _strip_edition_tags(text: str) -> str:
-    """Strip edition tags like (Full-Cast) from a string."""
-    return _EDITION_FLAG_PATTERN.sub("", text).strip()
+def _strip_edition_tags(
+    text: str,
+    naming_config: NamingConfig | None = None,
+) -> str:
+    """Strip edition tags like (Full-Cast) or [Dramatized] from a string."""
+    if naming_config is not None:
+        pattern = _build_edition_pattern(
+            naming_config.edition_flags, naming_config.edition_flag_aliases
+        )
+    else:
+        pattern = _DEFAULT_EDITION_FLAG_PATTERN
+    return pattern.sub("", text).strip()
 
 
 def _extract_arc_from_libation_title(
@@ -839,8 +1190,15 @@ def _extract_arc_from_libation_title(
     if result.lower().startswith(series.lower()):
         result = result[len(series) :].strip()
 
-    # Strip leading volume token (vol_01, vol.2, vol 3, etc.)
-    result = re.sub(r"^vol[_.]?\s*\d+(?:\.\d+)?\s*", "", result, flags=re.IGNORECASE).strip()
+    # Strip leading volume token (vol_01, vol.2, vol 3, vol_01_02, etc.)
+    # The range group handles omnibus volumes like vol_01-02;
+    # the _\d+ group handles GA part notation like vol_01_01.
+    result = re.sub(
+        r"^vol[_.]?\s*\d+(?:\.\d+)?(?:[_]\d+)?(?:-\d+(?:\.\d+)?)?\s*",
+        "",
+        result,
+        flags=re.IGNORECASE,
+    ).strip()
 
     # Strip trailing parentheticals — leftover (Author) from Libation parser
     result = re.sub(r"\s*\([^)]*\)\s*$", "", result).strip()
@@ -870,36 +1228,134 @@ def _resolve_arc_name(
     :func:`_extract_arc_from_libation_title` before the candidate is
     tested, so that the arc resolves to just ``"and the Philosopher's
     Stone"``.
+
+    Publisher's Pack subtitles (with or without trailing numbers like
+    "Publisher's Pack 1-2") are suppressed — they are handled as edition
+    flags, not arc text.
     """
     if policy.arc_policy == "manual":
         return None
+
+    # Helper: suppress arc values that are Publisher's Pack variants.
+    # These are promoted to edition flags by the caller instead.
+    def _is_publishers_pack(text: str) -> bool:
+        return bool(re.match(r"^Publisher'?s\s+Pack(?:\s+[\d\-]+)?$", text, re.IGNORECASE))
 
     abs_meta = candidate.abs_metadata
     parsed = candidate.parsed
     use_folder_first = policy.series_source in ("preserve_existing", "folder_first")
 
     # ── Folder-first arc sourcing ────────────────────────────────────
-    if use_folder_first and parsed and parsed.series and parsed.title:
-        candidate_arc = _strip_edition_tags(parsed.title)
+    # Enter this block when:
+    #   1. parsed.series is known (Libation / MAM folder with series in name), OR
+    #   2. parsed.series is None but the *resolved* series is known AND
+    #      parsed.title starts with a vol token (e.g. "vol_02 - Carl's
+    #      Doomsday Scenario").  This covers "Author - vol_XX - Subtitle"
+    #      folders where the parser puts the author (== series) into
+    #      parsed.author and leaves parsed.series empty.
+    #   3. parsed.title starts with the resolved series name followed by
+    #      a vol token.  This handles folders already partially in MAM
+    #      format where the parser couldn't split series from title, e.g.
+    #      "Red Rising vol_05_01 Dark Age (Pierce Brown)".
+    _folder_series = parsed.series if parsed else None
+    _has_vol_title = bool(
+        parsed and parsed.title and re.match(r"vol[_.]?\s*\d+", parsed.title, re.IGNORECASE)
+    )
+    _has_series_vol_title = bool(
+        not _has_vol_title
+        and parsed
+        and parsed.title
+        and series
+        and re.match(
+            re.escape(series) + r"\s+vol[_.]?\s*\d+",
+            parsed.title,
+            re.IGNORECASE,
+        )
+    )
+    if (
+        use_folder_first
+        and parsed
+        and parsed.title
+        and (_folder_series or (series and _has_vol_title) or (series and _has_series_vol_title))
+    ):
+        effective_series = _folder_series or series
+        candidate_arc = _strip_edition_tags(parsed.title, naming_config=naming_config)
 
         # Libation-format folders set parsed.title to the full remaining
         # string including series+vol prefix.  Strip that prefix so we
         # get only the arc portion (e.g. "and the Philosopher's Stone").
-        if candidate_arc.lower().startswith(parsed.series.lower()):
+        if effective_series and candidate_arc.lower().startswith(effective_series.lower()):
             candidate_arc = _extract_arc_from_libation_title(
-                candidate_arc, parsed.series, parsed.series_position
+                candidate_arc, effective_series, parsed.series_position
             )
 
-        if candidate_arc and (
-            not series or candidate_arc.strip().lower() != series.strip().lower()
-        ):
+        # MAM-convention folders use "Series - vol_XX - Subtitle" format,
+        # so parsed.title = "vol_XX - Subtitle".  Strip the volume+separator
+        # prefix to get just the arc/subtitle portion.  The range group
+        # handles omnibus volumes like vol_01-02, and the _\d+ group
+        # handles GA part notation like vol_01_01.
+        candidate_arc = re.sub(
+            r"^vol[_.]?\s*\d+(?:\.\d+)?(?:[_]\d+)?(?:-\d+(?:\.\d+)?)?\s*(?:-\s*)?",
+            "",
+            candidate_arc,
+            flags=re.IGNORECASE,
+        ).strip()
+
+        # Strip trailing parenthetical author name that may leak from
+        # the parser when the source folder was already in MAM format
+        # (e.g. parsed.title = "Red Rising vol_05_01 Dark Age (Pierce Brown)")
+        # Only strip when it matches the resolved or parsed author to
+        # avoid removing valid parenthetical arc text.
+        _arc_author = (
+            candidate.abs_metadata.authors[0]
+            if candidate.abs_metadata and candidate.abs_metadata.authors
+            else None
+        ) or (parsed.author if parsed else None)
+        if _arc_author and candidate_arc.rstrip().endswith(f"({_arc_author})"):
+            candidate_arc = candidate_arc[: candidate_arc.rfind(f"({_arc_author})")].strip()
+
+        # Drop arc if it duplicates the resolved series name —
+        # either as an exact match (article-stripped) or as a substring.
+        # The substring check handles cases like:
+        #   series = "Trapped in a Dating Sim - The World of Otome Games is Tough for Mobs"
+        #   arc    = "The World of Otome Games is Tough for Mobs"
+        arc_key = _strip_leading_articles(candidate_arc.strip().lower()) if candidate_arc else ""
+        series_key = _strip_leading_articles(series.strip().lower()) if series else ""
+        arc_is_redundant = bool(
+            series and arc_key and (arc_key == series_key or arc_key in series_key)
+        )
+
+        # Reverse containment: series name is contained within the arc.
+        # Normalise simple plurals (word-final 's') so e.g.
+        #   series = "Hogwarts Library Books"
+        #   arc    = "A Harry Potter Hogwarts Library Book"
+        # both normalise to "… hogwart library book" and the substring
+        # check succeeds.  Guard with len > 8 to avoid short-series
+        # false positives.
+        if not arc_is_redundant and series_key and arc_key and len(series_key) > 8:
+
+            def _deplural(text: str) -> str:
+                return " ".join(
+                    word[:-1] if word.endswith("s") and len(word) > 3 else word
+                    for word in text.split()
+                )
+
+            if _deplural(series_key) in _deplural(arc_key):
+                arc_is_redundant = True
+
+        # Pure-numeric remnants (e.g. "02" from vol_01-02 range split)
+        # are never valid arc names — treat as redundant.
+        if candidate_arc and candidate_arc.isdigit():
+            arc_is_redundant = True
+
+        if candidate_arc and not arc_is_redundant:
             filtered = filter_subtitle(
                 candidate_arc,
                 title=title,
                 series=series,
                 naming_config=naming_config,
             )
-            if filtered:
+            if filtered and not _is_publishers_pack(filtered):
                 return filtered
 
     # ── ABS subtitle (original default source) ───────────────────────
@@ -911,7 +1367,67 @@ def _resolve_arc_name(
             naming_config=naming_config,
         )
         if filtered:
-            return filtered
+            # Guard: drop subtitle if (after stripping volume/book suffix)
+            # it duplicates part of the resolved series name.  This catches
+            # cases like series="Wiedergeburt Legend of the Reincarnated
+            # Warrior" with subtitle="Legend of the Reincarnated Warrior,
+            # Volume 4".
+            if series:
+                # BUG-15/12/14: Handle colon separator ("Series: Volume 5")
+                # and decimal volumes ("Series, Volume 3.5") in addition
+                # to the original comma pattern.
+                _cleaned = re.sub(
+                    r"[,:;]?\s*(?:Vol(?:ume)?\.?|Book)\s*\d+(?:\.\d+)?\s*$",
+                    "",
+                    filtered,
+                    flags=re.IGNORECASE,
+                ).strip()
+                # Also strip trailing plain numbers (e.g. "Jack Reacher 14")
+                _cleaned = re.sub(r"\s+\d+$", "", _cleaned).strip()
+                # Strip format indicators ("(Light Novel)", "(Manga)",
+                # etc.) that are common in ABS/Audible subtitles.  These
+                # prevent substring matching against the series name.
+                # Uses the same config-driven rules as the naming pipeline.
+                _cleaned = filter_title(
+                    _cleaned,
+                    naming_config=naming_config,
+                ).strip()
+                _c_key = _strip_leading_articles(_cleaned.lower())
+                _s_key = _strip_leading_articles(series.strip().lower())
+                if _c_key and (_c_key == _s_key or _c_key in _s_key):
+                    filtered = None
+                # Reverse containment: series name is a substring of the
+                # cleaned subtitle (e.g. subtitle = "Jack Reacher 14",
+                # series = "Jack Reacher").  Guard with len > 8 to avoid
+                # short-series false positives.
+                if filtered and _s_key and _c_key and len(_s_key) > 8 and _s_key in _c_key:
+                    filtered = None
+                # Aggressive comparison: strip all non-alphanumeric chars
+                # so punctuation differences (apostrophes, commas, parens)
+                # don't cause false positives.  e.g. "I'm Just a Small
+                # Town Shifter" vs "Im Just a Small Town Shifter".
+                if filtered and _c_key:
+                    _c_alnum = re.sub(r"[^a-z0-9 ]", "", _c_key).strip()
+                    _s_alnum = re.sub(r"[^a-z0-9 ]", "", _s_key).strip()
+                    if (
+                        _c_alnum
+                        and _s_alnum
+                        and (_c_alnum == _s_alnum or (len(_s_alnum) > 8 and _s_alnum in _c_alnum))
+                    ):
+                        filtered = None
+            # Guard: drop or trim subtitle if it starts with the title
+            # itself.  For standalone books, build_mam_folder_name
+            # concatenates title + arc, so "I Had That Same Dream Again"
+            # + arc "I Had That Same Dream Again: The Complete Manga
+            # Collection" would double the title.
+            if filtered and title:
+                _t_key = title.strip().lower()
+                _f_key = filtered.strip().lower()
+                if _f_key.startswith(_t_key) and len(_f_key) > len(_t_key):
+                    remainder = filtered[len(title) :].lstrip(" :-\u2013\u2014")
+                    filtered = remainder if remainder else None
+            if filtered and not _is_publishers_pack(filtered):
+                return filtered
 
     # ── Infer mode: fallback to parsed title as arc ──────────────────
     if (
@@ -1100,6 +1616,7 @@ def compute_target_name(
         source_path=candidate.source_path,
         source_dir=source_dir,
         policy=effective_policy,
+        naming_config=naming_config,
     )
 
     # ── Title / Year resolution (folder-first when applicable) ───────
@@ -1110,32 +1627,295 @@ def compute_target_name(
 
     if use_folder_first:
         title = parsed.title or (abs_meta.title if abs_meta else None)
-        year = parsed.year or (str(abs_meta.year) if abs_meta and abs_meta.year else None)
+        _abs_year = str(abs_meta.year) if abs_meta and abs_meta.year else None
+        # BUG-18: Validate ABS year — ABS sometimes stores placeholder
+        # years (e.g. 2000) that are clearly wrong for recently-minted
+        # ASINs.  ASINs starting with B0 followed by 2+ uppercase letters
+        # (B0C*, B0D*, etc.) were issued after ~2020; a year ≤ 2000 for
+        # such ASINs is certainly a metadata error.
+        if _abs_year and int(_abs_year) <= 2000 and asin and re.match(r"^B0[A-Z]{2}", asin):
+            _abs_year = None
+        year = parsed.year or _abs_year
     else:
         # abs_first: original behavior
         title = abs_meta.title if abs_meta and abs_meta.title else parsed.title
         year = str(abs_meta.year) if abs_meta and abs_meta.year else parsed.year
 
-    # Author precedence: ABS metadata -> parsed -> inferred from path -> fallback
-    author: str | None = None
-    if abs_meta and abs_meta.authors:
-        author = abs_meta.authors[0]
-    elif parsed.author and parsed.author != "Unknown":
-        author = parsed.author
-    elif inferred_author := _infer_author_from_path(candidate.source_path, source_dir):
-        author = inferred_author
-    else:
-        author = "Unknown Author"
+    # Strip bracket-enclosed year [YYYY] from title — the parser may have
+    # already handled this, but some titles still carry it through (e.g.
+    # when ABS metadata supplies the title).  The year is separately
+    # tracked via the ``year`` field, so leaving it in the title would
+    # cause doubling like "Title [2020] (2020)".
+    if title:
+        title = re.sub(r"\s*\[\d{4}\]\s*", " ", title).strip()
 
-    # Volume number
+    # Author precedence depends on policy:
+    #   preserve_existing / folder_first: parsed → ABS → path → fallback
+    #   abs_first (default):              ABS → parsed → path → fallback
+    #
+    # ABS metadata sometimes carries compound author strings with role
+    # tags like "Mike Langwiser - translator Hayaken".  We strip these
+    # to keep only the primary name before the dash-role suffix.
+    author: str | None = None
+
+    def _clean_author(raw: str) -> str:
+        """Strip role-tag suffixes from ABS author strings.
+
+        Patterns:  'Name - translator OtherName'
+                   'Name - editor OtherName'
+                   'Name - narrator OtherName'
+        Returns just 'Name'.
+        """
+        return re.sub(
+            r"\s*-\s*(?:translator|editor|narrator)\b.*$",
+            "",
+            raw,
+            flags=re.IGNORECASE,
+        ).strip()
+
+    # Volume pattern — reject authors that are actually volume tokens
+    # (e.g. "Vol. 01", "Volume 3") coming from folder names like
+    # "Vol. 01 - Beware of Chicken".
+    _vol_author_re = re.compile(
+        r"^Vol(?:ume)?[_.\s]*\d+",
+        re.IGNORECASE,
+    )
+
+    # Aggressive normalization for author / series / title comparison:
+    # strips all non-alphanumeric chars so that punctuation differences
+    # (apostrophes, commas, parens) don't cause false positives.
+    def _norm_alnum(text: str) -> str:
+        return re.sub(r"[^a-z0-9 ]", "", text.strip().lower()).strip()
+
+    # ── Infer author from path early (BUG-20a) ──────────────────────
+    # The parent directory name is the most reliable author source in
+    # library-structured collections (Author/Series/Book or Author/Book).
+    _path_author = _infer_author_from_path(candidate.source_path, source_dir)
+
+    # ── BUG-20: MAM-format detection ─────────────────────────────────
+    # ── Edition-flag rejection set ───────────────────────────────────
+    # Build a set of lowercased edition flag strings + aliases to reject
+    # as author names.  "Full-Cast", "Dramatized", "GA", etc. are never
+    # valid author names.
+    _edition_flag_names = {f.lower() for f in _DEFAULT_EDITION_FLAGS}
+    _edition_flag_names.update(k.lower() for k in _DEFAULT_EDITION_FLAG_ALIASES)
+
+    # Also match comma-separated combined flags like "Full-Cast, Dolby Atmos"
+    def _is_edition_flag(name: str) -> bool:
+        """Return True if *name* is an edition flag or combination thereof."""
+        normed = name.strip().lower()
+        if normed in _edition_flag_names:
+            return True
+        # Check comma-separated parts: "Full-Cast, Dolby Atmos"
+        if "," in normed:
+            parts = [p.strip() for p in normed.split(",")]
+            return all(p in _edition_flag_names for p in parts if p)
+        return False
+
+    if use_folder_first:
+        # Trust parsed.author unless it collides with series/title,
+        # is a volume token, or is an edition flag.
+        _pa = parsed.author or ""
+        _parsed_author_ok = bool(_pa) and _pa != "Unknown"
+
+        # BUG-10: reject volume-pattern authors like "Vol. 01"
+        if _parsed_author_ok and _vol_author_re.match(_pa):
+            _parsed_author_ok = False
+
+        # Reject edition flags as author ("Full-Cast", "GA", etc.)
+        if _parsed_author_ok and _is_edition_flag(_pa):
+            _parsed_author_ok = False
+
+        # BUG-11: reject when author collides with series or title.
+        # Uses three progressively looser comparisons:
+        #   1) exact alnum-normalised equality
+        #   2) equality after stripping leading articles (The/A/An)
+        #   3) bidirectional substring containment (shorter side >= 8 chars)
+        if _parsed_author_ok:
+            _pa_norm = _norm_alnum(_pa)
+            _pa_no_art = _strip_leading_articles(_pa_norm)
+
+            # --- check against resolved series ---
+            if series:
+                _s_norm = _norm_alnum(series)
+                _s_no_art = _strip_leading_articles(_s_norm)
+                if (
+                    _pa_norm == _s_norm
+                    or _pa_no_art == _s_no_art
+                    or _normalize_series_key(_pa) == _normalize_series_key(series)
+                ) or (
+                    min(len(_pa_no_art), len(_s_no_art)) >= 8
+                    and (_pa_no_art in _s_no_art or _s_no_art in _pa_no_art)
+                ):
+                    _parsed_author_ok = False
+
+            # --- also check against parsed.series ---
+            # _resolve_series may return None (e.g. preserve_existing
+            # policy with no series dir on disk) even though the parser
+            # DID extract a series name.  Check against that too.
+            if _parsed_author_ok and parsed.series and parsed.series != series:
+                _ps_norm = _norm_alnum(parsed.series)
+                _ps_no_art = _strip_leading_articles(_ps_norm)
+                if (
+                    _pa_norm == _ps_norm
+                    or _pa_no_art == _ps_no_art
+                    or _normalize_series_key(_pa) == _normalize_series_key(parsed.series)
+                ) or (
+                    min(len(_pa_no_art), len(_ps_no_art)) >= 8
+                    and (_pa_no_art in _ps_no_art or _ps_no_art in _pa_no_art)
+                ):
+                    _parsed_author_ok = False
+
+            # --- check against title ---
+            if _parsed_author_ok and title:
+                _t_norm = _norm_alnum(title)
+                _t_no_art = _strip_leading_articles(_t_norm)
+                if (
+                    _pa_norm == _t_norm
+                    or _pa_no_art == _t_no_art
+                    or (
+                        min(len(_pa_no_art), len(_t_no_art)) >= 8
+                        and (_pa_no_art in _t_no_art or _t_no_art in _pa_no_art)
+                    )
+                ):
+                    _parsed_author_ok = False
+
+        if _parsed_author_ok:
+            author = parsed.author
+        elif abs_meta and abs_meta.authors:
+            _abs_auth = _clean_author(abs_meta.authors[0])
+            if not _is_edition_flag(_abs_auth):
+                author = _abs_auth
+            elif _path_author:
+                author = _path_author
+            else:
+                author = "Unknown Author"
+        elif _path_author:
+            author = _path_author
+        else:
+            author = "Unknown Author"
+    else:
+        if abs_meta and abs_meta.authors:
+            _abs_auth = _clean_author(abs_meta.authors[0])
+            if not _is_edition_flag(_abs_auth):
+                author = _abs_auth
+            elif _path_author:
+                author = _path_author
+            else:
+                author = "Unknown Author"
+        elif parsed.author and parsed.author != "Unknown" and not _is_edition_flag(parsed.author):
+            author = parsed.author
+        elif _path_author:
+            author = _path_author
+        else:
+            author = "Unknown Author"
+
+    # Volume number — use the series entry matching the resolved series
+    # name, not blindly series[0].  This prevents spin-off volumes from
+    # being renumbered with the parent franchise's global position.
+    #
+    # Under preserve_existing / folder_first policies, the source
+    # folder's volume number is authoritative.  ABS metadata may
+    # disagree (e.g. Savage Son is #3 on Audible but the user filed
+    # it under vol_04).  We respect the folder number in that case
+    # and only fall back to ABS when the folder has no volume.
     vol_num = None
-    if abs_meta and abs_meta.series_position:
-        vol_num = abs_meta.series_position
-    elif parsed.series_position:
-        vol_num = parsed.series_position
+    # 1. Try parsed.series_position (set when parser detects vol_XX
+    #    as part of a series book, not always the case for
+    #    "Author - vol_XX - Title" format folders).
+    _folder_vol = parsed.series_position
+    # 2. If the parser didn't extract a series_position, look for a
+    #    vol_XX token directly in the folder name.  This handles
+    #    formats like "Terminal List - vol_04 - Savage Son" where the
+    #    parser treats "Terminal List" as an author, not a series.
+    if not _folder_vol:
+        _vol_in_name = re.search(
+            r"vol[_.]?\s*(\d+(?:\.\d+)?(?:[_-]\d+)?)",
+            candidate.current_name,
+            re.IGNORECASE,
+        )
+        if _vol_in_name:
+            _folder_vol = _vol_in_name.group(1)
+    if use_folder_first and _folder_vol:
+        vol_num = _folder_vol
+    elif abs_meta:
+        vol_num = abs_meta.position_for_series(series)
+    if not vol_num and _folder_vol:
+        vol_num = _folder_vol
+
+    # ── GA / Dramatized split part notation ──────────────────────────
+    # Graphic Audio and Dramatized Adaptation releases split a single
+    # book into multiple parts.  ABS metadata often assigns decimal
+    # positions (1.1, 1.5) that look like novella volumes, or plain
+    # integers that drop the part info entirely.
+    #
+    # The source folder name is authoritative for the volume+part:
+    #   vol_01_01  →  1_01  →  normalize_position()  →  vol_01p1
+    #   vol_01-1   →  1_1   →  normalize_position()  →  vol_01p1
+    #
+    # We only use this override when edition flags indicate a GA/DA
+    # release AND the source folder contains an explicit part token.
+    _ga_da_flags = {"dramatized", "graphic audio"}
+    _has_ga_da = bool(
+        candidate.edition_flags and any(f.lower() in _ga_da_flags for f in candidate.edition_flags)
+    )
+    if _has_ga_da:
+        # Extract vol_XX_YY or vol_XX-Y from the source folder name
+        _ga_vol_match = re.search(
+            r"vol[_.]?\s*(\d+)[_-](\d+)",
+            candidate.current_name,
+            re.IGNORECASE,
+        )
+        if _ga_vol_match:
+            # Rewrite as "NpM" — the part notation that
+            # format_volume_number() recognises directly.
+            vol_num = f"{_ga_vol_match.group(1)}p{_ga_vol_match.group(2)}"
+
+    # Suppress vol_00 for standalone books.  ABS metadata sometimes
+    # assigns series_position="0" to books that are standalone or
+    # belong to a series only in a very loose sense.  Adding vol_00
+    # is misleading — treat them as standalones instead.
+    #
+    # Two forms of "standalone-ish":
+    #  a) Parser says standalone AND no series was resolved.
+    #  b) Parser says standalone AND the resolved series is just the
+    #     title itself (pseudo-series that ABS creates automatically).
+    _pseudo_series = series and title and series.lower().strip() == title.lower().strip()
+    is_standalone = parsed.is_standalone and (not series or _pseudo_series)
+    if is_standalone and vol_num in ("0", "00"):
+        vol_num = None
+        series = None  # ensure standalone path (no series dir)
 
     # Format volume number
     vol_str = format_volume_number(vol_num) if vol_num else None
+
+    # ── Align title prefix with resolved series ──────────────────────
+    # After article-aware consolidation, the resolved series may drop a
+    # leading article (e.g. "Rising of the Shield Hero" instead of
+    # "The Rising of the Shield Hero").  If the title still carries the
+    # old article-prefixed series name, build_mam_path's
+    # inherit_the_prefix() would re-add the article, undoing the
+    # consolidation.  Strip the article from the title when it matches
+    # the resolved series modulo a leading article.
+    if series and title:
+        for article in _LEADING_ARTICLES:
+            alt = article + series
+            if title.lower().startswith(alt.lower()) and not series.lower().startswith(article):
+                title = title[len(article) :]
+                break
+
+    # ── Strip trailing punctuation from title's series-prefix ────────
+    # When the resolved series drops trailing punctuation (e.g. "!")
+    # via _normalize_series_key / alias resolution, the parsed title
+    # may still carry it: "Evil Lord...! vol_05".  Normalise the title
+    # prefix so components.title is consistent with components.series.
+    if series and title and len(title) > len(series):
+        remainder = title[len(series) :]
+        punct_match = re.match(r"^[!?.:;,]+", remainder)
+        if punct_match and _normalize_series_key(title[: len(series)]) == _normalize_series_key(
+            series
+        ):
+            title = series + remainder[punct_match.end() :]
 
     # Arc/subtitle token (optional for sao_gold policy)
     arc = _resolve_arc_name(
@@ -1145,6 +1925,66 @@ def compute_target_name(
         naming_config=naming_config,
         policy=effective_policy,
     )
+
+    # BUG-17: Strip trailing period from arc text. ABS metadata sometimes
+    # includes series names with trailing periods (e.g. "Hell Divers Series.")
+    # which are never valid arc punctuation.
+    if arc:
+        arc = arc.rstrip(".")
+        if not arc:
+            arc = None
+
+    # Guard: suppress arc when the title already ends with it and the
+    # builder will use standalone mode.  The builder sets
+    # ``is_series = bool(series and vol_str)``; when False it
+    # concatenates title + arc, so a title like "Batman vol_01
+    # Resurrection" with arc "Resurrection" doubles.  For true series
+    # books (both series AND vol_str present), the builder uses
+    # series+vol+arc and the title isn't part of the folder name, so
+    # no risk of doubling.
+    if arc and title and (not series or not vol_str):
+        _t_tail = title.strip().lower()
+        _a_key = arc.strip().lower()
+        if _t_tail.endswith(_a_key):
+            arc = None
+
+    # ── pt_XX → part notation ────────────────────────────────────────
+    # When the arc starts with "pt_XX" (part notation), merge it into
+    # the volume number as vol_NNpM and strip it from the arc text.
+    # Examples:
+    #   vol_01, arc="pt_01"                        → vol_01p1, arc=None
+    #   vol_04, arc="pt_01 - Nekomonogatari ..."   → vol_04p1, arc="Nekomonogatari ..."
+    #   vol_01, arc="pt_02"                        → vol_01p2, arc=None
+    if arc and vol_num:
+        _pt_match = re.match(
+            r"^pt[_.]?\s*(\d+)(?:\s*[-–—]\s*)?(.*)$",
+            arc,
+            re.IGNORECASE,
+        )
+        if _pt_match:
+            _part_num = _pt_match.group(1)
+            _remaining_arc = _pt_match.group(2).strip()
+            # Merge: base volume number (raw digits) + part
+            # vol_num may already be "4" or "04" — use as-is.
+            _base_vol = re.sub(r"^0+(\d)", r"\1", vol_num)  # strip leading zeros for "NpM"
+            vol_num = f"{_base_vol}p{_part_num}"
+            # Recalculate vol_str with the merged part notation
+            vol_str = format_volume_number(vol_num)
+            arc = _remaining_arc if _remaining_arc else None
+
+    # ── Promote Publisher's Pack arc to edition flag ─────────────────
+    # When the arc text is "Publisher's Pack" (with optional trailing
+    # number like "Publisher's Pack 1"), treat it as an edition flag
+    # rather than a subtitle.  The volume range (vol_01-02) already
+    # conveys which books are bundled, so the trailing number is
+    # redundant.
+    if arc and re.match(r"^Publisher'?s\s+Pack(?:\s+\d+)?$", arc, re.IGNORECASE):
+        if "Publisher's Pack" not in candidate.edition_flags:
+            candidate = dataclasses.replace(
+                candidate,
+                edition_flags=[*candidate.edition_flags, "Publisher's Pack"],
+            )
+        arc = None
 
     # Ripper tag policy
     ripper_tag = _select_ripper_tag(
@@ -1160,7 +2000,11 @@ def compute_target_name(
 
     # Build target name using existing function
     # Note: build_mam_folder_name doesn't support edition flags in middle,
-    # so we'll need to inject them manually after author
+    # so we'll need to inject them manually after author.
+    # ABS library organisation has no 225-char MAM path limit — the
+    # constraint only applies when creating MAM torrent paths.  Pass a
+    # very large max_length to disable truncation entirely.
+    _abs_no_truncation = 4096
     target = build_mam_folder_name(
         series=series,
         title=title or "",
@@ -1171,6 +2015,7 @@ def compute_target_name(
         asin=asin,
         ripper_tag=ripper_tag,
         naming_config=naming_config,
+        max_length=_abs_no_truncation,
     )
 
     # Inject edition flags between author and ASIN if present
@@ -1260,6 +2105,23 @@ def check_target_exists(
         # Check if target path exists and is different from source
         if target_path.exists() and target_path != c.source_path:
             result[i] = dataclasses.replace(c, status="target_exists")
+            continue
+
+        # ASIN collision preflight: when performing a hierarchy_move,
+        # verify the target's parent dir doesn't already hold a folder
+        # with the same ASIN.  This catches cases where an older copy
+        # was already renamed and the current candidate is a stale dup.
+        if (
+            c.parsed
+            and c.parsed.asin
+            and target_path.parent != c.source_path.parent
+            and target_path.parent.exists()
+        ):
+            asin_tag = f"{{ASIN.{c.parsed.asin}}}"
+            for sibling in target_path.parent.iterdir():
+                if sibling.is_dir() and asin_tag in sibling.name and sibling != c.source_path:
+                    result[i] = dataclasses.replace(c, status="target_exists")
+                    break
 
     return result
 
@@ -1486,7 +2348,9 @@ def run_rename_pipeline(
         progress_context("Parsing names", total=len(folders)) as (progress, task),
         ThreadPoolExecutor(max_workers=max_workers) as executor,
     ):
-        futures = {executor.submit(parse_candidate, f): i for i, f in enumerate(folders)}
+        futures = {
+            executor.submit(parse_candidate, f, naming_config): i for i, f in enumerate(folders)
+        }
         results_map: dict[int, RenameCandidate] = {}
         for future in as_completed(futures):
             idx = futures[future]
@@ -1657,6 +2521,16 @@ def _compute_path_fingerprint(path: Path) -> str | None:
     return hasher.hexdigest()
 
 
+def _compute_plan_item_id(
+    source_path: str,
+    target_path: str | None,
+    fingerprint: str | None,
+) -> str:
+    """Compute deterministic plan item id for cross-artifact joins."""
+    data = f"{source_path}\0{target_path or ''}\0{fingerprint or ''}"
+    return hashlib.sha256(data.encode("utf-8", "ignore")).hexdigest()[:32]
+
+
 def _derive_plan_reasons(candidate: RenameCandidate) -> list[str]:
     """Generate deterministic reason codes for plan review."""
     reasons: list[str] = []
@@ -1692,13 +2566,34 @@ def _derive_risk_flags(candidate: RenameCandidate) -> list[str]:
     parsed_tag = candidate.parsed.ripper_tag if candidate.parsed else None
     planned_tag = candidate.components.get("ripper_tag")
     if parsed_tag and not planned_tag:
-        flags.append("tag_removed")
+        # Only flag tag_removed for genuine ripper tags, not metadata blocks
+        # that the bracket parser picked up (e.g. "[2025]", "[Author Name]",
+        # "[ASIN.B0xxx]").  These are legacy formatting, not ripper tags.
+        _tag_is_metadata = (
+            bool(re.fullmatch(r"\d{4}", parsed_tag))  # year
+            or parsed_tag.upper().startswith("ASIN")  # ASIN marker
+            or (
+                candidate.components.get("author")
+                and parsed_tag.lower() == candidate.components["author"].lower()
+            )
+        )
+        if not _tag_is_metadata:
+            flags.append("tag_removed")
 
     asin = candidate.parsed.asin if candidate.parsed else None
     if asin and asin.isdigit():
         flags.append("edge_case_numeric_asin")
 
-    if candidate.components.get("series_root_changed"):
+    # series_root_change: only flag when the series-level parent directory
+    # actually changes on disk — not just because ABS metadata disagrees
+    # with the existing folder name.  This eliminates noise from trivial
+    # case / punctuation differences that preserve_existing absorbs.
+    if (
+        candidate.components.get("series_root_changed")
+        and candidate.status != "up_to_date"
+        and candidate.target_path
+        and candidate.target_path.parent != candidate.source_path.parent
+    ):
         flags.append("series_root_change")
 
     return sorted(set(flags))
@@ -1732,13 +2627,21 @@ def build_rename_plan(
         if candidate.target_name:
             similarity = round(similarity_ratio(candidate.current_name, candidate.target_name), 1)
 
+        source_path = str(candidate.source_path)
+        target_path = str(candidate.target_path) if candidate.target_path else None
+        fingerprint = _compute_path_fingerprint(candidate.source_path)
         item = RenamePlanItem(
-            source_path=str(candidate.source_path),
-            target_path=str(candidate.target_path) if candidate.target_path else None,
+            plan_item_id=_compute_plan_item_id(
+                source_path=source_path,
+                target_path=target_path,
+                fingerprint=fingerprint,
+            ),
+            source_path=source_path,
+            target_path=target_path,
             status=candidate.status,
             reasons=_derive_plan_reasons(candidate),
             risk_flags=_derive_risk_flags(candidate),
-            fingerprint=_compute_path_fingerprint(candidate.source_path),
+            fingerprint=fingerprint,
             components={
                 **candidate.components,
                 "current_name": candidate.current_name,
@@ -1848,6 +2751,8 @@ def apply_rename_plan(
         raise ValueError(f"Unsupported plan version: {plan_payload.get('version')}")
 
     policy = RenamePolicy.from_dict(plan_payload.get("policy", {}))
+    # Pruning boundary: never remove source_dir itself when cleaning up empties.
+    source_dir = Path(plan_payload["source_dir"]) if plan_payload.get("source_dir") else None
     all_items = [
         item
         for item in plan_payload.get("items", [])
@@ -1870,8 +2775,6 @@ def apply_rename_plan(
         for item in selected_items
         if "low_similarity" in set(item.get("risk_flags", []))
     ]
-
-    backup_root = policy.transaction_backup_root / datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
     # Preflight all selected items before mutating filesystem.
     apply_results: list[dict[str, Any]] = []
@@ -1977,9 +2880,6 @@ def apply_rename_plan(
             "results": apply_results,
         }
 
-    if not dry_run:
-        backup_root.mkdir(parents=True, exist_ok=True)
-
     for index, item in enumerate(selected_items, start=1):
         source_path = Path(item["source_path"])
         target_path = Path(item["target_path"])
@@ -1996,28 +2896,30 @@ def apply_rename_plan(
             )
             continue
 
-        item_backup_dir = backup_root / f"{index:05d}"
-        source_backup = item_backup_dir / "source_backup"
-        target_backup = item_backup_dir / "target_backup"
+        # Use same-filesystem sibling paths for transactional staging.
+        # Path.rename() cannot cross device boundaries, so backup dirs on
+        # the local disk would fail for libraries on network/NAS mounts.
+        _bak_tag = f".shelfr_bak_{index:05d}"
+        target_stash = target_path.with_name(target_path.name + _bak_tag)
         target_was_displaced = False
         rollback_ok = True
 
         try:
-            item_backup_dir.mkdir(parents=True, exist_ok=True)
             target_path.parent.mkdir(parents=True, exist_ok=True)
 
+            # Phase 1: Displace existing target if collision (same FS).
             if target_path.exists() and target_path != source_path:
-                target_path.rename(target_backup)
+                target_path.rename(target_stash)
                 target_was_displaced = True
 
-            source_path.rename(source_backup)
-            source_backup.rename(target_path)
+            # Phase 2: Atomic same-filesystem rename.
+            source_path.rename(target_path)
             files_renamed = _rename_files_inside(target_path, target_path.name)
 
-            # Cleanup empty per-item backup dir after successful commit.
-            with contextlib.suppress(OSError):
-                if item_backup_dir.exists() and not any(item_backup_dir.iterdir()):
-                    item_backup_dir.rmdir()
+            # Phase 3: Cleanup displaced target on success.
+            if target_was_displaced and target_stash.exists():
+                with contextlib.suppress(OSError):
+                    shutil.rmtree(target_stash)
 
             apply_results.append(
                 {
@@ -2029,21 +2931,32 @@ def apply_rename_plan(
                     "rollback_ok": True,
                 }
             )
+
+            # Phase 4: Prune empty ancestor directories up to source_dir.
+            # After hierarchy_move renames, the old series parent may be empty.
+            if source_dir:
+                _cur = source_path.parent
+                while _cur != source_dir and _cur.is_relative_to(source_dir):
+                    try:
+                        if _cur.exists() and not any(_cur.iterdir()):
+                            _cur.rmdir()
+                            logger.info("Pruned empty directory: %s", _cur)
+                        else:
+                            break  # Non-empty — stop walking up
+                    except OSError:
+                        break
+                    _cur = _cur.parent
         except OSError as e:
             # Best-effort rollback per item transaction.
             if target_path.exists() and not source_path.exists():
                 with contextlib.suppress(OSError):
                     target_path.rename(source_path)
                 rollback_ok = rollback_ok and source_path.exists()
-            elif source_backup.exists() and not source_path.exists():
-                with contextlib.suppress(OSError):
-                    source_backup.rename(source_path)
-                rollback_ok = rollback_ok and source_path.exists()
 
-            if target_was_displaced and target_backup.exists():
+            if target_was_displaced and target_stash.exists():
                 if not target_path.exists():
                     with contextlib.suppress(OSError):
-                        target_backup.rename(target_path)
+                        target_stash.rename(target_path)
                     rollback_ok = rollback_ok and target_path.exists()
                 else:
                     rollback_ok = False

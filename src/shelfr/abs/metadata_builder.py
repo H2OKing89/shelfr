@@ -172,7 +172,7 @@ def build_abs_metadata_fallback(
         title=parsed.title,
         subtitle=None,
         authors=[parsed.author] if parsed.author else [],
-        narrators=[parsed.narrator] if parsed.narrator else [],
+        narrators=[],  # Narrator not available from folder name; use Audnex API
         series=series_list,
         genres=[],
         tags=[],

@@ -41,6 +41,17 @@ _cleanup_string = cleanup_string
 
 logger = logging.getLogger(__name__)
 
+# Leading articles stripped for fuzzy comparisons (series ≈ subtitle).
+_LEADING_ARTICLES = ("the ", "a ", "an ")
+
+
+def _strip_leading_articles(text: str) -> str:
+    """Strip leading articles (The/A/An) for fuzzy series-vs-subtitle comparison."""
+    for article in _LEADING_ARTICLES:
+        if text.startswith(article):
+            return text[len(article) :]
+    return text
+
 
 @functools.lru_cache(maxsize=256)
 def _compile_phrase_pattern(phrase: str) -> re.Pattern[str]:
@@ -365,11 +376,16 @@ def filter_subtitle(
                 logger.warning(f"Invalid subtitle_remove_pattern regex '{pattern_str}': {e}")
 
     # Step 4: Check if subtitle matches series name (drop if enabled)
+    # Uses both exact equality and substring containment to catch cases like:
+    #   series = "Main Title - Subtitle"  and  subtitle = "Subtitle"
     if naming_config and naming_config.remove_subtitle_if_matches_series and series:
-        # Normalize both for comparison
-        series_normalized = series.strip().lower()
-        subtitle_normalized = result.strip().lower()
-        if subtitle_normalized == series_normalized:
+        # Normalize both for comparison, stripping leading articles
+        # so "Rising of the Shield Hero" matches "The Rising of the Shield Hero"
+        series_normalized = _strip_leading_articles(series.strip().lower())
+        subtitle_normalized = _strip_leading_articles(result.strip().lower())
+        if subtitle_normalized and (
+            subtitle_normalized == series_normalized or subtitle_normalized in series_normalized
+        ):
             if verbose:
                 logger.debug(f"[filter_subtitle] '{subtitle}' -> None (matches series name)")
             return None

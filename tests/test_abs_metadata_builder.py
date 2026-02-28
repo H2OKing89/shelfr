@@ -240,7 +240,6 @@ class TestBuildAbsMetadataFallback:
             series_position=None,
             asin=None,
             year="2023",
-            narrator="Test Narrator",
             ripper_tag="H2OKing",
             is_standalone=True,
         )
@@ -249,7 +248,7 @@ class TestBuildAbsMetadataFallback:
 
         assert result.title == "Test Title"
         assert result.authors == ["Test Author"]
-        assert result.narrators == ["Test Narrator"]
+        assert result.narrators == []  # Narrator not available from folder name
         assert result.published_year == "2023"
         assert result.series == []
         assert result.asin is None
@@ -263,7 +262,6 @@ class TestBuildAbsMetadataFallback:
             series_position="5",
             asin=None,
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -281,7 +279,6 @@ class TestBuildAbsMetadataFallback:
             series_position=None,
             asin=None,
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -299,7 +296,6 @@ class TestBuildAbsMetadataFallback:
             series_position=None,
             asin="B0TESTASIN",
             year="2024",
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -308,8 +304,8 @@ class TestBuildAbsMetadataFallback:
 
         assert result.asin == "B0TESTASIN"
 
-    def test_fallback_empty_narrator(self) -> None:
-        """Test fallback with no narrator."""
+    def test_fallback_narrators_always_empty(self) -> None:
+        """Test fallback never populates narrators (folder has no narrator info)."""
         parsed = ParsedFolderName(
             author="Author",
             title="Book",
@@ -317,7 +313,6 @@ class TestBuildAbsMetadataFallback:
             series_position=None,
             asin=None,
             year=None,
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )

@@ -140,6 +140,91 @@ class TestParseAbsMetadata:
         assert result.series == "Old Man's War"
         assert result.series_position == "1.5"
 
+    def test_multi_series_entries(self, tmp_path: Path) -> None:
+        """Test parsing metadata with multiple series entries.
+
+        ABS can list a spin-off under both the parent franchise and its
+        own sub-series (e.g. Mushoku Tensei Redundant Reincarnation is
+        listed as Jobless Reincarnation #29 AND Redundant Reincarnation #1).
+        All entries should be stored in ``all_series``.
+        """
+        from shelfr.abs.rename import parse_abs_metadata
+
+        folder = tmp_path / "book_folder"
+        folder.mkdir()
+        metadata_file = folder / "metadata.json"
+        metadata_file.write_text(
+            json.dumps(
+                {
+                    "title": "Mushoku Tensei: Redundant Reincarnation, Vol. 1",
+                    "authors": ["Rifujin na Magonote"],
+                    "asin": "B0DNNS1S9Y",
+                    "series": [
+                        "Mushoku Tensei: Jobless Reincarnation #29",
+                        "Mushoku Tensei: Redundant Reincarnation #1",
+                    ],
+                    "publishedYear": "2025",
+                }
+            )
+        )
+
+        result = parse_abs_metadata(folder)
+        assert result is not None
+        # Primary (series[0]) is Jobless Reincarnation #29
+        assert result.series == "Mushoku Tensei: Jobless Reincarnation"
+        assert result.series_position == "29"
+        # But all_series has both entries
+        assert len(result.all_series) == 2
+        assert result.all_series[0] == ("Mushoku Tensei: Jobless Reincarnation", "29")
+        assert result.all_series[1] == ("Mushoku Tensei: Redundant Reincarnation", "1")
+
+    def test_position_for_series_picks_matching_entry(self) -> None:
+        """position_for_series returns the position from the entry matching the resolved series."""
+        from shelfr.abs.rename import AbsMetadata
+
+        meta = AbsMetadata(
+            title="Redundant Reincarnation Vol. 1",
+            series="Mushoku Tensei: Jobless Reincarnation",
+            series_position="29",
+            all_series=[
+                ("Mushoku Tensei: Jobless Reincarnation", "29"),
+                ("Mushoku Tensei: Redundant Reincarnation", "1"),
+            ],
+        )
+
+        # When resolved series matches the sub-series, get sub-series position
+        assert meta.position_for_series("Mushoku Tensei - Redundant Reincarnation") == "1"
+        # When resolved series matches the parent, get parent position
+        assert meta.position_for_series("Mushoku Tensei - Jobless Reincarnation") == "29"
+
+    def test_position_for_series_single_entry_fallback(self) -> None:
+        """position_for_series falls back to series_position with a single entry."""
+        from shelfr.abs.rename import AbsMetadata
+
+        meta = AbsMetadata(
+            series="Test Series",
+            series_position="5",
+            all_series=[("Test Series", "5")],
+        )
+
+        assert meta.position_for_series("Test Series") == "5"
+        assert meta.position_for_series("Other Series") == "5"  # single entry fallback
+
+    def test_position_for_series_no_resolved(self) -> None:
+        """position_for_series returns series_position when resolved_series is None."""
+        from shelfr.abs.rename import AbsMetadata
+
+        meta = AbsMetadata(
+            series="Test Series",
+            series_position="3",
+            all_series=[
+                ("Test Series", "3"),
+                ("Other Series", "10"),
+            ],
+        )
+
+        assert meta.position_for_series(None) == "3"
+
 
 class TestHasAudioFiles:
     """Tests for has_audio_files function."""
@@ -214,9 +299,9 @@ class TestDetectEditionFlags:
         """Test detecting multiple flags."""
         from shelfr.abs.rename import detect_edition_flags
 
-        flags = detect_edition_flags("Title (Dolby Atmos) (Unabridged)")
+        flags = detect_edition_flags("Title (Dolby Atmos) (Full-Cast)")
         assert "Dolby Atmos" in flags
-        assert "Unabridged" in flags
+        assert "Full-Cast" in flags
 
     def test_no_flags(self) -> None:
         """Test no flags returns empty list."""
@@ -224,6 +309,20 @@ class TestDetectEditionFlags:
 
         flags = detect_edition_flags("Just a Normal Title")
         assert flags == []
+
+    def test_ait_lowercase(self) -> None:
+        """Test detecting (ait) as AIT edition flag."""
+        from shelfr.abs.rename import detect_edition_flags
+
+        flags = detect_edition_flags("Dungeon Crawler Carl - vol_01 [2021] (ait) [Matt Dinniman]")
+        assert flags == ["AIT"]
+
+    def test_ait_uppercase(self) -> None:
+        """Test detecting (AIT) as AIT edition flag."""
+        from shelfr.abs.rename import detect_edition_flags
+
+        flags = detect_edition_flags("Dungeon Crawler Carl - vol_01 [2021] (AIT) [Matt Dinniman]")
+        assert flags == ["AIT"]
 
 
 class TestDiscoverRenameCandidates:
@@ -311,6 +410,165 @@ class TestComputeTargetName:
 
         result = compute_target_name(candidate)
         assert result.status == "error"
+
+
+class TestParenAuthorExtraction:
+    """Tests that the parser correctly extracts the parenthetical author
+    from MAM-format folders.  The parenthetical name is ALWAYS the author
+    (never the narrator) per the MAM naming schema.
+    """
+
+    def test_paren_author_used_for_series_folder(self, tmp_path: Path) -> None:
+        """Parenthetical author extracted correctly for series folder."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import AbsMetadata, RenameCandidate, compute_target_name
+
+        source_dir = tmp_path / "lib"
+        source_dir.mkdir()
+        series_dir = source_dir / "Mushoku Tensei - Jobless Reincarnation"
+        series_dir.mkdir()
+        folder = (
+            "Mushoku Tensei - Jobless Reincarnation vol_01 "
+            "(2023) (Rifujin na Magonote) {ASIN.B0CJWTXLPJ} [H2OKing]"
+        )
+        source = series_dir / folder
+        source.mkdir()
+
+        parsed = ParsedFolderName(
+            author="Rifujin na Magonote",
+            title="Jobless Reincarnation",
+            series="Mushoku Tensei - Jobless Reincarnation",
+            series_position="01",
+            asin="B0CJWTXLPJ",
+            year="2023",
+            ripper_tag="H2OKing",
+            is_standalone=False,
+        )
+        candidate = RenameCandidate(
+            source_path=source,
+            current_name=folder,
+            parsed=parsed,
+            abs_metadata=AbsMetadata(
+                authors=["Rifujin na Magonote"],
+                series="Mushoku Tensei: Jobless Reincarnation",
+                series_position="1",
+                year=2023,
+                asin="B0CJWTXLPJ",
+            ),
+        )
+        result = compute_target_name(candidate, source_dir=source_dir)
+        assert result.components is not None
+        assert result.components["author"] == "Rifujin na Magonote"
+
+    def test_paren_author_without_abs_metadata(self, tmp_path: Path) -> None:
+        """Parenthetical author works even without ABS metadata."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import RenameCandidate, compute_target_name
+
+        source_dir = tmp_path / "lib"
+        source_dir.mkdir()
+        series_dir = source_dir / "Trapped in a Dating Sim"
+        series_dir.mkdir()
+        folder = (
+            "Trapped in a Dating Sim - The World of Otome Games "
+            "Is Tough for Mobs vol_01 (2024) (Yomu Mishima) {ASIN.B0DK27WWT8}"
+        )
+        source = series_dir / folder
+        source.mkdir()
+
+        parsed = ParsedFolderName(
+            author="Yomu Mishima",
+            title="The World of Otome Games Is Tough for Mobs",
+            series="Trapped in a Dating Sim - The World of Otome Games Is Tough for Mobs",
+            series_position="01",
+            asin="B0DK27WWT8",
+            year="2024",
+            ripper_tag=None,
+            is_standalone=False,
+        )
+        candidate = RenameCandidate(
+            source_path=source,
+            current_name=folder,
+            parsed=parsed,
+            abs_metadata=None,
+        )
+        result = compute_target_name(candidate, source_dir=source_dir)
+        assert result.components is not None
+        assert result.components["author"] == "Yomu Mishima"
+
+    def test_paren_author_for_standalone_book(self, tmp_path: Path) -> None:
+        """Parenthetical author extracted correctly for standalone book."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import AbsMetadata, RenameCandidate, compute_target_name
+
+        source_dir = tmp_path / "lib"
+        source_dir.mkdir()
+        folder = "A Christmas Carol (2010) (Charles Dickens) {ASIN.B002ZEEDAW} [H2OKing]"
+        source = source_dir / folder
+        source.mkdir()
+
+        parsed = ParsedFolderName(
+            author="Charles Dickens",
+            title="A Christmas Carol",
+            series=None,
+            series_position=None,
+            asin="B002ZEEDAW",
+            year="2010",
+            ripper_tag="H2OKing",
+            is_standalone=True,
+        )
+        candidate = RenameCandidate(
+            source_path=source,
+            current_name=folder,
+            parsed=parsed,
+            abs_metadata=AbsMetadata(
+                authors=["Charles Dickens"],
+                title="A Christmas Carol",
+                year=2010,
+                asin="B002ZEEDAW",
+            ),
+        )
+        result = compute_target_name(candidate, source_dir=source_dir)
+        assert result.components is not None
+        assert result.components["author"] == "Charles Dickens"
+
+    def test_paren_author_collides_with_series_uses_abs(self, tmp_path: Path) -> None:
+        """If paren author matches series name, fall back to ABS author."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import AbsMetadata, RenameCandidate, compute_target_name
+
+        source_dir = tmp_path / "lib"
+        source_dir.mkdir()
+        folder = "SeriesName vol_01 (2020) (SeriesName) {ASIN.B012345678}"
+        source = source_dir / folder
+        source.mkdir()
+
+        parsed = ParsedFolderName(
+            author="SeriesName",
+            title="SeriesName",
+            series="SeriesName",
+            series_position="01",
+            asin="B012345678",
+            year="2020",
+            ripper_tag=None,
+            is_standalone=False,
+        )
+        candidate = RenameCandidate(
+            source_path=source,
+            current_name=folder,
+            parsed=parsed,
+            abs_metadata=AbsMetadata(
+                authors=["Real Author"],
+                series="SeriesName",
+                series_position="1",
+                year=2020,
+                asin="B012345678",
+            ),
+        )
+        result = compute_target_name(candidate, source_dir=source_dir)
+        assert result.components is not None
+        # Should use ABS author since parsed author collides with series
+        assert result.components["author"] == "Real Author"
 
 
 class TestRenameFolder:
@@ -786,7 +1044,6 @@ class TestPolicyLockedRules:
             series_position="1",
             asin="B012345678",
             year="2012",
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -829,7 +1086,6 @@ class TestPolicyLockedRules:
             series_position=None,
             asin="B012345678",
             year="2024",
-            narrator=None,
             ripper_tag="H2OKing",
             is_standalone=True,
         )
@@ -861,7 +1117,6 @@ class TestPolicyLockedRules:
             series_position=None,
             asin="B012345678",
             year="2024",
-            narrator=None,
             ripper_tag="NotAllowedTag",
             is_standalone=True,
         )
@@ -897,7 +1152,6 @@ class TestPolicyLockedRules:
             series_position="1",
             asin="1975337182",
             year="2021",
-            narrator=None,
             ripper_tag=None,  # No tag on source folder
             is_standalone=False,
         )
@@ -930,7 +1184,6 @@ class TestPolicyLockedRules:
             series_position=None,
             asin="B012345678",
             year="2024",
-            narrator=None,
             ripper_tag=None,  # No tag on source folder
             is_standalone=True,
         )
@@ -964,7 +1217,6 @@ class TestPolicyLockedRules:
             series_position=None,
             asin="B012345678",
             year="2024",
-            narrator=None,
             ripper_tag=None,  # No tag
             is_standalone=True,
         )
@@ -996,7 +1248,6 @@ class TestPolicyLockedRules:
             series_position=None,
             asin="1234567890",
             year="2024",
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1040,7 +1291,6 @@ class TestHierarchyAndDiscovery:
             series_position=None,
             asin="B012345678",
             year="2012",
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -1076,7 +1326,6 @@ class TestHierarchyAndDiscovery:
             series_position=None,
             asin="B08G9PRS1K",
             year="2021",
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1109,7 +1358,6 @@ class TestHierarchyAndDiscovery:
             series_position="1",
             asin="B012345678",
             year="2012",
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -1127,12 +1375,12 @@ class TestHierarchyAndDiscovery:
         parts = result.target_path.relative_to(source_dir).parts
         assert parts[0] == "Sword Art Online"  # series first, no extra author
 
-    def test_flat_series_book_gets_series_subdir(self, tmp_path: Path) -> None:
-        """A series book sitting flat under the author dir should still get a series subdir.
+    def test_flat_series_book_stays_flat_under_preserve_existing(self, tmp_path: Path) -> None:
+        """A series book sitting flat under the author dir stays flat under preserve_existing.
 
-        Regression: Fantastic Beasts sat directly under J.K. Rowling/
-        (no series subfolder) and was placed as AuthorDir/Book instead
-        of AuthorDir/Series/Book.
+        Under preserve_existing policy, books without an existing series
+        subfolder are not promoted into one — they stay where the user
+        put them.
         """
         from shelfr.abs.importer import ParsedFolderName
         from shelfr.abs.rename import RenameCandidate, compute_target_name, resolve_rename_policy
@@ -1151,7 +1399,6 @@ class TestHierarchyAndDiscovery:
             series_position=None,
             asin="B01N4S7VVP",
             year="2017",
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -1163,9 +1410,9 @@ class TestHierarchyAndDiscovery:
             policy=resolve_rename_policy(policy_profile="sao_gold"),
         )
         assert result.target_path is not None
-        # Should be AuthorDir/Series/Book (series dir created)
-        assert result.target_path.parent == source_dir / "Hogwarts Library Books"
-        assert result.target_path.parent.name == "Hogwarts Library Books"
+        # preserve_existing: no existing series dir → stays flat under author
+        assert result.target_path.parent == source_dir
+        assert "Hogwarts Library Books" not in str(result.target_path)
 
     def test_discovery_collapses_deep_episode_subfolders(self, tmp_path: Path) -> None:
         """Metadata root should win over nested E01/E02 audio subfolders."""
@@ -1180,6 +1427,73 @@ class TestHierarchyAndDiscovery:
 
         candidates = discover_rename_candidates(tmp_path)
         assert candidates == [book_root]
+
+    def test_discovery_collapses_episode_siblings_without_metadata(self, tmp_path: Path) -> None:
+        """AIT-style: episode subfolders without metadata.json should collapse to parent."""
+        from shelfr.abs.rename import discover_rename_candidates
+
+        ait_root = (
+            tmp_path / "Author" / "Series" / "Series - vol_02 - Subtitle (2026) (ait) (Author)"
+        )
+        (ait_root / "E01 Episode One").mkdir(parents=True)
+        (ait_root / "E02 Episode Two").mkdir(parents=True)
+        (ait_root / "E03 Episode Three").mkdir(parents=True)
+        # Audio lives inside episodes, no metadata.json at ait_root
+        (ait_root / "E01 Episode One" / "episode01.m4b").touch()
+        (ait_root / "E02 Episode Two" / "episode02.m4b").touch()
+        (ait_root / "E03 Episode Three" / "episode03.m4b").touch()
+
+        candidates = discover_rename_candidates(tmp_path)
+        assert candidates == [ait_root]
+
+    def test_discovery_does_not_collapse_non_episode_siblings(self, tmp_path: Path) -> None:
+        """Non-episode sibling folders should remain separate candidates."""
+        from shelfr.abs.rename import discover_rename_candidates
+
+        parent = tmp_path / "Author"
+        book_a = parent / "Book One"
+        book_b = parent / "Book Two"
+        book_a.mkdir(parents=True)
+        book_b.mkdir(parents=True)
+        (book_a / "audio.m4b").touch()
+        (book_b / "audio.m4b").touch()
+
+        candidates = discover_rename_candidates(tmp_path)
+        assert sorted(candidates) == sorted([book_a, book_b])
+
+    def test_discovery_episode_and_normal_sibling_mixed(self, tmp_path: Path) -> None:
+        """Mixed episode + normal siblings: collapse if ≥50% are episodes."""
+        from shelfr.abs.rename import discover_rename_candidates
+
+        ait_root = tmp_path / "Author" / "Series" / "AIT Release"
+        (ait_root / "E01 Intro").mkdir(parents=True)
+        (ait_root / "E02 Main").mkdir(parents=True)
+        (ait_root / "Bonus Content").mkdir(parents=True)
+        (ait_root / "E01 Intro" / "e01.m4b").touch()
+        (ait_root / "E02 Main" / "e02.m4b").touch()
+        (ait_root / "Bonus Content" / "bonus.m4b").touch()
+
+        candidates = discover_rename_candidates(tmp_path)
+        # 2/3 are episodes ≥ 50%, so collapse to parent
+        assert candidates == [ait_root]
+
+    def test_discovery_collapses_nested_episode_dir(self, tmp_path: Path) -> None:
+        """Nested E03/E03/audio.m4b should also collapse to the AIT root."""
+        from shelfr.abs.rename import discover_rename_candidates
+
+        ait_root = tmp_path / "Author" / "Series" / "AIT Release"
+        (ait_root / "E01").mkdir(parents=True)
+        (ait_root / "E02").mkdir(parents=True)
+        # E03 has a doubled nested directory (filesystem hygiene issue)
+        (ait_root / "E03 Extra" / "E03 Extra").mkdir(parents=True)
+
+        (ait_root / "E01" / "e01.m4b").touch()
+        (ait_root / "E02" / "e02.m4b").touch()
+        (ait_root / "E03 Extra" / "E03 Extra" / "e03.m4b").touch()
+
+        candidates = discover_rename_candidates(tmp_path)
+        # All three episodes should collapse to the AIT root
+        assert candidates == [ait_root]
 
 
 class TestPlanApplyTransactions:
@@ -1392,7 +1706,6 @@ class TestConformance:
             series_position="1",
             asin="B012345678",
             year="2012",
-            narrator=None,
             ripper_tag="H2OKing",
             is_standalone=False,
         )
@@ -1498,7 +1811,6 @@ class TestResolveSeriesPreserveExisting:
             series_position="1",
             asin="B0000HP001",
             year="1997",
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -1522,7 +1834,7 @@ class TestResolveSeriesPreserveExisting:
         assert changed is True  # ABS wanted to move it
 
     def test_preserve_existing_no_root_falls_through(self) -> None:
-        """When book is at depth 1 (no parent above it), falls back to ABS→parsed."""
+        """When book is at depth 1 (no parent above it), preserve_existing keeps it flat."""
         from shelfr.abs.importer import ParsedFolderName
         from shelfr.abs.rename import AbsMetadata, _resolve_series
 
@@ -1536,7 +1848,6 @@ class TestResolveSeriesPreserveExisting:
             series_position="1",
             asin="B000000001",
             year="2020",
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -1556,8 +1867,8 @@ class TestResolveSeriesPreserveExisting:
             source_dir=source_dir,
             policy=self._make_policy("preserve_existing"),
         )
-        # No existing root → fallback to ABS→parsed
-        assert series == "ABS Series"
+        # preserve_existing: no existing root → stay flat (None)
+        assert series is None
         assert changed is False
 
     def test_abs_first_uses_abs_over_existing_root(self) -> None:
@@ -1575,7 +1886,6 @@ class TestResolveSeriesPreserveExisting:
             series_position="1",
             asin="B000000001",
             year="2020",
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -1613,7 +1923,6 @@ class TestResolveSeriesPreserveExisting:
             series_position="1",
             asin="B000000001",
             year="2020",
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -1651,7 +1960,6 @@ class TestResolveSeriesPreserveExisting:
             series_position=None,
             asin="B000000001",
             year="2020",
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1673,6 +1981,198 @@ class TestResolveSeriesPreserveExisting:
         )
         # Must be None — "Author" is not a series
         assert series is None
+        assert changed is False
+
+    def test_article_consolidation_uses_abs_name(self) -> None:
+        """When existing_root='The Rising of the Shield Hero' and ABS says
+        'Rising of the Shield Hero', preserve_existing keeps the folder name."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import AbsMetadata, _resolve_series
+
+        source_dir = Path("/lib")
+        source_path = Path("/lib/Aneko Yusagi/The Rising of the Shield Hero/vol_05")
+
+        parsed = ParsedFolderName(
+            author="Aneko Yusagi",
+            title="vol_05",
+            series="The Rising of the Shield Hero",
+            series_position="5",
+            asin="B000SHIELD5",
+            year="2019",
+            ripper_tag=None,
+            is_standalone=False,
+        )
+        abs_meta = AbsMetadata(
+            title="The Rising of the Shield Hero Volume 05",
+            subtitle=None,
+            authors=["Aneko Yusagi"],
+            series="Rising of the Shield Hero",  # No "The"
+            series_position="5",
+            year=2019,
+            asin="B000SHIELD5",
+        )
+        series, changed = _resolve_series(
+            parsed=parsed,
+            abs_meta=abs_meta,
+            source_path=source_path,
+            source_dir=source_dir,
+            policy=self._make_policy("preserve_existing"),
+        )
+        # preserve_existing keeps the existing folder name
+        assert series == "The Rising of the Shield Hero"
+        # Not flagged as a risky move — just article normalisation
+        assert changed is False
+
+    def test_article_consolidation_reverse_direction(self) -> None:
+        """ABS has 'The' but folder doesn't — preserve_existing keeps folder name."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import AbsMetadata, _resolve_series
+
+        source_dir = Path("/lib")
+        source_path = Path("/lib/Author/Rising of the Shield Hero/vol_01")
+
+        parsed = ParsedFolderName(
+            author="Author",
+            title="vol_01",
+            series="Rising of the Shield Hero",
+            series_position="1",
+            asin="B000SHIELD1",
+            year="2018",
+            ripper_tag=None,
+            is_standalone=False,
+        )
+        abs_meta = AbsMetadata(
+            title="The Rising of the Shield Hero Volume 01",
+            subtitle=None,
+            authors=["Author"],
+            series="The Rising of the Shield Hero",  # ABS has "The"
+            series_position="1",
+            year=2018,
+            asin="B000SHIELD1",
+        )
+        series, changed = _resolve_series(
+            parsed=parsed,
+            abs_meta=abs_meta,
+            source_path=source_path,
+            source_dir=source_dir,
+            policy=self._make_policy("preserve_existing"),
+        )
+        # preserve_existing keeps the existing folder name
+        assert series == "Rising of the Shield Hero"
+        assert changed is False
+
+    def test_no_article_consolidation_when_genuinely_different(self) -> None:
+        """Series names differing by more than an article stay locked."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import AbsMetadata, _resolve_series
+
+        source_dir = Path("/lib")
+        source_path = Path("/lib/Author/Harry Potter/vol_01")
+
+        parsed = ParsedFolderName(
+            author="Author",
+            title="vol_01",
+            series="Harry Potter",
+            series_position="1",
+            asin="B0000HP001",
+            year="1997",
+            ripper_tag=None,
+            is_standalone=False,
+        )
+        abs_meta = AbsMetadata(
+            title="Philosopher's Stone",
+            subtitle=None,
+            authors=["Author"],
+            series="Wizarding World Collection",  # Genuinely different
+            series_position="1",
+            year=1997,
+            asin="B0000HP001",
+        )
+        series, changed = _resolve_series(
+            parsed=parsed,
+            abs_meta=abs_meta,
+            source_path=source_path,
+            source_dir=source_dir,
+            policy=self._make_policy("preserve_existing"),
+        )
+        # Must lock to existing folder, NOT adopt ABS
+        assert series == "Harry Potter"
+        assert changed is True  # flagged as ABS disagreement
+
+    def test_article_consolidation_only_in_preserve_existing(self) -> None:
+        """abs_first policy doesn't special-case articles — normal behavior."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import AbsMetadata, _resolve_series
+
+        source_dir = Path("/lib")
+        source_path = Path("/lib/Author/The Rising of the Shield Hero/vol_05")
+
+        parsed = ParsedFolderName(
+            author="Author",
+            title="vol_05",
+            series="The Rising of the Shield Hero",
+            series_position="5",
+            asin="B000SHIELD5",
+            year="2019",
+            ripper_tag=None,
+            is_standalone=False,
+        )
+        abs_meta = AbsMetadata(
+            title="Volume 05",
+            subtitle=None,
+            authors=["Author"],
+            series="Rising of the Shield Hero",
+            series_position="5",
+            year=2019,
+            asin="B000SHIELD5",
+        )
+        series, changed = _resolve_series(
+            parsed=parsed,
+            abs_meta=abs_meta,
+            source_path=source_path,
+            source_dir=source_dir,
+            policy=self._make_policy("abs_first"),
+        )
+        # abs_first always uses ABS, no special article logic
+        assert series == "Rising of the Shield Hero"
+        assert changed is True  # it IS different from existing root
+
+    def test_article_a_prefix_consolidation(self) -> None:
+        """Consolidation works with 'A' article prefix."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import AbsMetadata, _resolve_series
+
+        source_dir = Path("/lib")
+        source_path = Path("/lib/Author/A Court of Thorns and Roses/vol_01")
+
+        parsed = ParsedFolderName(
+            author="Author",
+            title="vol_01",
+            series="A Court of Thorns and Roses",
+            series_position="1",
+            asin="B000ACOTAR1",
+            year="2020",
+            ripper_tag=None,
+            is_standalone=False,
+        )
+        abs_meta = AbsMetadata(
+            title="A Court of Thorns and Roses",
+            subtitle=None,
+            authors=["Author"],
+            series="Court of Thorns and Roses",  # No "A"
+            series_position="1",
+            year=2020,
+            asin="B000ACOTAR1",
+        )
+        series, changed = _resolve_series(
+            parsed=parsed,
+            abs_meta=abs_meta,
+            source_path=source_path,
+            source_dir=source_dir,
+            policy=self._make_policy("preserve_existing"),
+        )
+        # preserve_existing keeps the existing folder name
+        assert series == "A Court of Thorns and Roses"
         assert changed is False
 
 
@@ -1708,7 +2208,6 @@ class TestSeriesSourceIntegration:
             series_position="1",
             asin="B0000HP001",
             year="1997",
-            narrator=None,
             ripper_tag="H2OKing",
             is_standalone=False,
         )
@@ -1770,7 +2269,6 @@ class TestSeriesSourceIntegration:
             series_position="1",
             asin="B0000HP001",
             year="1997",
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -1826,7 +2324,6 @@ class TestSeriesSourceIntegration:
             series_position=None,
             asin="B000000001",
             year="2020",
-            narrator=None,
             ripper_tag=None,
             is_standalone=True,
         )
@@ -1862,17 +2359,34 @@ class TestSeriesRootChangeRiskFlag:
     """Tests for series_root_change risk flag in plan output."""
 
     def test_risk_flag_in_derive_risk_flags(self) -> None:
-        """series_root_changed in components produces series_root_change flag."""
+        """series_root_changed in components produces series_root_change flag
+        only when the target parent directory actually differs from source."""
+        from shelfr.abs.rename import RenameCandidate, _derive_risk_flags
+
+        candidate = RenameCandidate(
+            source_path=Path("/lib/Author/OldSeries/Book"),
+            current_name="Book",
+            target_name="NewBook",
+            target_path=Path("/lib/Author/NewSeries/NewBook"),
+            components={"series_root_changed": True},
+        )
+        flags = _derive_risk_flags(candidate)
+        assert "series_root_change" in flags
+
+    def test_no_risk_flag_when_same_parent(self) -> None:
+        """No series_root_change flag when parent directory is unchanged,
+        even if components.series_root_changed is True (metadata noise)."""
         from shelfr.abs.rename import RenameCandidate, _derive_risk_flags
 
         candidate = RenameCandidate(
             source_path=Path("/lib/Author/Series/Book"),
             current_name="Book",
             target_name="NewBook",
+            target_path=Path("/lib/Author/Series/NewBook"),
             components={"series_root_changed": True},
         )
         flags = _derive_risk_flags(candidate)
-        assert "series_root_change" in flags
+        assert "series_root_change" not in flags
 
     def test_no_risk_flag_when_no_change(self) -> None:
         """No series_root_change flag when series root is preserved."""
@@ -1924,7 +2438,7 @@ class TestArcEditionTagStripping:
         assert _strip_edition_tags("Philosophers Stone (Full-Cast)") == "Philosophers Stone"
         assert _strip_edition_tags("Book (Dolby Atmos)") == "Book"
         assert _strip_edition_tags("Clean Title") == "Clean Title"
-        assert _strip_edition_tags("(Unabridged) Title (Abridged)") == "Title"
+        assert _strip_edition_tags("(Abridged) Title (Dolby Atmos)") == "Title"
 
 
 class TestConfigSchemaSeriesSource:
@@ -2055,7 +2569,6 @@ class TestLibationArcResolves:
             series_position=parsed_position,
             asin="B0D1CSXB3Z",
             year="2024",
-            narrator=None,
             ripper_tag=None,
             is_standalone=False,
         )
@@ -2126,3 +2639,268 @@ class TestLibationArcResolves:
         assert result.target_name.count("Harry Potter vol_04") == 1
         # The arc portion must appear
         assert "Goblet" in result.target_name
+
+
+class TestComputeTargetNameBugFixes:
+    """Regression tests for specific compute_target_name bug fixes."""
+
+    def test_standalone_vol_00_suppressed(self, tmp_path: Path) -> None:
+        """Bug 6: standalone book with ABS series_position=0 should NOT get vol_00."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import (
+            AbsMetadata,
+            RenameCandidate,
+            RenamePolicy,
+            compute_target_name,
+        )
+
+        source_dir = tmp_path / "lib"
+        source_dir.mkdir()
+        author_dir = source_dir / "Yoru Sumino"
+        author_dir.mkdir()
+        source = author_dir / "I Had That Same Dream Again"
+        source.mkdir()
+        (source / "audio.m4b").touch()
+
+        parsed = ParsedFolderName(
+            author="Yoru Sumino",
+            title="I Had That Same Dream Again",
+            series=None,
+            series_position=None,
+            asin="B0D1234567",
+            year="2020",
+            ripper_tag="H2OKing",
+            is_standalone=True,
+        )
+        candidate = RenameCandidate(
+            source_path=source,
+            current_name=source.name,
+            parsed=parsed,
+            abs_metadata=AbsMetadata(
+                title="I Had That Same Dream Again",
+                subtitle=None,
+                authors=["Yoru Sumino"],
+                series=None,
+                series_position="0",
+                year=2020,
+                asin="B0D1234567",
+            ),
+        )
+
+        policy = RenamePolicy(series_source="preserve_existing")
+        result = compute_target_name(candidate, source_dir=source_dir, policy=policy)
+        assert result.target_name is not None
+        assert "vol_00" not in result.target_name
+        assert "vol_0" not in result.target_name.split()
+
+    def test_standalone_vol_00_suppressed_pseudo_series(self, tmp_path: Path) -> None:
+        """Bug 6b: ABS pseudo-series (series == title) with pos=0 → no vol_00."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import (
+            AbsMetadata,
+            RenameCandidate,
+            RenamePolicy,
+            compute_target_name,
+        )
+
+        # source_dir should be the *author* directory (as CLI passes it
+        # via --source), NOT the library root.  When source_dir is the
+        # library root, _detect_series_root mis-identifies the author dir
+        # as a series root for depth-2 paths.
+        source_dir = tmp_path / "lib" / "Yoru Sumino"
+        source_dir.mkdir(parents=True)
+        source = source_dir / "I Had That Same Dream Again (2024)"
+        source.mkdir()
+        (source / "audio.m4b").touch()
+
+        parsed = ParsedFolderName(
+            author="Yoru Sumino",
+            title="I Had That Same Dream Again",
+            series=None,
+            series_position=None,
+            asin="B0D3G9F94G",
+            year="2024",
+            ripper_tag="H2OKing",
+            is_standalone=True,
+        )
+        candidate = RenameCandidate(
+            source_path=source,
+            current_name=source.name,
+            parsed=parsed,
+            abs_metadata=AbsMetadata(
+                title="I Had That Same Dream Again",
+                subtitle=None,
+                authors=["Yoru Sumino"],
+                # ABS assigns series = title (pseudo-series)
+                series="I Had That Same Dream Again",
+                series_position="0",
+                year=2024,
+                asin="B0D3G9F94G",
+            ),
+        )
+
+        policy = RenamePolicy(series_source="preserve_existing")
+        result = compute_target_name(candidate, source_dir=source_dir, policy=policy)
+        assert result.target_name is not None
+        assert "vol_00" not in result.target_name
+        # Should be treated as standalone — no series folder
+        assert result.components.get("series") is None or result.components["series"] == ""
+
+    def test_bracket_year_stripped_from_title(self, tmp_path: Path) -> None:
+        """Bug 3: [YYYY] in title should not cause doubled year."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import (
+            AbsMetadata,
+            RenameCandidate,
+            RenamePolicy,
+            compute_target_name,
+        )
+
+        source_dir = tmp_path / "lib"
+        source_dir.mkdir()
+        source = source_dir / "I Have a Secret [2025]"
+        source.mkdir()
+        (source / "audio.m4b").touch()
+
+        parsed = ParsedFolderName(
+            author="Yoru Sumino",
+            title="I Have a Secret [2025]",
+            series=None,
+            series_position=None,
+            asin="B0D9876543",
+            year="2025",
+            ripper_tag=None,
+            is_standalone=True,
+        )
+        candidate = RenameCandidate(
+            source_path=source,
+            current_name=source.name,
+            parsed=parsed,
+            abs_metadata=AbsMetadata(
+                title="I Have a Secret",
+                subtitle=None,
+                authors=["Yoru Sumino"],
+                series=None,
+                series_position=None,
+                year=2025,
+                asin="B0D9876543",
+            ),
+        )
+
+        policy = RenamePolicy(series_source="preserve_existing")
+        result = compute_target_name(candidate, source_dir=source_dir, policy=policy)
+        assert result.target_name is not None
+        # Must have year exactly once, not "[2025] (2025)"
+        assert "[2025]" not in result.target_name
+        assert result.target_name.count("(2025)") == 1
+
+    def test_arc_extracted_from_vol_prefixed_title(self, tmp_path: Path) -> None:
+        """Issue #2: DCC-style 'vol_02 - Carl's Doomsday Scenario' should populate arc."""
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import (
+            AbsMetadata,
+            RenameCandidate,
+            RenamePolicy,
+            compute_target_name,
+        )
+
+        source_dir = tmp_path / "lib" / "Matt Dinniman"
+        series_dir = source_dir / "Dungeon Crawler Carl"
+        series_dir.mkdir(parents=True)
+        source = series_dir / "Dungeon Crawler Carl - vol_02 - Carl's Doomsday Scenario [2021]"
+        source.mkdir()
+        (source / "audio.m4b").touch()
+
+        parsed = ParsedFolderName(
+            author="Dungeon Crawler Carl",
+            title="vol_02 - Carl's Doomsday Scenario",
+            series="Dungeon Crawler Carl",
+            series_position="02",
+            asin="B0934GTSGT",
+            year="2021",
+            ripper_tag=None,
+            is_standalone=False,
+        )
+        candidate = RenameCandidate(
+            source_path=source,
+            current_name=source.name,
+            parsed=parsed,
+            abs_metadata=AbsMetadata(
+                title="Carl's Doomsday Scenario",
+                subtitle=None,
+                authors=["Matt Dinniman"],
+                series="Dungeon Crawler Carl",
+                series_position="2",
+                year=2021,
+                asin="B0934GTSGT",
+            ),
+        )
+
+        policy = RenamePolicy(series_source="preserve_existing")
+        result = compute_target_name(candidate, source_dir=source_dir, policy=policy)
+        assert result.target_name is not None
+        # The subtitle "Carl's Doomsday Scenario" should appear as arc
+        assert "Doomsday Scenario" in result.target_name
+        # Volume prefix must NOT appear doubled
+        assert result.target_name.count("vol_02") == 1
+        # Arc should be in the components
+        assert result.components.get("arc") is not None
+
+    def test_arc_extracted_when_parsed_series_is_none(self, tmp_path: Path) -> None:
+        """DCC real-world: parser returns series=None when folder is 'Author - vol_XX - Subtitle'.
+
+        The resolved series comes from ABS metadata; the arc should still be
+        extracted from parsed.title via the vol-prefix stripping path.
+        """
+        from shelfr.abs.importer import ParsedFolderName
+        from shelfr.abs.rename import (
+            AbsMetadata,
+            RenameCandidate,
+            RenamePolicy,
+            compute_target_name,
+        )
+
+        source_dir = tmp_path / "lib" / "Matt Dinniman"
+        series_dir = source_dir / "Dungeon Crawler Carl"
+        series_dir.mkdir(parents=True)
+        source = series_dir / (
+            "Dungeon Crawler Carl - vol_02 - Carl's Doomsday Scenario"
+            " [2021] [Matt Dinniman] [ASIN.B0934GTSGT]"
+        )
+        source.mkdir()
+        (source / "audio.m4b").touch()
+
+        # Real-world: parse_mam_folder_name returns series=None for this format
+        parsed = ParsedFolderName(
+            author="Dungeon Crawler Carl",
+            title="vol_02 - Carl's Doomsday Scenario",
+            series=None,
+            series_position=None,
+            asin="B0934GTSGT",
+            year="2021",
+            ripper_tag="Matt Dinniman",
+            is_standalone=True,
+        )
+        candidate = RenameCandidate(
+            source_path=source,
+            current_name=source.name,
+            parsed=parsed,
+            abs_metadata=AbsMetadata(
+                title="Carl's Doomsday Scenario",
+                subtitle="Dungeon Crawler Carl, Book 2",
+                authors=["Matt Dinniman"],
+                series="Dungeon Crawler Carl",
+                series_position="2",
+                year=2021,
+                asin="B0934GTSGT",
+            ),
+        )
+
+        policy = RenamePolicy(series_source="preserve_existing")
+        result = compute_target_name(candidate, source_dir=source_dir, policy=policy)
+        assert result.target_name is not None
+        # Arc must be populated from parsed.title vol-prefix stripping
+        assert result.components.get("arc") is not None
+        assert "Doomsday Scenario" in (result.components["arc"] or "")
+        # Ensure it's not the series name masquerading as arc
+        assert "Dungeon Crawler Carl" not in (result.components["arc"] or "")

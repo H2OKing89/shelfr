@@ -232,9 +232,52 @@ class UnknownAsinContext:
         return self.file_count > 1
 
 
+# Known edition flags — these are NOT author/narrator names.
+# Matched case-insensitively.  For multi-word flags separated by
+# commas (e.g. "Full-Cast, Dolby Atmos"), each part is checked.
+_EDITION_FLAG_TOKENS: set[str] = {
+    "full-cast",
+    "full cast",
+    "dolby atmos",
+    "atmos",
+    "abridged",
+    "unabridged",
+    "dramatized",
+    "dramatized adaptation",
+    "graphic audio",
+    "graphic audio llc",
+    "publisher's pack",
+    "publishers pack",
+    "ait",
+    "ga",
+    "da",
+}
+
+
+def _is_edition_flag_content(content: str) -> bool:
+    """Return True if parenthetical content is an edition flag (not an author)."""
+    normed = content.strip().lower()
+    if normed in _EDITION_FLAG_TOKENS:
+        return True
+    # Check comma-separated parts: "Full-Cast, Dolby Atmos"
+    if "," in normed:
+        parts = [p.strip() for p in normed.split(",")]
+        return all(p in _EDITION_FLAG_TOKENS for p in parts if p)
+    return False
+
+
 @dataclass
 class ParsedFolderName:
-    """Parsed components from MAM-style folder name."""
+    """Parsed components from MAM-style folder name.
+
+    The MAM folder naming schema is::
+
+        {Series} vol_{NN} {Arc} ({Year}) ({Author}) {ASIN.xxxxx} [{Tag}]
+
+    The parenthetical person name is **always** the author — there is no
+    narrator in the folder/file name.  If narrator information is needed,
+    use external sources (Audnex API, MediaInfo sidecar, etc.).
+    """
 
     author: str
     title: str
@@ -242,17 +285,27 @@ class ParsedFolderName:
     series_position: str | None
     asin: str | None
     year: str | None
-    narrator: str | None
     ripper_tag: str | None
     is_standalone: bool  # True if no series info
+    edition_flags: list[str] = field(default_factory=list)
 
 
 def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
     """Parse MAM-compliant folder name into components.
 
-    Expected formats:
-    - Series: "Author - Series vol_NN - Title (YYYY) (Narrator) {ripper_tag} [ASIN.B0xxx]"
-    - Standalone: "Author - Title (YYYY) (Narrator) {ripper_tag} [ASIN.B0xxx]"
+    Expected formats (parenthetical author)::
+
+        Series vol_NN Arc (YYYY) (Author) {ASIN.B0xxx} [Tag]
+        Title (YYYY) (Author) {ASIN.B0xxx} [Tag]
+
+    Legacy format (dash-separated author, no parenthetical)::
+
+        Author - Series vol_NN - Title (YYYY) {ASIN.B0xxx}
+        Author - Title (YYYY) {ASIN.B0xxx}
+
+    When a parenthetical author is present it is **always** used as the
+    author.  The ``" - "`` separator is only treated as an author/title
+    boundary when there is no parenthetical author.
 
     Args:
         folder_name: Folder name to parse
@@ -276,55 +329,89 @@ def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
     # Collapse multiple spaces
     clean_folder = re.sub(r"\s{2,}", " ", clean_folder).strip()
 
-    # Extract components using patterns
-    # Pattern parts:
-    # - Author at start (before first " - ")
-    # - Optional series with vol_XX or #XX
-    # - Title
-    # - Optional year in parentheses
-    # - Optional narrator in parentheses
-    # - Optional ripper tag in braces
-    # - Optional ASIN in brackets
-
     # Strip ASIN markers from ANYWHERE in the string (not just end)
     # This handles cases like "Title {ASIN.B0xxx} [RipperTag]" where
     # ripper tag comes after ASIN
     clean_name = re.sub(r"\s*\{ASIN\.[A-Z0-9]+\}\s*", " ", clean_folder)
     clean_name = re.sub(r"\s*\[ASIN\.[A-Z0-9]+\]\s*", " ", clean_name)
     clean_name = re.sub(r"\s*\[B0[A-Z0-9]{8,9}\]\s*", " ", clean_name)
+    # Also strip malformed ASIN brackets: {ASIN.xxx] or [ASIN.xxx)
+    clean_name = re.sub(r"\s*\{ASIN\.[A-Z0-9]+\]\s*", " ", clean_name)
+    clean_name = re.sub(r"\s*\[ASIN\.[A-Z0-9]+\)\s*", " ", clean_name)
     # Collapse multiple spaces after ASIN removal
     clean_name = re.sub(r"\s{2,}", " ", clean_name).strip()
 
-    # Extract ripper tag if present - can be [Tag] or {Tag} format
+    # Extract ripper tag if present - can be [Tag], {Tag}, or {Tag] (malformed) format
     ripper_match = re.search(r"\[([^\]]+)\]\s*$", clean_name)
     if not ripper_match:
         ripper_match = re.search(r"\{([^}]+)\}\s*$", clean_name)
+    if not ripper_match:
+        # Handle malformed mixed-bracket tags like {H2OKing]
+        ripper_match = re.search(r"\{([^\]]+)\]\s*$", clean_name)
     ripper_tag = ripper_match.group(1) if ripper_match else None
     if ripper_match:
         clean_name = clean_name[: ripper_match.start()].strip()
 
-    # Extract narrator if present (e.g., (Narrator Name))
-    # This is typically the last parenthetical that's not a year
-    narrator = None
-    year = None
+    # Extract bracket-enclosed year [YYYY] (common in non-MAM folder names)
+    # Must happen AFTER ripper tag extraction to avoid misidentifying years
+    bracket_year_match = re.search(r"\[(\d{4})\]", clean_name)
+    bracket_year: str | None = None
+    if bracket_year_match:
+        bracket_year = bracket_year_match.group(1)
+        clean_name = (
+            clean_name[: bracket_year_match.start()] + clean_name[bracket_year_match.end() :]
+        )
+        clean_name = re.sub(r"\s{2,}", " ", clean_name).strip()
 
-    # Find all parentheticals from the end
+    # Strip any remaining bracket tokens — e.g. [Author Name],
+    # [Dramatized Adaptation], [GA].  By this point, [ASIN.*], [YYYY],
+    # and the trailing ripper-tag bracket have already been removed.
+    # In MAM / Libation folder conventions, all remaining brackets are
+    # metadata, not title text.
+    clean_name = re.sub(r"\s*\[[^\]]*\]", "", clean_name)
+    clean_name = re.sub(r"\s{2,}", " ", clean_name).strip()
+
+    # ── Extract parenthetical author ─────────────────────────────────
+    # Per the MAM naming schema the parenthetical person name is ALWAYS
+    # the author.  There is no narrator in the folder/file name.
+    # Mid-title parentheticals like "(White)" in "Nekomonogatari (White)
+    # Cat Tale" are preserved because they have significant text after them.
+    # Edition flags like "(Full-Cast)" are collected separately.
+    paren_author: str | None = None
+    year: str | None = None
+    edition_flags: list[str] = []
+
     paren_matches = list(re.finditer(r"\(([^)]+)\)", clean_name))
     for match in reversed(paren_matches):
         content = match.group(1)
         if re.match(r"^\d{4}$", content):
             year = content
-        elif narrator is None and not re.match(r"^\d{4}$", content):
-            narrator = content
-        if year and narrator:
+        elif _is_edition_flag_content(content):
+            edition_flags.append(content)
+        elif paren_author is None:
+            # Only treat as author if there is no significant text
+            # after this parenthetical (i.e. it's a trailing element).
+            # Edition flags that come after don't count as "significant".
+            after_paren = clean_name[match.end() :]
+            _after_stripped = after_paren
+            for ef in edition_flags:
+                _after_stripped = _after_stripped.replace(f"({ef})", "")
+            if re.search(r"\w", _after_stripped):
+                # Real text after this paren — it's mid-title, skip.
+                continue
+            paren_author = content
+        if year and paren_author:
             break
 
-    # Remove specific parentheticals by position (from end to preserve indices)
-    # Only remove the last occurrence of each to avoid unintended replacements
+    # Use bracket year as fallback when no parenthesised year found
+    if not year and bracket_year:
+        year = bracket_year
+
+    # ── Remove extracted parentheticals from clean_name ───────────────
     remove_spans: list[tuple[int, int]] = []
-    if narrator:
+    if paren_author:
         for match in reversed(paren_matches):
-            if match.group(1) == narrator:
+            if match.group(1) == paren_author:
                 remove_spans.append((match.start(), match.end()))
                 break
     if year:
@@ -332,63 +419,48 @@ def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
             if match.group(1) == year:
                 remove_spans.append((match.start(), match.end()))
                 break
-    # Remove spans from the string (sort by start, process from end to preserve indices)
+    _removed_ef: set[str] = set()
+    for ef in edition_flags:
+        if ef in _removed_ef:
+            continue
+        for match in reversed(paren_matches):
+            if match.group(1) == ef and (match.start(), match.end()) not in remove_spans:
+                remove_spans.append((match.start(), match.end()))
+                _removed_ef.add(ef)
+                break
     if remove_spans:
-        remove_spans.sort(reverse=True)  # Process from end first
+        remove_spans.sort(reverse=True)
         for start, end in remove_spans:
             clean_name = clean_name[:start] + clean_name[end:]
         clean_name = clean_name.strip()
 
-    # Split by " - " to get author and rest
-    parts = clean_name.split(" - ", 1)
-    if len(parts) < 2:
-        # No separator found - this is likely Libation format: "Title vol_XX ... "
-        # Try to extract series/volume from the title
-        title = clean_name
-
-        # Look for vol_XX or vol.XX pattern in title
-        vol_match = re.search(r"\bvol[_.]?\s*(\d+)\b", title, re.IGNORECASE)
-        if vol_match:
-            series_position = vol_match.group(1)
-            # Extract series name (everything before vol_XX pattern)
-            vol_pattern_match = re.search(
-                r"^(.+?)\s+(?:Vol\.?\s*\d+\s+)?vol[_.]?\s*\d+", title, re.IGNORECASE
-            )
-            if vol_pattern_match:
-                series = vol_pattern_match.group(1).strip()
-                # Clean "Vol. X" from series name if present
-                series = re.sub(r"\s+Vol\.?\s*\d+\s*$", "", series, flags=re.IGNORECASE)
-            else:
-                series = None
-            is_standalone = False
+    # ── Determine author and text to parse for series/title ──────────
+    # Rule: if a parenthetical author exists, it IS the author and the
+    # entire remaining clean_name is parsed for series/title.  The " - "
+    # separator (if any) is part of the series/title name, NOT an
+    # author boundary.
+    #
+    # Only when there is NO parenthetical author do we fall back to the
+    # legacy "Author - Rest" dash-separator format.
+    if paren_author:
+        author = paren_author
+        text_to_parse = clean_name
+    else:
+        parts = clean_name.split(" - ", 1)
+        if len(parts) >= 2:
+            author = parts[0].strip()
+            text_to_parse = parts[1].strip()
         else:
-            series = None
-            series_position = None
-            is_standalone = True
+            author = "Unknown"
+            text_to_parse = clean_name
 
-        # narrator field actually contains the author in Libation format
-        author = narrator if narrator else "Unknown"
-        narrator = None  # Reset narrator since it was misidentified
+    # ── Extract series / volume / title from text_to_parse ───────────
+    # Try strict patterns first, then looser fallbacks.
 
-        return ParsedFolderName(
-            author=author,
-            title=title,
-            series=series,
-            series_position=series_position,
-            asin=asin,
-            year=year,
-            narrator=narrator,
-            ripper_tag=ripper_tag,
-            is_standalone=is_standalone,
-        )
-
-    author = parts[0].strip()
-    rest = parts[1].strip()
-
-    # Check for series pattern: "Series vol_XX - Title" or "Series #XX - Title"
+    # Pattern 1: "Series vol_XX - Arc/Title" (volume with arc after dash)
     series_match = re.match(
         r"^(.+?)\s+(?:vol[_.]?|#)\s*(\d+(?:\.\d+)?)\s+-\s+(.+)$",
-        rest,
+        text_to_parse,
         re.IGNORECASE,
     )
 
@@ -398,11 +470,39 @@ def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
         title = series_match.group(3).strip()
         is_standalone = False
     else:
-        # No series pattern - treat rest as title
-        series = None
-        series_position = None
-        title = rest
-        is_standalone = True
+        # Pattern 2: "Series vol_XX" (no arc/title after volume)
+        vol_end_match = re.match(
+            r"^(.+?)\s+(?:vol[_.]?|#)\s*(\d+(?:\.\d+)?)\s*$",
+            text_to_parse,
+            re.IGNORECASE,
+        )
+        if vol_end_match:
+            series = vol_end_match.group(1).strip()
+            series_position = vol_end_match.group(2)
+            title = text_to_parse  # Keep full text for downstream
+            is_standalone = False
+        else:
+            # Pattern 3: vol_XX anywhere (loose fallback)
+            vol_match = re.search(r"\bvol[_.]?\s*(\d+(?:\.\d+)?)\b", text_to_parse, re.IGNORECASE)
+            if vol_match:
+                series_position = vol_match.group(1)
+                vol_pattern_match = re.search(
+                    r"^(.+?)\s+(?:Vol\.?\s*\d+\s+)?vol[_.]?\s*\d+",
+                    text_to_parse,
+                    re.IGNORECASE,
+                )
+                if vol_pattern_match:
+                    series = vol_pattern_match.group(1).strip()
+                    series = re.sub(r"\s+Vol\.?\s*\d+\s*$", "", series, flags=re.IGNORECASE)
+                else:
+                    series = None
+                title = text_to_parse
+                is_standalone = False
+            else:
+                series = None
+                series_position = None
+                title = text_to_parse
+                is_standalone = True
 
     return ParsedFolderName(
         author=author,
@@ -411,9 +511,9 @@ def parse_mam_folder_name(folder_name: str) -> ParsedFolderName:
         series_position=series_position,
         asin=asin,
         year=year,
-        narrator=narrator,
         ripper_tag=ripper_tag,
         is_standalone=is_standalone,
+        edition_flags=edition_flags,
     )
 
 
@@ -565,7 +665,7 @@ def build_clean_folder_name(parsed: ParsedFolderName) -> str:
         volume_number=parsed.series_position,
         arc=None,  # Arc is part of title for now
         year=parsed.year,
-        author=parsed.narrator or parsed.author,  # Use narrator if available
+        author=parsed.author,
         asin=parsed.asin,
         ripper_tag=parsed.ripper_tag,
         max_length=ABS_NO_PATH_LIMIT,  # No limit for personal library
@@ -596,7 +696,7 @@ def build_clean_file_name(parsed: ParsedFolderName, extension: str = ".m4b") -> 
         volume_number=parsed.series_position,
         arc=None,  # Arc is part of title for now
         year=parsed.year,
-        author=parsed.narrator or parsed.author,  # Use narrator if available
+        author=parsed.author,
         asin=parsed.asin,
         extension=extension,
         max_length=ABS_NO_PATH_LIMIT,  # No limit for personal library
@@ -1711,10 +1811,21 @@ def import_single(
                     logger.info("Trumping inconclusive: %s", trump_reason)
                     # trump_decision stays KEEP_BOTH → duplicate handling applies
 
+    # For duplicate_policy=overwrite, replace in-place at existing target path
+    # to avoid path drift when metadata enrichment changes naming components.
+    overwrite_target_path: Path | None = None
+
     # ─────────────────────────────────────────────────────────────────────
     # Standard duplicate handling (trumping may have already handled this)
     # ─────────────────────────────────────────────────────────────────────
     if is_dup:
+        if duplicate_policy == "overwrite":
+            if existing_folder_for_index is not None:
+                overwrite_target_path = existing_folder_for_index
+            elif existing_path:
+                overwrite_target_path = (
+                    path_mapper.to_host(existing_path) if path_mapper else Path(existing_path)
+                )
         result = _handle_duplicate(staging_folder, asin, existing_path, duplicate_policy, parsed)
         if result is not None:
             return result
@@ -1760,6 +1871,16 @@ def import_single(
             # The original duplicate check used the pre-normalization ASIN
             is_dup_normalized, existing_path_normalized = asin_exists(asin_index, asin)
             if is_dup_normalized:
+                if duplicate_policy == "overwrite":
+                    overwrite_target_path = (
+                        path_mapper.to_host(existing_path_normalized)
+                        if path_mapper and existing_path_normalized
+                        else (
+                            Path(existing_path_normalized)
+                            if existing_path_normalized is not None
+                            else overwrite_target_path
+                        )
+                    )
                 result = _handle_duplicate(
                     staging_folder,
                     asin,
@@ -1771,8 +1892,13 @@ def import_single(
                 if result is not None:
                     return result
 
-    # Build target path (preserves nested structure if present)
-    target_path = build_target_path(library_root, parsed, staging_folder, staging_root)
+    # Build target path (preserves nested structure if present).
+    # For overwrite duplicates, keep target locked to existing library location.
+    target_path = (
+        overwrite_target_path
+        if overwrite_target_path is not None
+        else build_target_path(library_root, parsed, staging_folder, staging_root)
+    )
     overwrite_backup_path: Path | None = None
 
     # Check if target already exists on disk

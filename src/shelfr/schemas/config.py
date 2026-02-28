@@ -603,6 +603,27 @@ class AudiobookshelfRenameSchema(BaseModel):
         ),
     )
     transaction_backup_root: str = Field(default="./data/reports/rename_backups")
+    ollama_enabled: bool = Field(
+        default=False,
+        description="Enable post-plan advisory Ollama audit",
+    )
+    ollama_model: str = Field(
+        default="llama3.1:8b-instruct-q4_K_M",
+        description="Pinned Ollama model tag for advisory audit",
+    )
+    ollama_endpoints: list[str] = Field(
+        default_factory=lambda: ["http://127.0.0.1:11434"],
+        description="Priority-ordered Ollama endpoint list",
+    )
+    ollama_timeout_seconds: int = Field(default=60, ge=1, le=600)
+    ollama_max_items: int = Field(default=200, ge=1, le=5000)
+    ollama_batch_size: int = Field(default=15, ge=1, le=200)
+    ollama_workers: int = Field(default=1, ge=1, le=32)
+    ollama_retry_count: int = Field(default=1, ge=0, le=10)
+    ollama_debug_dump_dir: str | None = Field(
+        default=None,
+        description="Optional directory for per-batch prompt/raw/parsed debug dumps",
+    )
 
     @field_validator("policy_profile")
     @classmethod
@@ -666,6 +687,44 @@ class AudiobookshelfRenameSchema(BaseModel):
         if not v or not v.strip():
             raise ValueError("transaction_backup_root cannot be empty")
         return v.rstrip("/")
+
+    @field_validator("ollama_model")
+    @classmethod
+    def validate_ollama_model(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("ollama_model cannot be empty")
+        return v.strip()
+
+    @field_validator("ollama_endpoints")
+    @classmethod
+    def validate_ollama_endpoints(cls, v: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for endpoint in v:
+            cleaned = endpoint.strip().rstrip("/")
+            if not cleaned:
+                continue
+            if not cleaned.startswith(("http://", "https://")):
+                raise ValueError(
+                    f"ollama_endpoints entry must start with http:// or https://, got: {cleaned}"
+                )
+            if cleaned in seen:
+                continue
+            normalized.append(cleaned)
+            seen.add(cleaned)
+        if not normalized:
+            raise ValueError("ollama_endpoints must include at least one endpoint")
+        return normalized
+
+    @field_validator("ollama_debug_dump_dir")
+    @classmethod
+    def validate_ollama_debug_dump_dir(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        cleaned = v.strip()
+        if not cleaned:
+            return None
+        return cleaned.rstrip("/")
 
 
 class AudiobookshelfSchema(BaseModel):

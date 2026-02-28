@@ -7,6 +7,7 @@ This document is the review and audit checklist for the reliability-first ABS re
 - importer rollback + per-run ASIN uniqueness hardening
 - canonical rename policy + hierarchy enforcement
 - deterministic `plan -> approve -> apply` workflow
+- optional post-plan distributed Ollama advisory audit
 - canary execution and transactional rollback behavior
 
 Audit baseline date: `2026-02-15`.
@@ -19,10 +20,12 @@ Code paths included in this audit:
 - `src/shelfr/abs/rename.py`
 - `src/shelfr/commands/abs/rename.py`
 - `src/shelfr/cli_argparse.py`
+- `src/shelfr/abs/rename_ollama_audit.py`
 - `src/shelfr/config.py`
 - `src/shelfr/schemas/config.py`
 - `tests/test_abs_importer.py`
 - `tests/test_abs_rename.py`
+- `tests/test_abs_rename_ollama_audit.py`
 - `tests/test_cli_abs.py`
 
 ## Locked Policy Decisions (Verification Targets)
@@ -63,6 +66,7 @@ Expected: all pass.
 pytest -q \
   tests/test_abs_importer.py \
   tests/test_abs_rename.py \
+  tests/test_abs_rename_ollama_audit.py \
   tests/test_cli_abs.py \
   tests/test_config.py \
   tests/test_config_schema.py
@@ -75,8 +79,10 @@ Expected: all pass.
 ```bash
 ruff check \
   src/shelfr/abs/rename.py \
+  src/shelfr/abs/rename_ollama_audit.py \
   src/shelfr/commands/abs/rename.py \
   tests/test_abs_rename.py \
+  tests/test_abs_rename_ollama_audit.py \
   tests/test_cli_abs.py
 ```
 
@@ -117,6 +123,20 @@ Expected: `All checks passed!`
 
 - `TestAbsRenameParser::test_abs_rename_plan_apply_canary_flags`
 - `TestAbsRenameParser::test_abs_rename_defaults`
+- `TestAbsRenameParser::test_abs_rename_ollama_flags_parse`
+- `TestAbsRenameOllamaResolution::test_cli_overrides_config_for_ollama_settings`
+- `TestAbsRenameOllamaResolution::test_config_used_when_cli_omits_ollama_settings`
+- `TestAbsRenameOllamaResolution::test_defaults_used_when_cli_and_config_missing`
+
+### Ollama advisory reliability
+
+- `test_plan_item_id_is_deterministic_when_missing`
+- `test_risk_score_sort_order_is_deterministic`
+- `test_generate_batch_rejects_duplicate_or_unknown_ids`
+- `test_sticky_primary_endpoint_routing`
+- `test_midrun_failover_sticks_to_secondary`
+- `test_model_missing_endpoint_is_skipped_and_counted`
+- `test_all_model_missing_is_unavailable_non_blocking`
 
 ## Operator Audit Workflow
 
@@ -134,7 +154,35 @@ Expected artifacts:
 - `data/reports/rename_plan_<timestamp>.json`
 - `data/reports/rename_plan_<timestamp>.html`
 
-### Phase B: Audit plan before approval
+### Phase B: Optional Ollama advisory review (non-blocking)
+
+Run this on plan generation by enabling advisory mode:
+
+```bash
+Shelfr abs-rename \
+  --source /mnt/user/data/audio/audiobooks \
+  --policy-profile sao_gold \
+  --plan-out data/reports/rename_plan_$(date +%Y%m%d_%H%M%S).json \
+  --ollama-audit \
+  --ollama-model llama3.1:8b-instruct-q4_K_M \
+  --ollama-endpoint http://<remote-3080ti>:11434 \
+  --ollama-endpoint http://127.0.0.1:11434 \
+  --ollama-endpoint http://<remote-3070ti>:11434
+```
+
+Expected advisory artifact:
+
+- explicit `--ollama-report-out` path, if provided
+- otherwise `data/reports/rename_plan_<timestamp>.llm_audit.json`
+
+Semantics:
+
+1. Advisory-only: report never mutates plan JSON or apply behavior.
+2. Non-blocking: endpoint/model/schema failures warn and do not fail planning.
+3. Deterministic input set: `status == "needs_rename"` with risk-score ordering.
+4. Sticky routing with ordered failover.
+
+### Phase C: Audit plan before approval
 
 Use the generated JSON report and verify:
 
@@ -155,7 +203,16 @@ jq '[.items[] | select((.components.ripper_tag // "") != "" and .components.ripp
 jq '[.items[] | select((.conformance.violations // []) | length > 0)] | length' data/reports/rename_plan_<timestamp>.json
 ```
 
-### Phase C: Canary apply (50, stratified)
+Optional Ollama advisory quick checks:
+
+```bash
+jq '.summary' data/reports/rename_plan_<timestamp>.llm_audit.json
+jq '.summary.endpoint_failures_by_reason' data/reports/rename_plan_<timestamp>.llm_audit.json
+jq '[.items[] | select(.audit_status != "ok")] | group_by(.audit_status) | map({status: .[0].audit_status, count: length})' data/reports/rename_plan_<timestamp>.llm_audit.json
+jq '.summary.endpoints_disabled_due_to_model_missing' data/reports/rename_plan_<timestamp>.llm_audit.json
+```
+
+### Phase D: Canary apply (50, stratified)
 
 ```bash
 Shelfr abs-rename \
@@ -185,7 +242,7 @@ jq '[.results[] | select(.status=="failed")] | length' data/reports/rename_apply
 jq '[.results[] | select((.rollback_ok // true) == false)] | length' data/reports/rename_apply_<timestamp>.json
 ```
 
-### Phase D: Full apply
+### Phase E: Full apply
 
 Run apply again without `--canary-size`.
 
