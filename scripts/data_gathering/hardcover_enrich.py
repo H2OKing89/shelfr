@@ -63,7 +63,7 @@ try:
 except ImportError as e:
     raise ImportError(
         "Cannot import from shelfr package. Please install in editable mode:\n"
-        "  cd /path/to/mam_tool && pip install -e .\n"
+        "  cd /path/to/shelfr && pip install -e .\n"
         "Or ensure the package is installed and PYTHONPATH is set correctly."
     ) from e
 

@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import argparse
 import logging
+from difflib import get_close_matches
 from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
+import click
 import typer
 import yaml
+from typer.core import TyperGroup
 
 from shelfr.console import console as shelfr_console
 from shelfr.utils.validation import validate_asin
@@ -29,6 +32,49 @@ ABS_COMMANDS = "Audiobookshelf"
 STATE_COMMANDS = "State Management"
 DIAG_COMMANDS = "Diagnostics"
 TOOLS_COMMANDS = "Tools"
+
+
+class ShelfrRootGroup(TyperGroup):
+    """Root CLI group with suggestions limited to visible modern commands."""
+
+    def _suggestion_candidates(self) -> list[str]:
+        """Collect suggestion targets from visible root and subcommands."""
+        candidates: list[str] = []
+        for command_name, command in self.commands.items():
+            if getattr(command, "hidden", False):
+                continue
+            candidates.append(command_name)
+
+            if isinstance(command, click.Group):
+                for subcommand_name, subcommand in command.commands.items():
+                    if getattr(subcommand, "hidden", False):
+                        continue
+                    candidates.append(f"{command_name} {subcommand_name}")
+
+        # Preserve declaration order while removing duplicates.
+        seen: set[str] = set()
+        unique_candidates: list[str] = []
+        for candidate in candidates:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            unique_candidates.append(candidate)
+        return unique_candidates
+
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, click.Command | None, list[str]]:
+        """Resolve command and offer suggestions without hidden aliases."""
+        try:
+            return click.Group.resolve_command(self, ctx, args)
+        except click.UsageError as exc:
+            if args:
+                matches = get_close_matches(args[0], self._suggestion_candidates(), n=3)
+                if matches:
+                    suggestions = ", ".join(repr(match) for match in matches)
+                    message = exc.message.rstrip(".")
+                    exc.message = f"{message}. Did you mean {suggestions}?"
+            raise
 
 
 # =============================================================================
@@ -168,6 +214,7 @@ def make_app() -> typer.Typer:
     """Create and configure the main Typer application."""
     return typer.Typer(
         name="shelfr",
+        cls=ShelfrRootGroup,
         help="Audiobook library automation - staging, metadata, uploads",
         epilog=MAIN_EPILOG,
         rich_markup_mode="rich",

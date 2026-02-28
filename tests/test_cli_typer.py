@@ -102,6 +102,38 @@ class TestGlobalOptions:
         assert result.exit_code == 0
 
 
+class TestCommandSuggestions:
+    """Test typo suggestion behavior for root commands."""
+
+    def test_import_suggests_modern_abs_import(self, runner: CliRunner) -> None:
+        """Root typo suggests modern subcommand and not deprecated alias."""
+        result = runner.invoke(app, ["import"])
+        assert result.exit_code != 0
+        assert "abs import" in result.output
+        assert "abs-import" not in result.output
+
+    def test_cleanup_suggests_modern_abs_cleanup(self, runner: CliRunner) -> None:
+        """Root typo suggests modern cleanup command and not old alias."""
+        result = runner.invoke(app, ["cleanup"])
+        assert result.exit_code != 0
+        assert "abs cleanup" in result.output
+        assert "abs-cleanup" not in result.output
+
+    def test_init_suggests_modern_abs_init(self, runner: CliRunner) -> None:
+        """Root typo avoids hidden aliases in suggestions."""
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code != 0
+        assert "abs init" in result.output
+        assert "abs-init" not in result.output
+        assert "'lint'" not in result.output
+
+    def test_runn_still_suggests_run(self, runner: CliRunner) -> None:
+        """Existing non-ABS typo suggestion still works."""
+        result = runner.invoke(app, ["runn"])
+        assert result.exit_code != 0
+        assert "'run'" in result.output
+
+
 class TestSubcommands:
     """Test subcommand structure."""
 

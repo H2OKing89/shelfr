@@ -199,7 +199,7 @@ def cmd_abs_resolve_asins(args: argparse.Namespace) -> int:
         print_info(f"Not found: {failed_count}")
 
         if resolved_count > 0 and args.write_sidecar:
-            print_success("Sidecar files written - run abs-import to move books")
+            print_success("Sidecar files written - run 'shelfr abs import' to move books")
 
     return 0
 

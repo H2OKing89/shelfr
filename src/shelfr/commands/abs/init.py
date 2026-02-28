@@ -136,10 +136,10 @@ def cmd_abs_init(args: argparse.Namespace) -> int:
         managed_libs = [lib for lib in abs_config.libraries if lib.shelfr_managed]
         if not managed_libs:
             print_info("Next: Add library IDs to config with shelfr_managed: true")
-            print_info("Then run: shelfr abs-import")
+            print_info("Then run: shelfr abs import")
         else:
             print_info(
-                f"Next: Run 'shelfr abs-import' to import staged books "
+                f"Next: Run 'shelfr abs import' to import staged books "
                 f"to {len(managed_libs)} managed library(ies)"
             )
 

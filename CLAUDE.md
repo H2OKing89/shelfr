@@ -75,7 +75,7 @@ This document provides AI assistants with essential context about the Shelfr cod
 ## Project Structure
 
 ```
-mam_tool/
+shelfr/
 ├── src/Shelfr/               # Main package
 │   ├── __init__.py           # Version: 0.1.0
 │   ├── cli.py                # Command-line interface (argparse)

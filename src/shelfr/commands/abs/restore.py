@@ -99,7 +99,7 @@ def cmd_abs_restore(args: argparse.Namespace) -> int:
             console.print()
 
         console.print("[dim]To restore, run:[/]")
-        console.print("  shelfr abs-restore <archive-path>")
+        console.print("  shelfr abs restore <archive-path>")
         return 0
 
     # Restore mode - restore specific archive

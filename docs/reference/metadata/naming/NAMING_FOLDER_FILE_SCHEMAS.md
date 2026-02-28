@@ -519,7 +519,7 @@ The series info appears once Audnex aggregation catches up (typically 1-2 weeks)
 
 ## SeriesInfo Model
 
-> **Status:** Planned implementation. See [GitHub Issue #23](https://github.com/H2OKing89/mam_tool/issues/23) for tracking.
+> **Status:** Planned implementation. See [GitHub Issue #23](https://github.com/H2OKing89/shelfr/issues/23) for tracking.
 
 ```python
 from dataclasses import dataclass
