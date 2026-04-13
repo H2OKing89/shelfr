@@ -50,7 +50,7 @@ dev = [
 tui = [
     "prompt_toolkit>=3.0.0",
     "pygments>=2.0.0",
-    "textual>=0.89.0",
+    "textual>=8.2.3",
 ]
 
 [project.scripts]
