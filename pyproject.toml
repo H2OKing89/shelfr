@@ -25,7 +25,7 @@ dependencies = [
     "tenacity>=8.0",
     "platformdirs>=4.0",
     # P1 upgrades: Better subprocess handling and type-safe config
-    "sh>=2.0",
+    "sh>=2.2.2",
     "pydantic-settings>=2.0",
     # CLI framework: Typer with Rich integration
     "typer>=0.12.0",
